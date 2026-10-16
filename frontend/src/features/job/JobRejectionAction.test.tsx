@@ -1,9 +1,10 @@
 import { act, screen, waitFor } from '@testing-library/react'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 
-import { jobJobsFinishRetrieveOptions } from '@/api'
+import { getFullJobOptions, jobJobsFinishRetrieveOptions } from '@/api'
 import { meQueryOptions } from '@/features/auth'
 import { emitConcurrencyRetry } from '@/lib/concurrency/retry-bus'
 import { autoId, queryAutoId } from '@/test/auto-id'
@@ -29,6 +30,11 @@ function balance(remaining: string) {
 
 async function waitForAction() {
   await waitFor(() => expect(autoId('JobView-rejection-action')).toBeInTheDocument())
+}
+
+function LiveAction() {
+  const { data } = useSuspenseQuery(getFullJobOptions({ path: { job_id: JOB_ID } }))
+  return <JobRejectionAction job={data.data.job} />
 }
 
 describe('job rejection', () => {
@@ -137,6 +143,47 @@ describe('job rejection', () => {
       before: { job_status: 'archived', rejected_flag: true },
       after: { job_status: 'draft', rejected_flag: false },
     })
+  })
+
+  it('reopens after a rejection refetch and repeated cancellation without remounting', async () => {
+    mockUser()
+    let current = job
+    let writes = 0
+    server.use(
+      http.get(JOB_URL, () => HttpResponse.json({ data: { job: current } })),
+      http.get(`${JOB_URL}finish/`, () => HttpResponse.json(balance('0.00'))),
+      http.patch(JOB_URL, () => {
+        writes += 1
+        current = {
+          ...current,
+          rejected_flag: writes === 1,
+          job_status: writes === 1 ? 'archived' : 'draft',
+        }
+        return HttpResponse.json({ success: true })
+      }),
+    )
+    const { user } = renderWithProviders(<LiveAction />)
+    await waitForAction()
+    await user.click(autoId('JobView-rejection-action'))
+    await waitFor(() => expect(autoId('JobView-rejection-action')).toHaveTextContent('Reopen job'))
+    const openAndCancel = async () => {
+      await user.click(autoId('JobView-rejection-action'))
+      await waitFor(() =>
+        expect(autoId('JobView-rejection-confirm')).toHaveTextContent('Reopen in Draft'),
+      )
+      await user.click(autoId('JobView-rejection-cancel'))
+      await waitFor(() => expect(queryAutoId('JobView-rejection-confirm')).toBeNull())
+      expect(autoId('JobView-rejection-action')).toHaveFocus()
+    }
+    await openAndCancel()
+    await openAndCancel()
+    await openAndCancel()
+    expect(writes).toBe(1)
+    await user.click(autoId('JobView-rejection-action'))
+    await user.click(autoId('JobView-rejection-confirm'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Job reopened in Draft'))
+    expect(writes).toBe(2)
+    expect(autoId('JobView-rejection-action')).toHaveTextContent('Reject job')
   })
 
   it('blocks submission on a failed balance read and offers a working retry', async () => {

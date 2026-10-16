@@ -11,7 +11,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { meQueryOptions } from '@/features/auth'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
@@ -31,6 +30,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const queryClient = useQueryClient()
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
+  const actionRef = useRef<HTMLButtonElement>(null)
   const busy = useRef(false)
   const { save, discardChanges } = useJobFieldSave(job.id, {
     onRetry: (fresh, changes) => {
@@ -115,94 +115,96 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
   const rejecting = state.phase === 'idle' ? !job.rejected_flag : state.reject
 
   return (
-    <Dialog
-      open={state.phase !== 'idle'}
-      onOpenChange={(open) => {
-        if (!open) cancel()
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant={job.rejected_flag ? 'outline' : 'destructive'}
-          size="sm"
-          data-automation-id="JobView-rejection-action"
-          disabled={state.phase !== 'idle'}
-          onClick={(event) => {
-            // GPT: The action owns opening; retain the trigger's focus restoration
-            // without letting its second toggle close a synchronous Reopen dialog.
-            event.preventDefault()
-            void prepare(job, !job.rejected_flag)
-          }}
-        >
-          {job.rejected_flag ? 'Reopen job' : 'Reject job'}
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        showCloseButton={!pending}
-        onEscapeKeyDown={(event) => {
-          if (pending) event.preventDefault()
-        }}
-        onInteractOutside={(event) => {
-          if (pending) event.preventDefault()
+    <>
+      <Button
+        ref={actionRef}
+        type="button"
+        variant={job.rejected_flag ? 'outline' : 'destructive'}
+        size="sm"
+        data-automation-id="JobView-rejection-action"
+        disabled={state.phase !== 'idle'}
+        onClick={() => void prepare(job, !job.rejected_flag)}
+      >
+        {job.rejected_flag ? 'Reopen job' : 'Reject job'}
+      </Button>
+      <Dialog
+        open={state.phase !== 'idle'}
+        onOpenChange={(open) => {
+          if (!open) cancel()
         }}
       >
-        <DialogHeader>
-          <DialogTitle>{rejecting ? 'Reject job' : 'Reopen job'}</DialogTitle>
-          <DialogDescription>
-            {rejecting
-              ? 'Rejecting this job moves it to Archived.'
-              : 'Clearing rejection moves this job back to Draft.'}
-          </DialogDescription>
-        </DialogHeader>
-        {state.phase === 'loading' ? (
-          <p role="status" className="text-sm">
-            Checking uninvoiced value…
-          </p>
-        ) : state.phase === 'saving' ? (
-          <p role="status" className="text-sm">
-            Saving…
-          </p>
-        ) : state.phase === 'confirm' && state.reject ? (
-          <p data-automation-id="JobView-rejection-warning" className="text-sm text-amber-800">
-            This job has {formatCurrency(state.remaining)} excluding GST still to be invoiced. Are
-            you sure you want to reject it?
-          </p>
-        ) : state.phase === 'error' ? (
-          <p role="alert" className="text-sm text-red-700">
-            {state.message}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            data-automation-id="JobView-rejection-cancel"
-            disabled={pending}
-            onClick={cancel}
-          >
-            Cancel
-          </Button>
-          {state.phase === 'confirm' ? (
-            <Button
-              type="button"
-              variant={state.reject ? 'destructive' : 'default'}
-              data-automation-id="JobView-rejection-confirm"
-              onClick={() => void submit(state.baseline, state.reject)}
-            >
-              {state.reject ? 'Reject job' : 'Reopen in Draft'}
-            </Button>
+        <DialogContent
+          showCloseButton={!pending}
+          onCloseAutoFocus={(event) => {
+            // GPT: Preflight and confirmation share one controlled dialog. A
+            // separate trigger toggle races its transitions, so return focus here.
+            event.preventDefault()
+            actionRef.current?.focus()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (pending) event.preventDefault()
+          }}
+          onInteractOutside={(event) => {
+            if (pending) event.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{rejecting ? 'Reject job' : 'Reopen job'}</DialogTitle>
+            <DialogDescription>
+              {rejecting
+                ? 'Rejecting this job moves it to Archived.'
+                : 'Clearing rejection moves this job back to Draft.'}
+            </DialogDescription>
+          </DialogHeader>
+          {state.phase === 'loading' ? (
+            <p role="status" className="text-sm">
+              Checking uninvoiced value…
+            </p>
+          ) : state.phase === 'saving' ? (
+            <p role="status" className="text-sm">
+              Saving…
+            </p>
+          ) : state.phase === 'confirm' && state.reject ? (
+            <p data-automation-id="JobView-rejection-warning" className="text-sm text-amber-800">
+              This job has {formatCurrency(state.remaining)} excluding GST still to be invoiced. Are
+              you sure you want to reject it?
+            </p>
           ) : state.phase === 'error' ? (
+            <p role="alert" className="text-sm text-red-700">
+              {state.message}
+            </p>
+          ) : null}
+          <DialogFooter>
             <Button
               type="button"
-              data-automation-id="JobView-rejection-retry"
-              onClick={() => void prepare(job, state.reject)}
+              variant="outline"
+              data-automation-id="JobView-rejection-cancel"
+              disabled={pending}
+              onClick={cancel}
             >
-              Try again
+              Cancel
             </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {state.phase === 'confirm' ? (
+              <Button
+                type="button"
+                variant={state.reject ? 'destructive' : 'default'}
+                data-automation-id="JobView-rejection-confirm"
+                onClick={() => void submit(state.baseline, state.reject)}
+              >
+                {state.reject ? 'Reject job' : 'Reopen in Draft'}
+              </Button>
+            ) : state.phase === 'error' ? (
+              <Button
+                type="button"
+                data-automation-id="JobView-rejection-retry"
+                onClick={() => void prepare(job, state.reject)}
+              >
+                Try again
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
