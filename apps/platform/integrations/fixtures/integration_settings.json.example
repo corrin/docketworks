@@ -4,6 +4,7 @@
     "pk": 1,
     "fields": {
       "google_maps_api_key": "YOUR_GOOGLE_MAPS_API_KEY",
+      "chatkit_domain_key": "YOUR_CHATKIT_DOMAIN_KEY",
       "phone_provider_enabled": false,
       "phone_provider_recording_deletion_enabled": false,
       "phone_provider_base_url": null,

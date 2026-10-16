@@ -56,18 +56,23 @@ function requireBackendEnvEntry(env: Record<string, string | undefined>, key: st
 }
 
 /**
- * All entries from the backend .env at the repo root, unparsed into any
- * shape — callers validate the specific keys they need (fail-early at the
- * point of use, where the error message can name the consumer).
+ * The backend's settings as Django reads them: the process environment over
+ * the backend .env, since load_dotenv never overrides a set variable. Unparsed
+ * into any shape — callers validate the specific keys they need (fail-early at
+ * the point of use, where the error message can name the consumer).
  */
-export function getBackendEnv(): Record<string, string> {
+export function getBackendEnv(): Record<string, string | undefined> {
   const backendEnvPath = resolveBackendEnvPath(getFrontendDir())
-  return dotenv.parse(fs.readFileSync(backendEnvPath, 'utf8'))
+  return { ...dotenv.parse(fs.readFileSync(backendEnvPath, 'utf8')), ...process.env }
 }
 
+/**
+ * The origin the browser uses: FRONT_END_URL, the same value the backend
+ * redirects to and builds its links from. A fake-Xero run_e2e.sh exports
+ * localhost; a workstation .env names its public tunnel, a server its FQDN.
+ */
 export function getApplicationUrl(): string {
-  const domain = requireBackendEnvEntry(getBackendEnv(), 'APP_DOMAIN')
-  return `https://${domain}`
+  return requireBackendEnvEntry(getBackendEnv(), 'FRONT_END_URL')
 }
 
 export function getDbConfig(): DbConfig {

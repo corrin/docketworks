@@ -53,10 +53,9 @@ Then:
 npm run test:e2e
 ```
 
-By default Playwright builds and serves the preview itself. If the "Start E2E Environment" task is
-already running, Playwright reuses that server (`reuseExistingServer` outside CI). To target a
-specific environment explicitly, set `E2E_BASE_URL` (e.g. your ngrok domain) — Playwright then skips
-starting its own server.
+Playwright starts nothing: it runs against the stack the "Start E2E Environment" task started,
+at `FRONT_END_URL` (your ngrok domain from `.env`). To target another origin, export
+`FRONT_END_URL` for the run; the harness reads the process environment over `.env`, as Django does.
 
 For an unattended full run after a coding session, use the repository-root command:
 
@@ -64,10 +63,12 @@ For an unattended full run after a coding session, use the repository-root comma
 ./scripts/ops/run_e2e.sh
 ```
 
-It refuses to run when :4173, :8000, ngrok's :4040, or another Playwright run is already active.
-Otherwise it runs `test:e2e:reset -- --confirm`, clears the old Playwright report/output, starts and
-waits for the same five services as the VS Code task, runs every E2E spec, and stops only its own
-process groups. Its exit status is the Playwright result; service logs are retained under
+It refuses to run when :4173, :8000, or another Playwright run is already active (and ngrok's :4040
+on a `--use-real-xero` run). Otherwise it runs `test:e2e:reset -- --confirm`, clears the old
+Playwright report/output, starts and waits for the frontend preview, Django, the Celery worker and
+Beat, runs every E2E spec, and stops only its own process groups. The default fake-Xero run serves
+the suite on `http://localhost:4173` with no tunnel; `--use-real-xero` also starts ngrok and runs
+through the public origin (ADR 0060). Its exit status is the Playwright result; service logs are retained under
 `logs/e2e/`. On a deployed instance the equivalent is `verify-instance.sh --e2e`
 ([server_setup.md](server_setup.md), ADR 0064), which needs no ngrok.
 

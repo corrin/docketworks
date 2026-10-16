@@ -320,12 +320,11 @@ def accounts_password_reset_create(
     recipient = _stored_email_matching(staff, Staff.objects.normalize_email(payload.email).strip())
     uid = urlsafe_base64_encode(force_bytes(staff.pk))
     token = default_token_generator.make_token(staff)
-    # Fable: host pinned to settings.APP_DOMAIN, NOT request.build_absolute_uri
+    # Fable: origin pinned to settings.FRONT_END_URL, NOT request.build_absolute_uri
     # — ALLOWED_HOSTS also accepts localhost, and USE_X_FORWARDED_HOST means an
     # anonymous caller could poison the victim's genuine reset email with a
     # dead localhost link via X-Forwarded-Host.
-    scheme = "https" if request.is_secure() else "http"
-    link = f"{scheme}://{settings.APP_DOMAIN}/reset-password?uid={uid}&token={token}"
+    link = f"{settings.FRONT_END_URL}/reset-password?uid={uid}&token={token}"
     send_password_reset_email_task.delay(recipient=recipient, link=link)
     logger.info("PASSWORD RESET EMAIL QUEUED - pk=%s", staff.pk)
     return PasswordResetResponse()
