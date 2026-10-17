@@ -162,7 +162,7 @@ def token_refresh(
     # not re-raised — a Staff record can disappear after token issue, so the
     # required outcome is clearing the credential and returning the fixed
     # anonymous 401 contract.
-    except (KeyError, ValueError, DjangoValidationError, Staff.DoesNotExist):
+    except KeyError, ValueError, DjangoValidationError, Staff.DoesNotExist:
         logger.info("JWT REFRESH FAILURE - token user is unavailable")
         clear_auth_cookies(response)
         return Status(401, auth_error("authentication_required"))
@@ -351,7 +351,7 @@ def accounts_password_reset_confirm_create(
     # deliberate-swallow: a garbled uid must be indistinguishable from an
     # unknown one — both are the fixed invalid-link refusal (ValueError also
     # covers UnicodeDecodeError: valid base64 decoding to invalid UTF-8).
-    except (ValueError, DjangoValidationError, Staff.DoesNotExist):
+    except ValueError, DjangoValidationError, Staff.DoesNotExist:
         logger.info("PASSWORD RESET CONFIRM REFUSED - undecodable or unknown uid")
         return Status(400, PasswordErrorOut(detail=INVALID_RESET_LINK_DETAIL))
     if not staff.is_currently_active or not default_token_generator.check_token(

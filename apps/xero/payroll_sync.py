@@ -254,7 +254,7 @@ def get_earnings_rates() -> list[dict[str, Any]]:
     return earnings_rates
 
 
-def pay_items_needing_relink(tenant_id: str) -> "QuerySet[XeroPayItem]":
+def pay_items_needing_relink(tenant_id: str) -> QuerySet[XeroPayItem]:
     """Referenced pay items that are not linked to the connected organisation.
 
     Referenced means a ``Job.default_xero_pay_item`` or a

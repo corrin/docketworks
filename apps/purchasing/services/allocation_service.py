@@ -77,7 +77,7 @@ class AllocationMetadata:
     location: str | None
 
     @classmethod
-    def resolve(cls, payload: Mapping[str, str], line: PurchaseOrderLine) -> "AllocationMetadata":
+    def resolve(cls, payload: Mapping[str, str], line: PurchaseOrderLine) -> AllocationMetadata:
         """Resolve the payload against ``line`` using the three-way rule."""
 
         def pick(key: str, line_value: str | None) -> str | None:
@@ -93,7 +93,7 @@ class AllocationMetadata:
         )
 
     @classmethod
-    def from_line(cls, line: PurchaseOrderLine) -> "AllocationMetadata":
+    def from_line(cls, line: PurchaseOrderLine) -> AllocationMetadata:
         """Inherit every field from the PO line (automatic allocation)."""
         return cls.resolve({}, line)
 

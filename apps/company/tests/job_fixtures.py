@@ -84,7 +84,7 @@ def seed_docketworks_prereqs() -> None:
     seed_pay_items()
 
 
-def ordinary_time_pay_item() -> "Model":
+def ordinary_time_pay_item() -> Model:
     """The default earnings rate, which every installation carries.
 
     Reads; never creates. ``seed_docketworks_prereqs`` has already run via the

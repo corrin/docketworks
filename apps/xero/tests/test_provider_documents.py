@@ -137,7 +137,7 @@ def _provider_with_api() -> tuple[XeroAccountingProvider, Mock]:
 
 
 @pytest.fixture(autouse=True)
-def _stop_patches() -> "Iterator[None]":
+def _stop_patches() -> Iterator[None]:
     yield
     patch.stopall()
 
@@ -566,7 +566,7 @@ class TestDownloadQuotePdf:
             quotes=[SimpleNamespace(quote_id=quote_id, branding_theme_id=theme_id)]
         )
 
-    def test_returns_document_with_theme_and_path(self, tmp_path: "Path") -> None:
+    def test_returns_document_with_theme_and_path(self, tmp_path: Path) -> None:
         provider, api = _provider_with_api()
         quote_id = str(uuid.uuid4())
         theme_id = str(uuid.uuid4())
@@ -588,7 +588,7 @@ class TestDownloadQuotePdf:
         with pytest.raises(ValueError, match="quote"):
             provider.download_quote_pdf(str(uuid.uuid4()))
 
-    def test_missing_pdf_file_raises(self, tmp_path: "Path") -> None:
+    def test_missing_pdf_file_raises(self, tmp_path: Path) -> None:
         provider, api = _provider_with_api()
         quote_id = str(uuid.uuid4())
         api.get_quote.return_value = self._quote_response(quote_id, None)

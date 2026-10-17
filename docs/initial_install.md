@@ -4,7 +4,7 @@ One-off dev-machine setup. These steps persist across restores.
 
 ## Install tools
 
-1. **Python 3.12** — exactly 3.12 (the project pins `>=3.12,<3.13`).
+1. **Python 3.14** — exactly 3.14 (the project pins `>=3.14,<3.15`). `uv sync` installs the pinned interpreter when needed; the OS Python can stay on its distro version.
 2. **[uv](https://docs.astral.sh/uv/)** — manages the Python environment and dependencies.
 3. **Node.js 22+ and npm** — the React frontend and Playwright E2E tests.
 4. **PostgreSQL 16+** — install and ensure it is running. Allow password auth over sockets for app
@@ -111,7 +111,7 @@ across the load.
 
 ## Troubleshooting
 
-1. **Dependencies** — rerun `uv sync`; check for errors. Confirm `uv run python --version` is 3.12.
+1. **Dependencies** — rerun `uv sync`; check for errors. Confirm `uv run python --version` is 3.14.
 2. **`.env`** — verify `SECRET_KEY`, `JWT_SIGNING_KEY`, and the `DB_*` values; `settings.py` names any missing variable.
 3. **Database** — is PostgreSQL running? Does the role/database exist and match `.env`?
 4. **Redis** — `redis-cli ping` should return `PONG`.

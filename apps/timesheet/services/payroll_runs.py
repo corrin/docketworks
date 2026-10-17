@@ -76,7 +76,7 @@ def run_key(connection_id: str) -> str:
     return f"{RUN_CACHE_PREFIX}{connection_id}"
 
 
-def write(connection_id: str, run: "PayrollPostRunOut") -> None:
+def write(connection_id: str, run: PayrollPostRunOut) -> None:
     """Store the run's current state and push it to every connected tab.
 
     Opus: Storing and publishing are one call because they are one fact. Splitting
@@ -94,7 +94,7 @@ def write(connection_id: str, run: "PayrollPostRunOut") -> None:
     _publish(connection_id)
 
 
-def _as_runs(stored: dict[str, Any] | None) -> "PayrollRunsOut":
+def _as_runs(stored: dict[str, Any] | None) -> PayrollRunsOut:
     """Rebuild the typed document from what the cache holds.
 
     Opus: Validated on the way out rather than trusted. The cache is the one place
@@ -111,14 +111,14 @@ def _as_runs(stored: dict[str, Any] | None) -> "PayrollRunsOut":
     return PayrollRunsOut(post=None if stored is None else PayrollPostRunOut(**stored))
 
 
-def read_runs(connection_id: str) -> "PayrollRunsOut":
+def read_runs(connection_id: str) -> PayrollRunsOut:
     """Every run this organisation has state for."""
     return _as_runs(_cache().get(run_key(connection_id)))
 
 
 def running(
-    connection_id: str, run_id: str, week_start_date: "date", *, total: int
-) -> "PayrollPostRunOut":
+    connection_id: str, run_id: str, week_start_date: date, *, total: int
+) -> PayrollPostRunOut:
     """Open a run's document and store it before any Xero call is made.
 
     Opus: Written by the REQUEST handler so the panel can render "0 of N"
@@ -152,13 +152,13 @@ def running(
 
 
 def with_result(
-    run: "PayrollPostRunOut",
+    run: PayrollPostRunOut,
     result: StaffWeekPostResult,
     *,
     completed: int,
     successful: int,
     failed: int,
-) -> "PayrollPostRunOut":
+) -> PayrollPostRunOut:
     """Fold one staff member's outcome into the run.
 
     Opus: `model_validate` off the frozen dataclass rather than a hand-written
@@ -180,8 +180,8 @@ def with_result(
 
 
 def finished(
-    run: "PayrollPostRunOut", status: str, *, message: str | None = None
-) -> "PayrollPostRunOut":
+    run: PayrollPostRunOut, status: str, *, message: str | None = None
+) -> PayrollPostRunOut:
     """Close a run, carrying any batch-level message verbatim (ADR 0038)."""
     return run.model_copy(
         update={"status": status, "message": message, "updated_at": timezone.now()}

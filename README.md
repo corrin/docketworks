@@ -12,7 +12,7 @@ Django 6 + django-ninja backend, React/Vite frontend, PostgreSQL, Redis, Celery.
 
 ## Requirements
 
-- **Python 3.12** (managed with [uv](https://docs.astral.sh/uv/))
+- **Python 3.14** (managed with [uv](https://docs.astral.sh/uv/))
 - **Node.js 22+** (frontend)
 - **PostgreSQL 16+**
 - **Redis** (Celery broker + Django cache)

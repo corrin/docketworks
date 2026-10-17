@@ -12,7 +12,7 @@ from django.apps import apps as django_apps
 from django.db import models
 
 
-def xero_model_manager(model_name: str) -> "models.Manager[models.Model]":
+def xero_model_manager(model_name: str) -> models.Manager[models.Model]:
     """Resolve a xero-app model's default manager through the app registry."""
     manager: models.Manager[models.Model] = django_apps.get_model(
         "xero", model_name

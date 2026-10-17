@@ -16,16 +16,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_providers: dict[str, "type[AccountingProvider]"] = {}
+_providers: dict[str, type[AccountingProvider]] = {}
 
 
-def register_provider(name: str, provider_class: "type[AccountingProvider]") -> None:
+def register_provider(name: str, provider_class: type[AccountingProvider]) -> None:
     """Register an accounting provider implementation."""
     _providers[name] = provider_class
     logger.debug("Registered accounting provider: %s", name)
 
 
-def get_provider() -> "AccountingProvider":
+def get_provider() -> AccountingProvider:
     """Return an instance of the configured accounting provider.
 
     The active backend is determined by CompanyDefaults.accounting_provider.

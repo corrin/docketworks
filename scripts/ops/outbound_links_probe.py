@@ -1135,7 +1135,7 @@ def _drive_error_reasons(exc: HttpError) -> set[str]:
         body = json.loads(exc.content.decode("utf-8"))
     # deliberate-swallow: a non-JSON body (an HTML error page from a proxy)
     # carries no reason codes, which the caller reports as such.
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return set()
     if not isinstance(body, dict) or not isinstance(body.get("error"), dict):
         return set()

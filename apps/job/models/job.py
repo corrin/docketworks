@@ -38,7 +38,7 @@ class JobQuerySet(models.QuerySet["Job"]):
     fields, use .untracked_update().
     """
 
-    def create(self, **kwargs: Any) -> "Job":
+    def create(self, **kwargs: Any) -> Job:
         """Create a Job, routing through save(staff=...) like every other path.
 
         Job.save() requires staff, so Manager.create()'s default implementation
@@ -751,7 +751,7 @@ class Job(models.Model):
 
         return getattr(self, field_mapping[kind], None)
 
-    def set_latest(self, kind: str, cost_set: CostSet, staff: "Staff") -> None:
+    def set_latest(self, kind: str, cost_set: CostSet, staff: Staff) -> None:
         """Update the latest-cost-set pointer and save.
 
         Args:
@@ -820,7 +820,7 @@ class Job(models.Model):
 
     def _detect_field_changes(
         self,
-        original_job: "Job",
+        original_job: Job,
         update_fields: Iterable[str] | None = None,
         *,
         track_priority: bool = False,
@@ -898,7 +898,7 @@ class Job(models.Model):
         changes_after: dict[str, JsonScalar],
         detail_changes: list[dict[str, str]],
         event_types: list[str],
-        staff: "Staff",
+        staff: Staff,
         enrichment: dict[str, Any],
     ) -> None:
         """Create the single JobEvent for a batch of detected field changes."""
@@ -1001,7 +1001,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_status_change(
-        _self_job: "Job", old_status: str, new_status: str
+        _self_job: Job, old_status: str, new_status: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(Job.JOB_STATUS_CHOICES).get(old_status, old_status)
         new_display = dict(Job.JOB_STATUS_CHOICES).get(new_status, new_status)
@@ -1016,7 +1016,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_company_change(
-        self_job: "Job", old_company_id: uuid.UUID | None, new_company_id: uuid.UUID | None
+        self_job: Job, old_company_id: uuid.UUID | None, new_company_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         # Future home: apps.company.models.Company (not yet ported to v2).
         from apps.company.models import Company  # noqa: PLC0415
@@ -1042,7 +1042,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_person_change(
-        self_job: "Job", old_person_id: uuid.UUID | None, new_person_id: uuid.UUID | None
+        self_job: Job, old_person_id: uuid.UUID | None, new_person_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         old_person = "None"
         new_person = "None"
@@ -1068,7 +1068,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_xero_pay_item_change(
-        self_job: "Job", old_pay_item_id: uuid.UUID | None, new_pay_item_id: uuid.UUID | None
+        self_job: Job, old_pay_item_id: uuid.UUID | None, new_pay_item_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         # Future home: apps.xero.models.XeroPayItem (v1: apps.workflow.models;
         # not yet ported to v2).
@@ -1098,11 +1098,11 @@ class Job(models.Model):
     @staticmethod
     def _handle_text_field_change(
         event_type: str, field_display_name: str
-    ) -> "Callable[[Job, str | None, str | None], tuple[str, dict[str, str]] | None]":
+    ) -> Callable[[Job, str | None, str | None], tuple[str, dict[str, str]] | None]:
         """Return a handler for text field changes (factory)."""
 
         def handler(
-            _self_job: "Job", old_value: str | None, new_value: str | None
+            _self_job: Job, old_value: str | None, new_value: str | None
         ) -> tuple[str, dict[str, str]] | None:
             if old_value or new_value:
                 return (
@@ -1120,11 +1120,11 @@ class Job(models.Model):
     @staticmethod
     def _handle_date_change(
         event_type: str, field_display_name: str
-    ) -> "Callable[[Job, date | None, date | None], tuple[str, dict[str, str]]]":
+    ) -> Callable[[Job, date | None, date | None], tuple[str, dict[str, str]]]:
         """Return a handler for date field changes (factory)."""
 
         def handler(
-            _self_job: "Job", old_date: date | None, new_date: date | None
+            _self_job: Job, old_date: date | None, new_date: date | None
         ) -> tuple[str, dict[str, str]]:
             old_str = old_date.strftime("%Y-%m-%d") if old_date else "None"
             new_str = new_date.strftime("%Y-%m-%d") if new_date else "None"
@@ -1141,7 +1141,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_quote_acceptance_change(
-        _self_job: "Job", old_date: datetime | None, new_date: datetime | None
+        _self_job: Job, old_date: datetime | None, new_date: datetime | None
     ) -> tuple[str, dict[str, str]] | None:
         if not old_date and new_date:
             return (
@@ -1165,7 +1165,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_pricing_methodology_change(
-        _self_job: "Job", old_method: str, new_method: str
+        _self_job: Job, old_method: str, new_method: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(Job.PRICING_METHODOLOGY_CHOICES).get(old_method, old_method)
         new_display = dict(Job.PRICING_METHODOLOGY_CHOICES).get(new_method, new_method)
@@ -1180,7 +1180,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_speed_quality_tradeoff_change(
-        _self_job: "Job", old_tradeoff: str, new_tradeoff: str
+        _self_job: Job, old_tradeoff: str, new_tradeoff: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(SpeedQualityTradeoff.choices).get(old_tradeoff, old_tradeoff)
         new_display = dict(SpeedQualityTradeoff.choices).get(new_tradeoff, new_tradeoff)
@@ -1195,7 +1195,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_rdti_type_change(
-        _self_job: "Job", old_type: str | None, new_type: str | None
+        _self_job: Job, old_type: str | None, new_type: str | None
     ) -> tuple[str, dict[str, str]]:
         # Equivalent to v1's `.get(old_type, old_type or "None")`: a falsy key
         # can never be in choices, so it always resolved to "None".

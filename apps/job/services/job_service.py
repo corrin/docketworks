@@ -121,7 +121,7 @@ class JobDeltaPayload:
     current_values: dict[str, object] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, object]) -> "JobDeltaPayload":
+    def from_dict(cls, payload: Mapping[str, object]) -> JobDeltaPayload:
         """Build a payload from a JSON mapping, failing early on bad structure."""
         required_keys = {"change_id", "fields", "before", "after", "before_checksum"}
         missing = required_keys - payload.keys()
@@ -1064,7 +1064,7 @@ def _safe_uuid(value: object) -> UUID | None:
     # deliberate-swallow: this path is reached only by a MALFORMED id — absence
     # already returned above — and an unparseable id is not a valid one, which
     # is precisely what None reports to the caller
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 

@@ -37,7 +37,7 @@ def authenticate_stream_request(
     # propagates to the error-persisting layer instead of masquerading as a
     # quiet 401 (the blanket catch this narrows was inherited from the
     # pre-hoist views).
-    except (AuthenticationError, AuthorizationError):
+    except AuthenticationError, AuthorizationError:
         user = None
     # deliberate-swallow: converted to the same typed 403 the envelope emits
     # for ninja routes — these plain-Django streams sit outside it, a flagged

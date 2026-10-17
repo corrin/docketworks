@@ -24,7 +24,7 @@ class InventoryBalance(TypedDict):
     ledger_quantity: Decimal
 
 
-def inventory_balances() -> QuerySet["WithAnnotations[Stock, InventoryBalance]"]:
+def inventory_balances() -> QuerySet[WithAnnotations[Stock, InventoryBalance]]:
     """Project every identity, including empty and retired identities, in one query."""
     return Stock.objects.annotate(
         ledger_quantity=Sum("movements__quantity_change", default=Decimal("0"))

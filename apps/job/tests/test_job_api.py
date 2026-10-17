@@ -436,9 +436,7 @@ class TestJobHeader:
 
 
 class TestJobEvents:
-    def _post_event(
-        self, client: Client, job: Job, description: str
-    ) -> "_MonkeyPatchedWSGIResponse":
+    def _post_event(self, client: Client, job: Job, description: str) -> _MonkeyPatchedWSGIResponse:
         return client.post(
             f"/api/job/jobs/{job.id}/events/create/",
             data={"description": description},
@@ -794,7 +792,7 @@ class TestJobPdfEndpoints:
         with override_settings(DROPBOX_WORKFLOW_FOLDER=str(folder)):
             yield folder
 
-    def _pdf_bytes(self, response: "_MonkeyPatchedWSGIResponse") -> bytes:
+    def _pdf_bytes(self, response: _MonkeyPatchedWSGIResponse) -> bytes:
         return b"".join(cast("Iterator[bytes]", cast("FileResponse", response).streaming_content))
 
     def test_the_workshop_pdf_opens_inline_for_printing(self, client: Client, job: Job) -> None:

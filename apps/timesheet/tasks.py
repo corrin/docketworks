@@ -203,7 +203,7 @@ def post_payroll_week_task(
 
 
 def _close_run_if_owned(
-    connection_id: str, run_id: str, build_document: "Callable[[], PayrollPostRunOut]"
+    connection_id: str, run_id: str, build_document: Callable[[], PayrollPostRunOut]
 ) -> None:
     """Write a terminal document only under a proven (or safely re-taken) claim.
 
@@ -225,7 +225,7 @@ def _close_run_if_owned(
 
 
 def _after_post_mirror_refresh(
-    provider: "AccountingProvider", connection_id: str, run_id: str, week_start_date: str
+    provider: AccountingProvider, connection_id: str, run_id: str, week_start_date: str
 ) -> None:
     """Best-effort follow-ups after a successful post: mirror now, slips later.
 

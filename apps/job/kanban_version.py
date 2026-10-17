@@ -23,7 +23,7 @@ class KanbanDatasetVersion:
         updated_at: datetime | None,
         created_at: datetime | None,
         count: int,
-    ) -> "KanbanDatasetVersion":
+    ) -> KanbanDatasetVersion:
         """Build a version from raw values, validating awareness and count."""
         if count < 0:
             raise ValueError("Kanban version count cannot be negative")
@@ -45,7 +45,7 @@ class KanbanDatasetVersion:
         return f"{updated}|{created}|{self.count}"
 
     @classmethod
-    def decode(cls, value: str) -> "KanbanDatasetVersion":
+    def decode(cls, value: str) -> KanbanDatasetVersion:
         """Decode and validate a previously emitted version."""
         try:
             updated_value, created_value, count_value = value.split("|")

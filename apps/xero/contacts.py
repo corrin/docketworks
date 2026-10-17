@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def contact_from_company(company: "Company") -> Contact:
+def contact_from_company(company: Company) -> Contact:
     """Build the SDK Contact for a company.
 
     Lives here, not on the Company model: ADR 0012 keeps xero_python types
@@ -61,7 +61,7 @@ def contact_from_company(company: "Company") -> Contact:
     )
 
 
-def create_company_contact_in_xero(company: "Company") -> str:
+def create_company_contact_in_xero(company: Company) -> str:
     """Create the company as a Xero contact; returns the new xero_contact_id."""
     if not company.validate_for_xero():
         raise ValueError(f"Company {company.id} failed Xero validation")
@@ -117,7 +117,7 @@ def archive_contacts_in_xero(contact_ids: Sequence[str]) -> ArchiveOutcome:
     tenant_id = get_tenant_id()
     archived: list[str] = []
     refused: dict[str, str] = {}
-    for batch in batched(contact_ids, XERO_BATCH_SIZE):
+    for batch in batched(contact_ids, XERO_BATCH_SIZE, strict=False):
         response = accounting_api.update_or_create_contacts(
             tenant_id,
             contacts={
@@ -148,7 +148,7 @@ def archive_contacts_in_xero(contact_ids: Sequence[str]) -> ArchiveOutcome:
     return ArchiveOutcome(archived=tuple(archived), refused=refused)
 
 
-def sync_company_to_xero(company: "Company") -> None:
+def sync_company_to_xero(company: Company) -> None:
     """Push the company to Xero: update its contact, or create one if unlinked."""
     if not company.validate_for_xero():
         raise ValueError(f"Company {company.id} failed Xero validation")

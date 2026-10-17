@@ -80,7 +80,7 @@ def make_entry(form: Form, **overrides: object) -> FormEntry:
     return FormEntry.objects.create(**defaults)
 
 
-def create(client: Client, form_id: object, **overrides: object) -> "_MonkeyPatchedWSGIResponse":
+def create(client: Client, form_id: object, **overrides: object) -> _MonkeyPatchedWSGIResponse:
     payload: dict[str, object] = {"entry_date": "2026-08-25", "data": {"area": "Bay 1"}}
     payload.update(overrides)
     return client.post(
@@ -88,7 +88,7 @@ def create(client: Client, form_id: object, **overrides: object) -> "_MonkeyPatc
     )
 
 
-def patch(client: Client, entry_id: object, **fields: object) -> "_MonkeyPatchedWSGIResponse":
+def patch(client: Client, entry_id: object, **fields: object) -> _MonkeyPatchedWSGIResponse:
     return client.patch(
         ENTRY_DETAIL_URL.format(id=entry_id), data=fields, content_type="application/json"
     )

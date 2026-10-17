@@ -58,7 +58,7 @@ def _event(
 
 def _post(
     client: Client, body: bytes, *, signature: str | None = None
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     """POST the raw body with an X-Xero-Signature header (default: a valid one)."""
     return client.post(
         WEBHOOK_URL,

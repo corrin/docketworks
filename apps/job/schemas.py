@@ -474,17 +474,17 @@ class JobDeltaRejectionOut(Schema):
     staff_email: str | None
 
     @staticmethod
-    def resolve_job_name(obj: "JobDeltaRejection") -> str | None:
+    def resolve_job_name(obj: JobDeltaRejection) -> str | None:
         """Return the rejected job's name, when the job still exists."""
         return obj.job.name if obj.job else None
 
     @staticmethod
-    def resolve_staff_email(obj: "JobDeltaRejection") -> str | None:
+    def resolve_staff_email(obj: JobDeltaRejection) -> str | None:
         """Return the submitting staff member's email, when known."""
         return obj.staff.office_email if obj.staff else None
 
     @staticmethod
-    def resolve_detail(obj: "JobDeltaRejection") -> object:
+    def resolve_detail(obj: JobDeltaRejection) -> object:
         """Parse JSON text when possible while preserving non-JSON forensic detail."""
         raw = obj.detail or ""
         if not raw:

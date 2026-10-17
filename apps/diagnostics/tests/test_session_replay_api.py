@@ -51,7 +51,7 @@ def _open_recording(api: Client) -> str:
 
 def _upload_chunk(
     api: Client, recording_id: str, *, sequence: int = 0
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return api.post(
         f"/api/session-replays/recordings/{recording_id}/chunks/",
         data={

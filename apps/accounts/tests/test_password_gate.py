@@ -57,7 +57,7 @@ def logged_in_client(staff: Staff) -> Client:
     return client
 
 
-def change(client: Client, current: str, new: str) -> "_MonkeyPatchedWSGIResponse":
+def change(client: Client, current: str, new: str) -> _MonkeyPatchedWSGIResponse:
     return client.post(
         CHANGE_PATH,
         data={"current_password": current, "new_password": new},

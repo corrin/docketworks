@@ -115,10 +115,10 @@ class _PayRunRow(Protocol):
 class _PayRunQuery(Protocol):
     """The queryset surface the hours extraction needs."""
 
-    def prefetch_related(self, *names: str) -> "_PayRunQuery":
+    def prefetch_related(self, *names: str) -> _PayRunQuery:
         """Return the rows with the named relations prefetched."""
 
-    def order_by(self, *fields: str) -> "_PayRunQuery":
+    def order_by(self, *fields: str) -> _PayRunQuery:
         """Return the rows re-ordered by the given fields."""
 
     def __iter__(self) -> Iterator[_PayRunRow]:

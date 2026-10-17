@@ -51,7 +51,7 @@ class BaseXeroInvoiceDocument(models.Model):
     if TYPE_CHECKING:
         # Reverse manager declared on each concrete subclass's line-item FK
         # (related_name="line_items"); declared here so total_amount type-checks.
-        line_items: "RelatedManager[BaseLineItem]"
+        line_items: RelatedManager[BaseLineItem]
 
     class Meta:
         abstract = True
@@ -152,12 +152,12 @@ class Bill(BaseXeroInvoiceDocument):
         ]
 
     @property
-    def supplier(self) -> "Company":
+    def supplier(self) -> Company:
         """Return the company as 'supplier' for bills."""
         return self.company
 
     @supplier.setter
-    def supplier(self, value: "Company") -> None:
+    def supplier(self, value: Company) -> None:
         self.company = value
 
 
