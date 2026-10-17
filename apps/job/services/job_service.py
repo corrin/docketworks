@@ -1758,7 +1758,18 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
     raw_fields = meta.get("fields") or list(event.delta_before.keys())
     if not raw_fields:
         raise ValueError("Event metadata missing target fields for undo")
-    fields = [str(field_name) for field_name in raw_fields]
+    # GPT: Events store model attribute names; the delta protocol names status
+    # job_status. Reverse only the requested fields, not incidental model changes.
+    wire_names = {attribute: wire for wire, attribute in _FIELD_ATTRIBUTE_MAP.items()}
+    fields = [wire_names.get(str(field_name), str(field_name)) for field_name in raw_fields]
+    before = {
+        field_name: event.delta_before[_FIELD_ATTRIBUTE_MAP.get(field_name, field_name)]
+        for field_name in fields
+    }
+    after = {
+        field_name: event.delta_after[_FIELD_ATTRIBUTE_MAP.get(field_name, field_name)]
+        for field_name in fields
+    }
 
     current_values: dict[str, object] = {
         field_name: _get_job_field_value(job, field_name) for field_name in fields
@@ -1767,8 +1778,7 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
     mismatch_fields = [
         field_name
         for field_name in fields
-        if normalise_value(current_values[field_name])
-        != normalise_value(event.delta_after.get(field_name))
+        if normalise_value(current_values[field_name]) != normalise_value(after[field_name])
     ]
 
     if mismatch_fields:
@@ -1797,7 +1807,7 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
         "job_id": str(job.id),
         "fields": fields,
         "before": current_values,
-        "after": event.delta_before,
+        "after": before,
         "before_checksum": checksum,
         "actor_id": str(user.id),
         "made_at": timezone.now().isoformat(),

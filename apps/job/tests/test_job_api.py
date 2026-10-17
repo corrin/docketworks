@@ -41,16 +41,20 @@ def _get_etag(client: Client, job: Job) -> str:
     return etag
 
 
-def _envelope(job: Job, field: str, after: object) -> dict[str, object]:
+def _envelope(
+    job: Job, field: str, after: object, **additional_changes: object
+) -> dict[str, object]:
     job.refresh_from_db()
-    before = getattr(job, "status" if field == "job_status" else field)
+    changes = {field: after, **additional_changes}
+    fields = sorted(changes)
+    before = {name: getattr(job, "status" if name == "job_status" else name) for name in fields}
     return {
         "change_id": str(uuid4()),
         "job_id": str(job.id),
-        "fields": [field],
-        "before": {field: before},
-        "after": {field: after},
-        "before_checksum": compute_job_delta_checksum(job.id, {field: before}, [field]),
+        "fields": fields,
+        "before": before,
+        "after": changes,
+        "before_checksum": compute_job_delta_checksum(job.id, before, fields),
     }
 
 
@@ -233,6 +237,158 @@ class TestUpdateJob:
         )
         # ninja request validation rejects the missing envelope fields
         assert response.status_code == 422
+
+
+class TestJobRejection:
+    @pytest.mark.parametrize("status", ["draft", "in_progress", "recently_completed"])
+    def test_rejection_archives_and_reopening_returns_to_draft(
+        self, api: Client, job: Job, office_staff: Staff, workshop_staff: Staff, status: str
+    ) -> None:
+        job.status = status
+        job.save(staff=office_staff)
+        job.people.add(workshop_staff)
+        initial_events = job.events.count()
+        payload = _envelope(job, "rejected_flag", True, job_status="archived")
+        rejected = api.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=payload,
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(api, job),
+        )
+        assert rejected.status_code == 200, rejected.content
+        job.refresh_from_db()
+        assert job.status == "archived"
+        assert job.rejected_flag is True
+        assert job.completed_at is not None
+        assert not job.people.exists()
+        assert job.events.count() == initial_events + 1
+        event = job.events.get(change_id=str(payload["change_id"]))
+        assert event.event_type == "job_rejected"
+        assert "Job marked as rejected" in event.description
+        assert event.delta_before == {"status": status, "rejected_flag": False}
+        assert event.delta_after == {"status": "archived", "rejected_flag": True}
+
+        reopened = api.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=_envelope(job, "rejected_flag", False, job_status="draft"),
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(api, job),
+        )
+        assert reopened.status_code == 200, reopened.content
+        job.refresh_from_db()
+        assert job.status == "draft"
+        assert job.rejected_flag is False
+        assert job.completed_at is None
+        assert not job.people.exists()
+        assert job.events.count() == initial_events + 2
+        assert "Rejection cleared" in job.events.latest("timestamp").description
+
+    def test_rejecting_an_archived_job_records_the_rejection(
+        self, api: Client, job: Job, office_staff: Staff
+    ) -> None:
+        job.status = "archived"
+        job.save(staff=office_staff)
+        payload = _envelope(job, "rejected_flag", True)
+        response = api.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=payload,
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(api, job),
+        )
+        assert response.status_code == 200, response.content
+        event = job.events.get(change_id=str(payload["change_id"]))
+        assert event.event_type == "job_rejected"
+        assert event.description == "Job marked as rejected"
+
+    @pytest.mark.parametrize("refusal", ["missing_version", "stale_version", "invalid_status"])
+    def test_refusal_preserves_both_fields_and_assignments(
+        self, api: Client, job: Job, workshop_staff: Staff, refusal: str
+    ) -> None:
+        job.people.add(workshop_staff)
+        initial_events = job.events.count()
+        status = "invalid" if refusal == "invalid_status" else "archived"
+        payload = _envelope(job, "rejected_flag", True, job_status=status)
+        headers = {"If-Match": _get_etag(api, job)}
+        if refusal == "missing_version":
+            headers = {}
+        elif refusal == "stale_version":
+            headers = {"If-Match": '"job:stale:etag"'}
+        response = api.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=payload,
+            content_type="application/json",
+            headers=headers,
+        )
+        assert (
+            response.status_code
+            == {"missing_version": 428, "stale_version": 412, "invalid_status": 400}[refusal]
+        )
+        job.refresh_from_db()
+        assert job.status == "draft"
+        assert job.rejected_flag is False
+        assert job.completed_at is None
+        assert job.people.filter(pk=workshop_staff.pk).exists()
+        assert job.events.count() == initial_events
+
+    def test_workshop_staff_cannot_reject(self, job: Job, workshop_staff: Staff) -> None:
+        workshop = Client()
+        authenticate(workshop, workshop_staff)
+        response = workshop.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=_envelope(job, "rejected_flag", True, job_status="archived"),
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(workshop, job),
+        )
+        assert response.status_code == 403
+        job.refresh_from_db()
+        assert job.status == "draft"
+        assert job.rejected_flag is False
+
+    @pytest.mark.parametrize("moved_on", [False, True])
+    def test_undo_reverses_requested_status_and_rejection_together(
+        self, api: Client, job: Job, office_staff: Staff, moved_on: bool
+    ) -> None:
+        job.status = "in_progress"
+        job.save(staff=office_staff)
+        payload = _envelope(job, "rejected_flag", True, job_status="archived")
+        rejected = api.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=payload,
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(api, job),
+        )
+        assert rejected.status_code == 200, rejected.content
+        event = job.events.get(change_id=str(payload["change_id"]))
+        assert event.delta_before is not None
+        assert event.delta_after is not None
+        # Incidental recorded fields must not become extra Undo targets.
+        event.delta_before["notes"] = "Old notes"
+        event.delta_after["notes"] = "Incidental notes"
+        event.save(update_fields=["delta_before", "delta_after"])
+        job.refresh_from_db()
+        job.notes = "Keep these notes"
+        if moved_on:
+            job.status = "on_hold"
+        job.save(staff=office_staff)
+        initial_events = job.events.count()
+        response = api.post(
+            f"/api/job/jobs/{job.id}/undo-change/",
+            data={"change_id": payload["change_id"]},
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(api, job),
+        )
+        job.refresh_from_db()
+        assert job.notes == "Keep these notes"
+        if moved_on:
+            assert response.status_code == 412, response.content
+            assert job.status == "on_hold"
+            assert job.rejected_flag is True
+            assert job.events.count() == initial_events
+        else:
+            assert response.status_code == 200, response.content
+            assert job.status == "in_progress"
+            assert job.rejected_flag is False
+            assert job.events.count() == initial_events + 1
 
 
 class TestDeleteJob:

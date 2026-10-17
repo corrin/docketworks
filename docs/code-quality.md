@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 125,074 (v1 172,577, -28%) |
-| tests | 88,922 (v1 50,869, +75%) |
+| code | 125,318 (v1 172,577, -27%) |
+| tests | 89,587 (v1 50,869, +76%) |
 | generated | 54,174 (v1 20,359, +166%) |
 
 ## Suppressions
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 698 |
+| object annotations | 699 |
 
 ## Wire contract (response side)
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 434 (30%) |
+| without data-automation-id | 130 of 438 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

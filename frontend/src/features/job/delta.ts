@@ -14,6 +14,7 @@ const JOB_EDITABLE_FIELDS = [
   'person_id',
   'company_id',
   'job_status',
+  'rejected_flag',
 ] as const
 
 export type JobEditableField = (typeof JOB_EDITABLE_FIELDS)[number]
@@ -38,6 +39,7 @@ export function snapshotJob(job: JobDetail): Record<JobEditableField, unknown> {
     person_id: job.person_id,
     company_id: job.company_id,
     job_status: job.job_status,
+    rejected_flag: job.rejected_flag,
   }
 }
 
