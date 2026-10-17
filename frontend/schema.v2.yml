@@ -951,7 +951,6 @@ components:
         daily_approved_hours_target:
           description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
             Pipeline scoreboard
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily approved hours target
           type: string
         enable_xero_sync:
@@ -1030,7 +1029,6 @@ components:
           description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
             invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
             that exist.
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Gst Rate
           type: string
         id:
@@ -1045,39 +1043,32 @@ components:
           type: boolean
         kpi_daily_billable_hours_amber:
           description: Daily total billable hours across all staff above which the day is amber
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily billable hours (amber)
           type: string
         kpi_daily_billable_hours_green:
           description: Daily total billable hours across all staff above which the day is green
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily billable hours (green)
           type: string
         kpi_daily_gp_amber:
           description: Daily gross profit above which the day is amber
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily GP (amber)
           type: string
         kpi_daily_gp_green:
           description: Daily gross profit above which the day is green
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily GP (green)
           type: string
         kpi_daily_gp_target:
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
             month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
             weekends are owed none of it.'
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily gross profit target
           type: string
         kpi_daily_shop_hours_percentage:
           description: Target percentage of daily hours spent on shop (non-billable) jobs
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily shop hours percentage target
           type: string
         kpi_job_gp_target_percentage:
           description: Target gross profit percentage for individual jobs
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Target GP % per job
           type: string
         labour_cost_loading:
@@ -1085,7 +1076,6 @@ components:
             cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
             leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
             into $48.00).
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Labour Cost Loading
           type: string
         last_xero_deep_sync:
@@ -1104,8 +1094,7 @@ components:
           title: Last Xero Sync
         latitude:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Latitude
         logo_url:
@@ -1120,8 +1109,7 @@ components:
           title: Logo Wide Url
         longitude:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Longitude
         lunch_minutes:
@@ -1147,7 +1135,6 @@ components:
           description: URL to the master Google Sheets quote template
           title: Master Quote Template Url
         materials_markup:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Materials Markup
           type: string
         mon_end:
@@ -1238,7 +1225,6 @@ components:
           title: Thu Start
           type: string
         time_markup:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Time Markup
           type: string
         tue_end:
@@ -1254,7 +1240,6 @@ components:
           title: Updated At
           type: string
         wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
           type: string
         wed_end:
@@ -1275,7 +1260,6 @@ components:
           description: Fraction of clocked workshop hours that count as schedulable productive output
             (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
             in the workshop scheduler after subtracting booked time/leave.
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Workshop Efficiency Factor
           type: string
         xero_automated_day_floor:
@@ -1511,8 +1495,7 @@ components:
         daily_approved_hours_target:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
             Pipeline scoreboard
@@ -1600,8 +1583,7 @@ components:
         gst_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
             invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
@@ -1617,40 +1599,35 @@ components:
         kpi_daily_billable_hours_amber:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily total billable hours across all staff above which the day is amber
           title: Daily billable hours (amber)
         kpi_daily_billable_hours_green:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily total billable hours across all staff above which the day is green
           title: Daily billable hours (green)
         kpi_daily_gp_amber:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily gross profit above which the day is amber
           title: Daily GP (amber)
         kpi_daily_gp_green:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily gross profit above which the day is green
           title: Daily GP (green)
         kpi_daily_gp_target:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
             month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
@@ -1659,24 +1636,21 @@ components:
         kpi_daily_shop_hours_percentage:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target percentage of daily hours spent on shop (non-billable) jobs
           title: Daily shop hours percentage target
         kpi_job_gp_target_percentage:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target gross profit percentage for individual jobs
           title: Target GP % per job
         labour_cost_loading:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Percentage added to each base wage to recover paid non-worked time in the labour
             cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
@@ -1700,15 +1674,13 @@ components:
         latitude:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Latitude
         longitude:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Longitude
         lunch_minutes:
@@ -1740,8 +1712,7 @@ components:
         materials_markup:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Materials Markup
         mon_end:
@@ -1860,8 +1831,7 @@ components:
         time_markup:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Time Markup
         tue_end:
@@ -1879,8 +1849,7 @@ components:
         wage_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Wage Rate
         wed_end:
@@ -1906,8 +1875,7 @@ components:
         workshop_efficiency_factor:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Fraction of clocked workshop hours that count as schedulable productive output
             (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
@@ -2572,8 +2540,7 @@ components:
           type: string
         remaining_quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Remaining Quantity
         success:
@@ -2618,8 +2585,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '1.000'
           title: Quantity
         staff:
@@ -2631,15 +2597,13 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0.00'
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0.00'
           title: Unit Rev
         xero_pay_item:
@@ -2703,7 +2667,6 @@ components:
           title: Meta
           type: object
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         staff:
@@ -2719,11 +2682,9 @@ components:
           title: Total Rev
           type: number
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_rev:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Rev
           type: string
         updated_at:
@@ -2834,8 +2795,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         staff:
           anyOf:
@@ -2846,14 +2806,12 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Unit Rev
         xero_pay_item:
           anyOf:
@@ -3167,14 +3125,12 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         retail_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Retail Rate
       required:
@@ -3194,8 +3150,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Total Received
       required:
       - total_received
@@ -4054,8 +4009,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         job_id:
           format: uuid
@@ -4081,35 +4035,27 @@ components:
         rather than recomputes them (ADR 0046).'
       properties:
         job_value_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Job Value Excl Gst
           type: string
         outstanding_invoiced_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Outstanding Invoiced Incl Gst
           type: string
         over_invoiced_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Over Invoiced Excl Gst
           type: string
         remaining_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining Gst
           type: string
         remaining_to_invoice_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining To Invoice Excl Gst
           type: string
         remaining_to_invoice_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining To Invoice Incl Gst
           type: string
         total_to_pay_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total To Pay Incl Gst
           type: string
         valid_invoiced_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Valid Invoiced Excl Gst
           type: string
       required:
@@ -5018,15 +4964,13 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Estimated Materials
         estimated_time:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Estimated Time
         is_urgent:
           default: false
@@ -5397,8 +5341,7 @@ components:
           title: Person Name
         price_cap:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Price Cap
         pricing_methodology:
@@ -5883,8 +5826,7 @@ components:
           title: Person Name
         price_cap:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Price Cap
         pricing_methodology:
@@ -6055,7 +5997,6 @@ components:
       description: Wire contract for JobLabourRateOut.
       properties:
         charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Charge Out Rate
           type: string
         id:
@@ -6087,8 +6028,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Charge Out Rate
         labour_subtype:
           format: uuid
@@ -7211,8 +7151,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Default Charge Out Rate
         display_order:
           default: 0
@@ -7244,7 +7183,6 @@ components:
           title: Counts For Scheduling
           type: boolean
         default_charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Default Charge Out Rate
           type: string
         display_order:
@@ -7290,8 +7228,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Default Charge Out Rate
         display_order:
           minimum: 0
@@ -7314,7 +7251,6 @@ components:
       description: Wire contract for LabourSubtypeOut.
       properties:
         default_charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Default Charge Out Rate
           type: string
         display_order:
@@ -10606,14 +10542,12 @@ components:
           title: Mapped Specifics
         mapped_unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Mapped Unit Cost
         parser_confidence:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Parser Confidence
         parser_version:
@@ -10726,8 +10660,7 @@ components:
         mapped_unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Mapped Unit Cost
         validation_notes:
@@ -11245,8 +11178,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0'
           title: Quantity
         specifics:
@@ -11258,8 +11190,7 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
       title: PurchaseOrderLineCreateRequest
@@ -11429,8 +11360,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0'
           title: Quantity
         specifics:
@@ -11442,8 +11372,7 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
       title: PurchaseOrderLineUpdateRequest
@@ -13363,21 +13292,18 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Rev
       required:
@@ -13397,8 +13323,7 @@ components:
           title: Message
         remaining_quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Remaining Quantity
         success:
@@ -13464,7 +13389,6 @@ components:
           - type: 'null'
           title: Metal Type
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         source:
@@ -13479,13 +13403,11 @@ components:
           title: Times Used
           type: integer
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_revenue:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Revenue
       required:
@@ -14674,8 +14596,7 @@ components:
           type: string
         quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Quantity
         schema_version:
@@ -14694,14 +14615,12 @@ components:
           type: string
         total_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Cost
         total_rev:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Rev
         undo_description:
@@ -14711,14 +14630,12 @@ components:
           title: Undo Description
         unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
         unit_rev:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Rev
         updated_at:
@@ -14825,7 +14742,6 @@ components:
           title: Meta
           type: object
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         staff:
@@ -14841,11 +14757,9 @@ components:
           title: Total Rev
           type: number
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_rev:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Rev
           type: string
         updated_at:
@@ -15219,7 +15133,6 @@ components:
           - type: 'null'
           title: Pay Basis
         wageRate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wagerate
           type: string
       required:
@@ -15851,8 +15764,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Bill Rate Multiplier
         description:
@@ -15872,8 +15784,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         is_billable:
           default: true
@@ -15904,8 +15815,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '1.00'
           title: Wage Rate Multiplier
       required:
@@ -15929,8 +15839,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Bill Rate Multiplier
         description:
           anyOf:
@@ -15953,8 +15862,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         is_billable:
           title: Is Billable
@@ -15978,8 +15886,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Wage Rate Multiplier
       required:
       - entry_id
@@ -16368,14 +16275,12 @@ components:
           type: boolean
         total_excl_tax:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Excl Tax
         total_incl_tax:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Incl Tax
         xero_id:
@@ -16409,8 +16314,7 @@ components:
         amount:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Amount
         mode:
@@ -16424,8 +16328,7 @@ components:
         percent:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Percent
       required:
@@ -24051,8 +23954,7 @@ paths:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Hours
       - in: query
