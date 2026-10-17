@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             name="general_work_job",
             field=models.ForeignKey(
                 blank=True,
-                help_text="Internal job that clocked time on no job is swept onto at approval.",
+                help_text="Internal job that clocked time on no job is booked to at approval.",
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
                 related_name="+",

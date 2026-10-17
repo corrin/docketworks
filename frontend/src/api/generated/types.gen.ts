@@ -927,7 +927,7 @@ export type CompanyDefaultsOut = {
     /**
      * General Work Job
      *
-     * Internal job that clocked time on no job is swept onto at approval.
+     * Internal job that clocked time on no job is booked to at approval.
      */
     general_work_job: string | null;
     /**
@@ -1393,7 +1393,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * General Work Job
      *
-     * Internal job that clocked time on no job is swept onto at approval.
+     * Internal job that clocked time on no job is booked to at approval.
      */
     general_work_job_id?: string | null;
     /**

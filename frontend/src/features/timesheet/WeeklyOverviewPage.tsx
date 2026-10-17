@@ -133,11 +133,11 @@ export function WeeklyOverviewPage({
           onClick={() =>
             void sweep(
               { start_date: weekStart, end_date: shiftDate(weekStart, DAYS_IN_WEEK - 1) },
-              "The week's time could not be swept.",
+              "Couldn't book the week's leftover time to General work.",
             )
           }
         >
-          Sweep the week to General work
+          Book the week's leftover time to General work
         </Button>
       </div>
 

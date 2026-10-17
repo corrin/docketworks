@@ -1017,7 +1017,7 @@ components:
           - format: uuid
             type: string
           - type: 'null'
-          description: Internal job that clocked time on no job is swept onto at approval.
+          description: Internal job that clocked time on no job is booked to at approval.
           title: General Work Job
         google_place_id:
           anyOf:
@@ -1580,7 +1580,7 @@ components:
           - format: uuid
             type: string
           - type: 'null'
-          description: Internal job that clocked time on no job is swept onto at approval.
+          description: Internal job that clocked time on no job is booked to at approval.
           title: General Work Job
         google_place_id:
           anyOf:

@@ -148,12 +148,18 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
             variant="outline"
             size="sm"
             disabled={sweeping || !anyUnallocated}
+            title={anyUnallocated ? 'This also approves their days' : "Everyone's time is on jobs"}
             data-automation-id="ApproveTimePage-sweep-day"
             onClick={() =>
-              void sweep({ start_date: date, end_date: date }, "The day's time could not be swept.")
+              void sweep(
+                { start_date: date, end_date: date },
+                "Couldn't book the day's leftover time to General work.",
+              )
             }
           >
-            {anyUnallocated ? 'Sweep everyone to General work' : 'No time to sweep'}
+            {anyUnallocated
+              ? "Book everyone's leftover time to General work"
+              : 'All time is on jobs'}
           </Button>
         </div>
       )}
@@ -242,17 +248,24 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   variant="outline"
                   size="sm"
                   disabled={sweeping || !((person.unallocated_hours ?? 0) > 0)}
+                  title={
+                    (person.unallocated_hours ?? 0) > 0
+                      ? 'This also approves the day'
+                      : person.clock.state === 'not_clocked_in'
+                        ? 'No clock in or out for this day'
+                        : 'All their time is on jobs'
+                  }
                   data-automation-id={`ApproveTimePage-sweep-${person.staff_id}`}
                   onClick={() =>
                     void sweep(
                       { start_date: date, end_date: date, staff_id: person.staff_id },
-                      `${person.staff_name}'s time could not be swept.`,
+                      `Couldn't book ${person.staff_name}'s leftover time to General work.`,
                     )
                   }
                 >
                   {(person.unallocated_hours ?? 0) > 0
-                    ? `Sweep ${formatHoursDisplay(person.unallocated_hours)} to General work`
-                    : 'No time to sweep'}
+                    ? `Book ${formatHoursDisplay(person.unallocated_hours)} to General work`
+                    : 'All time is on jobs'}
                 </Button>
                 {person.state === 'waiting' && (
                   <Button

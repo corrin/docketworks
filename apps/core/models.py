@@ -604,7 +604,7 @@ class CompanyDefaults(SingletonModel):
         related_name="+",
         null=True,
         blank=True,
-        help_text="Internal job that clocked time on no job is swept onto at approval.",
+        help_text="Internal job that clocked time on no job is booked to at approval.",
     )
 
     # Test company configuration

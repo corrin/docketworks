@@ -8,5 +8,5 @@ Users learn a screen by where things are, so a screen shows the same things ever
 - **Something that can't be used right now is disabled, and its mouseover always says why.**
   Copy from Estimate on a job whose estimate is empty stays on the Quote tab, disabled, with
   the tooltip "The estimate is empty". Where the reason fits, the button's own text says it too
-  ("No time to sweep"), because a phone has no hover.
+  ("All time is on jobs"), because a phone has no hover.
 - **Something empty says so:** "None", "Nothing to invoice".

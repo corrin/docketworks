@@ -12,16 +12,16 @@ import { formatDate, formatHoursDisplay } from '@/lib/format'
 
 const SKIP_WORDS: Record<SweepSkipOut['reason'], string> = {
   still_clocked_in: 'still clocked in',
-  no_clock_times: 'no clock times',
+  no_clock_times: 'no clock in or out',
 }
 
 /** What a sweep did, in words: the hours moved, then each day it left alone. */
 export function sweepWords(result: SweepOut): string {
-  const moved = `${formatHoursDisplay(result.swept_hours)} put on General work.`
+  const moved = `${formatHoursDisplay(result.swept_hours)} booked to General work.`
   const skipped = result.skipped.map(
     (skip) => `${skip.staff_name} on ${formatDate(skip.date)} (${SKIP_WORDS[skip.reason]})`,
   )
-  return skipped.length === 0 ? moved : `${moved} Not swept: ${skipped.join(', ')}.`
+  return skipped.length === 0 ? moved : `${moved} Not booked: ${skipped.join(', ')}.`
 }
 
 /**
