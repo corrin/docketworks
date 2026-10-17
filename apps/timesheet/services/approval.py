@@ -79,6 +79,9 @@ class StaffApprovalData(TypedDict):
     #: Whether the person was here, a separate question from whether their
     #: time is approved: every pairing of the two is an ordinary day.
     clock: AttendanceData
+    #: Clocked time on no job and no paid break: what a sweep would put on
+    #: General work (KAN-380). None until both clock times are known.
+    unallocated_hours: float | None
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
     #: Where an entry the office adds for this person starts: after their
@@ -171,9 +174,9 @@ def _staff_day(
     waiting = [line for line in hours if not line.approved]
     entries, break_lines = split_breaks(lines)
     clock = attendance_data(attendance)
-    fill = fill_figures(
-        attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
-    )
+    on_jobs = sum((line.quantity for line in entries), Decimal(0))
+    fill = fill_figures(attendance, on_jobs, break_lines)
+    unallocated = unentered_hours(attendance, on_jobs, break_lines)
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
@@ -200,6 +203,7 @@ def _staff_day(
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
+        "unallocated_hours": None if unallocated is None else float(unallocated),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
         if attendance is not None
         else [],

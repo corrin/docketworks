@@ -6387,6 +6387,7 @@ export const zStaffApprovalOut = z.object({
         'nothing_waiting',
         'not_rostered'
     ]),
+    unallocated_hours: z.number().nullable(),
     waiting_hours: z.number()
 });
 

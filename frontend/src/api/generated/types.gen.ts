@@ -11114,6 +11114,10 @@ export type StaffApprovalOut = {
      */
     state: 'waiting' | 'nothing_entered' | 'nothing_waiting' | 'not_rostered';
     /**
+     * Unallocated Hours
+     */
+    unallocated_hours: number | null;
+    /**
      * Waiting Hours
      */
     waiting_hours: number;

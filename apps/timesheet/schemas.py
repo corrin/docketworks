@@ -477,6 +477,7 @@ class StaffApprovalOut(Schema):
     entered_late: bool
     remote_entry: bool
     clock: AttendanceOut
+    unallocated_hours: float | None
     breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
     default_entry_start: time

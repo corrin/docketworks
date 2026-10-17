@@ -12516,6 +12516,11 @@ components:
           - not_rostered
           title: State
           type: string
+        unallocated_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Unallocated Hours
         waiting_hours:
           title: Waiting Hours
           type: number
@@ -12528,6 +12533,7 @@ components:
       - entered_late
       - remote_entry
       - clock
+      - unallocated_hours
       - breaks
       - entries
       - default_entry_start
