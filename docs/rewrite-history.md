@@ -25,6 +25,14 @@ coverage, development and production-only frozen installs succeeded, and the
 production-only environment loaded Django, ASGI, Gunicorn and Celery. Browser
 verification is recorded in the upgrade PR.
 
+CI also passed all 3,670 backend tests on CPython 3.14.8 with 89.45% coverage,
+and all 782 frontend tests passed locally and in CI. The local 3.14.7 browser
+run logged expected disconnect cancellations through `asyncio`; these console
+messages do not create `AppError` rows. This is the upstream logging regression
+tracked by [Django #37385](https://code.djangoproject.com/ticket/37385) and
+[CPython #156321](https://github.com/python/cpython/issues/156321), whose fix
+was backported to the 3.14 branch after 3.14.8 was released.
+
 ## 2026-10-15 — Restore rejection and reopening from the job header
 
 The port retained `rejected_flag`, its PATCH support and the kanban icon, but
