@@ -67,7 +67,7 @@ class XeroQuoteManager(XeroDocumentManager):
             )
         return None
 
-    def _validated_configuration(self) -> "tuple[str, str] | XeroDocumentResponse":
+    def _validated_configuration(self) -> tuple[str, str] | XeroDocumentResponse:
         """Return ``(theme_id, terms)``, or the configuration refusal.
 
         Returning the validated values (rather than a passed/failed flag)
@@ -98,7 +98,7 @@ class XeroQuoteManager(XeroDocumentManager):
 
     def _validated_quote_lines(
         self, breakdown: bool
-    ) -> "tuple[Decimal, list[CostLine]] | XeroDocumentResponse":
+    ) -> tuple[Decimal, list[CostLine]] | XeroDocumentResponse:
         """Return ``(summary_rev, cost_lines)``, or the quotability refusal."""
         cost_set = self.job.get_latest("quote")
         cost_lines = list(cost_set.cost_lines.all()) if cost_set is not None else []
@@ -196,7 +196,7 @@ class XeroQuoteManager(XeroDocumentManager):
     def _finalize_created_quote(
         self,
         external_id: str,
-        result: "DocumentResult",
+        result: DocumentResult,
         payload: QuotePayload,
     ) -> XeroDocumentResponse:
         """Persist the mirror row and side effects; never orphan the quote.
@@ -264,7 +264,7 @@ class XeroQuoteManager(XeroDocumentManager):
         self,
         exc: IntegrityError,
         external_id: str,
-        result: "DocumentResult",
+        result: DocumentResult,
         raw: dict[str, object],
     ) -> XeroDocumentResponse:
         """Discriminate the two unique constraints by state, never by guess.

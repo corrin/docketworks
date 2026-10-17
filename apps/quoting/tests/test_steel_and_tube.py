@@ -77,7 +77,7 @@ class FakeElement:
         self,
         text: str = "",
         *,
-        children: dict[tuple[str, str], "FakeElement"] | None = None,
+        children: dict[tuple[str, str], FakeElement] | None = None,
         on_click: Callable[[], None] | None = None,
     ) -> None:
         self.text = text
@@ -86,7 +86,7 @@ class FakeElement:
         self.typed: list[str] = []
         self.cleared = False
 
-    def find_element(self, by: str, value: str) -> "FakeElement":
+    def find_element(self, by: str, value: str) -> FakeElement:
         child = self.children.get((by, value))
         if child is None:
             raise NoSuchElementException(f"{by}={value}")

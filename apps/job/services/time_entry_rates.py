@@ -320,7 +320,7 @@ class TimeEntryPricing:
     salary_term_id: str | None = None
 
     @property
-    def pay_item_id(self) -> "UUID | None":
+    def pay_item_id(self) -> UUID | None:
         """The pay item's id, or None where Xero pays the category from its own calculation.
 
         Opus: One reader for the three write sites, so a nullable pay item cannot be

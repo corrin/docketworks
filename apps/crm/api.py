@@ -234,7 +234,7 @@ class _CallListAnnotations(TypedDict):
 
 def _collapse_ring_attempts(
     queryset: QuerySet[PhoneCallRecord],
-) -> "QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]":
+) -> QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]:
     """One list row per burst of indistinguishable unrecorded ring attempts.
 
     The provider logs one CDR row per attempt — one real three-day pull held
@@ -281,7 +281,7 @@ def _collapse_ring_attempts(
 
 def _filtered_call_queryset(
     filters: PhoneCallListFilters,
-) -> "QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]":
+) -> QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]:
     queryset = _apply_uuid_filters(_base_call_queryset(), filters)
     queryset = _apply_match_filters(queryset, filters)
     queryset = _apply_date_filters(queryset, filters.from_date, filters.to_date)

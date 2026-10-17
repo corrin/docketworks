@@ -73,7 +73,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     # --- Contacts ---
 
-    def create_contact(self, company: "Company") -> ContactResult:
+    def create_contact(self, company: Company) -> ContactResult:
         """Assign a synthetic contact id without touching the tenant."""
         if not company.validate_for_xero():
             return ContactResult(
@@ -87,7 +87,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         _log_suppressed("create_contact", f"company {company.id} ({company.name})")
         return ContactResult(success=True, external_id=company.xero_contact_id, name=company.name)
 
-    def update_contact(self, company: "Company") -> ContactResult:
+    def update_contact(self, company: Company) -> ContactResult:
         """Suppress the push; upsert a synthetic id when the company has none."""
         # The live provider validates every update (sync_company_to_xero);
         # skipping it here would make readonly tests pass an update
@@ -356,8 +356,8 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
 
 def _suppressed_week_posts(
-    staff_ids: "Sequence[UUID]", week_start_date: date
-) -> "Iterator[StaffWeekPostResult]":
+    staff_ids: Sequence[UUID], week_start_date: date
+) -> Iterator[StaffWeekPostResult]:
     """Yield the result a real post would report per staff member, reading real hours.
 
     Opus: Split by the same classifier the real provider posts through, not summed

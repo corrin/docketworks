@@ -39,7 +39,7 @@ def _augment_update_fields(
 class CompanyQuerySet(models.QuerySet["Company"]):
     """Custom queryset for Company with precomputed invoice aggregates."""
 
-    def with_invoice_summary(self) -> "CompanyQuerySet":
+    def with_invoice_summary(self) -> CompanyQuerySet:
         """Annotate each company with last_invoice_date and total_spend aggregates."""
         output = models.DecimalField(max_digits=12, decimal_places=2)
         # Passed as **kwargs because the annotation names deliberately target
@@ -246,7 +246,7 @@ class Company(models.Model):
         )
         return method.value if method else ""
 
-    def get_final_company(self) -> "Company":
+    def get_final_company(self) -> Company:
         """Follow the merge chain to get the final company.
 
         If this company was merged into another, return that company
@@ -268,7 +268,7 @@ class Company(models.Model):
 class PersonQuerySet(models.QuerySet["Person"]):
     """Custom queryset for Person with precomputed invoice aggregates."""
 
-    def with_invoice_summary(self) -> "PersonQuerySet":
+    def with_invoice_summary(self) -> PersonQuerySet:
         """Annotate each person with last_invoice_date and total_spend.
 
         A person's spend is the sum of sales invoices on jobs whose contact is
@@ -484,7 +484,7 @@ class PhoneAssignmentConflictError(Exception):
     internal :class:`~apps.crm.models.PhoneEndpoint`.
     """
 
-    def __init__(self, conflict: "ContactMethod | None") -> None:
+    def __init__(self, conflict: ContactMethod | None) -> None:
         """Record the conflicting method (or None for an internal endpoint)."""
         self.conflict = conflict
         if conflict is None:
@@ -728,7 +728,7 @@ class ContactMethod(models.Model):
         effective_company_ids: set[uuid.UUID],
         exclude_id: uuid.UUID | None = None,
         using: str = DEFAULT_DB_ALIAS,
-    ) -> "ContactMethod | None":
+    ) -> ContactMethod | None:
         """Return a phone method for this number owned by a *different* effective company.
 
         The single source of truth for the "one number, one company" rule, shared by
@@ -766,8 +766,8 @@ class ContactMethod(models.Model):
         normalized_value: str,
         *,
         company_id: uuid.UUID | None,
-        person: "Person | None" = None,
-        instance: "ContactMethod | None" = None,
+        person: Person | None = None,
+        instance: ContactMethod | None = None,
         using: str = DEFAULT_DB_ALIAS,
     ) -> None:
         """Enforce the one-number-one-company rule for a proposed phone owner.

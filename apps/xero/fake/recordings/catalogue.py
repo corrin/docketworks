@@ -193,7 +193,7 @@ def capture_all(
 
 
 def _capture_every_route(
-    tap: "_TransportTap", accounting: AccountingApi, payroll: PayrollNzApi, tenant_id: str
+    tap: _TransportTap, accounting: AccountingApi, payroll: PayrollNzApi, tenant_id: str
 ) -> Iterator[Capture]:
     yield from _capture_accounting(tap, accounting, tenant_id)
     yield from _capture_accounting_writes(tap, accounting, tenant_id)
@@ -202,7 +202,7 @@ def _capture_every_route(
 
 
 def _capture_accounting(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str
 ) -> Iterator[Capture]:
     yield _record(tap, "organisation", lambda: accounting.get_organisations(tenant_id))
     yield _record(tap, "tax_rates", lambda: accounting.get_tax_rates(tenant_id))
@@ -277,7 +277,7 @@ def _capture_accounting(
 
 
 def _capture_accounting_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str
 ) -> Iterator[Capture]:
     """Every write the application makes, and every refusal it handles, provoked on the tenant.
 
@@ -368,7 +368,7 @@ def _deletion(id_key: str, object_id: str, contact_id: str, today: str) -> dict[
 
 
 def _capture_invoice_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
 ) -> Iterator[Capture]:
     invoice = _record(
         tap,
@@ -439,7 +439,7 @@ def _capture_invoice_writes(
 
 
 def _capture_quote_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
 ) -> Iterator[Capture]:
     def quote_body(status: str, quote_id: str | None = None) -> dict[str, Json]:
         body: dict[str, Json] = {
@@ -494,7 +494,7 @@ def _capture_quote_writes(
 
 
 def _capture_purchase_order_writes(  # noqa: PLR0913, PLR0917 -- the pass's shared state, named
-    tap: "_TransportTap",
+    tap: _TransportTap,
     accounting: AccountingApi,
     tenant_id: str,
     contact_id: str,
@@ -594,7 +594,7 @@ def _capture_purchase_order_writes(  # noqa: PLR0913, PLR0917 -- the pass's shar
 
 
 def _capture_item_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, stamp: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, stamp: str
 ) -> Iterator[Capture]:
     code = f"REC-{stamp}"
 
@@ -630,7 +630,7 @@ def _capture_item_writes(
 
 
 def _capture_payroll(
-    tap: "_TransportTap", payroll: PayrollNzApi, tenant_id: str
+    tap: _TransportTap, payroll: PayrollNzApi, tenant_id: str
 ) -> Iterator[Capture]:
     employees = _record(tap, "employees_page", lambda: payroll.get_employees(tenant_id, page=1))
     yield employees
@@ -672,7 +672,7 @@ def _capture_payroll(
     )
 
 
-def _burst(tap: "_TransportTap", accounting: AccountingApi, tenant_id: str) -> None:
+def _burst(tap: _TransportTap, accounting: AccountingApi, tenant_id: str) -> None:
     """Cross the minute limit so the 429 is what the tap holds."""
     # Unpaced: the paced client's 1s interval is exactly what keeps a real
     # run under the minute limit, and the point here is to cross it.

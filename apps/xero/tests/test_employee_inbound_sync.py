@@ -685,7 +685,7 @@ def test_paged_pay_history_retains_future_salary_and_uses_working_hours(
 
 def test_imported_rate_prices_new_time_without_repricing_existing_lines(
     employee_api: MagicMock,
-    job: "Job",
+    job: Job,
 ) -> None:
 
     CompanyDefaults.objects.update(labour_cost_loading=Decimal("20"))

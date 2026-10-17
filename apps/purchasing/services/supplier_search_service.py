@@ -74,13 +74,13 @@ class SupplierSearchPage(TypedDict):
 
 @dataclass(frozen=True, slots=True)
 class _CandidateScore:
-    company: "_AnnotatedSupplier"
+    company: _AnnotatedSupplier
     score: float
     name_score: float
     recent_purchase_count: int
 
 
-def annotated_supplier(company: Company) -> "_AnnotatedSupplier":
+def annotated_supplier(company: Company) -> _AnnotatedSupplier:
     """Vouch that the search annotations are present on a fetched Company."""
     missing = {"recent_purchase_count", "primary_phone"} - set(company.__dict__)
     if missing:

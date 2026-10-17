@@ -62,7 +62,7 @@ class LabourSubtype(models.Model):
         return self.name
 
     @classmethod
-    def default_workshop(cls) -> "LabourSubtype":
+    def default_workshop(cls) -> LabourSubtype:
         """Return the first active workshop subtype by display order."""
         subtype = (
             cls.objects.filter(is_active=True, is_workshop=True).order_by("display_order").first()
@@ -72,7 +72,7 @@ class LabourSubtype(models.Model):
         return subtype
 
     @classmethod
-    def default_non_workshop(cls) -> "LabourSubtype":
+    def default_non_workshop(cls) -> LabourSubtype:
         """Return the default active non-workshop subtype for office/admin time."""
         subtype = cls.objects.filter(name="Admin", is_active=True, is_workshop=False).first()
         if subtype is not None:

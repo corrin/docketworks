@@ -314,7 +314,7 @@ def syncable_staff() -> list[Staff]:
     return list(Staff.objects.filter(date_left__isnull=True, wage_rate__gt=Decimal("0")))
 
 
-def staff_needing_payroll_link(tenant_id: str) -> "QuerySet[Staff]":
+def staff_needing_payroll_link(tenant_id: str) -> QuerySet[Staff]:
     """Staff carrying an employee id that does not belong to this organisation.
 
     This is the restore selection, and it deliberately includes staff who have

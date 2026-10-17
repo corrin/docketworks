@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def require_pay_item(line: CostLine) -> "XeroPayItem":
+def require_pay_item(line: CostLine) -> XeroPayItem:
     """Return the line's pay item, refusing a line that has none.
 
     Fable: The one implementation for both payroll surfaces. This module and
@@ -97,10 +97,10 @@ class _LeaveSession:
     api: PayrollNzApi
     tenant_id: str
     employee_id: UUID
-    week: "_WeekWindow"
+    week: _WeekWindow
 
 
-def _units_within_week(leave: EmployeeLeave, week: "_WeekWindow") -> Decimal:
+def _units_within_week(leave: EmployeeLeave, week: _WeekWindow) -> Decimal:
     """Sum the hours a Xero leave record pays inside the payroll week.
 
     Opus: Xero collapses leave into one period per pay period and keeps only the
@@ -200,7 +200,7 @@ def _contiguous_spans(days: Sequence[date]) -> list[tuple[date, date]]:
     return spans
 
 
-def _leave_payload(spec: LeaveRequestSpec, week: "_WeekWindow") -> EmployeeLeave:
+def _leave_payload(spec: LeaveRequestSpec, week: _WeekWindow) -> EmployeeLeave:
     """Build the one leave shape the Xero NZ API honours.
 
     Opus: Verified live (KAN-326): per-day periods are accepted but their units are
@@ -329,7 +329,7 @@ class _WeekLeave:
     spanning: list[_DatedLeave]
 
 
-def _week_leave(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> _WeekLeave:
+def _week_leave(employee_id: UUID, week: _WeekWindow, *, tenant_id: str) -> _WeekLeave:
     """Fetch the employee's leave and sort it against the week."""
     response = payroll_sdk.payroll_api().get_employee_leaves(
         xero_tenant_id=tenant_id, employee_id=str(employee_id)
@@ -353,7 +353,7 @@ def _week_leave(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> _W
     return _WeekLeave(contained=contained, spanning=spanning)
 
 
-def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> Decimal:
+def posted_leave_hours(employee_id: UUID, week: _WeekWindow, *, tenant_id: str) -> Decimal:
     """Total leave hours Xero will pay the employee for the week.
 
     Opus: The counterpart to ``payroll_push._posted_total``, which sees only the
@@ -377,7 +377,7 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str
 def reconcile_leave_for_staff_week(
     employee_id: UUID,
     lines: Sequence[CostLine],
-    week: "_WeekWindow",
+    week: _WeekWindow,
     *,
     tenant_id: str,
     staff_name: str,

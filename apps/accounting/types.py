@@ -23,7 +23,7 @@ class NotAPayrollWeekError(InvalidInputError):
     """
 
 
-def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.date":
+def require_payroll_week_start(week_start_date: datetime.date) -> datetime.date:
     """Refuse a week that does not start on a Monday — the one implementation.
 
     Opus: Xero pay periods are Monday-anchored, and this rule was written out four
@@ -74,8 +74,8 @@ class InvoicePayload:
     client_external_id: str
     company_name: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
-    due_date: "datetime.date"
+    date: datetime.date
+    due_date: datetime.date
     document_theme_external_id: str
     currency_code: str = "NZD"
     reference: str | None = None
@@ -96,8 +96,8 @@ class QuotePayload:
     client_external_id: str
     company_name: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
-    expiry_date: "datetime.date"
+    date: datetime.date
+    expiry_date: datetime.date
     document_theme_external_id: str
     terms: str
     currency_code: str = "NZD"
@@ -123,9 +123,9 @@ class POPayload:
     supplier_name: str
     po_number: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
+    date: datetime.date
     status: str = "DRAFT"
-    delivery_date: "datetime.date | None" = None
+    delivery_date: datetime.date | None = None
     reference: str | None = None
     external_id: str | None = None
 
@@ -176,9 +176,9 @@ class PayRunRef:
 
     pay_run_id: str
     payroll_calendar_id: str
-    period_start_date: "datetime.date"
-    period_end_date: "datetime.date"
-    payment_date: "datetime.date"
+    period_start_date: datetime.date
+    period_end_date: datetime.date
+    payment_date: datetime.date
     pay_run_status: str
     pay_run_type: str
 
@@ -387,9 +387,9 @@ class NewPayrollEmployee:
     last_name: str
     email: str
     job_title: str
-    date_of_birth: "datetime.date"
-    start_date: "datetime.date"
-    end_date: "datetime.date | None"
+    date_of_birth: datetime.date
+    start_date: datetime.date
+    end_date: datetime.date | None
     address: PayrollAddress
     hours_per_week: dict[str, float]
     hourly_rate: Decimal

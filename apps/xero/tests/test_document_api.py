@@ -55,7 +55,7 @@ def job(company: Company, office_staff: Staff) -> Job:
 
 def _create_invoice(
     api: Client, job_id: object, body: dict[str, object]
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return api.post(
         f"/api/xero/create_invoice/{job_id}",
         data=json.dumps(body),
@@ -183,7 +183,7 @@ class TestDeleteInvoiceEndpoint:
 
 def _create_quote(
     api: Client, job_id: object, body: dict[str, object]
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return api.post(
         f"/api/xero/create_quote/{job_id}",
         data=json.dumps(body),

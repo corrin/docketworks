@@ -103,7 +103,7 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
 
 
 def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; the branch count IS the document-type matrix
-    document: "BaseXeroInvoiceDocument", document_type: str, new_from_xero: bool = False
+    document: BaseXeroInvoiceDocument, document_type: str, new_from_xero: bool = False
 ) -> None:
     """Set an Invoice/Bill/CreditNote's fields (and line items) from raw_json.
 
@@ -216,7 +216,7 @@ def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 sha
         # deliberate-swallow: description-only lines carry no amounts (see
         # above) — zero is their true value, and one malformed money line
         # must not fail the whole document sync
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             line_amount = 0
             tax_amount = 0
 

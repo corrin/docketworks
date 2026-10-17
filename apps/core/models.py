@@ -172,7 +172,7 @@ class CompanyDefaults(SingletonModel):
     """
 
     @classmethod
-    def get_solo(cls) -> "CompanyDefaults":
+    def get_solo(cls) -> CompanyDefaults:
         """Return the singleton. Never creates one — reads do not write.
 
         The row comes from the v1 data restore. Its absence means the install

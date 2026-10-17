@@ -97,7 +97,7 @@ class IntegrationSettings(models.Model):
         return "integration settings"
 
     @classmethod
-    def get_solo(cls) -> "IntegrationSettings":
+    def get_solo(cls) -> IntegrationSettings:
         """Return the singleton. Never creates one — reads do not write.
 
         Fable: the row is created by core/0003 on a fresh install and by

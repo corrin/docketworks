@@ -343,7 +343,7 @@ def _xero_auth_refusal() -> XeroAuthRequiredOut | None:
     )
 
 
-def _document_failure(result: "XeroDocumentResponse", fallback: str) -> DocumentPushStatus:
+def _document_failure(result: XeroDocumentResponse, fallback: str) -> DocumentPushStatus:
     """Map a manager failure to the declared error payload (ADR 0038)."""
     return Status(
         _document_error_status(result.get("status")),
@@ -356,7 +356,7 @@ def _document_failure(result: "XeroDocumentResponse", fallback: str) -> Document
     )
 
 
-def _document_success(result: "XeroDocumentResponse", status: int) -> DocumentPushStatus:
+def _document_success(result: XeroDocumentResponse, status: int) -> DocumentPushStatus:
     """Build the success payload; success without a xero_id is a raise.
 
     Passing every field is wire-identical to the per-endpoint hand-builds

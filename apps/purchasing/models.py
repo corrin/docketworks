@@ -539,7 +539,7 @@ class Stock(models.Model):
 
     # Stock holding job name
     STOCK_HOLDING_JOB_NAME = "Worker Admin"
-    _stock_holding_job: ClassVar["Job | None"] = None
+    _stock_holding_job: ClassVar[Job | None] = None
 
     class Meta:
         constraints: ClassVar = [
@@ -639,7 +639,7 @@ class Stock(models.Model):
             raise ValueError("Unit cost must be set and greater than zero to set retail rate")
 
     @classmethod
-    def get_stock_holding_job(cls) -> "Job":
+    def get_stock_holding_job(cls) -> Job:
         """Return the job designated for holding general stock.
 
         This is a utility method to avoid repeating the job lookup across the

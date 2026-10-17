@@ -165,7 +165,7 @@ class CostSet(models.Model):
         return changed
 
     @staticmethod
-    def _record_line_change(before: "CostLine | None", after: "CostLine | None") -> None:
+    def _record_line_change(before: CostLine | None, after: CostLine | None) -> None:
         """Maintain both owners from persisted contributions inside the line transaction."""
         owners = {line.cost_set_id: line.cost_set for line in (before, after) if line is not None}
         for owner_id, owner in owners.items():
@@ -447,7 +447,7 @@ class CostLine(models.Model):
                 raise CostLine.DoesNotExist("The saved cost line no longer exists")
             CostSet._record_line_change(before, after)
 
-    def _stored_contribution(self) -> "CostLine | None":
+    def _stored_contribution(self) -> CostLine | None:
         return (
             CostLine.objects.select_related("cost_set")
             .only("cost_set__job_id", "kind", "quantity", "unit_cost", "unit_rev")
@@ -455,7 +455,7 @@ class CostLine(models.Model):
             .first()
         )
 
-    def _lock_summary_owners(self) -> "CostLine | None":
+    def _lock_summary_owners(self) -> CostLine | None:
         observed = self._stored_contribution()
         job_ids = {self.cost_set.job_id}
         if observed is not None:

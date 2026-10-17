@@ -287,6 +287,7 @@ done
 
 # --- Converge system-level dependencies (only when inputs change) ---
 SERVER_SETUP_INPUTS=(
+    "$SCRIPT_DIR/../../.python-version"
     "$SCRIPT_DIR/server-setup.sh"
     "$SCRIPT_DIR/certbot-dreamhost-auth.sh"
     "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh"

@@ -165,7 +165,7 @@ class TestSalesForecastList:
 
 
 class TestSalesForecastMonthDetail:
-    def detail(self, client: Client, month: str) -> "_MonkeyPatchedWSGIResponse":
+    def detail(self, client: Client, month: str) -> _MonkeyPatchedWSGIResponse:
         return client.get(f"/api/accounting/reports/sales-forecast/{month}/")
 
     def test_rows_classify_matched_xero_only_and_jm_only(

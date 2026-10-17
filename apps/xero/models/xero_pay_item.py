@@ -105,7 +105,7 @@ class XeroPayItem(models.Model):
         return self.name
 
     @classmethod
-    def get_by_multiplier(cls, multiplier: Decimal) -> "XeroPayItem | None":
+    def get_by_multiplier(cls, multiplier: Decimal) -> XeroPayItem | None:
         """Get a XeroPayItem by rate multiplier."""
         queryset = cls.objects.filter(
             uses_leave_api=False,
@@ -125,7 +125,7 @@ class XeroPayItem(models.Model):
         )
 
     @classmethod
-    def get_ordinary_time(cls) -> "XeroPayItem | None":
+    def get_ordinary_time(cls) -> XeroPayItem | None:
         """Get the 'Ordinary Time' pay item by name."""
         return cls.objects.filter(
             name="Ordinary Time",

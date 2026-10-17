@@ -41,7 +41,7 @@ class FormFieldSchema(Schema):
     display_key: NonBlankText | None = None
 
     @model_validator(mode="after")
-    def _coherent(self) -> "FormFieldSchema":
+    def _coherent(self) -> FormFieldSchema:
         if self.type == "select":
             if not self.options:
                 raise ValueError(f"Field '{self.key}': a select field needs options.")
@@ -67,7 +67,7 @@ class FormSchemaSpec(Schema):
     fields: list[FormFieldSchema]
 
     @model_validator(mode="after")
-    def _unique_keys(self) -> "FormSchemaSpec":
+    def _unique_keys(self) -> FormSchemaSpec:
         keys = [field.key for field in self.fields]
         duplicates = {key for key in keys if keys.count(key) > 1}
         if duplicates:

@@ -555,7 +555,7 @@ class ProductParsingMapping(models.Model):
         return f"Mapping: {self.input_hash[:8]}... → {self.mapped_description or 'No description'}"
 
     @classmethod
-    def refresh_xero_status(cls, mappings: Sequence["ProductParsingMapping"]) -> None:
+    def refresh_xero_status(cls, mappings: Sequence[ProductParsingMapping]) -> None:
         """Set item_code_is_in_xero across a batch; clear codes not in Stock.
 
         THE one implementation of the rule (ADR 0039) — one ``item_code__in``
