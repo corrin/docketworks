@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -68,26 +68,45 @@ interface StreamSource {
 
 /**
  * A controller-fed SSE body, so a test writes frames at the moment it chooses.
- * MSW v2 intercepts the generated client's fetch natively, so nothing here
+ * MSW intercepts the generated client's fetch at the socket, so nothing here
  * stubs the client or EventSource: the bytes travel the real frame parser.
+ *
+ * Opus: The body is chunked, as Django's streaming response is. That is what makes
+ * `fail()` a dropped socket: a chunked body that stops short reaches fetch as
+ * `TypeError: terminated`, where an unframed one would read as a clean end.
+ * Each connection also gets its own socket: re-opening on a kept-alive one
+ * takes more turns of the faked clock than `settle()` gives, which would make
+ * the reconnect assertions measure socket reuse instead of the client.
  */
 function streamSource(): StreamSource {
   const encoder = new TextEncoder()
   let controller: ReadableStreamDefaultController<Uint8Array> | null = null
   let connections = 0
-  let aborts = 0
+  // Opus: MSW never tells a handler that its client went away once the response has
+  // started, so the abort is read where it happens: on the stream fetch's signal.
+  const streamSignals: AbortSignal[] = []
+  const realFetch = globalThis.fetch
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    if (input instanceof Request && new URL(input.url).pathname === '/api/data-versions/stream/') {
+      streamSignals.push(input.signal)
+    }
+    return realFetch(input, init)
+  })
 
-  const handler = http.get(STREAM_URL, ({ request }) => {
+  const handler = http.get(STREAM_URL, () => {
     connections += 1
-    request.signal.addEventListener('abort', () => {
-      aborts += 1
-    })
     const body = new ReadableStream<Uint8Array>({
       start: (open) => {
         controller = open
       },
     })
-    return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
+    return new HttpResponse(body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Transfer-Encoding': 'chunked',
+        Connection: 'close',
+      },
+    })
   })
 
   const open = (): ReadableStreamDefaultController<Uint8Array> => {
@@ -98,7 +117,7 @@ function streamSource(): StreamSource {
   return {
     handler,
     connections: () => connections,
-    aborts: () => aborts,
+    aborts: () => streamSignals.filter((signal) => signal.aborted).length,
     send: (event, data) => open().enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`)),
     fail: () => open().error(new Error('stream socket dropped')),
     finish: () => open().close(),
