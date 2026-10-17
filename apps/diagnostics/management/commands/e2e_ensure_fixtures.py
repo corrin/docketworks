@@ -24,9 +24,15 @@ specs exist to catch — and are re-aligned on every run for that reason.
 The office staff user is office staff and nothing more: not a superuser. The
 approve-time spec signs in as it, because a screen any office staff member
 may use is only proven by a login that is not also allowed everything.
+
+All three are employed from ``E2E_EMPLOYMENT_START``, re-aligned on every run:
+a timesheet only lists staff employed on its date, and specs book time on
+past weekdays, so a login created by today's restore would be absent from
+yesterday's timesheet.
 """
 
 import os
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.management.base import BaseCommand, CommandError
@@ -43,6 +49,8 @@ from apps.core.test_data import TEST_COMPANY_NAME
 E2E_USER_WAGE_RATE = Decimal("45.00")
 #: No spec pins the workshop user's wage; it only has to be a real hourly rate.
 E2E_WORKSHOP_BASE_WAGE_RATE = Decimal("30.00")
+#: Before any date a spec books time on.
+E2E_EMPLOYMENT_START = date(2020, 1, 1)
 
 
 def _credentials(username_key: str, password_key: str) -> tuple[str, str]:
@@ -132,12 +140,14 @@ class Command(BaseCommand):
                 is_office_staff=True,
                 is_superuser=True,
                 base_wage_rate=base_wage,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         else:
             user.set_password(password)
             user.is_office_staff = True
             user.is_superuser = True
             user.base_wage_rate = base_wage
+            user.employment_start_date = E2E_EMPLOYMENT_START
             user.save()
         if user.wage_rate != E2E_USER_WAGE_RATE:
             raise CommandError(
@@ -157,12 +167,14 @@ class Command(BaseCommand):
                 is_workshop_staff=True,
                 is_superuser=False,
                 base_wage_rate=E2E_WORKSHOP_BASE_WAGE_RATE,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         user.set_password(password)
         user.is_office_staff = False
         user.is_workshop_staff = True
         user.is_superuser = False
         user.base_wage_rate = E2E_WORKSHOP_BASE_WAGE_RATE
+        user.employment_start_date = E2E_EMPLOYMENT_START
         user.save()
         return user
 
@@ -177,10 +189,12 @@ class Command(BaseCommand):
                 is_office_staff=True,
                 is_superuser=False,
                 base_wage_rate=E2E_WORKSHOP_BASE_WAGE_RATE,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         user.set_password(password)
         user.is_office_staff = True
         user.is_superuser = False
+        user.employment_start_date = E2E_EMPLOYMENT_START
         user.save()
         return user
 
