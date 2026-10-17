@@ -12,7 +12,8 @@ Server setup installs the app interpreter through uv for `docketworks`, using
 the repository's `.python-version`, while system utilities retain the distro
 Python. Shared interpreter directories permit traversal by instance service
 accounts. Release virtual environments still build at their final paths from
-the frozen lockfile.
+the frozen lockfile. Deploy's provisioning stamp includes the Python pin, so a
+runtime-only change reruns server setup.
 
 No package versions changed. Ruff's Python 3.14 rules removed redundant quoted
 annotations and exception-tuple parentheses; Xero batches explicitly retain
