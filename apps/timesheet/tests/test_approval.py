@@ -300,8 +300,64 @@ def _general_work_hours(general_work: Job, worker: Staff) -> list[str]:
     ]
 
 
+def _general_work_entries(general_work: Job, worker: Staff) -> list[tuple[str, str, str]]:
+    """Each swept entry as (start, end, hours), in the order of the day."""
+    return sorted(
+        (line.meta["start_time"], line.meta["end_time"], str(line.quantity))
+        for line in CostLine.objects.filter(cost_set__job=general_work, staff=worker)
+    )
+
+
 @pytest.mark.usefixtures("general_work")
 class TestSweep:
+    def test_each_stretch_between_breaks_and_jobs_is_its_own_entry(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: entries end where a break or a job starts."""
+        # 07:00 to 12:00 puts the 08:30 paid break and the 11:30 lunch on the day.
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(12, 0), worker)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="1.000",
+            approved=False,
+            start_time="09:00:00",
+            end_time="10:00:00",
+        )
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("07:00:00", "08:30:00", "1.500"),
+            ("08:45:00", "09:00:00", "0.250"),
+            ("10:00:00", "11:30:00", "1.500"),
+        ]
+        assert result["swept_hours"] == 3.25
+
+    def test_entries_without_times_are_laid_out_first(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: an untimed entry takes the day from clock-in."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 30), worker)
+        make_time_line(job, worker, accounting_date=DAY, hours="1.000", approved=False)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("07:00:00", "08:30:00", "1.500")]
+
+    def test_a_swept_entry_starts_and_stops_on_quarter_hours(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.to_quarter: the clock keeps 06:52 and 08:08; the entry rounds."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:45:00", "08:15:00", "1.500")]
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (time(6, 52), time(8, 8))
+
     def test_clocked_time_on_no_job_goes_to_general_work_and_the_day_is_approved(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:

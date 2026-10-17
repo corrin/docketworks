@@ -15,7 +15,6 @@ import { formatHoursDisplay } from '../../../src/lib/format'
 import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import {
-  WORKER_HOURS,
   bookAsWorkshopUser,
   getLatestWeekdayDate,
   seedLabourForWeek,
@@ -23,13 +22,19 @@ import {
 } from './support'
 
 /**
- * 06:30 to 15:00 with the standard breaks the office's times put on the day:
- * 8h 30m here, less the 30m unpaid lunch and the two 15m paid breaks, leaves
- * 7h 30m to be on jobs. With nothing entered, that is what a sweep moves.
+ * 06:30 to 15:00 with the standard breaks the office's times put on the day
+ * (paid 08:30 to 08:45, lunch 11:30 to 12:00, paid 13:30 to 13:45). With
+ * nothing entered, the sweep fills each stretch between them: 7h 30m in four.
  */
 const CLOCK_IN = '06:30'
 const CLOCK_OUT = '15:00'
 const HOURS_FOR_JOBS = 7.5
+const STRETCHES = [
+  ['06:30 to 08:30', 2],
+  ['08:45 to 11:30', 2.75],
+  ['12:00 to 13:30', 1.5],
+  ['13:45 to 15:00', 1.25],
+] as const
 
 /** Five weeks ahead: a week no other timesheet spec books or clocks on. */
 const FUTURE_WEEK = shiftDate(mondayOf(getLatestWeekdayDate()), 35)
@@ -70,15 +75,13 @@ test("a person's clocked time on no job is swept onto General work and the day a
   const seeded = await seedAsSuperuser(browser, origin, FUTURE_WEEK)
   const waitingEntryId = await bookAsWorkshopUser(browser, origin, seeded)
   const staffId = seeded.staff.id
-  // The seeded hours and the worker's waiting entry are on a job; the rest is not.
-  const unallocated = Math.round((HOURS_FOR_JOBS - seeded.hours - WORKER_HOURS) * 100) / 100
   const sweepButton = autoId(page, `ApproveTimePage-sweep-${staffId}`)
   const state = autoId(page, `ApproveTimePage-state-${staffId}`)
 
   await test.step('the office sets the clock times, and the rest shows as not on a job', async () => {
     await page.goto(`/timesheets/approve?date=${seeded.date}`)
     await setClock(page, staffId)
-    await expect(sweepButton).toHaveText(`Sweep ${formatHoursDisplay(unallocated)} to General work`)
+    await expect(sweepButton).toContainText('to General work')
   })
 
   // docs/design-language.md: the row now carries a second action, so it is
@@ -99,17 +102,15 @@ test("a person's clocked time on no job is swept onto General work and the day a
     })
   }
 
-  await test.step('swept on a phone: exactly that goes on General work and the day is approved', async () => {
+  // Where each stretch falls around the worker's entries is the unit tests'
+  // to prove (test_approval TestSweep); here, the sweep on a phone.
+  await test.step('swept on a phone: the day goes on General work and is approved', async () => {
     await sweepButton.click()
-    await expect(
-      page.getByText(`${formatHoursDisplay(unallocated)} put on General work.`),
-    ).toBeVisible()
+    await expect(page.getByText('put on General work.')).toBeVisible()
     await expect(state).toContainText('Approved')
     await expect(sweepButton).toHaveCount(0)
     const entries = autoId(page, `ApproveTimePage-entries-${staffId}`)
-    const swept = entries.locator('li', { hasText: 'General work' })
-    await expect(swept).toHaveCount(1)
-    await expect(swept).toContainText(formatHoursDisplay(unallocated))
+    await expect(entries.locator('li', { hasText: 'General work' }).first()).toBeVisible()
     // Sweeping is approving: the worker's own waiting entry went with the day.
     await expect(autoId(page, `ApproveTimePage-entry-${waitingEntryId}`)).toContainText('Approved')
   })
@@ -142,5 +143,9 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
   const swept = autoId(page, `ApproveTimePage-entries-${staffId}`).locator('li', {
     hasText: 'General work',
   })
-  await expect(swept).toContainText(formatHoursDisplay(HOURS_FOR_JOBS))
+  await expect(swept).toHaveCount(STRETCHES.length)
+  for (const [index, [times, hours]] of STRETCHES.entries()) {
+    await expect(swept.nth(index)).toContainText(times)
+    await expect(swept.nth(index)).toContainText(formatHoursDisplay(hours))
+  }
 })

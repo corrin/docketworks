@@ -270,38 +270,6 @@ def fill_figures(
     against the hours to fill and the screen says them apart; lunch and any
     other unpaid break come off the hours to fill, since they are not hours.
     """
-    span = _clocked_span(row, break_lines)
-    if span is None:
-        return None
-    to_fill, on_breaks = span
-    return {
-        "to_fill_hours": float(to_fill),
-        "break_hours": float(on_breaks),
-        "entered_hours": float(entered),
-        "to_go_hours": float(to_fill - on_breaks - entered),
-    }
-
-
-def unentered_hours(
-    row: AttendanceDay | None, entered: Decimal, break_lines: list[CostLine]
-) -> Decimal | None:
-    """Return his clocked time that is on no job and no paid break (KAN-380).
-
-    None until both clock times are known: a day still clocked in, or never
-    clocked, has no clocked time to speak of. Negative when more is entered
-    than he was here for.
-    """
-    span = _clocked_span(row, break_lines)
-    if span is None:
-        return None
-    to_fill, on_breaks = span
-    return to_fill - on_breaks - entered
-
-
-def _clocked_span(
-    row: AttendanceDay | None, break_lines: list[CostLine]
-) -> tuple[Decimal, Decimal] | None:
-    """Return his paid hours between the clock times and his paid breaks among them."""
     if row is None or row.clock_out is None:
         return None
     unpaid = [
@@ -310,7 +278,72 @@ def _clocked_span(
         if not is_paid_break(line) and (window := _line_window(line)) is not None
     ]
     on_breaks = sum((line.quantity for line in break_lines if is_paid_break(line)), Decimal(0))
-    return paid_span_hours(row.clock_in, row.clock_out, unpaid), on_breaks
+    to_fill = paid_span_hours(row.clock_in, row.clock_out, unpaid)
+    return {
+        "to_fill_hours": float(to_fill),
+        "break_hours": float(on_breaks),
+        "entered_hours": float(entered),
+        "to_go_hours": float(to_fill - on_breaks - entered),
+    }
+
+
+#: The last minute a time of day can hold: the day has no 24:00.
+_LAST_QUARTER_MINUTE = 24 * 60 - QUARTER_HOUR_MINUTES
+
+
+def to_quarter(moment: time) -> time:
+    """Return the nearest quarter hour: the one rounding rule for an entry's start or stop.
+
+    Clock times are logged as tapped; an entry's start and stop are set on
+    quarter hours, so its hours are simply the stop less the start, and pay
+    is the sum of entries (owner, 2026-10-17). Change the rounding here and
+    every entry it sets follows. A stop after 23:52 rounds to 23:45, since the
+    day has no 24:00.
+    """
+    quarters = (Decimal(_minutes(moment)) / QUARTER_HOUR_MINUTES).quantize(
+        Decimal("1"), ROUND_HALF_UP
+    )
+    minutes = min(int(quarters) * QUARTER_HOUR_MINUTES, _LAST_QUARTER_MINUTE)
+    return time(minutes // 60, minutes % 60)
+
+
+def unallocated_windows(
+    day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
+) -> list[Window] | None:
+    """Return the stretches he was clocked in that hold no entry and no break (KAN-380).
+
+    Each is a time entry waiting to be made, its start and stop on quarter
+    hours. Entries kept without times are laid out first, end to end from
+    clock-in around the breaks and the timed entries, as the fill sheet lays
+    out a day. None until both clock times are known: a day still clocked in,
+    or never clocked, has no clocked time to speak of.
+    """
+    if row is None or row.clock_out is None:
+        return None
+    timed = [window for line in entries if (window := _line_window(line)) is not None]
+    occupied = [*break_windows(day, row, break_lines), *timed]
+    cursor = row.clock_in
+    for line in [line for line in entries if _line_window(line) is None]:
+        begins = start_after_breaks(cursor, occupied)
+        ends = finish_in_the_day(begins, line.quantity, occupied)
+        # Hours that would run past midnight take the rest of the day.
+        laid_end = ends if ends is not None else time(23, 59)
+        occupied.append(Window(begins, laid_end))
+        cursor = laid_end
+    first, last = _minutes(row.clock_in), _minutes(row.clock_out)
+    gaps: list[tuple[int, int]] = []
+    free_from = first
+    for taken_start, taken_end in [*_merged(occupied), (last, last)]:
+        gaps.append((free_from, min(taken_start, last)))
+        free_from = max(free_from, taken_end)
+    windows = [
+        Window(to_quarter(_time_of(start)), to_quarter(_time_of(end))) for start, end in gaps
+    ]
+    return [window for window in windows if window.end > window.start]
+
+
+def _time_of(minutes: int) -> time:
+    return time(minutes // 60, minutes % 60)
 
 
 def _merged(windows: list[Window]) -> list[tuple[int, int]]:

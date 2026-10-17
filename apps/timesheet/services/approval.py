@@ -27,13 +27,15 @@ from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
+    Window,
     attendance_data,
     day_breaks,
     duration_words,
     fill_figures,
+    hours_for,
     split_breaks,
     standard_day,
-    unentered_hours,
+    unallocated_windows,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
@@ -174,9 +176,10 @@ def _staff_day(
     waiting = [line for line in hours if not line.approved]
     entries, break_lines = split_breaks(lines)
     clock = attendance_data(attendance)
-    on_jobs = sum((line.quantity for line in entries), Decimal(0))
-    fill = fill_figures(attendance, on_jobs, break_lines)
-    unallocated = unentered_hours(attendance, on_jobs, break_lines)
+    fill = fill_figures(
+        attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
+    )
+    unallocated = unallocated_windows(day, attendance, entries, break_lines)
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
@@ -203,7 +206,7 @@ def _staff_day(
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
-        "unallocated_hours": None if unallocated is None else float(unallocated),
+        "unallocated_hours": None if unallocated is None else float(_hours_in(unallocated)),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
         if attendance is not None
         else [],
@@ -336,9 +339,8 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
         for person in people:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
-            entered = sum((line.quantity for line in entries), Decimal(0))
-            remainder = unentered_hours(row, entered, break_lines)
-            if remainder is None:
+            windows = unallocated_windows(day, row, entries, break_lines)
+            if windows is None:
                 skipped.append(
                     {
                         "staff_id": str(person.id),
@@ -348,30 +350,38 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
                     }
                 )
             else:
-                swept += _move_to_general_work(person, day, remainder, general_work_id, actor)
+                swept += _put_on_general_work(person, day, windows, general_work_id, actor)
                 approved += approve_day(person, day, actor)
     return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
 
 
-def _move_to_general_work(
-    worker: Staff, day: date, remainder: Decimal, general_work_id: UUID, actor: Staff
+def _put_on_general_work(
+    worker: Staff, day: date, windows: list[Window], general_work_id: UUID, actor: Staff
 ) -> Decimal:
-    """Put the clocked time on no job onto General work; return the hours moved."""
-    if remainder <= 0:
-        # His entries already cover the clocked time, or more ("Over by"):
-        # nothing moves, and the day is still approved.
-        return Decimal(0)
-    # Entered by the office, so it starts approved; placed after his latest
-    # entry by the same rule as any office entry.
-    create_entry(
-        actor,
-        worker,
-        {
-            "job_id": general_work_id,
-            "accounting_date": day,
-            "hours": remainder,
-            # A shop job's time is billed to nobody; the model refuses otherwise.
-            "is_billable": False,
-        },
-    )
-    return remainder
+    """Make a General work entry in each stretch on no job; return the hours they hold.
+
+    One entry per stretch, ending where a break or a real entry starts and
+    starting again where it ends. Entered by the office, so each starts
+    approved. No stretches (his entries cover the day, or more) moves nothing,
+    and the day is still approved.
+    """
+    for window in windows:
+        create_entry(
+            actor,
+            worker,
+            {
+                "job_id": general_work_id,
+                "accounting_date": day,
+                "hours": hours_for(window.start, window.end, []),
+                "start_time": window.start,
+                "end_time": window.end,
+                # A shop job's time is billed to nobody; the model refuses otherwise.
+                "is_billable": False,
+            },
+        )
+    return _hours_in(windows)
+
+
+def _hours_in(windows: list[Window]) -> Decimal:
+    """Return the hours the stretches hold: each one's stop less its start."""
+    return sum((hours_for(window.start, window.end, []) for window in windows), Decimal(0))
