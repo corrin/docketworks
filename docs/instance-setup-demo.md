@@ -74,7 +74,7 @@ flag may create missing demo-only payroll objects, including the configured
 weekly calendar and required pay items — the same objects production
 onboarding refuses to create. It then selects a live branding theme if none is
 configured (demo seeding may take the first; production never does), syncs
-pay items and accounts, creates the eleven canonical shop jobs, links the
+pay items and accounts, creates the thirteen canonical shop jobs, links the
 fixed leave types to them, and imports the dummy staff last — linking or
 creating their Xero Payroll employees — so the inbound sync sees the finished
 payroll configuration. Automated sync is enabled only at the very end; there
@@ -97,7 +97,7 @@ Xero **Terms (Quotes)** wording from section 3, which the reset wipes.
 
 - Staff list shows 11 demo employees, all linked to Xero Payroll. Xero's
   immutable shipped sample employees are explicitly ignored by the sync.
-- Exactly eleven shop jobs are visible.
+- Exactly thirteen shop jobs are visible.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
 - A test job, timesheet, quote, and invoice work as expected.

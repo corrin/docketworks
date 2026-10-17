@@ -287,6 +287,67 @@ def fill_figures(
     }
 
 
+#: The last minute a time of day can hold: the day has no 24:00.
+_LAST_QUARTER_MINUTE = 24 * 60 - QUARTER_HOUR_MINUTES
+
+
+def to_quarter(moment: time) -> time:
+    """Return the nearest quarter hour: the one rounding rule for an entry's start or stop.
+
+    Clock times are logged as tapped; an entry's start and stop are set on
+    quarter hours, so its hours are simply the stop less the start, and pay
+    is the sum of entries (owner, 2026-10-17). Change the rounding here and
+    every entry it sets follows. A stop after 23:52 rounds to 23:45, since the
+    day has no 24:00.
+    """
+    quarters = (Decimal(_minutes(moment)) / QUARTER_HOUR_MINUTES).quantize(
+        Decimal("1"), ROUND_HALF_UP
+    )
+    minutes = min(int(quarters) * QUARTER_HOUR_MINUTES, _LAST_QUARTER_MINUTE)
+    return time(minutes // 60, minutes % 60)
+
+
+def unallocated_windows(
+    day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
+) -> list[Window] | None:
+    """Return the stretches he was clocked in that hold no entry and no break (KAN-380).
+
+    Each is a time entry waiting to be made, its start and stop on quarter
+    hours unless that would reach into an entry or break beside it. Entries
+    kept without times are laid out first, end to end from clock-in around
+    the breaks and the timed entries, as the fill sheet lays
+    out a day. None until both clock times are known: a day still clocked in,
+    or never clocked, has no clocked time to speak of.
+    """
+    if row is None or row.clock_out is None:
+        return None
+    timed = [window for line in entries if (window := _line_window(line)) is not None]
+    occupied = [*break_windows(day, row, break_lines), *timed]
+    cursor = row.clock_in
+    for line in [line for line in entries if _line_window(line) is None]:
+        begins = start_after_breaks(cursor, occupied)
+        ends = finish_in_the_day(begins, line.quantity, occupied)
+        # Hours that would run past midnight take the rest of the day.
+        laid_end = ends if ends is not None else time(23, 59)
+        occupied.append(Window(begins, laid_end))
+        cursor = laid_end
+    first, last = _minutes(row.clock_in), _minutes(row.clock_out)
+    windows: list[Window] = []
+    free_from, floor = first, 0
+    for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
+        # Each bound rounds to its quarter, but never into the entry or break
+        # beside it: those minutes are already paid.
+        start = max(_minutes(to_quarter(_time_of(free_from))), floor)
+        end = min(_minutes(to_quarter(_time_of(min(taken_start, last)))), taken_start)
+        windows.append(Window(_time_of(start), _time_of(end)))
+        free_from, floor = max(free_from, taken_end), max(floor, taken_end)
+    return [window for window in windows if window.end > window.start]
+
+
+def _time_of(minutes: int) -> time:
+    return time(minutes // 60, minutes % 60)
+
+
 def _merged(windows: list[Window]) -> list[tuple[int, int]]:
     """Return breaks as minute stretches in order, with overlapping ones joined."""
     merged: list[tuple[int, int]] = []

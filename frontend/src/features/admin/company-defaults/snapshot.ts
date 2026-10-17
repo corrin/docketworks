@@ -21,9 +21,10 @@ export type CompanyDefaultsRecord = CompanyDefaultsOut & Record<string, unknown>
 // is the rule and this bridge is the single exception, so a widget type absent
 // from this map is correct by default; making it total would force every new
 // widget to restate `(key) => key`. Only ninja's `_id` suffix on a ForeignKey
-// earns an entry, and apps/core/settings_metadata.py has exactly one FK widget.
+// earns an entry: apps/core/settings_metadata.py's two FK widgets, company and job.
 const WRITE_KEY_BY_TYPE: Partial<Record<SettingsFieldOut['type'], (key: string) => string>> = {
   company: (key) => `${key}_id`,
+  job: (key) => `${key}_id`,
 }
 
 const isEditable = (field: SettingsFieldOut): boolean => !field.read_only && field.type !== 'image'

@@ -68,9 +68,10 @@ XERO_SCOPES = [
 # webhook single-syncs, contact push and stock push.
 SLEEP_TIME = 1
 
-#: Xero's documented maximum number of objects in one batch create or update;
-#: every batched write (contact seeding, document seeding, contact archiving)
-#: slices by it. Always the maximum: the day allowance is spent per CALL, not
+#: Objects in one batch create or update. Xero caps a request at 3.5MB, not at
+#: a count; 50 is Xero's own approximation of what stays under that size.
+#: Every batched write (contact seeding, document seeding, contact archiving)
+#: slices by it. Calls are billed and the day allowance is spent per CALL, not
 #: per object, so a smaller batch multiplies the cost of every write.
 XERO_BATCH_SIZE = 50
 

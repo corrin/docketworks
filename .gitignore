@@ -49,6 +49,7 @@ htmlcov/
 # Celery beat's scheduler state (shelve db written at runtime).
 celerybeat-schedule
 celerybeat-schedule.*
+celerybeat-schedule-*
 celerybeat.pid
 
 # GPT: Keep the full audit locally; the concise review report is versioned.

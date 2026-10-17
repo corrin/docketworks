@@ -12,9 +12,13 @@ this module returns carries a rate, a cost or a revenue figure.
 from datetime import date, time
 from decimal import Decimal
 from typing import Literal, TypedDict
+from uuid import UUID
+
+from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
+from apps.core.errors import ConflictError
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
@@ -23,18 +27,23 @@ from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
+    Window,
     attendance_data,
     day_breaks,
     duration_words,
     fill_figures,
+    hours_for,
     split_breaks,
     standard_day,
+    unallocated_windows,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
+    create_entry,
+    day_time_lines,
     default_entry_start,
     entered_late,
     entry_data,
@@ -72,6 +81,9 @@ class StaffApprovalData(TypedDict):
     #: Whether the person was here, a separate question from whether their
     #: time is approved: every pairing of the two is an ordinary day.
     clock: AttendanceData
+    #: Clocked time on no job and no paid break: what a sweep would put on
+    #: General work (KAN-380). None until both clock times are known.
+    unallocated_hours: float | None
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
     #: Where an entry the office adds for this person starts: after their
@@ -167,6 +179,7 @@ def _staff_day(
     fill = fill_figures(
         attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
     )
+    unallocated = unallocated_windows(day, attendance, entries, break_lines)
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
@@ -193,6 +206,7 @@ def _staff_day(
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
+        "unallocated_hours": None if unallocated is None else float(_hours_in(unallocated)),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
         if attendance is not None
         else [],
@@ -251,3 +265,128 @@ def day_summary(rows: list[StaffApprovalData]) -> DaySummaryData:
     else:
         standing = "in_progress"
     return {"expected": len(expected), "approved": approved, "standing": standing}
+
+
+# ── Sweep (KAN-380) ─────────────────────────────────────────────────────
+
+#: Why a person's day was not swept. Both mean there is no clocked time to
+#: speak of: the sweep reads clock times as they stand and never sets one.
+SweepSkipReason = Literal["still_clocked_in", "no_clock_times"]
+
+
+class SweepSkipData(TypedDict):
+    """A day the sweep left alone, for the office to deal with."""
+
+    staff_id: str
+    staff_name: str
+    date: date
+    reason: SweepSkipReason
+
+
+class SweepData(TypedDict):
+    """What a sweep moved onto General work and approved."""
+
+    swept_hours: float
+    #: The worker's own entries the sweep approved with the day.
+    approved_count: int
+    skipped: list[SweepSkipData]
+
+
+class GeneralWorkNotSetUpError(ConflictError):
+    """The instance has no General work job, so there is nowhere to sweep to."""
+
+
+@transaction.atomic
+def sweep_person(worker: Staff, days: list[date], actor: Staff) -> SweepData:
+    """Sweep one person's days: their clocked time on no job goes onto General work."""
+    return _sweep({day: [worker] for day in days}, actor)
+
+
+@transaction.atomic
+def sweep_everyone(days: list[date], actor: Staff) -> SweepData:
+    """Sweep the days of everyone who clocked or has time on them."""
+    return _sweep({day: _people_on(day) for day in days}, actor)
+
+
+def _people_on(day: date) -> list[Staff]:
+    """Return the people who clocked or have time on the day.
+
+    Someone with neither has nothing to sweep and nothing to approve, so they
+    are not reported as skipped.
+    """
+    present = set(AttendanceDay.objects.filter(date=day).values_list("staff_id", flat=True))
+    present |= set(
+        CostLine.objects.filter(
+            cost_set__kind="actual", kind="time", accounting_date=day
+        ).values_list("staff_id", flat=True)
+    )
+    return [person for person in get_displayable_staff(target_date=day) if person.id in present]
+
+
+def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
+    """Sweep each person's day, approving what it sweeps; skip days with no clocked time.
+
+    Sweeping is approving (owner, 2026-10-17): the office saw the day and
+    accepted it, so the worker's own waiting entries are approved with it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        raise GeneralWorkNotSetUpError("General work is not set up. Run create_shop_jobs.")
+    # Two offices sweeping the same person would both read the same stretches
+    # before either writes, and pay them twice; the second waits here and
+    # reads the first's entries. Ordered by pk so two sweeps never deadlock.
+    staff_ids = {person.pk for people in people_by_day.values() for person in people}
+    list(Staff.objects.select_for_update().filter(pk__in=staff_ids).order_by("pk"))
+    swept = Decimal(0)
+    approved = 0
+    skipped: list[SweepSkipData] = []
+    for day, people in people_by_day.items():
+        for person in people:
+            row = AttendanceDay.objects.filter(staff=person, date=day).first()
+            entries, break_lines = split_breaks(day_time_lines(person, day))
+            windows = unallocated_windows(day, row, entries, break_lines)
+            if windows is None:
+                skipped.append(
+                    {
+                        "staff_id": str(person.id),
+                        "staff_name": person.get_display_full_name(),
+                        "date": day,
+                        "reason": "no_clock_times" if row is None else "still_clocked_in",
+                    }
+                )
+            else:
+                swept += _put_on_general_work(person, day, windows, general_work_id, actor)
+                approved += approve_day(person, day, actor)
+    return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
+
+
+def _put_on_general_work(
+    worker: Staff, day: date, windows: list[Window], general_work_id: UUID, actor: Staff
+) -> Decimal:
+    """Make a General work entry in each stretch on no job; return the hours they hold.
+
+    One entry per stretch, ending where a break or a real entry starts and
+    starting again where it ends. Entered by the office, so each starts
+    approved. No stretches (his entries cover the day, or more) moves nothing,
+    and the day is still approved.
+    """
+    for window in windows:
+        create_entry(
+            actor,
+            worker,
+            {
+                "job_id": general_work_id,
+                "accounting_date": day,
+                "hours": hours_for(window.start, window.end, []),
+                "start_time": window.start,
+                "end_time": window.end,
+                # A shop job's time is billed to nobody; the model refuses otherwise.
+                "is_billable": False,
+            },
+        )
+    return _hours_in(windows)
+
+
+def _hours_in(windows: list[Window]) -> Decimal:
+    """Return the hours the stretches hold: each one's stop less its start."""
+    return sum((hours_for(window.start, window.end, []) for window in windows), Decimal(0))
