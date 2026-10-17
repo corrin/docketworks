@@ -27,7 +27,8 @@ not the full ChatGPT product.
 3. Register the browser hostname (including the development ngrok hostname) in
    [OpenAI’s domain allowlist](https://platform.openai.com/settings/organization/security/domain-allowlist).
    Enter its public domain key in **Admin → Integrations → Quoting chat** and save.
-   Ngrok and deployed sites both need their registered key.
+   Ngrok and deployed sites both need their registered key. `http://localhost` needs no
+   allowlist entry: OpenAI verifies a registered key from it, so a local E2E run reuses the dev key.
    This public embed setting is separate from the secret model API key.
 4. Open a job's **Quoting Chat** tab. Missing configuration shows an actionable setup
    message, including an Integrations link for superusers. Test a supplier lookup and

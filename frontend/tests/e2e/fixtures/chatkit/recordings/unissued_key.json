@@ -1,0 +1,23 @@
+{
+  "recorded_at": "2026-10-15T00:14:36+00:00",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chatkit/domain_keys/verify",
+    "body": {
+      "referrer_origin": "https://docketworks-msm-dev.ngrok-free.app",
+      "domain_key": "<unissued>"
+    }
+  },
+  "response": {
+    "status": 404,
+    "content_type": "application/json"
+  },
+  "body": {
+    "error": {
+      "message": "Domain key domain_pk_000000000000000000000000000000000000000000000000 not found.",
+      "type": "invalid_request_error",
+      "param": null,
+      "code": null
+    }
+  }
+}

@@ -19,11 +19,10 @@ retain their real-service requirements.
   (`tests/e2e/job/job-xero-quote.spec.ts`) requires the native Xero PDF to
   contain it. This marker is a demo-only fixture contract, not a validation rule
   for production wording.
-- **AI providers and outbound email** — the same real-not-mocked policy binds,
-  but no current spec exercises them: the AI features (quote chat, safety AI,
-  quote-to-PO) are not yet ported, so there is nothing to test. When those
-  slices land, their specs make real provider calls and send real mail to a test
-  recipient rather than mocking the transport.
+- **AI providers and outbound email** — the same real-not-mocked policy binds.
+  The quoting-chat spec talks to the configured model for real, and the
+  workshop password-reset spec sends real mail and reads it from the test
+  mailbox.
 - **File uploads** — real file fixtures (`tests/e2e/fixtures/`), not byte blobs.
 
 ## Isolation model
@@ -75,16 +74,18 @@ retain their real-service requirements.
 ## Serving model
 
 `./scripts/ops/run_e2e.sh` (repo root) is the unattended full-gate runner. It
-refuses to start if ports 4173/8000/4040 are in use, resets recognised E2E data,
-then owns the full five-service stack — vite production preview (:4173), Django
-under uvicorn (:8000), celery worker, celery beat, and ngrok — and stops only
-the processes it started. Use bare `npm run test:e2e` only when intentionally
+refuses to start if ports 4173/8000 are in use, resets recognised E2E data,
+then owns the service stack — vite production preview (:4173), Django under
+uvicorn (:8000), celery worker and celery beat — and stops only the processes it
+started. The default fake-Xero run serves the suite on `http://localhost:4173`;
+`--use-real-xero` also starts ngrok (and guards :4040) and runs through the
+public origin (ADR 0060). Use bare `npm run test:e2e` only when intentionally
 targeting an environment that is already running. Plain `npm run test:e2e` never
 starts the frontend or backend; start them through the normal launch task first.
 
-The Playwright `baseURL` defaults to `https://APP_DOMAIN` from the backend `.env`,
-so the browser uses the same ngrok/public origin as integrations. `E2E_BASE_URL` is
-an explicit override. Credentials come from `E2E_TEST_USERNAME` /
+The Playwright `baseURL` is `FRONT_END_URL`, read as Django reads it (the process
+environment over the backend `.env`), so the browser, global setup and the
+backend's own links share one origin. Credentials come from `E2E_TEST_USERNAME` /
 `E2E_TEST_PASSWORD` in `.env.test`.
 
 Tests run sequentially (`fullyParallel: false` — they share one database), stop
