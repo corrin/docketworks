@@ -1,8 +1,8 @@
 """Kanban column taxonomy.
 
 Simplified kanban structure: 6 main columns with 1:1 status mapping (no
-sub-columns; column = status). Hidden statuses: special, rejected (archived
-gets its own fetch path).
+sub-columns; column = status). `special` badges as Unusual; archived gets its
+own fetch path.
 """
 
 from dataclasses import dataclass
@@ -83,37 +83,28 @@ class KanbanCategorizationService:
         ),
     }
 
-    # Status to column mapping for quick lookup - simplified 1:1 mapping
+    # Every Job.JOB_STATUS_CHOICES key, column = status. `special` has no
+    # column of its own; it badges as Unusual.
     STATUS_TO_COLUMN_MAP: ClassVar[dict[str, str]] = {
-        # New status structure - 1:1 mapping (column = status)
         "draft": "draft",
         "awaiting_approval": "awaiting_approval",
         "approved": "approved",
         "in_progress": "in_progress",
         "unusual": "unusual",
+        "special": "unusual",
         "recently_completed": "recently_completed",
         "archived": "archived",
-        # Legacy status mappings kept from v1 (pre-migration rows)
-        "quoting": "awaiting_approval",
-        "accepted_quote": "approved",
-        "awaiting_materials": "in_progress",
-        "awaiting_staff": "in_progress",
-        "awaiting_site_availability": "in_progress",
-        "on_hold": "unusual",
-        "completed": "recently_completed",
-        # Hidden statuses (not shown on kanban): special, rejected
     }
 
     @classmethod
     def get_column_for_status(cls, status: str) -> str:
         """Return the kanban column id for a job status."""
-        return cls.STATUS_TO_COLUMN_MAP.get(status, "draft")
+        return cls.STATUS_TO_COLUMN_MAP[status]
 
     @classmethod
-    def get_column_info_for_status(cls, status: str) -> KanbanColumn | None:
-        """Return the column information for a status, if mapped."""
-        column_id = cls.get_column_for_status(status)
-        return cls.COLUMN_STRUCTURE.get(column_id)
+    def get_column_info_for_status(cls, status: str) -> KanbanColumn:
+        """Return the column information for a status."""
+        return cls.COLUMN_STRUCTURE[cls.get_column_for_status(status)]
 
     @classmethod
     def get_all_columns(cls) -> list[KanbanColumn]:
@@ -137,18 +128,4 @@ class KanbanCategorizationService:
     def get_badge_info(cls, status: str) -> BadgeInfo:
         """Return badge display information (label + colour class) for a status."""
         column_info = cls.get_column_info_for_status(status)
-
-        if column_info:
-            return {
-                "label": column_info.column_title,
-                "color_class": column_info.badge_color_class,
-            }
-
-        # Fallback for unknown statuses
-        return {"label": status.replace("_", " ").title(), "color_class": "bg-gray-400"}
-
-    @classmethod
-    def is_status_hidden_from_kanban(cls, status: str) -> bool:
-        """Report whether a status is hidden from kanban display."""
-        hidden_statuses = {"special", "rejected"}
-        return status in hidden_statuses
+        return {"label": column_info.column_title, "color_class": column_info.badge_color_class}
