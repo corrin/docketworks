@@ -128,3 +128,8 @@ across the load.
    the URI registered in the Xero developer portal — they must be identical.
 7. **Django** — run `uv run python -m uvicorn config.asgi:application --port 8000` directly to see
    startup errors with `DEBUG=true`.
+8. **ASGI disconnect messages** — expected client disconnects on CPython 3.14.7 and 3.14.8
+   can log `CancelledError exception in shielded future` to the console. This is the
+   upstream issue tracked by [Django #37385](https://code.djangoproject.com/ticket/37385)
+   and [CPython #156321](https://github.com/python/cpython/issues/156321). These console
+   messages do not create `AppError` records; application error logging remains enabled.

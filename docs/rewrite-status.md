@@ -51,9 +51,6 @@ does not have.
 written measures typing, not delivery. Every slice below authors its own E2E spec and
 is done only when that spec is green.
 
-PR #190 browser acceptance: run `job/job-history.spec.ts` and
-`timesheet/move-entry.spec.ts` after fixing the local fake seed setup.
-
 **Record every rename by hand as you port an operation.** 17 `workflow_*` operations
 are still to come, and `scripts/v1-frontend-operations.yml` is where a rename is
 recorded. An unrecorded rename makes the v1 name read as missing *and* the v2 name look

@@ -5,26 +5,6 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
-## 2026-10-17 — Python 3.14 application runtime
-
-The project and lockfile now require Python 3.14, and Ruff targets its syntax.
-Server setup installs the app interpreter through uv for `docketworks`, using
-the repository's `.python-version`, while system utilities retain the distro
-Python. Shared interpreter directories permit traversal by instance service
-accounts. Release virtual environments still build at their final paths from
-the frozen lockfile. Deploy's provisioning stamp includes the Python pin, so a
-runtime-only change reruns server setup.
-
-No package versions changed. Ruff's Python 3.14 rules removed redundant quoted
-annotations and exception-tuple parentheses; Xero batches explicitly retain
-their existing partial-final-batch behavior with `strict=False`. The exported
-API schema and generated client did not change.
-
-Verification on CPython 3.14.7: all 3,670 backend tests passed with 89.46%
-coverage, development and production-only frozen installs succeeded, and the
-production-only environment loaded Django, ASGI, Gunicorn and Celery. Browser
-verification is recorded in the upgrade PR.
-
 ## 2026-10-15 — Restore rejection and reopening from the job header
 
 The port retained `rejected_flag`, its PATCH support and the kanban icon, but
