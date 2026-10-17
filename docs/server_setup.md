@@ -66,7 +66,7 @@ sudo ./scripts/server/server-setup.sh
 The Dreamhost key and cert-domain list are persisted on first install at
 `/etc/letsencrypt/dreamhost-api-key.txt` and `/etc/letsencrypt/cert-domains.txt`
 respectively. Re-runs read both from disk, so `deploy.sh` can
-re-invoke `server-setup.sh` with no flags on every deploy.
+invoke `server-setup.sh` with no flags when provisioning inputs differ.
 
 To add or remove a single cert-domain on an already-configured server,
 edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
@@ -107,6 +107,11 @@ The script logs every action to `/var/log/docketworks-setup.log` with timestamps
 and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
 
 It is **idempotent** — safe to re-run on an already-configured server.
+
+`deploy.sh` compares a hash of the provisioning inputs with
+`/opt/docketworks/.server-setup-hash`. The inputs include `.python-version`,
+provisioning scripts and configuration templates. A differing hash runs setup;
+the stamp is written only after setup succeeds.
 
 ### What it installs
 
