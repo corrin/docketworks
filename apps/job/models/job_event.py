@@ -314,7 +314,7 @@ class JobEvent(AuditEvent):
             # timeline from a legacy event whose priority was free text. Raising
             # would take out the entire timeline view over a single old row, so
             # the direction is dropped and the fact of the change is kept.
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return "Priority changed"
             if abs(new - old) < 1e-6:
                 return ""
@@ -495,7 +495,7 @@ class JobEvent(AuditEvent):
         return queryset.exists()
 
     @classmethod
-    def create_safe(cls, **kwargs: Any) -> "tuple[JobEvent, bool]":
+    def create_safe(cls, **kwargs: Any) -> tuple[JobEvent, bool]:
         """Create a JobEvent, absorbing duplicate manual notes.
 
         Returns:

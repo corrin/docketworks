@@ -152,7 +152,7 @@ def sync_call_history(
 
 def _ingest_recording(
     *,
-    client: "PhoneProviderPortalClient",
+    client: PhoneProviderPortalClient,
     call: PhoneCallRecord,
     payload: ProviderPayload,
     account_code: str,
@@ -284,7 +284,7 @@ def link_phone_call_to_job(
     *,
     call_id: UUID,
     job_id: UUID,
-    linked_by: "Staff",
+    linked_by: Staff,
 ) -> PhoneCallRecord:
     """Link a company-matched call to a job of the same company.
 
@@ -375,7 +375,7 @@ def assign_phone_number_from_call(
 class PhoneProviderPortalClient:
     """Session-authenticated client for the provider portal (see module docstring)."""
 
-    def __init__(self, config: "PhoneProviderConfig"):
+    def __init__(self, config: PhoneProviderConfig):
         """Bind the provider config and prepare an anonymous portal session."""
         self.config = config
         self.session = requests.Session()
@@ -570,7 +570,7 @@ def upsert_call_record(
     *,
     payload: ProviderPayload,
     account_code: str,
-    matcher: "PhoneMatcher",
+    matcher: PhoneMatcher,
 ) -> tuple[PhoneCallRecord, bool]:
     """Create or update the call row for a provider payload; True when created."""
     provider_call_id = _provider_call_id(payload, account_code)
@@ -1092,7 +1092,7 @@ def _decimal_or_none(value: object) -> Decimal | None:
     try:
         return Decimal(str(value))
     # deliberate-swallow: unparseable charge is unset; backlog 9 covers the is_finite gap
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
 
 

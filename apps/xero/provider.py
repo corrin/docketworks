@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _slip_units(lines: "list[EarningsLine] | None") -> Decimal:
+def _slip_units(lines: list[EarningsLine] | None) -> Decimal:
     """Total units across one side of a pay slip's earnings lines.
 
     Xero splits its computed earnings by the API the hours arrived through, so
@@ -74,7 +74,7 @@ def _slip_units(lines: "list[EarningsLine] | None") -> Decimal:
     )
 
 
-def _slip_name(slip: "PaySlip") -> str | None:
+def _slip_name(slip: PaySlip) -> str | None:
     """Xero's denormalised name for the slip's employee, or None if it holds neither part."""
     parts = [part for part in (slip.first_name, slip.last_name) if part]
     return " ".join(parts) if parts else None
@@ -145,7 +145,7 @@ class XeroAccountingProvider:
 
     # --- Contacts ---
 
-    def create_contact(self, company: "Company") -> ContactResult:
+    def create_contact(self, company: Company) -> ContactResult:
         """See AccountingProvider.create_contact."""
         try:
             xero_contact_id = create_company_contact_in_xero(company)
@@ -154,7 +154,7 @@ class XeroAccountingProvider:
             return ContactResult(success=False, error=str(exc))
         return ContactResult(success=True, external_id=xero_contact_id, name=company.name)
 
-    def update_contact(self, company: "Company") -> ContactResult:
+    def update_contact(self, company: Company) -> ContactResult:
         """See AccountingProvider.update_contact."""
         try:
             sync_company_to_xero(company)
@@ -693,7 +693,7 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def push_purchase_order(
-        self, purchase_order: "PurchaseOrderModel", staff: "Staff"
+        self, purchase_order: PurchaseOrderModel, staff: Staff
     ) -> DocumentResult:
         """See AccountingProvider.push_purchase_order."""
         # Call-time import: the manager reaches back to this module through the

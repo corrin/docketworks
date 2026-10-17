@@ -491,7 +491,7 @@ def _write_documents(model: type[Document]) -> Callable[[FakeRequest, re.Match[s
                 refused = refused or was_refused
         # deliberate-swallow: a write naming an unknown document or contact answers 404
         # before anything is written
-        except (Document.DoesNotExist, FakeContact.DoesNotExist):
+        except Document.DoesNotExist, FakeContact.DoesNotExist:
             return not_found()
         return _answer_writes(
             request, model.RESOURCE, written, refused=refused, quotes=model is FakeQuote

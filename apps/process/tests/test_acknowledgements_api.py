@@ -38,13 +38,13 @@ def any_staff_client() -> Client:
     return client_for(make_staff("worker@example.com"))
 
 
-def acknowledge(client: Client, form_id: object, **body: object) -> "_MonkeyPatchedWSGIResponse":
+def acknowledge(client: Client, form_id: object, **body: object) -> _MonkeyPatchedWSGIResponse:
     return client.post(
         ACKNOWLEDGE_URL.format(id=form_id), data=body, content_type="application/json"
     )
 
 
-def list_acknowledgements(client: Client, form_id: object) -> "_MonkeyPatchedWSGIResponse":
+def list_acknowledgements(client: Client, form_id: object) -> _MonkeyPatchedWSGIResponse:
     return client.get(ACKNOWLEDGEMENTS_URL.format(id=form_id))
 
 

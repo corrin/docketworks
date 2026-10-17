@@ -72,13 +72,13 @@ def make_form(**overrides: object) -> Form:
     return Form.objects.create(**defaults)
 
 
-def create(client: Client, **overrides: object) -> "_MonkeyPatchedWSGIResponse":
+def create(client: Client, **overrides: object) -> _MonkeyPatchedWSGIResponse:
     return client.post(
         FORMS_URL, data={**CREATE_PAYLOAD, **overrides}, content_type="application/json"
     )
 
 
-def patch(client: Client, form_id: object, **fields: object) -> "_MonkeyPatchedWSGIResponse":
+def patch(client: Client, form_id: object, **fields: object) -> _MonkeyPatchedWSGIResponse:
     return client.patch(DETAIL_URL.format(id=form_id), data=fields, content_type="application/json")
 
 

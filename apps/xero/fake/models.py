@@ -89,7 +89,7 @@ def _uuid(value: Json, where: str) -> UUID | None:
 
 
 #: The parser for each column type, most specific first (a DateTimeField is a DateField).
-_PARSERS: "tuple[tuple[type[models.Field[object, object]], Callable[[Json, str], object]], ...]" = (
+_PARSERS: tuple[tuple[type[models.Field[object, object]], Callable[[Json, str], object]], ...] = (
     (models.DateTimeField, parse_wire_datetime),
     (models.DateField, parse_wire_date),
     (models.DecimalField, _number),
@@ -589,7 +589,7 @@ class Document(AccountingRecord):
         return wire
 
     @property
-    def lines(self) -> models.QuerySet["DocumentLine"]:
+    def lines(self) -> models.QuerySet[DocumentLine]:
         """The document's lines; each concrete document names its own line table."""
         raise NotImplementedError
 
@@ -632,7 +632,7 @@ class FakeInvoice(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeInvoiceLine"]:
+    def lines(self) -> models.QuerySet[FakeInvoiceLine]:
         """The invoice's lines."""
         return self.invoice_lines.all()
 
@@ -665,7 +665,7 @@ class FakeCreditNote(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeCreditNoteLine"]:
+    def lines(self) -> models.QuerySet[FakeCreditNoteLine]:
         """The creditnote's lines."""
         return self.creditnote_lines.all()
 
@@ -701,7 +701,7 @@ class FakeQuote(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeQuoteLine"]:
+    def lines(self) -> models.QuerySet[FakeQuoteLine]:
         """The quote's lines."""
         return self.quote_lines.all()
 
@@ -734,7 +734,7 @@ class FakePurchaseOrder(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakePurchaseOrderLine"]:
+    def lines(self) -> models.QuerySet[FakePurchaseOrderLine]:
         """The purchaseorder's lines."""
         return self.purchaseorder_lines.all()
 

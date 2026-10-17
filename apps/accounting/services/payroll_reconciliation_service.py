@@ -130,10 +130,10 @@ class _PayRunRow(Protocol):
 class _PayRunQuery(Protocol):
     """The queryset surface the reconciliation needs."""
 
-    def prefetch_related(self, *lookups: str) -> "_PayRunQuery":
+    def prefetch_related(self, *lookups: str) -> _PayRunQuery:
         """Return the rows with the given relations prefetched."""
 
-    def order_by(self, *fields: str) -> "_PayRunQuery":
+    def order_by(self, *fields: str) -> _PayRunQuery:
         """Return the rows re-ordered by the given fields."""
 
     def __iter__(self) -> Iterator[_PayRunRow]:
@@ -767,7 +767,7 @@ def _reconcile_week_against(
     monday: date,
     xero_data: dict[str, _XeroStaffWeek],
     staff_map: dict[str, Staff],
-    period: "_XeroPeriod",
+    period: _XeroPeriod,
 ) -> PayrollWeek:
     """Reconcile one week against an already-built Xero side.
 

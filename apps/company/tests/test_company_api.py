@@ -173,7 +173,7 @@ class TestUpdate:
 
     def _update(
         self, client: Client, company: Company, payload: dict[str, object]
-    ) -> "_MonkeyPatchedWSGIResponse":
+    ) -> _MonkeyPatchedWSGIResponse:
         return client.patch(
             f"/api/companies/{company.id}/update/",
             payload,
@@ -578,7 +578,7 @@ class TestSupplierAliases:
 class TestPickupAddresses:
     def _create(
         self, client: Client, company: Company, **overrides: object
-    ) -> "_MonkeyPatchedWSGIResponse":
+    ) -> _MonkeyPatchedWSGIResponse:
         payload: dict[str, object] = {
             "company": str(company.id),
             "name": "Main Warehouse",

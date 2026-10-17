@@ -182,7 +182,7 @@ log "Installing system packages..."
 DEBIAN_FRONTEND=noninteractive apt install -y \
     etckeeper \
     build-essential libpq-dev pkg-config pandoc unzip \
-    python3.12 python3.12-venv python3.12-dev \
+    python3 \
     git \
     rclone \
     ufw fail2ban \
@@ -195,7 +195,7 @@ fi
 log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
-log_version "python3.12" "$(python3.12 --version 2>&1)"
+log_version "system python3" "$(python3 --version 2>&1)"
 log_version "rclone" "$(rclone version | head -1)"
 log_version "unattended-upgrades" "$(dpkg -s unattended-upgrades | grep '^Version:' | awk '{print $2}')"
 
@@ -519,6 +519,17 @@ fi
 UV_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv --version' 2>&1)"
 log_version "uv (docketworks user)" "$UV_VERSION"
 
+# GPT: The app runtime follows the release pin, independently of Ubuntu's Python.
+# Instance users execute this shared interpreter through their release venvs.
+PYTHON_VERSION="$(cat "$SCRIPT_DIR/../../.python-version")"
+log "Installing app Python $PYTHON_VERSION for docketworks..."
+sudo -u docketworks bash -c 'umask 022; export PATH="/opt/docketworks/.local/bin:$PATH"; uv python install "$1"' bash "$PYTHON_VERSION"
+APP_PYTHON="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH"; uv python find --managed-python "$1"' bash "$PYTHON_VERSION")"
+chmod o+rx /opt/docketworks/.local /opt/docketworks/.local/share \
+    /opt/docketworks/.local/share/uv /opt/docketworks/.local/share/uv/python
+APP_PYTHON_VERSION="$("$APP_PYTHON" --version 2>&1)"
+log_version "app Python" "$APP_PYTHON_VERSION"
+
 # --- pnpm (via corepack) ---
 # Solely for the co-hosted marketing website (/opt/docketworks-website,
 # docs/server_setup.md Part G) — the app itself builds with npm.
@@ -664,7 +675,7 @@ cat > "$MANIFEST" <<MANIFEST
 ## Installed Software
 
 etckeeper:  $(dpkg -s etckeeper | grep Version | awk '{print $2}')
-Python:     $(python3.12 --version 2>&1)
+Python:     $APP_PYTHON_VERSION
 Node.js:    $(node --version)
 npm:        $(npm --version)
 PostgreSQL: $(psql --version)

@@ -179,7 +179,7 @@ class CompanyDefaultsPatchIn(ModelSchema):
         fields_optional = "__all__"
 
     @model_validator(mode="after")
-    def _blank_is_not_a_value(self) -> "CompanyDefaultsPatchIn":
+    def _blank_is_not_a_value(self) -> CompanyDefaultsPatchIn:
         # ADR 0040: nullable text columns never store ""; null is how a client
         # clears a value. Enforced generically rather than via NullableText per
         # field because this schema is derived with fields_optional="__all__".

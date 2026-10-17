@@ -64,7 +64,7 @@ def _page_link(request: HttpRequest, page: int) -> str:
 
 
 def _paginate[Row](
-    request: HttpRequest, rows: "_SupportsPagination[Row]", page: int
+    request: HttpRequest, rows: _SupportsPagination[Row], page: int
 ) -> dict[str, object]:
     """Wrap a row list or queryset in v1's PageNumberPagination envelope.
 

@@ -74,7 +74,7 @@ class LeaveType(models.Model):
         return self.display_name
 
     @classmethod
-    def surface_for(cls, code: "str | LeaveType.Code") -> PostingSurface:
+    def surface_for(cls, code: str | LeaveType.Code) -> PostingSurface:
         """Where hours booked to a category reach payroll.
 
         Opus: Derived from the fixed five-member ``Code`` enum rather than stored:
@@ -99,7 +99,7 @@ class LeaveType(models.Model):
         return self.code != self.Code.UNPAID
 
     @classmethod
-    def for_pay_item(cls, pay_item_id: uuid.UUID) -> "LeaveType | None":
+    def for_pay_item(cls, pay_item_id: uuid.UUID) -> LeaveType | None:
         """Return the category a Xero pay item posts, or None where none is configured.
 
         Opus: The line's own pay item is the only thing that can answer this. "Holiday

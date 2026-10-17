@@ -30,7 +30,7 @@ class StaffManager(BaseUserManager["Staff"]):
     creation, and proper defaults for staff-specific fields.
     """
 
-    def sole_login_match(self, email: str) -> "Staff | None":
+    def sole_login_match(self, email: str) -> Staff | None:
         """Resolve the single staff row a login email identifies, else None.
 
         The one definition of "which account does this address name": either
@@ -52,7 +52,7 @@ class StaffManager(BaseUserManager["Staff"]):
 
     def create_user(
         self, office_email: str | None, password: str | None = None, **extra_fields: Any
-    ) -> "Staff":
+    ) -> Staff:
         """Create and save a Staff user with a normalised office email."""
         if not office_email and not extra_fields.get("payroll_email"):
             raise ValueError("A staff member needs at least one email address.")
@@ -67,7 +67,7 @@ class StaffManager(BaseUserManager["Staff"]):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, office_email: str, password: str, **extra_fields: Any) -> "Staff":
+    def create_superuser(self, office_email: str, password: str, **extra_fields: Any) -> Staff:
         """Create a superuser, requiring office-staff and superuser flags."""
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("wage_rate", 0)  # Default wage rate for superusers
@@ -80,17 +80,17 @@ class StaffManager(BaseUserManager["Staff"]):
 
         return self.create_user(office_email, password, **extra_fields)
 
-    def active_on_date(self, target_date: date) -> "models.QuerySet[Staff]":
+    def active_on_date(self, target_date: date) -> models.QuerySet[Staff]:
         """Get staff members who were employed on a specific date."""
         return self.filter(employment_start_date__lte=target_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gt=target_date)
         )
 
-    def currently_active(self) -> "models.QuerySet[Staff]":
+    def currently_active(self) -> models.QuerySet[Staff]:
         """Get currently active staff (replaces is_active=True filters)."""
         return self.active_on_date(timezone.localdate())
 
-    def active_between_dates(self, start_date: date, end_date: date) -> "models.QuerySet[Staff]":
+    def active_between_dates(self, start_date: date, end_date: date) -> models.QuerySet[Staff]:
         """Get staff members who were employed at any point during the date range."""
         return self.filter(employment_start_date__lte=end_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gte=start_date)
@@ -383,7 +383,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         return self.groups.filter(name=STAFF_MANAGER_GROUP_NAME).exists() or self.is_superuser
 
     @classmethod
-    def get_automation_user(cls) -> "Staff":
+    def get_automation_user(cls) -> Staff:
         """Return the dedicated System Automation staff row.
 
         Used when a save is initiated by a background job, webhook, data

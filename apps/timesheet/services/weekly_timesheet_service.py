@@ -259,7 +259,7 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
     return grouped
 
 
-def _total(values: "Iterable[Decimal]") -> Decimal:
+def _total(values: Iterable[Decimal]) -> Decimal:
     """Sum a column of Decimals, starting from Decimal rather than int 0.
 
     Opus: Named rather than inlined because the sums it replaces were the aggregation

@@ -242,7 +242,7 @@ class TestAllocationReversal:
 
     def _reverse(
         self, api: Client, po: PurchaseOrder, line_id: str, alloc_type: str, alloc_id: str
-    ) -> "_MonkeyPatchedWSGIResponse":
+    ) -> _MonkeyPatchedWSGIResponse:
         """Reverse one allocation under the PO's current ETag.
 
         The precondition is fetched here rather than passed by every caller

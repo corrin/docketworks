@@ -212,7 +212,7 @@ def _date_to_datetime(date_obj: date | None) -> datetime | None:
     return datetime.combine(date_obj, datetime.min.time(), tzinfo=timezone.get_current_timezone())
 
 
-def annotated_with_phone(company: Company) -> "_AnnotatedCompanyWithPhone":
+def annotated_with_phone(company: Company) -> _AnnotatedCompanyWithPhone:
     """Vouch that the ``phone`` annotation is present on a fetched Company.
 
     The custom ``CompanyQuerySet`` erases ``WithAnnotations`` typing through
@@ -445,7 +445,7 @@ class CompanyRestService:
         return company
 
     @staticmethod
-    def update_company(company_id: UUID, data: CompanyUpdateData) -> "_AnnotatedCompanyWithPhone":
+    def update_company(company_id: UUID, data: CompanyUpdateData) -> _AnnotatedCompanyWithPhone:
         """Update a company; a Xero-synced one (``xero_contact_id`` set) also pushes.
 
         The provider token is checked before the local write, so an
@@ -777,7 +777,7 @@ class CompanyRestService:
 
     @staticmethod
     def _format_company_summary(
-        company: "_AnnotatedCompanyWithPhone",
+        company: _AnnotatedCompanyWithPhone,
     ) -> CompanySummaryData:
         """Format a single company summary for list/search responses.
 
@@ -809,7 +809,7 @@ class CompanyRestService:
 
     @staticmethod
     def _format_company_detail(
-        company: "_AnnotatedCompanyWithPhone",
+        company: _AnnotatedCompanyWithPhone,
     ) -> CompanyDetailData:
         """Format complete company details for API responses.
 

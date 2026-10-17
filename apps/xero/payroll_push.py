@@ -131,7 +131,7 @@ class _WeekWindow:
     end: date
 
     @classmethod
-    def of(cls, week_start_date: date) -> "_WeekWindow":
+    def of(cls, week_start_date: date) -> _WeekWindow:
         """Build the Monday-to-Sunday window, refusing any other start day."""
         require_payroll_week_start(week_start_date)
         return cls(start=week_start_date, end=week_start_date + timedelta(days=6))
@@ -251,7 +251,7 @@ class _SurfaceSplit:
 
 
 def _split_by_surface(
-    lines: Sequence[CostLine], catalogue: "hour_categories.LeaveCatalogue"
+    lines: Sequence[CostLine], catalogue: hour_categories.LeaveCatalogue
 ) -> _SurfaceSplit:
     """Group lines by the payroll surface their category reaches.
 
@@ -975,7 +975,7 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
     lines: Sequence[CostLine],
     week: _WeekWindow,
     existing: dict[str, PostedTimesheet],
-    catalogue: "hour_categories.LeaveCatalogue",
+    catalogue: hour_categories.LeaveCatalogue,
     *,
     tenant_id: str,
 ) -> StaffWeekPostResult:

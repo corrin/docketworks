@@ -195,7 +195,7 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
 #: copied tomorrow. Foreign keys stay seeded: they point at OUR rows, whose ids
 #: differ between the two databases, and a vendor credential is never a
 #: relation.
-def _company_defaults_fields(model: "type[Model]") -> "list[Field[Any, Any]]":
+def _company_defaults_fields(model: type[Model]) -> list[Field[Any, Any]]:
     return [
         field
         for field in model._meta.concrete_fields
@@ -211,7 +211,7 @@ _XERO_TOKEN_COLUMNS = ("token_type", "access_token", "refresh_token", "expires_a
 
 
 @pytest.fixture
-def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Opus: requesting `db` IS the dependency: it gives this fixture the test database to write into
+def integration_credentials(db: None) -> Iterator[None]:  # noqa: ARG001 -- Opus: requesting `db` IS the dependency: it gives this fixture the test database to write into
     """Copy vendor credentials from the dev database into the test database.
 
     Opus: Integration tests call real vendors (ADR 0050), which needs real
@@ -290,7 +290,7 @@ def _source_connection() -> str:
     )
 
 
-def _active_xero_token(xero_app: "type[Model]") -> "dict[str, Any] | None":
+def _active_xero_token(xero_app: type[Model]) -> dict[str, Any] | None:
     """The active app's token columns, as the test database currently holds them."""
     return (
         xero_app._default_manager.filter(is_active=True).values("id", *_XERO_TOKEN_COLUMNS).first()
@@ -298,8 +298,8 @@ def _active_xero_token(xero_app: "type[Model]") -> "dict[str, Any] | None":
 
 
 def _write_back_rotated_token(
-    xero_app: "type[Model]",
-    copied_token: "dict[str, Any] | None",
+    xero_app: type[Model],
+    copied_token: dict[str, Any] | None,
     source_dsn: str,
 ) -> None:
     """Return a token Xero rotated during the test to the dev database.
@@ -326,10 +326,10 @@ def _write_back_rotated_token(
 
 
 def _copy_rows(
-    source: "Connection[Any]",
-    model: "type[Model]",
-    natural_key: "tuple[str, ...]",
-    dropped: "tuple[str, ...]" = (),
+    source: Connection[Any],
+    model: type[Model],
+    natural_key: tuple[str, ...],
+    dropped: tuple[str, ...] = (),
 ) -> None:
     """Mirror every row of a table into the test database, minus the dropped columns."""
     columns = [
@@ -352,7 +352,7 @@ def _copy_rows(
         model._default_manager.update_or_create(**lookup, defaults=values)
 
 
-def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> None:
+def _copy_company_defaults(source: Connection[Any], model: type[Model]) -> None:
     """Copy the dev CompanyDefaults row onto the seeded singleton, every column."""
     fields = _company_defaults_fields(model)
     quoted = ", ".join(f'"{field.column}"' for field in fields)
@@ -371,7 +371,7 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
 
 
 @pytest.fixture(autouse=True)
-def _accounting_provider_is_not_reached(request: "pytest.FixtureRequest") -> "Iterator[None]":
+def _accounting_provider_is_not_reached(request: pytest.FixtureRequest) -> Iterator[None]:
     """Keep a purchase-order state change from reaching a real vendor.
 
     Only a status transition sends anything now, so this covers the receipt and
@@ -415,7 +415,7 @@ def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _committed_database(request: pytest.FixtureRequest) -> "Iterator[None]":
+def _committed_database(request: pytest.FixtureRequest) -> Iterator[None]:
     """Give transaction-contention tests their own disposable, migrated database.
 
     Other connections cannot see rollback fixtures. Committed inventory history
@@ -458,7 +458,7 @@ def _committed_database(request: pytest.FixtureRequest) -> "Iterator[None]":
 
 
 @pytest.fixture
-def office_staff() -> "Staff":
+def office_staff() -> Staff:
     """A staff member who may act on jobs. The default actor."""
     from apps.accounts.models import Staff
 
@@ -473,7 +473,7 @@ def office_staff() -> "Staff":
 
 
 @pytest.fixture
-def superuser() -> "Staff":
+def superuser() -> Staff:
     """A superuser.
 
     ``is_office_staff`` is not optional: create_superuser refuses a superuser
@@ -491,7 +491,7 @@ def superuser() -> "Staff":
     )
 
 
-def _authenticated(staff: "Staff") -> "Client":
+def _authenticated(staff: Staff) -> Client:
     """A client carrying the HttpOnly access-token cookie a browser would.
 
     Through the one mint, not RefreshToken.for_user — issued tokens carry the
@@ -507,7 +507,7 @@ def _authenticated(staff: "Staff") -> "Client":
 
 
 @pytest.fixture
-def api(office_staff: "Staff") -> "Client":
+def api(office_staff: Staff) -> Client:
     """An authenticated office-staff client. The default caller.
 
     Named ``api`` rather than shadowing pytest-django's ``client``, so a test
@@ -519,13 +519,13 @@ def api(office_staff: "Staff") -> "Client":
 
 
 @pytest.fixture
-def superuser_api(superuser: "Staff") -> "Client":
+def superuser_api(superuser: Staff) -> Client:
     """An authenticated superuser client, for the wider-visibility paths."""
     return _authenticated(superuser)
 
 
 @pytest.fixture
-def company() -> "Company":
+def company() -> Company:
     """A company shared by cross-domain workflow tests."""
     from apps.company.tests.factories import make_company
 
@@ -533,7 +533,7 @@ def company() -> "Company":
 
 
 @pytest.fixture
-def job(company: "Company", office_staff: "Staff") -> "Job":
+def job(company: Company, office_staff: Staff) -> Job:
     """A customer job created through the supported model path."""
     from apps.company.tests.job_fixtures import make_job
 
@@ -541,7 +541,7 @@ def job(company: "Company", office_staff: "Staff") -> "Job":
 
 
 @pytest.fixture
-def stock_holding_job(company: "Company", office_staff: "Staff") -> "Job":
+def stock_holding_job(company: Company, office_staff: Staff) -> Job:
     """The physical stock holding job shared by purchasing and Xero tests."""
     from apps.company.tests.job_fixtures import make_job
     from apps.purchasing.models import Stock

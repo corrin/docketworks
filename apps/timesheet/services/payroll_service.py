@@ -71,7 +71,7 @@ class PayRunRow(Protocol):
 class _PayRunQuery(Protocol):
     """The queryset surface the pay-run list needs (ordering + iteration)."""
 
-    def order_by(self, *fields: str) -> "_PayRunQuery":
+    def order_by(self, *fields: str) -> _PayRunQuery:
         """Return the rows re-ordered by the given fields."""
 
     def first(self) -> PayRunRow | None:
@@ -133,7 +133,7 @@ class PostWeekStartData(TypedDict):
     #: the wire contract (`PostWeekToXeroStartResponse.run`) is typed, and ninja
     #: serialises the model — dumping here only erased the type between two
     #: typed ends.
-    run: "PayrollPostRunOut"
+    run: PayrollPostRunOut
 
 
 class StaffWeekPostingData(TypedDict):
@@ -290,7 +290,7 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     }
 
 
-def current_runs() -> "PayrollRunsOut":
+def current_runs() -> PayrollRunsOut:
     """Every payroll run this organisation has state for.
 
     Opus: Reads the connection id rather than taking one, so the page needs to
@@ -300,7 +300,7 @@ def current_runs() -> "PayrollRunsOut":
     return payroll_runs.read_runs(get_provider().payroll_connection_id())
 
 
-def _postable_staff(week_start_date: date) -> "QuerySet[Staff]":
+def _postable_staff(week_start_date: date) -> QuerySet[Staff]:
     """Return the staff a week's posting covers.
 
     The same filter the weekly grid and ``week_posting_status`` answer from,

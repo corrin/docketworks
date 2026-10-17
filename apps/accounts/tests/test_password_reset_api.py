@@ -76,11 +76,11 @@ def staff() -> Staff:
     )
 
 
-def request_reset(email: str) -> "_MonkeyPatchedWSGIResponse":
+def request_reset(email: str) -> _MonkeyPatchedWSGIResponse:
     return Client().post(REQUEST_PATH, data={"email": email}, content_type="application/json")
 
 
-def confirm(uid: str, token: str, new_password: str) -> "_MonkeyPatchedWSGIResponse":
+def confirm(uid: str, token: str, new_password: str) -> _MonkeyPatchedWSGIResponse:
     return Client().post(
         CONFIRM_PATH,
         data={"uid": uid, "token": token, "new_password": new_password},
@@ -102,7 +102,7 @@ def link_parts(outbox: list[QueuedReset]) -> tuple[str, str]:
     return match.group("uid"), match.group("token")
 
 
-def login_response(username: str, password: str) -> "_MonkeyPatchedWSGIResponse":
+def login_response(username: str, password: str) -> _MonkeyPatchedWSGIResponse:
     return Client().post(
         LOGIN_PATH,
         data={"username": username, "password": password},

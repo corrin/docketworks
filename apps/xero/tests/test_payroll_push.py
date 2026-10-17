@@ -89,7 +89,7 @@ def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """
     writes: list[str] = []
 
-    def _record(name: str, result: object = None) -> "Callable[..., object]":
+    def _record(name: str, result: object = None) -> Callable[..., object]:
         def _call(*_args: object, **_kwargs: object) -> object:
             writes.append(name)
             return result
@@ -109,7 +109,7 @@ def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return writes
 
 
-def _catalogue() -> "hour_categories.LeaveCatalogue":
+def _catalogue() -> hour_categories.LeaveCatalogue:
     """The configured categories, as every posting path loads them."""
     return hour_categories.LeaveCatalogue.load()
 

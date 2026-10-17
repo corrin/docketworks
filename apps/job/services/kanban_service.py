@@ -196,7 +196,7 @@ def _is_valid_uuid(value: str) -> bool:
     # deliberate-swallow: UUID() reports "not a UUID" by raising, so catching it
     # IS how this predicate answers its own question — there is no non-raising
     # form to call instead
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
     return True
 
