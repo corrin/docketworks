@@ -144,22 +144,17 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
           >
             {dayStandingWords(approvalsQuery.data.summary)}
           </p>
-          {anyUnallocated && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={sweeping}
-              data-automation-id="ApproveTimePage-sweep-day"
-              onClick={() =>
-                void sweep(
-                  { start_date: date, end_date: date },
-                  "The day's time could not be swept.",
-                )
-              }
-            >
-              Sweep everyone to General work
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sweeping || !anyUnallocated}
+            data-automation-id="ApproveTimePage-sweep-day"
+            onClick={() =>
+              void sweep({ start_date: date, end_date: date }, "The day's time could not be swept.")
+            }
+          >
+            {anyUnallocated ? 'Sweep everyone to General work' : 'No time to sweep'}
+          </Button>
         </div>
       )}
 
@@ -243,22 +238,22 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 ))}
               </td>
               <td className="space-y-1 px-2 py-2 text-right">
-                {(person.unallocated_hours ?? 0) > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={sweeping}
-                    data-automation-id={`ApproveTimePage-sweep-${person.staff_id}`}
-                    onClick={() =>
-                      void sweep(
-                        { start_date: date, end_date: date, staff_id: person.staff_id },
-                        `${person.staff_name}'s time could not be swept.`,
-                      )
-                    }
-                  >
-                    Sweep {formatHoursDisplay(person.unallocated_hours)} to General work
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={sweeping || !((person.unallocated_hours ?? 0) > 0)}
+                  data-automation-id={`ApproveTimePage-sweep-${person.staff_id}`}
+                  onClick={() =>
+                    void sweep(
+                      { start_date: date, end_date: date, staff_id: person.staff_id },
+                      `${person.staff_name}'s time could not be swept.`,
+                    )
+                  }
+                >
+                  {(person.unallocated_hours ?? 0) > 0
+                    ? `Sweep ${formatHoursDisplay(person.unallocated_hours)} to General work`
+                    : 'No time to sweep'}
+                </Button>
                 {person.state === 'waiting' && (
                   <Button
                     size="sm"

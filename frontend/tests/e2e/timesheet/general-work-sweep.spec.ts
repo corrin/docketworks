@@ -108,7 +108,9 @@ test("a person's clocked time on no job is swept onto General work and the day a
     await sweepButton.click()
     await expect(page.getByText('put on General work.')).toBeVisible()
     await expect(state).toContainText('Approved')
-    await expect(sweepButton).toHaveCount(0)
+    // ADR 0067: the button stays, disabled, and says why.
+    await expect(sweepButton).toBeDisabled()
+    await expect(sweepButton).toHaveText('No time to sweep')
     const entries = autoId(page, `ApproveTimePage-entries-${staffId}`)
     await expect(entries.locator('li', { hasText: 'General work' }).first()).toBeVisible()
     // Sweeping is approving: the worker's own waiting entry went with the day.
