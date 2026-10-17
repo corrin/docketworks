@@ -5,7 +5,8 @@ Users learn a screen by where things are, so a screen shows the same things ever
 
 ## Rules
 
-- **Something that can't be used right now is disabled and says why:** "No time to sweep",
-  "Already approved". The reason goes in the button's own text where it fits (a phone has no
-  hover), otherwise in a tooltip.
+- **Something that can't be used right now is disabled, and its mouseover always says why.**
+  Copy from Estimate on a job whose estimate is empty stays on the Quote tab, disabled, with
+  the tooltip "The estimate is empty". Where the reason fits, the button's own text says it too
+  ("No time to sweep"), because a phone has no hover.
 - **Something empty says so:** "None", "Nothing to invoice".
