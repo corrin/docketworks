@@ -39,16 +39,6 @@ function setWebdriver(value: boolean): void {
   Object.defineProperty(navigator, 'webdriver', { value, configurable: true })
 }
 
-/** jsdom treats assigning location.hostname as a navigation and ignores it, so
-    the host is stubbed outright. pathname and the rest are read by the
-    recording's page tag, which is why the stub carries them. */
-function setHostname(hostname: string): void {
-  Object.defineProperty(window, 'location', {
-    value: { hostname, pathname: '/kanban', search: '', hash: '' },
-    configurable: true,
-  })
-}
-
 function apiError(status: number): { status: number } {
   return { status }
 }
@@ -193,14 +183,11 @@ describe('session replay start', () => {
   // IS capture could not switch it on: it cleared the key, got the tunnel
   // default, and waited two minutes for a recording that was never created.
   describe('the E2E capture gate', () => {
-    const realLocation = window.location
-
     afterEach(() => {
       setWebdriver(false)
-      Object.defineProperty(window, 'location', { value: realLocation, configurable: true })
     })
 
-    it('records in a real browser whatever the tunnel says', async () => {
+    it('records in a real browser', async () => {
       setWebdriver(false)
       recordingsCreate.mockResolvedValue({ data: { id: 'r1' } })
 
@@ -209,18 +196,16 @@ describe('session replay start', () => {
       expect(recordingsCreate).toHaveBeenCalled()
     })
 
-    it('skips capture under automation over the tunnel, which is the default', async () => {
+    it('skips capture under automation by default', async () => {
       setWebdriver(true)
-      setHostname('docketworks-msm-dev.ngrok-free.app')
 
       await startSessionReplay()
 
       expect(recordingsCreate).not.toHaveBeenCalled()
     })
 
-    it('records over the tunnel when a spec explicitly asks for it', async () => {
+    it('records under automation when a spec explicitly asks for it', async () => {
       setWebdriver(true)
-      setHostname('docketworks-msm-dev.ngrok-free.app')
       window.localStorage.setItem('e2e:disable-session-replay', 'false')
       recordingsCreate.mockResolvedValue({ data: { id: 'r2' } })
 
@@ -231,7 +216,6 @@ describe('session replay start', () => {
 
     it('skips capture when a spec explicitly switches it off', async () => {
       setWebdriver(true)
-      setHostname('localhost')
       window.localStorage.setItem('e2e:disable-session-replay', 'true')
 
       await startSessionReplay()

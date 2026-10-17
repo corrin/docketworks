@@ -2731,3 +2731,21 @@ Findings.
   Asked for a fix up to a minute old, it answered with where the phone had
   just been, so a tap made on arriving at the workshop read as away. My time
   now watches the position while it is open and reuses only that.
+
+## 2026-10-15 — ChatKit verifies on localhost; the fake-Xero E2E run needs no ChatKit fake
+
+A fake-Xero E2E run serves the app on `http://localhost:4173`, which is on no
+OpenAI domain allowlist. ChatKit's iframe ties exactly one call to the page's
+hostname: `POST https://api.openai.com/v1/chatkit/domain_keys/verify` with
+`{referrer_origin, domain_key}`. Asked directly, OpenAI answered:
+
+| referrer_origin | domain_key | answer |
+|---|---|---|
+| `https://docketworks-msm-dev.ngrok-free.app` (registered) | the dev key | 200 `{"verified": true, "dev_local_warning": null}` |
+| `http://localhost:4173` | the dev key | 200 `{"verified": true, "dev_local_warning": null}` |
+| the registered origin | a key never issued | 404 `invalid_request_error`, "Domain key … not found." |
+
+So the localhost run reuses the dev instance's registered key, and the planned
+fake for the verify call is not built: the run keeps the real chain (OpenAI's
+CDN, domain verification, and a real model reply through the gateway).
+Localhost needs no allowlist entry; any other hostname still does.

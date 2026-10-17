@@ -1,0 +1,19 @@
+{
+  "recorded_at": "2026-10-15T00:14:36+00:00",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chatkit/domain_keys/verify",
+    "body": {
+      "referrer_origin": "http://localhost:4173",
+      "domain_key": "<configured>"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json"
+  },
+  "body": {
+    "dev_local_warning": null,
+    "verified": true
+  }
+}

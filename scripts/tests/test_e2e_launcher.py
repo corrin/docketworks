@@ -80,6 +80,13 @@ esac
     return script, env
 
 
+def remove_ngrok(launcher: tuple[Path, dict[str, str]]) -> None:
+    """Take the stub off PATH, and every directory a real ngrok installs into."""
+    bindir = Path(launcher[1]["PATH"].split(":")[0])
+    (bindir / "ngrok").unlink()
+    launcher[1]["PATH"] = f"{bindir}:/usr/bin:/bin"
+
+
 def run_launcher(
     launcher: tuple[Path, dict[str, str]], *args: str
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
@@ -113,6 +120,13 @@ def test_default_and_explicit_fake_never_probe_live_quota(
     assert save < seed < reset
     assert "FAKE XERO" in result.stdout
     assert " restore " in calls[-1]
+    assert not any(call.startswith(("ngrok|", "jq|")) or "4040" in call for call in calls)
+
+
+def test_fake_runs_without_ngrok_installed(launcher: tuple[Path, dict[str, str]]) -> None:
+    remove_ngrok(launcher)
+    result, _ = run_launcher(launcher)
+    assert result.returncode == 0, result.stderr
 
 
 def test_live_is_explicit_and_keeps_quota_checks(launcher: tuple[Path, dict[str, str]]) -> None:
@@ -121,6 +135,15 @@ def test_live_is_explicit_and_keeps_quota_checks(launcher: tuple[Path, dict[str,
     assert all("|false|real|" in call for call in calls)
     assert sum("assert_xero_quota" in call for call in calls) == 2
     assert not any("fake_xero_seed" in call or call.startswith("tsx|") for call in calls)
+    assert any(call.startswith("ngrok|") for call in calls)
+
+
+def test_live_refuses_without_ngrok(launcher: tuple[Path, dict[str, str]]) -> None:
+    remove_ngrok(launcher)
+    result, calls = run_launcher(launcher, "--use-real-xero")
+    assert result.returncode != 0
+    assert "ngrok is not installed" in result.stderr
+    assert not calls
 
 
 def test_conflicting_flags_refuse_before_any_subprocess(
