@@ -161,6 +161,13 @@ The Client ID, Client Secret, and Webhook Key live in the database as a `XeroApp
   there), point `CompanyDefaults.xero_tenant_id` at the live tenant, and
   clear `TENANT_ID_CACHE_KEY` (`apps/xero/auth.py`) so the next call
   re-resolves instead of serving the dead id from cache.
+- **A just-created demo organisation's payroll answers 403 for its first
+  minutes.** Payroll calls answer `403` with `"detail":"Forbidden request"`
+  while accounting calls to the same tenant succeed; Xero is still
+  provisioning payroll. Seen 2026-10-17: the organisation was created at
+  08:39:43 UTC, payroll refused at 08:41:23 and answered at 08:41:48. Wait
+  and re-run the command; it is not drift, which refuses every call with
+  `AuthenticationUnsuccessful`.
 - **After a demo-org recreation the mirror tables still hold the dead org's
   entity ids**, so the next sync matches nothing and creates a second copy
   of every contact it "finds". The repair is the full
