@@ -78,8 +78,7 @@ Change a shared default at its owner, rather than recolouring each caller.
 
 ## Controls, editing and feedback
 
-- Never hide a control because it cannot be used now: disable it and say why, in its own
-  text where it fits (ADR 0067).
+- Show everything, and say why when it can't be used (ADR 0067).
 - Use visible field labels; placeholders are examples or hints, not labels. Icon-only
   actions need accessible names. Preserve focus indication, tab order and the shared
   tab/picker/dialog keyboard behaviour.
