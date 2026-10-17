@@ -1,5 +1,5 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { FileText, Printer } from 'lucide-react'
+import { FileText, Printer, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions } from '@/api'
@@ -12,6 +12,7 @@ import { lazy, Suspense } from 'react'
 import type { JobFieldValues } from './delta'
 import { JobAttachmentsTab } from './JobAttachmentsTab'
 import { JobSettingsTab } from './JobSettingsTab'
+import { JobRejectionAction } from './JobRejectionAction'
 import { JobViewTabs } from './JobViewTabs'
 import { printDeliveryDocket, printWorkshopPdf } from './print'
 import type { JobTabKey } from './tabs'
@@ -112,8 +113,18 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
               saveField({ pricing_methodology: job.pricing_methodology }, { pricing_methodology })
             }
           />
+          {job.rejected_flag && (
+            <span
+              data-automation-id="JobView-rejected-badge"
+              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+            >
+              <XCircle className="h-4 w-4" aria-hidden="true" />
+              Rejected
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <JobRejectionAction key={jobId} job={job} />
           <Button
             type="button"
             variant="outline"

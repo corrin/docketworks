@@ -5,6 +5,27 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-15 — Restore rejection and reopening from the job header
+
+The port retained `rejected_flag`, its PATCH support and the kanban icon, but
+omitted the header control and the frontend's editable-field entry. Office staff
+can now reject a job into Archived and reopen it into Draft. Each attempt reads
+the authoritative Finish Job balance; positive uninvoiced value excluding GST
+asks for confirmation, including after a concurrent-edit retry. Cancelling or a
+failed balance read writes nothing, and success is announced after the save.
+
+The status and rejection flag travel in one delta and produce one event. The
+event tracker now gives the rejection flag its explicit descriptor, including
+when the job was already Archived. Undo maps the protocol's `job_status` to the
+stored event's `status` and reverses only requested fields; it restores the
+previous status, whereas Reopen deliberately returns to Draft. Existing archive
+timestamp and assignment behavior stays with the model.
+
+Verification: 3,667 backend tests and all 781 frontend tests passed, including
+the frontend coverage thresholds. The corrected dialog also passed its 12
+focused action/delta tests. Frontend type checking passed. Browser assertions
+live in `job/job-rejection.spec.ts`.
+
 ## 2026-10-03 — E2E defaults to fake Xero; live testing is deliberate
 
 The launcher selects fake Xero by default and forces the selected mode through
