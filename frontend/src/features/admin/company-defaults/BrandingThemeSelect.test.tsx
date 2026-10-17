@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SettingsFieldOut, XeroBrandingThemeOut } from '@/api'

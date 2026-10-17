@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { server } from '@/test/msw'
