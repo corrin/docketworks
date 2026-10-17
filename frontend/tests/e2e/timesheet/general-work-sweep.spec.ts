@@ -15,6 +15,7 @@ import { formatHoursDisplay } from '../../../src/lib/format'
 import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import {
+  WORKER_HOURS,
   bookAsWorkshopUser,
   getLatestWeekdayDate,
   seedLabourForWeek,
@@ -23,45 +24,15 @@ import {
 
 /**
  * 06:30 to 15:00 with the standard breaks the office's times put on the day:
- * 8h 30m here, less the 30m unpaid lunch. The paid breaks are hours entered.
+ * 8h 30m here, less the 30m unpaid lunch and the two 15m paid breaks, leaves
+ * 7h 30m to be on jobs. With nothing entered, that is what a sweep moves.
  */
 const CLOCK_IN = '06:30'
 const CLOCK_OUT = '15:00'
-const PAID_HOURS_CLOCKED = 8
+const HOURS_FOR_JOBS = 7.5
 
-/**
- * Five weeks ahead. The dev database is a production restore, so a past day
- * holds real time; the suite restores the database after every run, so a
- * future week is empty each time, and clear of the current week the other
- * timesheet specs book on.
- */
+/** Five weeks ahead: a week no other timesheet spec books or clocks on. */
 const FUTURE_WEEK = shiftDate(mondayOf(getLatestWeekdayDate()), 35)
-
-const approvals = z.object({
-  staff: z.array(
-    z.object({
-      staff_id: z.string(),
-      entered_hours: z.number(),
-      clock: z.object({ state: z.string() }),
-    }),
-  ),
-})
-
-/**
- * What a sweep should move: the paid time clocked less everything entered.
- * Read from the person's entered hours, a figure the sweep does not compute,
- * because the dev database is a production restore and may hold real entries.
- */
-async function expectedSweep(page: Page, day: string, staffId: string): Promise<number> {
-  const body = approvals.parse(
-    await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json(),
-  )
-  const person = body.staff.find((each) => each.staff_id === staffId)
-  if (person === undefined) throw new Error(`${staffId} is not on the timesheet for ${day}.`)
-  const hours = Math.round((PAID_HOURS_CLOCKED - person.entered_hours) * 100) / 100
-  if (hours <= 0) throw new Error(`${staffId} already has ${person.entered_hours}h on ${day}.`)
-  return hours
-}
 
 async function seedAsSuperuser(
   browser: Browser,
@@ -99,14 +70,14 @@ test("a person's clocked time on no job is swept onto General work and the day a
   const seeded = await seedAsSuperuser(browser, origin, FUTURE_WEEK)
   const waitingEntryId = await bookAsWorkshopUser(browser, origin, seeded)
   const staffId = seeded.staff.id
+  // The seeded hours and the worker's waiting entry are on a job; the rest is not.
+  const unallocated = Math.round((HOURS_FOR_JOBS - seeded.hours - WORKER_HOURS) * 100) / 100
   const sweepButton = autoId(page, `ApproveTimePage-sweep-${staffId}`)
   const state = autoId(page, `ApproveTimePage-state-${staffId}`)
-  let unallocated = 0
 
   await test.step('the office sets the clock times, and the rest shows as not on a job', async () => {
     await page.goto(`/timesheets/approve?date=${seeded.date}`)
     await setClock(page, staffId)
-    unallocated = await expectedSweep(page, seeded.date, staffId)
     await expect(sweepButton).toHaveText(`Sweep ${formatHoursDisplay(unallocated)} to General work`)
   })
 
@@ -151,27 +122,27 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
 }) => {
   // A weekday the week after FUTURE_WEEK, so the two tests share no day.
   const day = shiftDate(FUTURE_WEEK, 8)
-  const body = approvals.parse(
-    await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json(),
-  )
-  // Someone not yet clocked on the day, so the times set here are the day's.
-  const staffId = body.staff.find((each) => each.clock.state === 'not_clocked_in')?.staff_id
-  if (staffId === undefined) throw new Error(`Everyone on ${day} is already clocked.`)
+  const listed = z
+    .object({ staff: z.array(z.object({ staff_id: z.string() })) })
+    .parse(await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json())
+  const staffId = listed.staff[0]?.staff_id
+  if (staffId === undefined) throw new Error(`Nobody is on the timesheet for ${day}.`)
   const state = autoId(page, `ApproveTimePage-state-${staffId}`)
 
   await page.goto(`/timesheets/approve?date=${day}`)
   await setClock(page, staffId)
-  const hours = await expectedSweep(page, day, staffId)
   await expect(autoId(page, `ApproveTimePage-sweep-${staffId}`)).toHaveText(
-    `Sweep ${formatHoursDisplay(hours)} to General work`,
+    `Sweep ${formatHoursDisplay(HOURS_FOR_JOBS)} to General work`,
   )
 
   await autoId(page, 'ApproveTimePage-sweep-day').click()
 
-  await expect(page.getByText('put on General work.')).toBeVisible()
+  await expect(
+    page.getByText(`${formatHoursDisplay(HOURS_FOR_JOBS)} put on General work.`),
+  ).toBeVisible()
   await expect(state).toContainText('Approved')
   const swept = autoId(page, `ApproveTimePage-entries-${staffId}`).locator('li', {
     hasText: 'General work',
   })
-  await expect(swept).toContainText(formatHoursDisplay(hours))
+  await expect(swept).toContainText(formatHoursDisplay(HOURS_FOR_JOBS))
 })
