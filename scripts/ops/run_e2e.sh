@@ -138,10 +138,6 @@ fi
 # The cost is that checking out a branch behind head after a run meets a schema
 # newer than its code.
 "$ROOT/.venv/bin/python" manage.py migrate --no-input
-# Opus: Every deploy runs create_shop_jobs after migrate (deploy.sh), so a
-# branch that adds a shop job reaches the run's database the way it reaches
-# an instance. It writes nothing when the jobs are all there.
-"$ROOT/.venv/bin/python" manage.py create_shop_jobs
 # Opus: Named before the suite runs, not after it is green: a screen's clipping,
 # paging and per-row query cost are invisible against a thin table, so a run
 # has to say which tables cannot exercise what production renders. The script
