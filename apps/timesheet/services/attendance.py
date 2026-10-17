@@ -270,6 +270,38 @@ def fill_figures(
     against the hours to fill and the screen says them apart; lunch and any
     other unpaid break come off the hours to fill, since they are not hours.
     """
+    span = _clocked_span(row, break_lines)
+    if span is None:
+        return None
+    to_fill, on_breaks = span
+    return {
+        "to_fill_hours": float(to_fill),
+        "break_hours": float(on_breaks),
+        "entered_hours": float(entered),
+        "to_go_hours": float(to_fill - on_breaks - entered),
+    }
+
+
+def unentered_hours(
+    row: AttendanceDay | None, entered: Decimal, break_lines: list[CostLine]
+) -> Decimal | None:
+    """Return his clocked time that is on no job and no paid break (KAN-380).
+
+    None until both clock times are known: a day still clocked in, or never
+    clocked, has no clocked time to speak of. Negative when more is entered
+    than he was here for.
+    """
+    span = _clocked_span(row, break_lines)
+    if span is None:
+        return None
+    to_fill, on_breaks = span
+    return to_fill - on_breaks - entered
+
+
+def _clocked_span(
+    row: AttendanceDay | None, break_lines: list[CostLine]
+) -> tuple[Decimal, Decimal] | None:
+    """Return his paid hours between the clock times and his paid breaks among them."""
     if row is None or row.clock_out is None:
         return None
     unpaid = [
@@ -278,13 +310,7 @@ def fill_figures(
         if not is_paid_break(line) and (window := _line_window(line)) is not None
     ]
     on_breaks = sum((line.quantity for line in break_lines if is_paid_break(line)), Decimal(0))
-    to_fill = paid_span_hours(row.clock_in, row.clock_out, unpaid)
-    return {
-        "to_fill_hours": float(to_fill),
-        "break_hours": float(on_breaks),
-        "entered_hours": float(entered),
-        "to_go_hours": float(to_fill - on_breaks - entered),
-    }
+    return paid_span_hours(row.clock_in, row.clock_out, unpaid), on_breaks
 
 
 def _merged(windows: list[Window]) -> list[tuple[int, int]]:

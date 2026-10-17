@@ -12876,6 +12876,70 @@ export type SupplierSearchResult = {
 };
 
 /**
+ * SweepIn
+ *
+ * The days to sweep, for one person or, without ``staff_id``, everyone on them.
+ */
+export type SweepIn = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * SweepOut
+ *
+ * What the sweep put on General work, and the worker entries it approved with the days.
+ */
+export type SweepOut = {
+    /**
+     * Approved Count
+     */
+    approved_count: number;
+    /**
+     * Skipped
+     */
+    skipped: Array<SweepSkipOut>;
+    /**
+     * Swept Hours
+     */
+    swept_hours: number;
+};
+
+/**
+ * SweepSkipOut
+ *
+ * A day the sweep left alone: there was no clocked time to sweep.
+ */
+export type SweepSkipOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Reason
+     */
+    reason: 'still_clocked_in' | 'no_clock_times';
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+};
+
+/**
  * TeamAveragesOut
  *
  * Wire contract for TeamAveragesOut.
@@ -20025,6 +20089,22 @@ export type TimesheetsApprovalsRetrieveResponses = {
 };
 
 export type TimesheetsApprovalsRetrieveResponse = TimesheetsApprovalsRetrieveResponses[keyof TimesheetsApprovalsRetrieveResponses];
+
+export type TimesheetsApprovalsSweepData = {
+    body: SweepIn;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/approvals/sweep/';
+};
+
+export type TimesheetsApprovalsSweepResponses = {
+    /**
+     * OK
+     */
+    200: SweepOut;
+};
+
+export type TimesheetsApprovalsSweepResponse = TimesheetsApprovalsSweepResponses[keyof TimesheetsApprovalsSweepResponses];
 
 export type TimesheetsApprovalsApproveDayData = {
     body?: never;

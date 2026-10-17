@@ -5851,6 +5851,40 @@ export const zSupplierSearchResponse = z.object({
 });
 
 /**
+ * SweepIn
+ *
+ * The days to sweep, for one person or, without ``staff_id``, everyone on them.
+ */
+export const zSweepIn = z.object({
+    end_date: z.iso.date(),
+    staff_id: z.uuid().nullish(),
+    start_date: z.iso.date()
+});
+
+/**
+ * SweepSkipOut
+ *
+ * A day the sweep left alone: there was no clocked time to sweep.
+ */
+export const zSweepSkipOut = z.object({
+    date: z.iso.date(),
+    reason: z.enum(['still_clocked_in', 'no_clock_times']),
+    staff_id: z.string(),
+    staff_name: z.string()
+});
+
+/**
+ * SweepOut
+ *
+ * What the sweep put on General work, and the worker entries it approved with the days.
+ */
+export const zSweepOut = z.object({
+    approved_count: z.int(),
+    skipped: z.array(zSweepSkipOut),
+    swept_hours: z.number()
+});
+
+/**
  * TeamAveragesOut
  *
  * Wire contract for TeamAveragesOut.
@@ -9033,6 +9067,13 @@ export const zTimesheetsApprovalsRetrieveQuery = z.object({
  * OK
  */
 export const zTimesheetsApprovalsRetrieveResponse = zApprovalsDayOut;
+
+export const zTimesheetsApprovalsSweepBody = zSweepIn;
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsSweepResponse = zSweepOut;
 
 export const zTimesheetsApprovalsApproveDayPath = z.object({
     staff_id: z.uuid(),

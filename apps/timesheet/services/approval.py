@@ -12,9 +12,13 @@ this module returns carries a rate, a cost or a revenue figure.
 from datetime import date, time
 from decimal import Decimal
 from typing import Literal, TypedDict
+from uuid import UUID
+
+from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
+from apps.core.errors import ConflictError
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
@@ -29,12 +33,15 @@ from apps.timesheet.services.attendance import (
     fill_figures,
     split_breaks,
     standard_day,
+    unentered_hours,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
+    create_entry,
+    day_time_lines,
     default_entry_start,
     entered_late,
     entry_data,
@@ -251,3 +258,116 @@ def day_summary(rows: list[StaffApprovalData]) -> DaySummaryData:
     else:
         standing = "in_progress"
     return {"expected": len(expected), "approved": approved, "standing": standing}
+
+
+# ── Sweep (KAN-380) ─────────────────────────────────────────────────────
+
+#: Why a person's day was not swept. Both mean there is no clocked time to
+#: speak of: the sweep reads clock times as they stand and never sets one.
+SweepSkipReason = Literal["still_clocked_in", "no_clock_times"]
+
+
+class SweepSkipData(TypedDict):
+    """A day the sweep left alone, for the office to deal with."""
+
+    staff_id: str
+    staff_name: str
+    date: date
+    reason: SweepSkipReason
+
+
+class SweepData(TypedDict):
+    """What a sweep moved onto General work and approved."""
+
+    swept_hours: float
+    #: The worker's own entries the sweep approved with the day.
+    approved_count: int
+    skipped: list[SweepSkipData]
+
+
+class GeneralWorkNotSetUpError(ConflictError):
+    """The instance has no General work job, so there is nowhere to sweep to."""
+
+
+@transaction.atomic
+def sweep_person(worker: Staff, days: list[date], actor: Staff) -> SweepData:
+    """Sweep one person's days: their clocked time on no job goes onto General work."""
+    return _sweep({day: [worker] for day in days}, actor)
+
+
+@transaction.atomic
+def sweep_everyone(days: list[date], actor: Staff) -> SweepData:
+    """Sweep the days of everyone who clocked or has time on them."""
+    return _sweep({day: _people_on(day) for day in days}, actor)
+
+
+def _people_on(day: date) -> list[Staff]:
+    """Return the people who clocked or have time on the day.
+
+    Someone with neither has nothing to sweep and nothing to approve, so they
+    are not reported as skipped.
+    """
+    present = set(AttendanceDay.objects.filter(date=day).values_list("staff_id", flat=True))
+    present |= set(
+        CostLine.objects.filter(
+            cost_set__kind="actual", kind="time", accounting_date=day
+        ).values_list("staff_id", flat=True)
+    )
+    return [person for person in get_displayable_staff(target_date=day) if person.id in present]
+
+
+def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
+    """Sweep each person's day, approving what it sweeps; skip days with no clocked time.
+
+    Sweeping is approving (owner, 2026-10-17): the office saw the day and
+    accepted it, so the worker's own waiting entries are approved with it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        raise GeneralWorkNotSetUpError("General work is not set up. Run create_shop_jobs.")
+    swept = Decimal(0)
+    approved = 0
+    skipped: list[SweepSkipData] = []
+    for day, people in people_by_day.items():
+        for person in people:
+            row = AttendanceDay.objects.filter(staff=person, date=day).first()
+            entries, break_lines = split_breaks(day_time_lines(person, day))
+            entered = sum((line.quantity for line in entries), Decimal(0))
+            remainder = unentered_hours(row, entered, break_lines)
+            if remainder is None:
+                skipped.append(
+                    {
+                        "staff_id": str(person.id),
+                        "staff_name": person.get_display_full_name(),
+                        "date": day,
+                        "reason": "no_clock_times" if row is None else "still_clocked_in",
+                    }
+                )
+            else:
+                swept += _move_to_general_work(person, day, remainder, general_work_id, actor)
+                approved += approve_day(person, day, actor)
+    return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
+
+
+def _move_to_general_work(
+    worker: Staff, day: date, remainder: Decimal, general_work_id: UUID, actor: Staff
+) -> Decimal:
+    """Put the clocked time on no job onto General work; return the hours moved."""
+    if remainder <= 0:
+        # His entries already cover the clocked time, or more ("Over by"):
+        # nothing moves, and the day is still approved.
+        return Decimal(0)
+    # Entered by the office, so it starts approved; placed after his latest
+    # entry by the same rule as any office entry.
+    create_entry(
+        actor,
+        worker,
+        {
+            "job_id": general_work_id,
+            "accounting_date": day,
+            "hours": remainder,
+            # A shop job's time is billed to nobody; the model refuses otherwise.
+            "is_billable": False,
+        },
+    )
+    return remainder

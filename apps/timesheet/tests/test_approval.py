@@ -8,9 +8,11 @@ from django.test import Client
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.job_fixtures import make_job
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import approval, attendance
 from apps.timesheet.tests.conftest import (
     WEEK_START,
@@ -276,3 +278,149 @@ class TestApprovalsRead:
 
     def test_workshop_staff_cannot_read_approvals(self, worker_client: Client) -> None:
         assert worker_client.get(APPROVALS_URL).status_code == 403
+
+
+SWEEP_URL = f"{APPROVALS_URL}sweep/"
+
+
+@pytest.fixture
+def general_work(superuser: Staff) -> Job:
+    """The internal job clocked time on no job is swept to, as ``create_shop_jobs`` leaves it."""
+    defaults = CompanyDefaults.get_solo()
+    job = make_job(defaults.shop_company, superuser, name="General work", status="special")
+    defaults.general_work_job = job
+    defaults.save(update_fields=["general_work_job"])
+    return job
+
+
+def _general_work_hours(general_work: Job, worker: Staff) -> list[str]:
+    return [
+        str(line.quantity)
+        for line in CostLine.objects.filter(cost_set__job=general_work, staff=worker)
+    ]
+
+
+@pytest.mark.usefixtures("general_work")
+class TestSweep:
+    def test_clocked_time_on_no_job_goes_to_general_work_and_the_day_is_approved(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._sweep: the remainder is clocked time less what is on jobs."""
+        # Clocked before the 08:30 break, so no break is put on the day.
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 30), worker)
+        own = make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="1.000",
+            approved=False,
+            start_time="06:00:00",
+            end_time="07:00:00",
+        )
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result == {"swept_hours": 1.5, "approved_count": 1, "skipped": []}
+        assert _general_work_hours(general_work, worker) == ["1.500"]
+        swept = CostLine.objects.get(cost_set__job=general_work, staff=worker)
+        assert swept.approved
+        own.refresh_from_db()
+        assert own.approved
+        # The sweep reads the clock times; it never sets them.
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (time(6, 0), time(8, 30))
+
+    def test_a_day_still_clocked_in_is_skipped_and_left_alone(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._sweep: no clock-out means no clocked time, so nothing moves."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker)
+        own = make_time_line(job, worker, accounting_date=DAY, approved=False)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result["swept_hours"] == 0.0
+        assert result["approved_count"] == 0
+        assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
+            (str(worker.id), "still_clocked_in")
+        ]
+        assert _general_work_hours(general_work, worker) == []
+        own.refresh_from_db()
+        assert not own.approved
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert row.clock_out is None
+
+    def test_a_day_over_its_clocked_time_moves_nothing_but_is_approved(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._move_to_general_work: a negative remainder is no entry."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(8, 0), worker)
+        own = make_time_line(job, worker, accounting_date=DAY, hours="3.000", approved=False)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result == {"swept_hours": 0.0, "approved_count": 1, "skipped": []}
+        assert _general_work_hours(general_work, worker) == []
+        own.refresh_from_db()
+        assert own.approved
+
+    def test_everyone_is_the_people_who_clocked_or_have_time_on_the_day(
+        self,
+        office_staff: Staff,
+        job: Job,
+        general_work: Job,
+        worker: Staff,
+        other_worker: Staff,
+    ) -> None:
+        """Guards approval._people_on: time without a clock is reported, nothing at all is not."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        make_time_line(job, other_worker, accounting_date=DAY, approved=False)
+        nobody = make_staff("not.here@example.com")
+
+        result = approval.sweep_everyone([DAY], office_staff)
+
+        assert result["swept_hours"] == 2.0
+        assert _general_work_hours(general_work, worker) == ["2.000"]
+        assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
+            (str(other_worker.id), "no_clock_times")
+        ]
+        assert str(nobody.id) not in {skip["staff_id"] for skip in result["skipped"]}
+
+    def test_only_office_staff_sweep(self, worker: Staff) -> None:
+        response = authenticated_client(worker).post(
+            SWEEP_URL,
+            {"start_date": DAY.isoformat(), "end_date": DAY.isoformat()},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403, response.content
+
+    def test_the_endpoint_sweeps_a_person_or_everyone_over_a_range(
+        self, office_staff: Staff, worker: Staff, other_worker: Staff
+    ) -> None:
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(8, 0), worker)
+        tomorrow = DAY + timedelta(days=1)
+        attendance.set_clock_times(worker, tomorrow, time(6, 0), time(8, 0), worker)
+        attendance.set_clock_times(other_worker, DAY, time(6, 0), time(8, 30), other_worker)
+        client = authenticated_client(office_staff)
+
+        one = client.post(
+            SWEEP_URL,
+            {
+                "start_date": DAY.isoformat(),
+                "end_date": tomorrow.isoformat(),
+                "staff_id": str(worker.id),
+            },
+            content_type="application/json",
+        )
+        everyone = client.post(
+            SWEEP_URL,
+            {"start_date": DAY.isoformat(), "end_date": DAY.isoformat()},
+            content_type="application/json",
+        )
+
+        assert one.status_code == 200, one.content
+        assert one.json() == {"swept_hours": 3.0, "approved_count": 0, "skipped": []}
+        assert everyone.status_code == 200, everyone.content
+        # The worker's day was swept already: only the other worker's 2.5 hours move.
+        assert everyone.json()["swept_hours"] == 2.5

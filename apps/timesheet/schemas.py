@@ -505,6 +505,31 @@ class ApproveDayOut(Schema):
     approved_count: int
 
 
+class SweepIn(Schema):
+    """The days to sweep, for one person or, without ``staff_id``, everyone on them."""
+
+    start_date: date
+    end_date: date
+    staff_id: UUID | None = None
+
+
+class SweepSkipOut(Schema):
+    """A day the sweep left alone: there was no clocked time to sweep."""
+
+    staff_id: str
+    staff_name: str
+    date: date
+    reason: Literal["still_clocked_in", "no_clock_times"]
+
+
+class SweepOut(Schema):
+    """What the sweep put on General work, and the worker entries it approved with the days."""
+
+    swept_hours: float
+    approved_count: int
+    skipped: list[SweepSkipOut]
+
+
 class TimesheetCostLineOut(CostLineOut):
     """A time line for the management entry grid, carrying its job identity.
 
