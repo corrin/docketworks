@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { CategoriesOut, FormOut } from '@/api'

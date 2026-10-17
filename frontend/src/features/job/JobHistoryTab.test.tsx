@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
+import { delay } from 'msw/utils/delay'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PhoneCallRecordOut, TimelineEntryOut } from '@/api'

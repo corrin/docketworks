@@ -25,7 +25,7 @@ window.ResizeObserver = window.ResizeObserver ?? ResizeObserverStub
 window.IntersectionObserver = window.IntersectionObserver ?? FakeIntersectionObserver
 Element.prototype.scrollIntoView = () => undefined
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 
 afterEach(() => {
   cleanup()
