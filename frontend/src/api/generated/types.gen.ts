@@ -925,6 +925,12 @@ export type CompanyDefaultsOut = {
      */
     gdrive_sops_folder_id: string | null;
     /**
+     * General Work Job
+     *
+     * Internal job that clocked time on no job is swept onto at approval.
+     */
+    general_work_job: string | null;
+    /**
      * Google Place Id
      */
     google_place_id: string | null;
@@ -1384,6 +1390,12 @@ export type CompanyDefaultsPatchIn = {
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
     gdrive_sops_folder_id?: string | null;
+    /**
+     * General Work Job
+     *
+     * Internal job that clocked time on no job is swept onto at approval.
+     */
+    general_work_job_id?: string | null;
     /**
      * Google Place Id
      */

@@ -1,4 +1,4 @@
-"""The create_shop_jobs command: twelve named jobs, idempotent, ambiguity refused."""
+"""The create_shop_jobs command: thirteen named jobs, idempotent, ambiguity refused."""
 
 from io import StringIO
 
@@ -13,12 +13,13 @@ from apps.job.models import Job, JobEvent
 
 pytestmark = pytest.mark.django_db
 
-TWELVE_NAMES = {
+THIRTEEN_NAMES = {
     "Annual Leave",
     "Bench - busy work",
     "Bereavement Leave",
     "Break",
     "Business Development",
+    "General work",
     "Office Admin",
     "Sick Leave",
     "Statutory holiday",
@@ -35,19 +36,22 @@ def _run() -> str:
     return out.getvalue()
 
 
-def test_creates_the_twelve_shop_jobs() -> None:
+def test_creates_the_thirteen_shop_jobs() -> None:
     output = _run()
 
     shop_company = CompanyDefaults.get_solo().shop_company
     jobs = Job.objects.filter(company=shop_company, status="special")
-    assert {job.name for job in jobs} == TWELVE_NAMES
-    assert {spec["name"] for spec in SHOP_JOBS} == TWELVE_NAMES
+    assert {job.name for job in jobs} == THIRTEEN_NAMES
+    assert {spec["name"] for spec in SHOP_JOBS} == THIRTEEN_NAMES
     assert all(job.job_is_valid for job in jobs)
     assert not any(job.paid for job in jobs)
-    assert "12 created, 0 already there" in output
-    # The one job the code finds again: named on the company, not looked up by name.
-    break_job = CompanyDefaults.get_solo().break_job
-    assert break_job is not None and break_job.name == "Break"
+    assert "13 created, 0 already there" in output
+    # The jobs the code finds again: named on the company, not looked up by name.
+    company_defaults = CompanyDefaults.get_solo()
+    assert company_defaults.break_job is not None
+    assert company_defaults.break_job.name == "Break"
+    assert company_defaults.general_work_job is not None
+    assert company_defaults.general_work_job.name == "General work"
 
 
 def test_annual_leave_job_is_findable_by_name() -> None:
@@ -74,7 +78,7 @@ def test_a_rerun_never_rewrites_an_existing_job() -> None:
 
     output = _run()
 
-    assert "0 created, 12 already there" in output
+    assert "0 created, 13 already there" in output
     bench.refresh_from_db()
     assert bench.description == "hand-edited"
     assert Job.objects.get(company=shop_company, name="Travel").status == "archived"
@@ -83,17 +87,20 @@ def test_a_rerun_never_rewrites_an_existing_job() -> None:
 
 
 def test_only_the_missing_jobs_are_made() -> None:
-    """Production had ten of them: a deploy makes the other two and names the Break job."""
+    """An instance missing some makes only those, and names Break and General work."""
     _run()
     shop_company = CompanyDefaults.get_solo().shop_company
-    CompanyDefaults.objects.update(break_job=None)
-    Job.objects.filter(company=shop_company, name__in=["Break", "Travel"]).delete()
+    CompanyDefaults.objects.update(break_job=None, general_work_job=None)
+    Job.objects.filter(company=shop_company, name__in=["Break", "General work", "Travel"]).delete()
 
     output = _run()
 
-    assert "2 created, 10 already there" in output
-    break_job = CompanyDefaults.get_solo().break_job
-    assert break_job is not None and break_job.name == "Break"
+    assert "3 created, 10 already there" in output
+    company_defaults = CompanyDefaults.get_solo()
+    assert company_defaults.break_job is not None
+    assert company_defaults.break_job.name == "Break"
+    assert company_defaults.general_work_job is not None
+    assert company_defaults.general_work_job.name == "General work"
 
 
 def test_refuses_ambiguous_duplicates() -> None:

@@ -594,6 +594,19 @@ class CompanyDefaults(SingletonModel):
         help_text="Internal job every break is booked to: paid breaks and lunch.",
     )
 
+    # The internal job the office sweeps clocked time onto when it is on no
+    # job (KAN-380): a shop that only tracks clock-ins never fills jobs, and
+    # its time lands here at approval. NULL until ``create_shop_jobs`` has
+    # made the job on this instance.
+    general_work_job = models.ForeignKey(
+        "job.Job",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+        help_text="Internal job that clocked time on no job is swept onto at approval.",
+    )
+
     # Test company configuration
     test_company_name = models.CharField(  # noqa: DJ001
         max_length=255,

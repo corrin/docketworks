@@ -1012,6 +1012,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is swept onto at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255
@@ -1342,6 +1349,7 @@ components:
       - gdrive_quotes_folder_url
       - gdrive_reference_library_folder_id
       - gdrive_sops_folder_id
+      - general_work_job
       - google_place_id
       - google_shared_drive_id
       - gst_rate
@@ -1567,6 +1575,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is swept onto at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255

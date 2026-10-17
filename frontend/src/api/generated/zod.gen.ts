@@ -356,6 +356,7 @@ export const zCompanyDefaultsOut = z.object({
     gdrive_quotes_folder_url: z.string().nullable(),
     gdrive_reference_library_folder_id: z.string().max(100).nullable(),
     gdrive_sops_folder_id: z.string().max(100).nullable(),
+    general_work_job: z.uuid().nullable(),
     google_place_id: z.string().max(255).nullable(),
     google_shared_drive_id: z.string().max(100).nullable(),
     gst_rate: z.string(),
@@ -449,6 +450,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     gdrive_quotes_folder_url: z.string().nullish(),
     gdrive_reference_library_folder_id: z.string().max(100).nullish(),
     gdrive_sops_folder_id: z.string().max(100).nullish(),
+    general_work_job_id: z.uuid().nullish(),
     google_place_id: z.string().max(255).nullish(),
     google_shared_drive_id: z.string().max(100).nullish(),
     gst_rate: z.union([

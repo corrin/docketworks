@@ -171,6 +171,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "shop_company": "setup",
     # Set by create_shop_jobs, not by an operator.
     "break_job": "internal",
+    "general_work_job": "internal",
     "test_company_name": "setup",
     "job_delta_soft_fail": "setup",
     "session_replay_enabled": "setup",
