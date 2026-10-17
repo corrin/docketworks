@@ -29,7 +29,9 @@ Not reused from the normal push paths, and why:
   name is the only join available across two orgs.
 - ``apps.xero.documents.invoice.XeroInvoiceManager`` creates a NEW invoice for
   a job from current job state. The seed re-creates EXISTING invoices with
-  their stored numbers, dates and line totals, AUTHORISED and in batches of 50.
+  their stored numbers, dates and line totals, AUTHORISED and in batches of
+  ``XERO_BATCH_SIZE`` (50, to stay under Xero's request limit; see
+  ``apps/xero/constants.py``).
 
 Purchase orders are the exception: the order row IS the document, so the seed
 sends the body a push would send for it (``XeroPurchaseOrderManager``), fifty
