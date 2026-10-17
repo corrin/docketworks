@@ -5,6 +5,7 @@ import { AddressAutocompleteInput } from '@/features/shared/address/AddressAutoc
 import { BrandingThemeSelect } from './BrandingThemeSelect'
 import { CompanySelect } from './CompanySelect'
 import { fieldAutomationId } from './fieldAutomationId'
+import { JobSelect } from './JobSelect'
 import { LogoField } from './LogoField'
 import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from './snapshot'
 
@@ -52,7 +53,7 @@ export interface SettingsFieldInputProps extends SettingsFieldControlProps {
 // exhaustiveness buys out (Decision 6).
 type GenericFieldType = Exclude<
   SettingsFieldOut['type'],
-  'boolean' | 'textarea' | 'company' | 'xero_branding_theme' | 'image'
+  'boolean' | 'textarea' | 'company' | 'job' | 'xero_branding_theme' | 'image'
 >
 const INPUT_TYPE: Record<GenericFieldType, string> = {
   email: 'email',
@@ -99,6 +100,10 @@ export function SettingsFieldInput({
   // lookup would break the exhaustiveness check above.
   if (field.type === 'company') {
     return <CompanySelect field={field} value={value} onChange={onChange} section={section} />
+  }
+
+  if (field.type === 'job') {
+    return <JobSelect field={field} value={value} onChange={onChange} section={section} />
   }
 
   if (field.type === 'xero_branding_theme') {

@@ -4975,6 +4975,7 @@ export const zSettingsFieldType = z.enum([
     'datetime',
     'date',
     'company',
+    'job',
     'xero_branding_theme'
 ]);
 

@@ -12439,6 +12439,7 @@ components:
       - datetime
       - date
       - company
+      - job
       - xero_branding_theme
       type: string
     SettingsSectionKey:

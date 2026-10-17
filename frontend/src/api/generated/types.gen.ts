@@ -11045,7 +11045,7 @@ export type SettingsFieldOut = {
     type: SettingsFieldType;
 };
 
-export type SettingsFieldType = 'image' | 'email' | 'url' | 'text' | 'textarea' | 'number' | 'boolean' | 'time' | 'datetime' | 'date' | 'company' | 'xero_branding_theme';
+export type SettingsFieldType = 'image' | 'email' | 'url' | 'text' | 'textarea' | 'number' | 'boolean' | 'time' | 'datetime' | 'date' | 'company' | 'job' | 'xero_branding_theme';
 
 export type SettingsSectionKey = 'company' | 'working_hours' | 'finances' | 'kpi' | 'setup' | 'xero';
 
