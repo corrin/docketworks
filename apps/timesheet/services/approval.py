@@ -332,6 +332,11 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     general_work_id = CompanyDefaults.get_solo().general_work_job_id
     if general_work_id is None:
         raise GeneralWorkNotSetUpError("General work is not set up. Run create_shop_jobs.")
+    # Two offices sweeping the same person would both read the same stretches
+    # before either writes, and pay them twice; the second waits here and
+    # reads the first's entries. Ordered by pk so two sweeps never deadlock.
+    staff_ids = {person.pk for people in people_by_day.values() for person in people}
+    list(Staff.objects.select_for_update().filter(pk__in=staff_ids).order_by("pk"))
     swept = Decimal(0)
     approved = 0
     skipped: list[SweepSkipData] = []

@@ -103,6 +103,17 @@ def test_only_the_missing_jobs_are_made() -> None:
     assert company_defaults.general_work_job.name == "General work"
 
 
+def test_a_rerun_keeps_the_general_work_job_the_office_chose() -> None:
+    """Every deploy runs it: the General work job picked on Company Defaults stays picked."""
+    _run()
+    travel = Job.objects.get(company=CompanyDefaults.get_solo().shop_company, name="Travel")
+    CompanyDefaults.objects.update(general_work_job=travel)
+
+    _run()
+
+    assert CompanyDefaults.get_solo().general_work_job_id == travel.id
+
+
 def test_refuses_ambiguous_duplicates() -> None:
     _run()
     shop_company = CompanyDefaults.get_solo().shop_company

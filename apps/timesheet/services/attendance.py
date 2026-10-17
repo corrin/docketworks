@@ -313,8 +313,9 @@ def unallocated_windows(
     """Return the stretches he was clocked in that hold no entry and no break (KAN-380).
 
     Each is a time entry waiting to be made, its start and stop on quarter
-    hours. Entries kept without times are laid out first, end to end from
-    clock-in around the breaks and the timed entries, as the fill sheet lays
+    hours unless that would reach into an entry or break beside it. Entries
+    kept without times are laid out first, end to end from clock-in around
+    the breaks and the timed entries, as the fill sheet lays
     out a day. None until both clock times are known: a day still clocked in,
     or never clocked, has no clocked time to speak of.
     """
@@ -331,14 +332,15 @@ def unallocated_windows(
         occupied.append(Window(begins, laid_end))
         cursor = laid_end
     first, last = _minutes(row.clock_in), _minutes(row.clock_out)
-    gaps: list[tuple[int, int]] = []
-    free_from = first
-    for taken_start, taken_end in [*_merged(occupied), (last, last)]:
-        gaps.append((free_from, min(taken_start, last)))
-        free_from = max(free_from, taken_end)
-    windows = [
-        Window(to_quarter(_time_of(start)), to_quarter(_time_of(end))) for start, end in gaps
-    ]
+    windows: list[Window] = []
+    free_from, floor = first, 0
+    for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
+        # Each bound rounds to its quarter, but never into the entry or break
+        # beside it: those minutes are already paid.
+        start = max(_minutes(to_quarter(_time_of(free_from))), floor)
+        end = min(_minutes(to_quarter(_time_of(min(taken_start, last)))), taken_start)
+        windows.append(Window(_time_of(start), _time_of(end)))
+        free_from, floor = max(free_from, taken_end), max(floor, taken_end)
     return [window for window in windows if window.end > window.start]
 
 

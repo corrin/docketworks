@@ -358,6 +358,28 @@ class TestSweep:
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
         assert (row.clock_in, row.clock_out) == (time(6, 52), time(8, 8))
 
+    def test_rounding_never_reaches_into_an_entry_beside_the_stretch(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: 07:23 rounds to 07:30 but his job starts 07:23."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="0.200",
+            approved=False,
+            start_time="07:23:00",
+            end_time="07:35:00",
+        )
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("06:45:00", "07:23:00", "0.630"),
+            ("07:35:00", "08:15:00", "0.670"),
+        ]
+
     def test_clocked_time_on_no_job_goes_to_general_work_and_the_day_is_approved(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:

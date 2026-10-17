@@ -122,8 +122,13 @@ class Command(BaseCommand):
             jobs[job.name] = job
 
         company_defaults.break_job = jobs[BREAK_JOB_NAME]
-        company_defaults.general_work_job = jobs[GENERAL_WORK_JOB_NAME]
-        company_defaults.save(update_fields=["break_job", "general_work_job"])
+        if company_defaults.general_work_job_id is None:
+            company_defaults.general_work_job = jobs[GENERAL_WORK_JOB_NAME]
+            company_defaults.save(update_fields=["break_job", "general_work_job"])
+        else:
+            # Opus: the office picks its General work job on Company Defaults;
+            # every deploy runs this command, and the pick stands.
+            company_defaults.save(update_fields=["break_job"])
 
         self.stdout.write(
             self.style.SUCCESS(
