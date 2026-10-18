@@ -11,6 +11,8 @@
  * "Assign" / "Selected" (kanban-mobile.spec.ts:
  * `getByRole('button', { name: /Assign|Selected/ })`).
  */
+import { Trans, useTranslation } from 'react-i18next'
+
 import type { KanbanStaffOut } from '@/api'
 
 import { StaffAvatar } from '@/features/shared/StaffAvatar'
@@ -36,10 +38,11 @@ export function StaffPanel({
   armedStaffId,
   onToggleTapAssign,
 }: StaffPanelProps) {
+  const { t } = useTranslation('kanban')
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-4 text-sm text-gray-600">
-        Loading staff members...
+        {t('staffPanel.loading')}
       </div>
     )
   }
@@ -47,7 +50,7 @@ export function StaffPanel({
   if (isError) {
     return (
       <div className="flex items-center justify-center gap-2 py-4 text-sm text-red-700">
-        Could not load staff members.
+        {t('staffPanel.loadFailed')}
       </div>
     )
   }
@@ -59,19 +62,25 @@ export function StaffPanel({
       <div className="text-xs text-gray-600 lg:hidden">
         {armedStaffId ? (
           <span className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-blue-900">
-            Assigning to {armedStaffName}
+            {t('staffPanel.assigningTo', { name: armedStaffName })}
             <button
               type="button"
               className="font-semibold text-blue-600 hover:text-blue-800"
               onClick={() => onToggleTapAssign(armedStaffId)}
             >
-              Clear
+              {t('staffPanel.clear')}
             </button>
           </span>
         ) : (
           <span>
-            <span className="font-semibold text-gray-900">Quick assign:</span> tap{' '}
-            <span className="font-semibold">Assign</span> on a teammate, then tap a job card.
+            <Trans
+              t={t}
+              i18nKey="staffPanel.quickAssignHint"
+              components={{
+                label: <span className="font-semibold text-gray-900" />,
+                action: <span className="font-semibold" />,
+              }}
+            />
           </span>
         )}
       </div>
@@ -115,7 +124,7 @@ export function StaffPanel({
                   onToggleTapAssign(member.id)
                 }}
               >
-                {isArmed ? 'Selected' : 'Assign'}
+                {isArmed ? t('staffPanel.selected') : t('staffPanel.assign')}
               </button>
             </div>
           )

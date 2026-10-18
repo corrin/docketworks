@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -30,6 +31,7 @@ interface UseJobFieldSaveOptions {
  * against the refreshed server baseline when the user clicks it.
  */
 export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const patch = useMutation(jobJobsPartialUpdateMutation())
   // mutateAsync is referentially stable across renders; the mutation RESULT
@@ -100,11 +102,11 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
         await save(snapshotJob(fresh.data.job), changes)
       })().catch((error: unknown) => {
         if (!isConcurrencyError(error)) {
-          toast.error(apiErrorMessage(error, 'Retrying the save failed.'))
+          toast.error(apiErrorMessage(error, t('fieldSave.retryFailed')))
         }
       })
     })
-  }, [jobId, onRetryRef, queryClient, save])
+  }, [jobId, onRetryRef, queryClient, save, t])
 
   return { save, isSaving: patch.isPending, discardChanges }
 }

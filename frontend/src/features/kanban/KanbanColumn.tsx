@@ -19,6 +19,8 @@
  * loop-by-index fallback path in pickTargetColumn (it fires only when the
  * job is already sitting in the preferred `in_progress` column).
  */
+import { useTranslation } from 'react-i18next'
+
 import type { KanbanJobOut } from '@/api'
 
 import { JobCard } from './JobCard'
@@ -48,6 +50,7 @@ export function KanbanColumn({
   onTapAssign,
   onStatusChange,
 }: KanbanColumnProps) {
+  const { t } = useTranslation('kanban')
   const lastJob: KanbanJobOut | undefined = column.jobs[column.jobs.length - 1]
   const listRef = useColumnDropTarget(column.id, lastJob?.id ?? null, setColumnDragOver)
 
@@ -88,14 +91,15 @@ export function KanbanColumn({
 
           {column.jobs.length === 0 && !column.isLoading && (
             <div className="flex h-32 items-center justify-center text-center text-sm text-gray-500">
-              {isSearchActive ? 'No matching jobs in ' : 'No jobs in '}
-              {column.label.toLowerCase()}
+              {isSearchActive
+                ? t('column.noMatchingJobs', { status: column.label.toLowerCase() })
+                : t('column.noJobs', { status: column.label.toLowerCase() })}
             </div>
           )}
 
           {column.jobs.length === 0 && column.isLoading && (
             <div className="flex h-32 items-center justify-center text-center text-sm text-gray-500">
-              Jobs in {column.label.toLowerCase()} status are still loading, please wait
+              {t('column.stillLoading', { status: column.label.toLowerCase() })}
             </div>
           )}
 

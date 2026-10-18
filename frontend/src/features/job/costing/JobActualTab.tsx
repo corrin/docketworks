@@ -1,4 +1,5 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { getFullJobOptions, jobJobsCostSetsRetrieveOptions } from '@/api'
 import { formatCurrency } from '@/lib/format'
@@ -21,6 +22,7 @@ interface JobActualTabProps {
 export function JobActualTab({ jobId }: JobActualTabProps) {
   // Cache hit: JobDetailPage already holds this query; company defaults ride
   // beside the job in its payload.
+  const { t } = useTranslation('job')
   const fullJob = useSuspenseQuery(getFullJobOptions({ path: { job_id: jobId } }))
   const companyDefaults = fullJob.data.data.company_defaults
   // A second subscription to the query the grid owns — a cache share, not a
@@ -34,13 +36,13 @@ export function JobActualTab({ jobId }: JobActualTabProps) {
     <div className="space-y-4 p-6">
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <EntryGridSection
-          title="Actual Costs"
+          title={t('actualTab.costs')}
           actions={
             <div
               data-automation-id="JobActualTab-time-expenses"
               className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-right"
             >
-              <div className="text-xs text-slate-500">Time &amp; Expenses</div>
+              <div className="text-xs text-slate-500">{t('actualTab.timeAndExpenses')}</div>
               <div className="font-semibold tabular-nums text-gray-900">
                 {summary ? formatCurrency(summary.rev) : '—'}
               </div>
@@ -57,7 +59,7 @@ export function JobActualTab({ jobId }: JobActualTabProps) {
 
         <div className="space-y-4 lg:sticky lg:top-4">
           <CostSetSummaryPanel
-            title="Actual Summary"
+            title={t('actualTab.summary')}
             automationId="JobActualTab-summary"
             summary={summary}
             isError={costSetQuery.isError}

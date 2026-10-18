@@ -13,6 +13,7 @@
 import { DollarSign, Receipt, Settings2, XCircle } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { KanbanJobOut } from '@/api'
 import { formatDate, localIsoDate } from '@/lib/format'
@@ -55,6 +56,7 @@ export function JobCard({
   onTapAssign,
   onStatusChange,
 }: JobCardProps) {
+  const { t } = useTranslation('kanban')
   const navigate = useNavigate()
   const { ref, isDragging, shouldSuppressClick } = useJobCardDrag(
     job.id,
@@ -116,7 +118,7 @@ export function JobCard({
     >
       {armedStaffId && (
         <div className="absolute inset-x-0 top-0 z-10 rounded-t-lg bg-blue-600/90 py-1 text-center text-[0.7rem] font-semibold text-white lg:hidden">
-          Tap to assign
+          {t('jobCard.tapToAssign')}
         </div>
       )}
 
@@ -144,8 +146,8 @@ export function JobCard({
           {/* Mobile-only: opens the status drawer for this job. */}
           <button
             type="button"
-            aria-label="Change job status"
-            title="Change job status"
+            aria-label={t('jobCard.changeStatus')}
+            title={t('jobCard.changeStatus')}
             className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-sm lg:hidden"
             onClick={(event) => {
               event.stopPropagation()
@@ -171,13 +173,13 @@ export function JobCard({
 
       {job.person_name && (
         <div className="truncate text-[0.8rem] font-medium text-gray-600">
-          <span className="font-semibold">Person:</span> {job.person_name}
+          <span className="font-semibold">{t('jobCard.person')}</span> {job.person_name}
         </div>
       )}
 
       {showDueDate && job.delivery_date !== null && (
         <div className={`truncate text-[0.8rem] font-bold ${dueDateColor(job.delivery_date)}`}>
-          Due: {formatDate(job.delivery_date)}
+          {t('jobCard.due', { date: formatDate(job.delivery_date) })}
         </div>
       )}
 
@@ -185,14 +187,18 @@ export function JobCard({
         <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1">
           {job.is_urgent && (
             <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
-              URGENT
+              {t('jobCard.urgent')}
             </span>
           )}
           {job.fully_invoiced && (
-            <Receipt className="h-4 w-4 text-green-600" aria-label="Fully invoiced" />
+            <Receipt className="h-4 w-4 text-green-600" aria-label={t('jobCard.fullyInvoiced')} />
           )}
-          {job.paid && <DollarSign className="h-4 w-4 text-green-600" aria-label="Paid" />}
-          {job.rejected_flag && <XCircle className="h-4 w-4 text-red-500" aria-label="Rejected" />}
+          {job.paid && (
+            <DollarSign className="h-4 w-4 text-green-600" aria-label={t('jobCard.paid')} />
+          )}
+          {job.rejected_flag && (
+            <XCircle className="h-4 w-4 text-red-500" aria-label={t('jobCard.rejected')} />
+          )}
         </div>
       )}
     </div>

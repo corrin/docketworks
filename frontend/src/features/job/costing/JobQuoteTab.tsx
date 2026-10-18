@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { BookOpen, Copy } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -42,6 +43,7 @@ interface JobQuoteTabProps {
  * formatted from what the server sent (ADR 0046).
  */
 export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   // Cache hit: JobDetailPage already holds this query; company defaults ride
   // beside the job in its payload.
@@ -90,7 +92,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
             setShowArchiveDialog(true)
             return
           }
-          toast.error(apiErrorMessage(error, 'Failed to copy from estimate.'))
+          toast.error(apiErrorMessage(error, t('quoteTab.copyFailed')))
         },
       },
     )
@@ -99,11 +101,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
   // The tab bar already hides this tab for T&M jobs; a direct ?tab=quote URL
   // must not render a broken grid over a cost set the backend refuses to push.
   if (job.pricing_methodology === 'time_materials') {
-    return (
-      <div className="p-6 text-sm text-gray-500">
-        A time and materials job has no quote — costs are invoiced as they land.
-      </div>
-    )
+    return <div className="p-6 text-sm text-gray-500">{t('quoteTab.timeMaterialsNoQuote')}</div>
   }
 
   return (
@@ -112,10 +110,10 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
         <EntryGridSection
           title={
             <>
-              Quote Details
+              {t('quoteTab.details')}
               {costSetQuery.data && (
                 <span className="ml-2 text-sm font-normal text-slate-400">
-                  Revision {costSetQuery.data.rev}
+                  {t('quoteTab.revision', { number: costSetQuery.data.rev })}
                 </span>
               )}
             </>
@@ -129,7 +127,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 onClick={() => setShowRevisionsDialog(true)}
               >
                 <BookOpen className="mr-1 h-4 w-4" />
-                Revisions
+                {t('quoteTab.revisions')}
               </Button>
               <Button
                 variant="outline"
@@ -139,7 +137,9 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 onClick={() => executeCopy(false)}
               >
                 <Copy className="mr-1 h-4 w-4" />
-                {copyFromEstimate.isPending ? 'Copying…' : 'Copy from Estimate'}
+                {copyFromEstimate.isPending
+                  ? t('quoteTab.copying')
+                  : t('quoteTab.copyFromEstimate')}
               </Button>
             </div>
           }
@@ -154,7 +154,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
 
         <div className="space-y-4 lg:sticky lg:top-4">
           <CostSetSummaryPanel
-            title="Quote Summary"
+            title={t('quoteTab.summary')}
             automationId="JobQuoteTab-summary"
             summary={summary}
             isError={costSetQuery.isError}
@@ -173,27 +173,29 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
       <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Replace this quote?</DialogTitle>
+            <DialogTitle>{t('quoteTab.replaceTitle')}</DialogTitle>
             <DialogDescription>
               {/* Both totals: the server judges "priced" on cost OR revenue,
                   so a cost-only or offsetting-adjustments quote would read
                   "$0.00" on revenue alone and invite discarding real work. */}
-              The quote already has priced cost lines
               {summary
-                ? ` totalling ${formatCurrency(summary.rev)} revenue and ${formatCurrency(summary.cost)} cost`
-                : ''}
-              . Archiving keeps them as a revision you can still see; the quote is then replaced
-              with the current estimate. Any quote acceptance is cleared — the replaced figures are
-              not what the customer accepted.
+                ? t('quoteTab.replaceWithTotals', {
+                    rev: formatCurrency(summary.rev),
+                    cost: formatCurrency(summary.cost),
+                  })
+                : t('quoteTab.replaceWithoutTotals')}
             </DialogDescription>
           </DialogHeader>
           {xeroQuote && (
             // Replacing the cost lines does not touch the Xero document, so
             // it silently goes stale. Say it where the decision is made.
             <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
-              This quote was exported to Xero as <strong>{xeroQuote.number ?? 'a quote'}</strong>.
-              Replacing the lines here does not update Xero — the exported quote will no longer
-              match.
+              <Trans
+                t={t}
+                i18nKey="quoteTab.exportedWarning"
+                values={{ number: xeroQuote.number ?? t('quoteTab.aQuote') }}
+                components={{ strong: <strong /> }}
+              />
             </p>
           )}
           <DialogFooter>
@@ -202,14 +204,14 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
               disabled={copyFromEstimate.isPending}
               onClick={() => setShowArchiveDialog(false)}
             >
-              Cancel
+              {t('quoteTab.cancel')}
             </Button>
             <Button
               data-automation-id="JobQuoteTab-archive-and-replace"
               disabled={copyFromEstimate.isPending}
               onClick={() => executeCopy(true)}
             >
-              Archive &amp; replace
+              {t('quoteTab.archiveAndReplace')}
             </Button>
           </DialogFooter>
         </DialogContent>

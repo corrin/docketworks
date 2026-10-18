@@ -1,6 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import { TabBar } from '@/features/shared/TabBar'
 
-import { JOB_TAB_KEYS, TAB_LABELS, type JobTabKey } from './tabs'
+import { JOB_TAB_KEYS, type JobTabKey } from './tabs'
 
 interface JobViewTabsProps {
   activeTab: JobTabKey
@@ -17,11 +19,12 @@ interface JobViewTabsProps {
  * mechanics, and it is the only thing this file still owns.
  */
 export function JobViewTabs({ activeTab, pricingMethodology, onChangeTab }: JobViewTabsProps) {
+  const { t } = useTranslation('job')
   const tabs = (
     pricingMethodology === 'time_materials'
       ? JOB_TAB_KEYS.filter((tab) => tab !== 'quote')
       : JOB_TAB_KEYS
-  ).map((tab) => ({ key: tab, label: TAB_LABELS[tab] }))
+  ).map((tab) => ({ key: tab, label: t(`tabs.${tab}`) }))
 
   return (
     <TabBar

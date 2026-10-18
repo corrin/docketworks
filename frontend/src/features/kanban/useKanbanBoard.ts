@@ -16,6 +16,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useLatest } from '@/lib/useLatest'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -131,6 +132,7 @@ export function useKanbanBoard(
   searchTerm: string,
   { movePendingRef, onMoveSettled }: KanbanBoardOptions,
 ): KanbanBoardModel {
+  const { t } = useTranslation('kanban')
   const queryClient = useQueryClient()
   const [activeStaffIds, setActiveStaffIds] = useState<string[]>([])
   const onMoveSettledRef = useLatest(onMoveSettled)
@@ -165,10 +167,13 @@ export function useKanbanBoard(
   // console.error, so a failed board load has to surface as a toast or not at
   // all — and the board mounts under every spec's login.
   const loadErrors: Array<{ label: string; error: Error | null }> = columnStates.map(
-    ({ columnId, query }) => ({ label: `the ${columnId} column`, error: query.error }),
+    ({ columnId, query }) => ({
+      label: t('board.loadTarget.column', { columnId }),
+      error: query.error,
+    }),
   )
-  loadErrors.push({ label: 'the board columns', error: statusValues.error })
-  loadErrors.push({ label: 'search results', error: search.error })
+  loadErrors.push({ label: t('board.loadTarget.boardColumns'), error: statusValues.error })
+  loadErrors.push({ label: t('board.loadTarget.searchResults'), error: search.error })
   const loadErrorSignature = loadErrors
     .map((entry) => `${entry.label}:${entry.error?.message ?? ''}`)
     .join('|')
@@ -181,7 +186,7 @@ export function useKanbanBoard(
     toastedSignatureRef.current = loadErrorSignature
     for (const entry of loadErrors) {
       if (entry.error) {
-        toast.error(apiErrorMessage(entry.error, `Failed to load ${entry.label}`))
+        toast.error(apiErrorMessage(entry.error, t('board.loadFailed', { target: entry.label })))
       }
     }
   })
@@ -226,9 +231,12 @@ export function useKanbanBoard(
     const total = query.data?.total ?? null
     let countDisplay: string
     if (isSearchActive && jobs.length !== loadedCount) {
-      countDisplay = `${jobs.length} of ${loadedCount.toLocaleString()}`
+      countDisplay = t('board.countOf', {
+        shown: jobs.length,
+        total: loadedCount.toLocaleString(),
+      })
     } else if (query.data?.has_more === true && total !== null) {
-      countDisplay = `${jobs.length} of ${total.toLocaleString()}`
+      countDisplay = t('board.countOf', { shown: jobs.length, total: total.toLocaleString() })
     } else {
       countDisplay = String(jobs.length)
     }
@@ -236,7 +244,9 @@ export function useKanbanBoard(
     return {
       id: columnId,
       label: statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId),
-      tooltip: statusValues.data?.tooltips[columnId] ?? `Status: ${fallbackColumnLabel(columnId)}`,
+      tooltip:
+        statusValues.data?.tooltips[columnId] ??
+        t('board.fallbackTooltip', { status: fallbackColumnLabel(columnId) }),
       jobs,
       countDisplay,
       isLoading: query.isPending || (isSearchActive && search.isPending),
@@ -294,7 +304,7 @@ export function useKanbanBoard(
         },
         {
           onError: (error) => {
-            toast.error(apiErrorMessage(error, 'Failed to move the job'))
+            toast.error(apiErrorMessage(error, t('board.moveFailed')))
             restoreSnapshot(queryClient, snapshot)
             for (const columnId of affected) {
               void queryClient.invalidateQueries({ queryKey: columnQueryKey(columnId) })
@@ -328,7 +338,7 @@ export function useKanbanBoard(
         },
       )
     },
-    [movePendingRef, onMoveSettledRef, queryClient, reorder, searchTerm],
+    [movePendingRef, onMoveSettledRef, queryClient, reorder, searchTerm, t],
   )
 
   // Ordered per the API response: get_status_choices() builds the six office
@@ -368,7 +378,7 @@ export function useKanbanBoard(
           { path: { job_id: jobId }, body: { status } },
           {
             onError: (error) => {
-              toast.error(apiErrorMessage(error, 'Failed to update job status'))
+              toast.error(apiErrorMessage(error, t('board.statusUpdateFailed')))
               restoreSnapshot(queryClient, snapshot)
               resolve(false)
             },
@@ -394,7 +404,7 @@ export function useKanbanBoard(
         )
       })
     },
-    [movePendingRef, queryClient, updateStatusMutation, searchTerm],
+    [movePendingRef, queryClient, updateStatusMutation, searchTerm, t],
   )
 
   // Server truth for the reorders deliberately not invalidated above arrives

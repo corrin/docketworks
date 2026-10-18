@@ -1,5 +1,6 @@
 import type { TimelineEntryOut } from '@/api'
 import { formatEventType } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 /** The three shapes a timeline entry takes, from `get_job_timeline`. */
 export type TimelineKind = 'event' | 'costline_created' | 'costline_updated'
@@ -34,12 +35,6 @@ export const TIMELINE_BADGE_CLASS: Record<TimelineKind, string> = {
   costline_updated: 'bg-amber-100 text-amber-700',
 }
 
-const TIMELINE_KIND_LABEL: Record<TimelineKind, string> = {
-  event: 'General',
-  costline_created: 'Costline Created',
-  costline_updated: 'Costline Updated',
-}
-
 /**
  * The type badge's text: a job event is titled by its own event type, and a
  * cost-line entry by what happened to the line. "General" is the label for a
@@ -48,7 +43,7 @@ const TIMELINE_KIND_LABEL: Record<TimelineKind, string> = {
 export function timelineTypeLabel(entry: TimelineEntryOut): string {
   const kind = timelineKind(entry)
   if (kind !== 'event' || entry.event_type === null) {
-    return TIMELINE_KIND_LABEL[kind]
+    return i18n.t(`job:history.kind.${kind}`)
   }
   return formatEventType(entry.event_type)
 }
@@ -108,11 +103,11 @@ function deltaValue(value: unknown): string {
  */
 export function formatDelta(record: { [key: string]: unknown } | null): string {
   if (record === null) {
-    return 'No data'
+    return i18n.t('job:history.noData')
   }
   const lines = Object.entries(record).map(([key, value]) => `${key}: ${deltaValue(value)}`)
   if (lines.length === 0) {
-    return 'No data'
+    return i18n.t('job:history.noData')
   }
   return lines.join('\n')
 }

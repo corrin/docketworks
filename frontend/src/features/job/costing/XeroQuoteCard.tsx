@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -36,6 +37,7 @@ interface XeroQuoteCardProps {
  * re-read, never adjusted locally.
  */
 export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const quoteQuery = useQuery(jobJobsQuoteRetrieveOptions({ path: { job_id: jobId } }))
   const ping = useQuery(xeroPingRetrieveOptions())
@@ -67,14 +69,14 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
       { path: { job_id: jobId }, body: { breakdown } },
       {
         onSuccess: (response) => {
-          toast.success('Quote created successfully!')
+          toast.success(t('xeroQuote.created'))
           // A created quote can still carry warnings (e.g. the history note
           // failed); each one is the user's to act on.
           response.messages?.forEach((message) => toast.warning(message))
           reloadQuoteState()
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, 'Failed to create the quote.'))
+          toast.error(apiErrorMessage(error, t('xeroQuote.createFailed')))
         },
       },
     )
@@ -84,16 +86,16 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
     if (deleteQuote.isPending) return
     // Same guard as a cost-line delete: one click must not silently void a
     // real Xero document.
-    if (!window.confirm('Delete this quote in Xero?')) return
+    if (!window.confirm(t('xeroQuote.confirmDelete'))) return
     deleteQuote.mutate(
       { path: { job_id: jobId } },
       {
         onSuccess: () => {
-          toast.success('Quote deleted successfully!')
+          toast.success(t('xeroQuote.deleted'))
           reloadQuoteState()
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, 'Failed to delete the quote.'))
+          toast.error(apiErrorMessage(error, t('xeroQuote.deleteFailed')))
         },
       },
     )
@@ -102,8 +104,8 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
   return (
     <aside className="rounded-xl border border-slate-200 bg-white">
       <div className="px-3 pt-3 pb-2">
-        <h3 className="text-base font-semibold text-gray-900">Quote Management</h3>
-        <p className="text-xs text-slate-500">Send this quote to Xero.</p>
+        <h3 className="text-base font-semibold text-gray-900">{t('xeroQuote.title')}</h3>
+        <p className="text-xs text-slate-500">{t('xeroQuote.subtitle')}</p>
       </div>
 
       <div className="px-3 pb-3">
@@ -111,18 +113,18 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
           // Pending must not read as absent: rendering the create state here
           // would offer a doomed duplicate-create on a job that already has
           // a quote (same rule as the failed-read branch below).
-          <div className="py-4 text-center text-sm text-slate-500">Checking for a quote…</div>
+          <div className="py-4 text-center text-sm text-slate-500">{t('xeroQuote.checking')}</div>
         ) : quoteQuery.isError && quoteQuery.data === undefined ? (
           // A failed read must not masquerade as "no quote": that state
           // offers a create button that would then be refused as a duplicate.
-          <div className="py-4 text-center text-sm text-red-700">
-            Could not load this job&apos;s Xero quote. Reload the page.
-          </div>
+          <div className="py-4 text-center text-sm text-red-700">{t('xeroQuote.loadFailed')}</div>
         ) : quote ? (
           <div className="space-y-3">
             <div className="rounded-md bg-slate-50 p-3 text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-900">{quote.number ?? 'Quote'}</span>
+                <span className="font-medium text-slate-900">
+                  {quote.number ?? t('xeroQuote.unnumbered')}
+                </span>
                 <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">
                   {quote.status}
                 </span>
@@ -130,7 +132,7 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
               <div className="mt-1 text-[11px] text-slate-500">{formatDate(quote.date)}</div>
               <div className="mt-2 font-semibold tabular-nums text-slate-900">
                 {formatCurrency(quote.total_excl_tax)}{' '}
-                <span className="text-xs font-normal text-slate-500">excl GST</span>
+                <span className="text-xs font-normal text-slate-500">{t('xeroQuote.exclGst')}</span>
               </div>
             </div>
 
@@ -146,12 +148,12 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                     // window (reverse tabnabbing).
                     window.open(quote.online_url, '_blank', 'noopener,noreferrer')
                   } else {
-                    toast.error('No online URL available for this quote.')
+                    toast.error(t('xeroQuote.noOnlineUrl'))
                   }
                 }}
               >
                 <ExternalLink className="mr-1 h-4 w-4" />
-                Open in Xero
+                {t('xeroQuote.openInXero')}
               </Button>
               <Button
                 variant="destructive"
@@ -165,13 +167,13 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                 ) : (
                   <Trash2 className="mr-1 h-4 w-4" />
                 )}
-                {deleteQuote.isPending ? 'Deleting…' : 'Delete Quote'}
+                {deleteQuote.isPending ? t('xeroQuote.deleting') : t('xeroQuote.delete')}
               </Button>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 py-2">
-            <p className="text-sm text-gray-500">No quotes for this project</p>
+            <p className="text-sm text-gray-500">{t('xeroQuote.empty')}</p>
             <button
               type="button"
               data-automation-id="JobQuoteTab-create-quote"
@@ -181,19 +183,17 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
             >
               {createQuote.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {createQuote.isPending
-                ? 'Creating...'
+                ? t('xeroQuote.creating')
                 : xeroConnected
-                  ? 'Create Quote'
+                  ? t('xeroQuote.create')
                   : ping.isPending
-                    ? 'Checking Xero…'
-                    : 'Login to Xero first'}
+                    ? t('xeroQuote.checkingXero')
+                    : t('xeroQuote.loginFirst')}
             </button>
             {ping.isError && (
               // A failed status check is not "logged out" — say what actually
               // happened instead of sending the user to re-authenticate.
-              <p className="text-center text-xs text-red-700">
-                Could not check the Xero connection. Reload the page.
-              </p>
+              <p className="text-center text-xs text-red-700">{t('xeroQuote.pingFailed')}</p>
             )}
           </div>
         )}
@@ -202,8 +202,8 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Export Quote to Xero</DialogTitle>
-            <DialogDescription>Choose how you want to export this quote to Xero</DialogDescription>
+            <DialogTitle>{t('xeroQuote.exportTitle')}</DialogTitle>
+            <DialogDescription>{t('xeroQuote.exportDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <Button
@@ -212,9 +212,9 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
               disabled={createQuote.isPending}
               onClick={() => executeCreate(false)}
             >
-              <span className="font-semibold">Send Total Only</span>
+              <span className="font-semibold">{t('xeroQuote.sendTotalOnly')}</span>
               <span className="text-xs font-normal opacity-90">
-                Export as a single line item with the total amount (Default)
+                {t('xeroQuote.sendTotalOnlyHint')}
               </span>
             </Button>
             <Button
@@ -224,9 +224,9 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
               disabled={createQuote.isPending}
               onClick={() => executeCreate(true)}
             >
-              <span className="font-semibold">Send Breakdown</span>
+              <span className="font-semibold">{t('xeroQuote.sendBreakdown')}</span>
               <span className="text-xs font-normal opacity-70">
-                Export each cost line as its own line item
+                {t('xeroQuote.sendBreakdownHint')}
               </span>
             </Button>
           </div>
@@ -236,7 +236,7 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
               disabled={createQuote.isPending}
               onClick={() => setShowExportDialog(false)}
             >
-              Cancel
+              {t('xeroQuote.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>

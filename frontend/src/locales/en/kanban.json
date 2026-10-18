@@ -1,1 +1,56 @@
-{}
+{
+  "column": {
+    "noMatchingJobs": "No matching jobs in {{status}}",
+    "noJobs": "No jobs in {{status}}",
+    "stillLoading": "Jobs in {{status}} status are still loading, please wait"
+  },
+  "staffPanel": {
+    "loading": "Loading staff members...",
+    "loadFailed": "Could not load staff members.",
+    "assigningTo": "Assigning to {{name}}",
+    "clear": "Clear",
+    "quickAssignHint": "<label>Quick assign:</label> tap <action>Assign</action> on a teammate, then tap a job card.",
+    "selected": "Selected",
+    "assign": "Assign"
+  },
+  "statusDrawer": {
+    "updated": "Status updated to {{status}}",
+    "title": "Update Job Status",
+    "jobSummary": "Job #{{jobNumber}} - {{companyName}}",
+    "noJob": "Select a job to update.",
+    "currentStatus": "Current status",
+    "hint": "Tap a status to update. Changes save immediately.",
+    "close": "Close"
+  },
+  "jobCard": {
+    "tapToAssign": "Tap to assign",
+    "changeStatus": "Change job status",
+    "person": "Person:",
+    "due": "Due: {{date}}",
+    "urgent": "URGENT",
+    "fullyInvoiced": "Fully invoiced",
+    "paid": "Paid",
+    "rejected": "Rejected"
+  },
+  "board": {
+    "loadTarget": {
+      "column": "the {{columnId}} column",
+      "boardColumns": "the board columns",
+      "searchResults": "search results"
+    },
+    "loadFailed": "Failed to load {{target}}",
+    "countOf": "{{shown}} of {{total}}",
+    "fallbackTooltip": "Status: {{status}}",
+    "moveFailed": "Failed to move the job",
+    "statusUpdateFailed": "Failed to update job status"
+  },
+  "staffAssignment": {
+    "loadFailed": "Failed to load the staff panel",
+    "assignFailed": "Failed to assign the staff member"
+  },
+  "reconciliation": {
+    "refreshFailed": "Failed to refresh the board",
+    "checkFailed": "Failed to check the board for changes",
+    "streamDisconnected": "Live updates disconnected — falling back to periodic refresh"
+  }
+}

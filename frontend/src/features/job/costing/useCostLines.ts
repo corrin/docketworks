@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   consumeStockMutation,
@@ -28,6 +29,7 @@ interface CreateLineCallbacks {
  * per-line concurrency would be a new wire contract on both sides.
  */
 export function useCostLines(jobId: string, kind: CostSetKind) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const path = { job_id: jobId, kind }
   const queryKey = jobJobsCostSetsRetrieveQueryKey({ path })
@@ -70,14 +72,14 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
       lineId,
       costLineDisplay(body),
       () => patchMutation.mutateAsync({ path: { cost_line_id: lineId }, body }),
-      'Failed to save the cost line',
+      t('costLines.saveFailed'),
     )
 
   const createLine = (body: CostLineCreateRequest, callbacks: CreateLineCallbacks) =>
     grid.appendRow(
       () => createMutation.mutateAsync({ path, body }),
       callbacks,
-      'Failed to add the cost line',
+      t('costLines.addFailed'),
     )
 
   /**
@@ -92,14 +94,14 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
           .mutateAsync({ path: { id: stockId }, body: { job_id: jobId, quantity } })
           .then((response) => response.line),
       callbacks,
-      'Failed to consume the stock item',
+      t('costLines.consumeFailed'),
     )
 
   const deleteLine = (lineId: string) =>
     grid.deleteRow(
       lineId,
       () => deleteMutation.mutateAsync({ path: { cost_line_id: lineId } }),
-      'Failed to delete the cost line',
+      t('costLines.deleteFailed'),
     )
 
   return { costSetQuery, patchLine, createLine, deleteLine, consumeStockLine }

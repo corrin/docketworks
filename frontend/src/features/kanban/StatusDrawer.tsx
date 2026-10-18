@@ -11,6 +11,7 @@
  */
 import { Check, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import type { KanbanJobOut } from '@/api'
@@ -38,6 +39,7 @@ interface StatusDrawerProps {
 }
 
 export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: StatusDrawerProps) {
+  const { t } = useTranslation('kanban')
   const [pendingKey, setPendingKey] = useState<string | null>(null)
 
   const currentKey = job?.status_key ?? ''
@@ -62,7 +64,7 @@ export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: St
     // A failed update already toasted inside onUpdateStatus (useKanbanBoard);
     // the drawer only owns the success path, since only it knows the label.
     if (success) {
-      toast.success(`Status updated to ${option.label}`)
+      toast.success(t('statusDrawer.updated', { status: option.label }))
       onClose()
     }
   }
@@ -77,13 +79,16 @@ export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: St
       <DrawerContent className="max-h-[85vh]">
         <div className="mx-auto w-full max-w-md">
           <DrawerHeader>
-            <DrawerTitle>Update Job Status</DrawerTitle>
+            <DrawerTitle>{t('statusDrawer.title')}</DrawerTitle>
             {job ? (
               <DrawerDescription>
-                Job #{job.job_number} - {job.company_name}
+                {t('statusDrawer.jobSummary', {
+                  jobNumber: job.job_number,
+                  companyName: job.company_name,
+                })}
               </DrawerDescription>
             ) : (
-              <DrawerDescription>Select a job to update.</DrawerDescription>
+              <DrawerDescription>{t('statusDrawer.noJob')}</DrawerDescription>
             )}
           </DrawerHeader>
 
@@ -92,7 +97,7 @@ export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: St
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs text-slate-500">Current status</p>
+                    <p className="text-xs text-slate-500">{t('statusDrawer.currentStatus')}</p>
                     <p className="text-sm font-semibold text-slate-900">{currentLabel}</p>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">
@@ -129,15 +134,13 @@ export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: St
                 })}
               </div>
 
-              <p className="text-xs text-slate-500">
-                Tap a status to update. Changes save immediately.
-              </p>
+              <p className="text-xs text-slate-500">{t('statusDrawer.hint')}</p>
             </div>
           )}
 
           <DrawerFooter>
             <DrawerClose asChild>
-              <Button variant="outline">Close</Button>
+              <Button variant="outline">{t('statusDrawer.close')}</Button>
             </DrawerClose>
           </DrawerFooter>
         </div>

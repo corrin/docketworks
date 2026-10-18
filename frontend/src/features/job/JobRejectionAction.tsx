@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, jobJobsFinishRetrieveOptions, type JobDetail } from '@/api'
@@ -27,6 +28,7 @@ type ActionState =
   | { phase: 'error'; reject: boolean; message: string }
 
 export function JobRejectionAction({ job }: { job: JobDetail }) {
+  const { t } = useTranslation('job')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const queryClient = useQueryClient()
   const [state, setState] = useState<ActionState>({ phase: 'idle' })
@@ -51,7 +53,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
         job_status: reject ? 'archived' : 'draft',
       })
       setState({ phase: 'idle' })
-      toast.success(reject ? 'Job rejected and moved to Archived' : 'Job reopened in Draft')
+      toast.success(reject ? t('rejection.rejectedToast') : t('rejection.reopenedToast'))
     } catch (error) {
       // GPT: The shared conflict toast owns Retry. Close the modal so that
       // its focus trap cannot make that action unreachable.
@@ -62,7 +64,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
       setState({
         phase: 'error',
         reject,
-        message: apiErrorMessage(error, 'Failed to save the job.'),
+        message: apiErrorMessage(error, t('rejection.saveFailed')),
       })
     } finally {
       busy.current = false
@@ -94,7 +96,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
       setState({
         phase: 'error',
         reject,
-        message: apiErrorMessage(error, "Could not check this job's uninvoiced value."),
+        message: apiErrorMessage(error, t('rejection.checkFailed')),
       })
       return
     } finally {
@@ -125,12 +127,12 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
         onClick={() => void prepare(job, !job.rejected_flag)}
       >
         {state.phase === 'loading'
-          ? 'Checking…'
+          ? t('rejection.checking')
           : state.phase === 'saving'
-            ? 'Saving…'
+            ? t('rejection.saving')
             : job.rejected_flag
-              ? 'Reopen job'
-              : 'Reject job'}
+              ? t('rejection.reopenJob')
+              : t('rejection.rejectJob')}
       </Button>
       {/* Opus: The dialog opens only when there is something to decide. Opening
           it for a check or save that needs no answer left it closing as the next
@@ -150,17 +152,16 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>{rejecting ? 'Reject job' : 'Reopen job'}</DialogTitle>
+            <DialogTitle>
+              {rejecting ? t('rejection.rejectJob') : t('rejection.reopenJob')}
+            </DialogTitle>
             <DialogDescription>
-              {rejecting
-                ? 'Rejecting this job moves it to Archived.'
-                : 'Clearing rejection moves this job back to Draft.'}
+              {rejecting ? t('rejection.rejectDescription') : t('rejection.reopenDescription')}
             </DialogDescription>
           </DialogHeader>
           {state.phase === 'confirm' && state.reject ? (
             <p data-automation-id="JobView-rejection-warning" className="text-sm text-amber-800">
-              This job has {formatCurrency(state.remaining)} excluding GST still to be invoiced. Are
-              you sure you want to reject it?
+              {t('rejection.uninvoicedWarning', { amount: formatCurrency(state.remaining) })}
             </p>
           ) : state.phase === 'error' ? (
             <p role="alert" className="text-sm text-red-700">
@@ -174,7 +175,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
               data-automation-id="JobView-rejection-cancel"
               onClick={cancel}
             >
-              Cancel
+              {t('rejection.cancel')}
             </Button>
             {state.phase === 'confirm' ? (
               <Button
@@ -183,7 +184,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
                 data-automation-id="JobView-rejection-confirm"
                 onClick={() => void submit(state.baseline, state.reject)}
               >
-                {state.reject ? 'Reject job' : 'Reopen in Draft'}
+                {state.reject ? t('rejection.rejectJob') : t('rejection.reopenInDraft')}
               </Button>
             ) : state.phase === 'error' ? (
               <Button
@@ -191,7 +192,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
                 data-automation-id="JobView-rejection-retry"
                 onClick={() => void prepare(job, state.reject)}
               >
-                Try again
+                {t('rejection.tryAgain')}
               </Button>
             ) : null}
           </DialogFooter>

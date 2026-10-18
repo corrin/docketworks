@@ -8,6 +8,7 @@
  */
 
 import type { CostLineOut, CostLineUpdateRequest, JobLabourRateOut, StockItem } from '@/api'
+import { i18n } from '@/lib/i18n'
 import type { DraftLine } from './types'
 
 /** Default revenue for a material/adjustment line: cost marked up, 2 dp. */
@@ -99,9 +100,9 @@ export function itemLabel(
     const stock = stockById.get(stockId)
     if (stock) return stock.item_code ?? stock.description
     // Bound to stock the picker page has not loaded — still not 'Select Item'.
-    return 'Stock item'
+    return i18n.t('job:costLineGrid.stockItem')
   }
-  return 'Select Item'
+  return i18n.t('job:costLineGrid.selectItem')
 }
 
 /** A receipt allocation's quantity IS the received quantity of a PO line, so
