@@ -34,17 +34,8 @@ import { QueryState } from '@/features/shared/QueryState'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
+import { costlineKindLabel } from '../history'
 import { useCostLines } from './useCostLines'
-
-const KIND_LABEL_KEYS = {
-  time: 'costLineGrid.kind.time',
-  material: 'costLineGrid.kind.material',
-  adjust: 'costLineGrid.kind.adjust',
-} as const
-
-function isLabelledKind(kind: string): kind is keyof typeof KIND_LABEL_KEYS {
-  return kind in KIND_LABEL_KEYS
-}
 
 function draftIsEmpty(draft: DraftLine): boolean {
   return (
@@ -238,14 +229,13 @@ function cellMeta(table: Table<typeof editableGridFeatures, GridRow>): GridCellC
 }
 
 function KindCell({ row, table }: CellProps) {
-  const { t } = useTranslation('job')
   const context = cellMeta(table)
   const gridRow = row.original
   const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-        {isLabelledKind(kind) ? t(KIND_LABEL_KEYS[kind]) : kind}
+        {costlineKindLabel(kind)}
       </span>
       {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
     </span>

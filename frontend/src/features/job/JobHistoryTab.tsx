@@ -26,6 +26,7 @@ import {
   costlineDescription,
   COSTLINE_KIND_CLASS,
   costlineKind,
+  costlineKindLabel,
   formatDelta,
   timelineKind,
   timelineTypeLabel,
@@ -323,9 +324,9 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                               <>
                                 <span>•</span>
                                 <span
-                                  className={`rounded-full px-2 py-1 capitalize ${COSTLINE_KIND_CLASS[costlineKind(entry.costline_kind)]}`}
+                                  className={`rounded-full px-2 py-1 ${COSTLINE_KIND_CLASS[costlineKind(entry.costline_kind)]}`}
                                 >
-                                  {entry.costline_kind}
+                                  {costlineKindLabel(entry.costline_kind)}
                                 </span>
                               </>
                             )}

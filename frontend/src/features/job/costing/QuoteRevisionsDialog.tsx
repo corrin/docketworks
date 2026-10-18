@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/format'
+import { costlineKindLabel } from '../history'
 
 interface QuoteRevisionsDialogProps {
   jobId: string
@@ -58,7 +59,7 @@ function RevisionCard({ revision }: { revision: QuoteRevisionOut }) {
             {revision.cost_lines.map((line) => (
               <tr key={line.id} className="border-b border-slate-100">
                 <td className="py-1 pr-2">{line.desc ?? '—'}</td>
-                <td className="py-1 pr-2 text-slate-500">{line.kind}</td>
+                <td className="py-1 pr-2 text-slate-500">{costlineKindLabel(line.kind)}</td>
                 <td className="py-1 pr-2 text-right tabular-nums">{line.quantity}</td>
                 <td className="py-1 pr-2 text-right tabular-nums">
                   {formatCurrency(line.unit_rev)}

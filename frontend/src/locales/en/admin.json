@@ -139,7 +139,15 @@
       "configured": "Job and Xero item set",
       "needsConfiguration": "Job or Xero item missing",
       "incompleteJob": "Select a Job before saving.",
-      "incompleteJobAndPayItem": "Select a Job and a Xero payroll item before saving."
+      "incompleteJobAndPayItem": "Select a Job and a Xero payroll item before saving.",
+      "builtInType": "Built-in type: {{type}}"
+    },
+    "builtInTypes": {
+      "annual_leave": "Annual Leave",
+      "sick_leave": "Sick Leave",
+      "unpaid_leave": "Unpaid Leave",
+      "bereavement_leave": "Bereavement Leave",
+      "public_holiday": "Public Holiday"
     }
   },
   "integrations": {
@@ -255,7 +263,24 @@
       "lastSynced": "When"
     },
     "syncProgress": "Updating from Xero",
-    "logErrorId": "(error reference {{errorId}})"
+    "logErrorId": "(error reference {{errorId}})",
+    "entities": {
+      "accounts": "Accounts",
+      "contacts": "Companies (Xero contacts)",
+      "employees": "Employees",
+      "invoices": "Invoices",
+      "quotes": "Quotes",
+      "purchase_orders": "Purchase orders",
+      "bills": "Bills",
+      "stock": "Stock items",
+      "credit_notes": "Credit notes",
+      "pay_runs": "Pay runs",
+      "pay_slips": "Pay slips",
+      "pay_items": "Pay items",
+      "purchase_orders_local_to_xero": "Sending purchase orders to Xero",
+      "stock_local_to_xero": "Sending stock items to Xero",
+      "sync": "Update from Xero"
+    }
   },
   "sessionReplay": {
     "cannotReplay": "This recording cannot be replayed.",

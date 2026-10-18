@@ -150,6 +150,10 @@ export function useKanbanBoard(
     enabled: isSearchActive,
   })
 
+  // The column's heading, used wherever the board names a column.
+  const columnLabel = (columnId: OfficeColumnId): string =>
+    statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId)
+
   // useQueries mirrors the array it was handed, so a missing entry is a bug
   // in this file rather than anything a user can cause — fail here instead of
   // rendering a column with no query behind it.
@@ -166,16 +170,27 @@ export function useKanbanBoard(
   // One toast per distinct failure. The E2E console guard fails a spec on any
   // console.error, so a failed board load has to surface as a toast or not at
   // all — and the board mounts under every spec's login.
-  const loadErrors: Array<{ label: string; error: Error | null }> = columnStates.map(
+  // Keyed by what failed, not by its label: a column's label changes when the
+  // status vocabulary lands, which must not re-toast the same failure.
+  const loadErrors: Array<{ key: string; label: string; error: Error | null }> = columnStates.map(
     ({ columnId, query }) => ({
-      label: t('board.loadTarget.column', { columnId }),
+      key: columnId,
+      label: t('board.loadTarget.column', { column: columnLabel(columnId) }),
       error: query.error,
     }),
   )
-  loadErrors.push({ label: t('board.loadTarget.boardColumns'), error: statusValues.error })
-  loadErrors.push({ label: t('board.loadTarget.searchResults'), error: search.error })
+  loadErrors.push({
+    key: 'boardColumns',
+    label: t('board.loadTarget.boardColumns'),
+    error: statusValues.error,
+  })
+  loadErrors.push({
+    key: 'searchResults',
+    label: t('board.loadTarget.searchResults'),
+    error: search.error,
+  })
   const loadErrorSignature = loadErrors
-    .map((entry) => `${entry.label}:${entry.error?.message ?? ''}`)
+    .map((entry) => `${entry.key}:${entry.error?.message ?? ''}`)
     .join('|')
   // Runs after every render and toasts only when the set of failures changed:
   // the signature compare is the whole cost, and it is the one already paid
@@ -243,7 +258,7 @@ export function useKanbanBoard(
 
     return {
       id: columnId,
-      label: statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId),
+      label: columnLabel(columnId),
       tooltip:
         statusValues.data?.tooltips[columnId] ??
         t('board.fallbackTooltip', { status: fallbackColumnLabel(columnId) }),

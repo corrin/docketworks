@@ -37,6 +37,9 @@ describe('CompanyDetailPage', () => {
   it('lists the company jobs behind the Jobs tab', async () => {
     server.use(
       http.get('*/api/companies/c-1/', () => HttpResponse.json(company)),
+      http.get('*/api/job/jobs/status-choices/', () =>
+        HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+      ),
       http.get('*/api/companies/c-1/jobs/', () =>
         HttpResponse.json({
           results: [crmJobRow({ job_id: 'job-1', job_number: 101, name: 'Fabricate frame' })],

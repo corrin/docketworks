@@ -15,7 +15,7 @@ import {
   companiesSupplierAliasesListQueryKey,
 } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatDate } from '@/lib/format'
 import { TabBar } from '@/features/shared/TabBar'
 import { RelatedJobsTable } from './RelatedJobsTable'
 
@@ -257,7 +257,9 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
                   </span>
                 </DetailField>
                 <DetailField label={t('companyDetail.lastInvoiceDate')}>
-                  {company.data.last_invoice_date ?? t('companyDetail.noInvoices')}
+                  {company.data.last_invoice_date === null
+                    ? t('companyDetail.noInvoices')
+                    : formatDate(company.data.last_invoice_date)}
                 </DetailField>
               </div>
             )}

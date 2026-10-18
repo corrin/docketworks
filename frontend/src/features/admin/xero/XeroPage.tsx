@@ -39,6 +39,37 @@ const AUTHENTICATE_URL = '/api/xero/authenticate/?next=/admin/xero'
 /** Older log lines beyond this are dropped; the run's tail is what matters. */
 const LOG_LIMIT = 200
 
+/** Every `entity` the sync stream and sync-info answer with: apps/xero/sync.py's
+ * ENTITY_CONFIGS keys, pay_items, its two outbound passes, and the worker's own
+ * `sync` events. */
+const XERO_ENTITIES = [
+  'accounts',
+  'contacts',
+  'employees',
+  'invoices',
+  'quotes',
+  'purchase_orders',
+  'bills',
+  'stock',
+  'credit_notes',
+  'pay_runs',
+  'pay_slips',
+  'pay_items',
+  'purchase_orders_local_to_xero',
+  'stock_local_to_xero',
+  'sync',
+] as const
+
+/** An entity key as the reader sees it. Throws on a key the backend does not
+ * send, as callDirectionLabel does: a new key means the wire changed. */
+function xeroEntityLabel(entity: string): string {
+  const known = XERO_ENTITIES.find((candidate) => candidate === entity)
+  if (known === undefined) {
+    throw new Error(`Unknown Xero sync entity: '${entity}'`)
+  }
+  return i18n.t(`admin:xeroPage.entities.${known}`)
+}
+
 type PingState =
   | { kind: 'connected'; readonly: boolean }
   | { kind: 'disconnected' }
@@ -278,7 +309,7 @@ export function XeroPage() {
                         className="border-b last:border-0"
                         data-automation-id={`XeroPage-last-syncs-row-${entity}`}
                       >
-                        <td className="py-1 pr-4">{entity}</td>
+                        <td className="py-1 pr-4">{xeroEntityLabel(entity)}</td>
                         <td className="py-1">
                           {at ? new Date(at).toLocaleString() : t('xeroPage.never')}
                         </td>
@@ -316,7 +347,7 @@ export function XeroPage() {
                       : 'text-muted-foreground'
                 }
               >
-                [{line.entity}] {line.message}
+                [{xeroEntityLabel(line.entity)}] {line.message}
                 {line.error_id ? t('xeroPage.logErrorId', { errorId: line.error_id }) : ''}
               </li>
             ))}

@@ -248,7 +248,7 @@ describe('JobHistoryTab — the timeline', () => {
 
     const created = autoId('JobHistoryTab-entry-costline_created-line-1')
     expect(created).toHaveTextContent('Line added')
-    expect(created).toHaveTextContent('Estimate - time')
+    expect(created).toHaveTextContent('Estimate - Labour')
 
     // The v1 defect: an updated cost line rendered as a "General" job event.
     expect(autoId('JobHistoryTab-entry-costline_updated-line-1')).toHaveTextContent('Line changed')

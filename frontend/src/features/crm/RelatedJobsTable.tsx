@@ -2,7 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
-import { companiesJobsRetrieveOptions, peopleJobsRetrieveOptions, type CrmJobRow } from '@/api'
+import {
+  companiesJobsRetrieveOptions,
+  jobJobsStatusChoicesRetrieveOptions,
+  peopleJobsRetrieveOptions,
+  type CrmJobRow,
+} from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatCurrency, formatDate } from '@/lib/format'
 
@@ -83,13 +88,19 @@ function JobsTable({
   showCompany,
 }: JobsTableProps) {
   const { t } = useTranslation('crm')
+  // The full status vocabulary (special and archived included), the same
+  // endpoint JobPicker reads: the jobs here can be in any status.
+  const statuses = useQuery({ ...jobJobsStatusChoicesRetrieveOptions(), staleTime: Infinity })
   const total = rows?.reduce((sum, job) => sum + job.invoiced_total_excl_tax, 0)
 
   return (
     <ListTable
-      isPending={isPending}
-      isError={isError}
-      onRetry={onRetry}
+      isPending={isPending || statuses.isPending}
+      isError={isError || statuses.isError}
+      onRetry={() => {
+        onRetry()
+        void statuses.refetch()
+      }}
       loadingLabel={t('relatedJobs.loading')}
       errorLabel={t('relatedJobs.loadFailed')}
       rows={rows}
@@ -118,7 +129,13 @@ function JobsTable({
         </tr>
       }
       renderRow={(job) => (
-        <JobRow key={job.job_id} job={job} automationId={automationId} showCompany={showCompany} />
+        <JobRow
+          key={job.job_id}
+          job={job}
+          statusLabels={statuses.data?.statuses}
+          automationId={automationId}
+          showCompany={showCompany}
+        />
       )}
       footer={
         total !== undefined && (
@@ -134,12 +151,26 @@ function JobsTable({
   )
 }
 
+/** A job status as the job screen names it. Throws on a status the vocabulary
+    does not hold: both come from Job.JOB_STATUS_CHOICES, so a miss is a defect. */
+function statusLabel(labels: Record<string, string> | undefined, status: string): string {
+  const label = labels?.[status]
+  if (label === undefined) {
+    throw new Error(`Job status '${status}' is not in the status vocabulary`)
+  }
+  return label
+}
+
 function JobRow({
   job,
+  statusLabels,
   automationId,
   showCompany,
 }: {
   job: CrmJobRow
+  /** Undefined only while the vocabulary loads, when the table shows its
+      loading state instead of rows. */
+  statusLabels: Record<string, string> | undefined
   automationId: string
   showCompany: boolean
 }) {
@@ -169,7 +200,7 @@ function JobRow({
           )}
         </td>
       )}
-      <td className="px-3 py-2">{job.status}</td>
+      <td className="px-3 py-2">{statusLabel(statusLabels, job.status)}</td>
       <td className="px-3 py-2">
         {job.invoices.length === 0 ? (
           <span className="text-gray-500">{t('relatedJobs.notInvoiced')}</span>

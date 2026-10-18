@@ -61,7 +61,7 @@ describe('costlineDescription', () => {
       costlineDescription(
         entry({ entry_type: 'costline_created', cost_set_kind: 'estimate', costline_kind: 'time' }),
       ),
-    ).toBe('Estimate - time')
+    ).toBe('Estimate - Labour')
   })
 
   it('has nothing to say about a job event', () => {

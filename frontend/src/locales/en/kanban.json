@@ -34,7 +34,7 @@
   },
   "board": {
     "loadTarget": {
-      "column": "the {{columnId}} column",
+      "column": "the {{column}} column",
       "boardColumns": "the board columns",
       "searchResults": "search results"
     },

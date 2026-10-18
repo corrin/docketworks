@@ -54,7 +54,7 @@ export function costlineDescription(entry: TimelineEntryOut): string | null {
   if (costSetKind === null || kind === null) {
     return null
   }
-  return `${formatEventType(costSetKind)} - ${kind}`
+  return `${formatEventType(costSetKind)} - ${costlineKindLabel(kind)}`
 }
 
 /** The three kinds a cost line takes, from `CostLine.KIND_CHOICES`. */
@@ -74,6 +74,11 @@ export function costlineKind(kind: string): CostlineKind {
     throw new Error(`Unknown cost-line kind: '${kind}'`)
   }
   return known
+}
+
+/** A cost line's kind as the reader sees it — the cost-line grid's own words. */
+export function costlineKindLabel(kind: string): string {
+  return i18n.t(`job:costLineGrid.kind.${costlineKind(kind)}`)
 }
 
 /** The cost-line kind badge's colour — one per kind, as the dots are. */

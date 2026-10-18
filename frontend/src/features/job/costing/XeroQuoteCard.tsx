@@ -22,11 +22,32 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { invalidateJobViews } from '../invalidateJobViews'
 
 interface XeroQuoteCardProps {
   jobId: string
+}
+
+/** Xero's quote statuses (accounting QuoteStatus). */
+const XERO_QUOTE_STATUSES = [
+  'DRAFT',
+  'SENT',
+  'ACCEPTED',
+  'DECLINED',
+  'INVOICED',
+  'DELETED',
+] as const
+
+/** A quote status in Xero's own screen words. Throws on a status QuoteStatus
+    does not declare: the wire types it as a plain string. */
+function xeroQuoteStatusLabel(status: string): string {
+  const known = XERO_QUOTE_STATUSES.find((candidate) => candidate === status)
+  if (known === undefined) {
+    throw new Error(`Unknown Xero quote status: '${status}'`)
+  }
+  return i18n.t(`job:xeroQuote.status.${known}`)
 }
 
 /**
@@ -126,7 +147,7 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                   {quote.number ?? t('xeroQuote.unnumbered')}
                 </span>
                 <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700">
-                  {quote.status}
+                  {xeroQuoteStatusLabel(quote.status)}
                 </span>
               </div>
               <div className="mt-1 text-[11px] text-slate-500">{formatDate(quote.date)}</div>

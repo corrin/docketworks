@@ -72,3 +72,29 @@ export function isFormSchemaSpec(value: unknown): value is FormSchemaSpec {
 export function extractFields(value: unknown): FormFieldSchema[] {
   return isFormSchemaSpec(value) ? value.fields : []
 }
+
+const DOCUMENT_TYPE_VALUES = ['form', 'register'] as const
+type DocumentType = (typeof DOCUMENT_TYPE_VALUES)[number]
+
+function isDocumentType(value: string): value is DocumentType {
+  return (DOCUMENT_TYPE_VALUES as readonly string[]).includes(value)
+}
+
+export function requireDocumentType(value: string): DocumentType {
+  if (!isDocumentType(value)) throw new Error(`Unexpected document type "${value}".`)
+  return value
+}
+
+// Form.Status has exactly these two values; FormUpdateIn.status mirrors them
+// as a closed literal union on the wire.
+const FORM_STATUS_VALUES = ['active', 'archived'] as const
+type FormStatus = (typeof FORM_STATUS_VALUES)[number]
+
+function isFormStatus(value: string): value is FormStatus {
+  return (FORM_STATUS_VALUES as readonly string[]).includes(value)
+}
+
+export function requireFormStatus(value: string): FormStatus {
+  if (!isFormStatus(value)) throw new Error(`Unexpected form status "${value}".`)
+  return value
+}

@@ -25,7 +25,12 @@ import {
 import { INPUT_CLASS } from '@/components/ui/field'
 
 import { EntryForm } from './EntryForm'
-import { extractFields, isFormSchemaSpec } from './formSchema'
+import {
+  extractFields,
+  isFormSchemaSpec,
+  requireDocumentType,
+  requireFormStatus,
+} from './formSchema'
 
 // apps/process/models.py Form.Category.choices define exactly these five
 // keys; FormCreateIn/FormUpdateIn's category field mirrors them as a closed
@@ -40,32 +45,6 @@ export function isCategory(value: string): value is Category {
 
 export function requireCategory(value: string): Category {
   if (!isCategory(value)) throw new Error(`Unexpected category "${value}".`)
-  return value
-}
-
-const DOCUMENT_TYPE_VALUES = ['form', 'register'] as const
-type DocumentType = (typeof DOCUMENT_TYPE_VALUES)[number]
-
-function isDocumentType(value: string): value is DocumentType {
-  return (DOCUMENT_TYPE_VALUES as readonly string[]).includes(value)
-}
-
-function requireDocumentType(value: string): DocumentType {
-  if (!isDocumentType(value)) throw new Error(`Unexpected document type "${value}".`)
-  return value
-}
-
-// Form.Status has exactly these two values; FormUpdateIn.status mirrors them
-// as a closed literal union on the wire.
-const FORM_STATUS_VALUES = ['active', 'archived'] as const
-type FormStatus = (typeof FORM_STATUS_VALUES)[number]
-
-function isFormStatus(value: string): value is FormStatus {
-  return (FORM_STATUS_VALUES as readonly string[]).includes(value)
-}
-
-function requireFormStatus(value: string): FormStatus {
-  if (!isFormStatus(value)) throw new Error(`Unexpected form status "${value}".`)
   return value
 }
 

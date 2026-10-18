@@ -203,7 +203,15 @@
     "sendTotalOnlyHint": "Export as a single line item with the total amount (Default)",
     "sendBreakdown": "Send Breakdown",
     "sendBreakdownHint": "Export each cost line as its own line item",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "status": {
+      "DRAFT": "Draft",
+      "SENT": "Sent",
+      "ACCEPTED": "Accepted",
+      "DECLINED": "Declined",
+      "INVOICED": "Invoiced",
+      "DELETED": "Deleted"
+    }
   },
   "historyTab": {
     "eventAdded": "Note added",
@@ -342,7 +350,15 @@
     "confirm": "Confirm",
     "amountMode": "Invoice $ amount",
     "amountInput": "Invoice amount",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "status": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Awaiting Approval",
+      "AUTHORISED": "Awaiting Payment",
+      "PAID": "Paid",
+      "VOIDED": "Voided",
+      "DELETED": "Deleted"
+    }
   },
   "finishTab": {
     "checklist": {

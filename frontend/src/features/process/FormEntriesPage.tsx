@@ -24,7 +24,7 @@ import { AcknowledgementsPanel } from './AcknowledgementsPanel'
 import { EntriesTable } from './EntriesTable'
 import { EntryForm, type EntryFormSubmitBody } from './EntryForm'
 import { EntryHistoryDialog } from './EntryHistoryDialog'
-import { extractFields } from './formSchema'
+import { extractFields, requireDocumentType, requireFormStatus } from './formSchema'
 import { LinkedEntriesDialog } from './LinkedEntriesDialog'
 
 const PAGE_SIZE = 20
@@ -169,8 +169,12 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
             {form.document_number && (
               <span className="rounded bg-slate-100 px-2 py-0.5">{form.document_number}</span>
             )}
-            <span className="rounded bg-slate-100 px-2 py-0.5">{form.document_type}</span>
-            <span className="rounded bg-slate-100 px-2 py-0.5">{form.status}</span>
+            <span className="rounded bg-slate-100 px-2 py-0.5">
+              {t(`entriesPage.documentType.${requireDocumentType(form.document_type)}`)}
+            </span>
+            <span className="rounded bg-slate-100 px-2 py-0.5">
+              {t(`entriesPage.status.${requireFormStatus(form.status)}`)}
+            </span>
           </div>
           <AcknowledgementsPanel formId={formId} />
         </div>

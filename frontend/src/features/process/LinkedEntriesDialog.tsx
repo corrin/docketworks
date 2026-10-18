@@ -56,18 +56,19 @@ function groupByForm(rows: EntryOut[], formsById: Map<string, FormOut>): ChildGr
   }))
 }
 
-/** A short label for one child row: its first couple of data fields,
-    display-resolved where the server resolved them. Falls back to the
-    entry's id for a schema with no fields to summarise. */
-function summarize(entry: EntryOut): string {
-  const parts = Object.entries(entry.data)
+/** One child row: its date, then its form's first couple of fields as
+    `Label: value`, display-resolved where the server resolved them. Just the
+    date for a form with no fields, or while the form list has not loaded. */
+function childLine(entry: EntryOut, form: FormOut | undefined): string {
+  const date = formatDate(entry.entry_date)
+  const summary = extractFields(form?.form_schema)
     .slice(0, 2)
-    .map(([key, value]) => {
-      const displayed = entry.display_data[key]
-      const text = displayed ?? textFor(value)
-      return `${key}: ${text === '' ? '-' : text}`
+    .map((field) => {
+      const text = entry.display_data[field.key] ?? textFor(entry.data[field.key])
+      return `${field.label}: ${text === '' ? '-' : text}`
     })
-  return parts.length > 0 ? parts.join(', ') : entry.id
+    .join(', ')
+  return summary === '' ? date : `${date} — ${summary}`
 }
 
 /**
@@ -188,7 +189,7 @@ function LinkedEntriesBody({
                 <ul className="mt-1 flex flex-col gap-1 text-sm text-slate-600">
                   {group.children.map((child) => (
                     <li key={child.id} data-automation-id={`LinkedEntriesDialog-child-${child.id}`}>
-                      {formatDate(child.entry_date)} — {summarize(child)}
+                      {childLine(child, formsById.get(group.formId))}
                     </li>
                   ))}
                 </ul>

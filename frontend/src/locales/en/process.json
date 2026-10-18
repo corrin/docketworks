@@ -26,7 +26,15 @@
     "previous": "Previous",
     "pageOf": "Page {{page}} of {{totalPages}}",
     "next": "Next",
-    "editEntry": "Edit entry"
+    "editEntry": "Edit entry",
+    "documentType": {
+      "form": "Form",
+      "register": "Register"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived"
+    }
   },
   "entriesTable": {
     "loading": "Loading entries...",
@@ -135,5 +143,9 @@
     "loadingOption": "Loading…",
     "chooseForm": "Choose a form…",
     "noSchema": "This form has no fields set up yet, so entries can't be added."
+  },
+  "entryValue": {
+    "yes": "Yes",
+    "no": "No"
   }
 }

@@ -20,6 +20,7 @@ import { JobPicker } from '@/features/shared/JobPicker'
 import { QueryState } from '@/features/shared/QueryState'
 import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard'
 import { INPUT_CLASS } from '@/components/ui/field'
+import { i18n } from '@/lib/i18n'
 
 /** One row's editable values. Unset ids are null, never '' (ADR 0040): '' is
     the select element's sentinel and stops at that boundary. */
@@ -30,6 +31,25 @@ interface LeaveDraft {
 }
 
 type LeaveDrafts = Record<string, LeaveDraft>
+
+/** The fixed leave codes (LeaveType.Code); the wire types `code` as a plain string. */
+const LEAVE_CODES = [
+  'annual_leave',
+  'sick_leave',
+  'unpaid_leave',
+  'bereavement_leave',
+  'public_holiday',
+] as const
+
+/** A leave code as the reader sees it. Throws on a code LeaveType.Code does not
+    declare: the set is fixed, so a sixth code means the wire changed. */
+function builtInTypeLabel(code: string): string {
+  const known = LEAVE_CODES.find((candidate) => candidate === code)
+  if (known === undefined) {
+    throw new Error(`Unknown leave code: '${code}'`)
+  }
+  return i18n.t(`admin:leaveSettings.builtInTypes.${known}`)
+}
 
 function snapshotLeaveSettings(settings: LeaveSettingsOut): LeaveDrafts {
   const drafts: LeaveDrafts = {}
@@ -288,7 +308,11 @@ function SettingsRow({
           value={draft.display_name}
           onChange={(event) => onChange({ display_name: event.target.value })}
         />
-        <p className="mt-1 text-xs text-slate-400">{type.code}</p>
+        <p className="mt-1 text-xs text-slate-400">
+          {t('leaveSettings.row.builtInType', {
+            type: builtInTypeLabel(type.code),
+          })}
+        </p>
       </td>
       <td className="min-w-52 px-3 py-3">
         <JobPicker
