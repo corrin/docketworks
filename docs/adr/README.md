@@ -67,3 +67,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
 | [0067](0067-show-everything-and-say-why.md) | Show everything, and say why when it can't be used |
 | [0068](0068-words-a-shop-manager-would-use.md) | Every word on a screen is one a sheet metal shop manager would use |
+| [0069](0069-screen-words-live-in-catalogues.md) | The words on a screen live in the English catalogues |
