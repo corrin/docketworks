@@ -11,7 +11,8 @@
       "name": "Name",
       "email": "Email",
       "phone": "Phone",
-      "totalSpend": "Total Spend (excl GST)"
+      "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices to this company, drafts included, less its credit notes. Voided and deleted invoices don't count."
     }
   },
   "companyDetail": {
@@ -28,6 +29,7 @@
     "email": "Email",
     "phone": "Phone",
     "totalSpend": "Total Spend (excl GST)",
+    "totalSpendTitle": "Invoices to this company, drafts included, less its credit notes. Voided and deleted invoices don't count.",
     "lastInvoiceDate": "Last Invoice Date",
     "noInvoices": "No invoices",
     "aliases": {
@@ -66,7 +68,8 @@
       "person": "Person",
       "phone": "Phone",
       "companies": "Companies",
-      "totalSpend": "Total Spend (excl GST)"
+      "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices on jobs where this person is the contact, drafts included. Voided and deleted invoices don't count. Credit notes aren't tied to a job, so they come off the company's total, not this one."
     },
     "archived": "Archived",
     "noun": "people"
@@ -152,6 +155,7 @@
       "title": "Financial summary",
       "intro": "Sales invoices on jobs where this person is the contact, across every company those jobs were for.",
       "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices on jobs where this person is the contact, drafts included. Voided and deleted invoices don't count. Credit notes aren't tied to a job, so they come off the company's total, not this one.",
       "lastInvoiceDate": "Last Invoice Date",
       "noInvoices": "No invoices"
     },

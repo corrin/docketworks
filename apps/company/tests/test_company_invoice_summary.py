@@ -15,7 +15,7 @@ from django.test.utils import CaptureQueriesContext
 from apps.company.models import Company, ContactMethod
 from apps.company.services.company_rest_service import CompanyRestService
 from apps.company.tests.factories import make_company
-from apps.company.tests.job_fixtures import make_invoice
+from apps.company.tests.job_fixtures import make_credit_note, make_invoice
 
 pytestmark = pytest.mark.django_db
 
@@ -111,3 +111,18 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics() -> None
             "total_spend": 0.0,
         },
     ]
+
+
+def test_total_spend_counts_drafts_skips_voided_and_takes_off_credit_notes() -> None:
+    """Owner's rule: a draft is spend, a voided or deleted invoice isn't, credits come off."""
+    company = make_company("Credited")
+    make_invoice(company, status="DRAFT", total_excl_tax=Decimal("100.00"))
+    make_invoice(company, status="PAID", total_excl_tax=Decimal("50.00"))
+    make_invoice(company, status="VOIDED", total_excl_tax=Decimal("1000.00"))
+    make_invoice(company, status="DELETED", total_excl_tax=Decimal("2000.00"))
+    make_credit_note(company, status="AUTHORISED", total_excl_tax=Decimal("30.00"))
+    make_credit_note(company, status="VOIDED", total_excl_tax=Decimal("400.00"))
+
+    annotated = Company.objects.with_invoice_summary().get(id=company.id)
+
+    assert annotated.total_spend == Decimal("120.00")

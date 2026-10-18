@@ -171,7 +171,11 @@ export function PeopleDirectoryPage() {
             <th scope="col" className="px-3 py-2 text-left">
               {t('peopleDirectory.columns.companies')}
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right"
+              title={t('peopleDirectory.columns.totalSpendTitle')}
+            >
               {t('peopleDirectory.columns.totalSpend')}
             </th>
           </tr>

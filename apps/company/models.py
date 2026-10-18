@@ -24,6 +24,10 @@ from django.utils.translation import gettext, gettext_lazy
 
 logger = logging.getLogger(__name__)
 
+# Xero statuses of a sales document that no longer counts as money: voided, or
+# deleted while a draft.
+UNCOUNTED_STATUSES: Final = ("VOIDED", "DELETED")
+
 
 def _augment_update_fields(
     update_fields: Iterable[str] | None, field_name: str
@@ -43,17 +47,32 @@ class CompanyQuerySet(models.QuerySet["Company"]):
     def with_invoice_summary(self) -> CompanyQuerySet:
         """Annotate each company with last_invoice_date and total_spend aggregates."""
         output = models.DecimalField(max_digits=12, decimal_places=2)
+        zero = models.Value(Decimal("0.00"))
+        own = self.model.objects.filter(pk=models.OuterRef("pk")).order_by().values("pk")
+
+        def counted_sum(relation: str) -> models.Subquery:
+            # Correlated, not joined: summing invoices and credit notes in one
+            # join would multiply each by the other's rows.
+            return models.Subquery(
+                own.annotate(
+                    total=models.Sum(
+                        f"{relation}__total_excl_tax",
+                        filter=~models.Q(**{f"{relation}__status__in": UNCOUNTED_STATUSES}),
+                        output_field=output,
+                    )
+                ).values("total")
+            )
+
         # Passed as **kwargs because the annotation names deliberately target
         # the Company.last_invoice_date / total_spend property setters, which
         # django-stubs would otherwise flag as attribute redefinitions.
         return self.annotate(
             **{  # noqa: PIE804 -- dict form is load-bearing, see comment above
                 "last_invoice_date": models.Max("invoice__date"),
-                "total_spend": Coalesce(
-                    models.Sum("invoice__total_excl_tax", output_field=output),
-                    models.Value(Decimal("0.00")),
-                    output_field=output,
-                ),
+                # Owner ruling 2026-10-19: drafts count, voided and deleted
+                # invoices don't, and credit notes come off.
+                "total_spend": Coalesce(counted_sum("invoice"), zero, output_field=output)
+                - Coalesce(counted_sum("creditnote"), zero, output_field=output),
             }
         )
 
@@ -295,7 +314,12 @@ class PersonQuerySet(models.QuerySet["Person"]):
                 "total_spend": Coalesce(
                     models.Subquery(
                         own_invoices.annotate(
-                            spend=models.Sum("jobs__invoices__total_excl_tax", output_field=output)
+                            # A credit note names no job, so none comes off a person.
+                            spend=models.Sum(
+                                "jobs__invoices__total_excl_tax",
+                                filter=~models.Q(jobs__invoices__status__in=UNCOUNTED_STATUSES),
+                                output_field=output,
+                            )
                         ).values("spend")
                     ),
                     models.Value(Decimal("0.00")),

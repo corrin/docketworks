@@ -93,6 +93,7 @@ export function CompaniesListPage() {
             <SortHeader
               column="total_spend"
               label={t('companiesList.columns.totalSpend')}
+              title={t('companiesList.columns.totalSpendTitle')}
               automationId="CompaniesTable-header-total-spend"
               sortBy={sortBy}
               sortDir={sortDir}

@@ -708,7 +708,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
               <p className="text-sm text-gray-600">{t('personDetail.financial.intro')}</p>
               <dl className="mt-3 grid gap-4 md:grid-cols-2">
                 <div>
-                  <dt className="text-sm font-medium text-gray-700">
+                  <dt
+                    className="text-sm font-medium text-gray-700"
+                    title={t('personDetail.financial.totalSpendTitle')}
+                  >
                     {t('personDetail.financial.totalSpend')}
                   </dt>
                   <dd

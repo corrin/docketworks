@@ -256,6 +256,7 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
               >
                 <DetailField
                   label={t('companyDetail.totalSpend')}
+                  title={t('companyDetail.totalSpendTitle')}
                   valueAutomationId="CompanyDetail-total-spend"
                 >
                   <span className="text-2xl font-semibold">

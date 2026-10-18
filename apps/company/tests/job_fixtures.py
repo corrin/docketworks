@@ -200,8 +200,15 @@ def make_bill(company: Company) -> Bill:
     return Bill.objects.create(**_invoice_fields(company))
 
 
-def make_credit_note(company: Company) -> CreditNote:
-    return CreditNote.objects.create(**_invoice_fields(company))
+def make_credit_note(
+    company: Company, *, status: str | None = None, total_excl_tax: Decimal | None = None
+) -> CreditNote:
+    fields = _invoice_fields(company)
+    if status is not None:
+        fields["status"] = status
+    if total_excl_tax is not None:
+        fields["total_excl_tax"] = total_excl_tax
+    return CreditNote.objects.create(**fields)
 
 
 def make_quote(company: Company, *, job: Job | None = None, number: str | None = None) -> Quote:
