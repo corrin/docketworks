@@ -1,0 +1,17 @@
+{
+  "entriesPage": {
+    "noSchema": "This form has no fields set up yet, so entries can't be added."
+  },
+  "formsPage": {
+    "noSchema": "This form has no fields set up yet, so entries can't be added."
+  },
+  "linkedEntries": {
+    "noSchema": "This form has no fields set up yet, so entries can't be added."
+  },
+  "formDialog": {
+    "schema": "Form fields (JSON)",
+    "invalidJson": "The form fields aren't valid JSON",
+    "schemaInvalidJson": "The form fields must be valid JSON: {{message}}",
+    "schemaShape": "The form fields must be written as { fields: [{ key, label, type, ... }] }."
+  }
+}

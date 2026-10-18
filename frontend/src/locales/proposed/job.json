@@ -1,0 +1,53 @@
+{
+  "openBlob": {
+    "fetchFailed": "Could not open the {{label}}.",
+    "notADocument": "What came back for the {{label}} was not a file DocketWorks can open. Try again."
+  },
+  "detailPage": {
+    "laterSlice": "This tab isn't built yet."
+  },
+  "history": {
+    "kind": {
+      "costline_created": "Line added",
+      "costline_updated": "Line changed",
+      "event": "Note"
+    },
+    "noData": "Nothing recorded"
+  },
+  "xeroQuote": {
+    "noOnlineUrl": "Xero has no online link for this quote."
+  },
+  "finishTab": {
+    "intro": {
+      "timeMaterials": "Compare the Estimate with the Actual for this Time & Materials job",
+      "noQuote": "Compare the Estimate with the Actual for this job (it has no quote)",
+      "withQuote": "Compare the Estimate, Quote and Actual for this job, with markers showing how each one compares"
+    },
+    "noQuoteData": "This job has no quote figures",
+    "noActualData": "This job has no actual figures yet"
+  },
+  "invoiceCard": {
+    "noOnlineUrl": "Xero has no online link for this invoice."
+  },
+  "quotingChat": {
+    "configureIntegrations": "Set up the quoting chat",
+    "askAdministrator": "Ask an administrator to set up the quoting chat."
+  },
+  "costLines": {
+    "saveFailed": "Failed to save the line",
+    "addFailed": "Failed to add the line",
+    "deleteFailed": "Failed to delete the line"
+  },
+  "historyTab": {
+    "eventAdded": "Note added",
+    "addEventFailed": "Failed to add the note.",
+    "intro": "View the notes and changes on this job, and add a note.",
+    "addEvent": "Add Note",
+    "addNewEvent": "Add New Note",
+    "eventDescription": "Note",
+    "timeline": "Notes and changes",
+    "loadingEvents": "Loading notes and changes...",
+    "emptyTitle": "No notes or changes yet",
+    "emptyHint": "Add the first note to this job."
+  }
+}

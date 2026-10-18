@@ -1,0 +1,12 @@
+{
+  "stock": {
+    "includeRetired": "Include retired stock items",
+    "retired": "Empty stock item retired",
+    "retire": "Retire empty stock item"
+  },
+  "movements": {
+    "header": {
+      "counterpart": "To or from"
+    }
+  }
+}

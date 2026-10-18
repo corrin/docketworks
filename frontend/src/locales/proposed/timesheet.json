@@ -1,0 +1,6 @@
+{
+  "entryPage": {
+    "referenceLoadFailed": "Could not load the staff, jobs and pay items timesheets need. Reload the page.",
+    "staffUnavailable": "This staff member can't have timesheets entered: they aren't on the timesheet staff list, usually because their Xero payroll employee isn't linked."
+  }
+}

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { meQueryOptions, useLogout } from '@/features/auth'
+import { setWording } from '@/lib/i18n'
 
 import { KanbanSearchInput } from './KanbanSearchInput'
 
@@ -21,7 +22,7 @@ import { KanbanSearchInput } from './KanbanSearchInput'
  * NotebookLM dropdown arrive with the pages that need them.
  */
 export function AppNavbar() {
-  const { t } = useTranslation('shell')
+  const { t, i18n } = useTranslation('shell')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const router = useRouter()
   const logout = useLogout()
@@ -231,6 +232,16 @@ export function AppNavbar() {
         <span className="hidden text-sm text-gray-700 sm:inline">
           {t('navbar.welcome', { name: user.fullName })}
         </span>
+        <button
+          type="button"
+          data-automation-id="AppNavbar-wording"
+          title={t('navbar.wordingTitle')}
+          aria-pressed={i18n.language === 'proposed'}
+          onClick={() => setWording(i18n.language === 'proposed' ? 'en' : 'proposed')}
+          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100"
+        >
+          {i18n.language === 'proposed' ? t('navbar.wordingProposed') : t('navbar.wordingCurrent')}
+        </button>
         <Link
           to="/change-password"
           data-automation-id="AppNavbar-change-password"

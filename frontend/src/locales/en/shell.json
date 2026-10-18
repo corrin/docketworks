@@ -57,7 +57,10 @@
     "logout": "Log out",
     "managementHeading": "Management",
     "reconciliationHeading": "Reconciliation",
-    "welcome": "Welcome, {{name}}!"
+    "welcome": "Welcome, {{name}}!",
+    "wordingCurrent": "Current wording",
+    "wordingProposed": "Proposed wording",
+    "wordingTitle": "Flips every screen between the wording in use and the wording under review. Only you see the change."
   },
   "kanbanSearch": {
     "placeholder": "Search jobs..."
