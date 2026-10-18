@@ -401,6 +401,14 @@ The same command creates the company named by
 `CompanyDefaults.test_company_name` when it is missing, setting the name first
 if the load left it unset; the Xero seed fails without it.
 
+The three logins are created employed from 1 January 2020, because specs book
+time on past weekdays and a timesheet lists only staff employed that day. The
+workshop login is the specs' worker: the seed's employees phase below makes it a
+payroll employee in the demo organisation from that date, so it is on every
+timesheet. Xero owns the start date and wage after that; this command never
+rewrites them on an existing login. (`verify-instance.sh --e2e`, which runs no
+seed, does the same with `e2e_ensure_fixtures --payroll` against the fake.)
+
 **Check:** the output shows the E2E user's email with `office staff, superuser,
 wage 45.00`, and `Test company: <name> (ID: …)`.
 
