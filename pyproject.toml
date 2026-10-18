@@ -15,16 +15,16 @@ dependencies = [
     "django-ninja-jwt==5.4.5",
     "django-solo==2.5.1",
     "django-simple-history==3.13.0",
-    "pillow==12.3.0",
+    "pillow==13.0.0",
     "jsonschema==4.26.0",
     "requests==2.34.2",
     "rapidfuzz==3.14.6",
     "nicknames==1.0.1",
     "reportlab==5.0.1",
-    "pypdf==6.20.0",
+    "pypdf==6.21.1",
     "beautifulsoup4==4.15.0",
     "pdf2image==1.17.0",
-    "litellm==1.105.0",
+    "litellm==1.106.0",
     "selenium==4.51.0",
     "holidays==0.106",
     "xero-python==15.2.0",
@@ -51,7 +51,7 @@ dependencies = [
     # 2026-08-31 finding: the prod worker cannot even import its tasks
     # without them.
     "google-api-python-client==2.201.0",
-    "google-auth==2.61.0",
+    "google-auth==2.62.0",
     "openai-chatkit==1.6.5",
     # ADR 0033 — deliberately deferring openai-agents 0.22.3 (2026-10-01): it
     # requires openai>=3 and no litellm release accepts openai 3, so taking it
@@ -64,7 +64,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ruff==0.17.0",
+    "ruff==0.17.1",
     "mypy==2.4.0",
     "django-stubs[compatible-mypy]==6.1.2",
     "pytest==9.1.1",
@@ -75,7 +75,7 @@ dev = [
     # pytest-cov. Declared because it is used, per ADR 0033.
     "coverage==7.16.2",
     "pytest-xdist==3.8.0",
-    "pre-commit==4.6.2",
+    "pre-commit==4.7.0",
     "import-linter==2.15",
     "celery-types==0.26.0",
     "deptry==0.25.1",
