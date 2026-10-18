@@ -96,14 +96,22 @@ def verify_provider(provider: AIProvider) -> str:
         raise InvalidInputError(str(exc)) from exc
     except (AuthenticationError, PermissionDeniedError) as exc:
         raise InvalidInputError(
-            gettext("The provider rejected these credentials or model permissions.")
+            gettext(
+                "The AI provider refused this API key, or the key is not allowed to use this model."
+            )
         ) from exc
     except (NotFoundError, BadRequestError) as exc:
         raise InvalidInputError(
-            gettext("The provider rejected this model or chat request configuration.")
+            gettext(
+                "The AI provider refused this model name or the way the test question was set "
+                "up. Check the model name."
+            )
         ) from exc
     except RateLimitError as exc:
         raise UpstreamRefusedError(
-            gettext("The provider's quota or rate limit prevented this test.")
+            gettext(
+                "The AI provider refused the test: this account has used up its allowance or "
+                "sent too many questions too fast. Try again later."
+            )
         ) from exc
     return resolve_target(provider=provider).model

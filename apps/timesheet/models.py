@@ -137,7 +137,7 @@ class LeaveType(models.Model):
             return
         if self.job.status != "special":
             raise ValidationError(
-                {"job": gettext("Leave types must use a special Docketworks job.")}
+                {"job": gettext("Leave types must use a special DocketWorks job.")}
             )
         if self.posting_surface is PostingSurface.XERO_COMPUTED:
             # Opus: No pay item requirement either way. Xero pays this day from its

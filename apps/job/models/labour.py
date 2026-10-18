@@ -75,7 +75,12 @@ class LabourSubtype(models.Model):
             cls.objects.filter(is_active=True, is_workshop=True).order_by("display_order").first()
         )
         if subtype is None:
-            raise ValueError(gettext("No active workshop LabourSubtype configured."))
+            raise ValueError(
+                gettext(
+                    "No workshop labour type is set up (or every one is switched off). "
+                    "Add one under Admin > Labour rates."
+                )
+            )
         return subtype
 
     @classmethod
@@ -89,7 +94,12 @@ class LabourSubtype(models.Model):
             cls.objects.filter(is_active=True, is_workshop=False).order_by("display_order").first()
         )
         if subtype is None:
-            raise ValueError(gettext("No active non-workshop LabourSubtype configured."))
+            raise ValueError(
+                gettext(
+                    "No office (non-workshop) labour type is set up (or every one is switched "
+                    "off). Add one under Admin > Labour rates."
+                )
+            )
         return subtype
 
 

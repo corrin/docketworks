@@ -109,11 +109,16 @@ def _select_provider(provider_type: str | None) -> AIProvider:
     if provider is not None:
         return provider
     if not catalogue.exists():
-        raise LLMConfigurationError(gettext("No AI provider configured in the database"))
+        raise LLMConfigurationError(
+            gettext(
+                "The quoting chat isn't set up yet: no AI provider has been added. Ask an "
+                "administrator to add one under Admin > Integrations."
+            )
+        )
     raise LLMConfigurationError(
         gettext(
-            "AI providers are configured but none is marked default; "
-            "select the application default in Admin > Integrations"
+            "The quoting chat has AI providers but no default one. Ask an administrator "
+            "to choose the default under Admin > Integrations."
         )
     )
 

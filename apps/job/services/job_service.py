@@ -1894,7 +1894,7 @@ def add_job_event(
     """Add a manual event to the Job with duplicate prevention."""
     # Guard clause - input validation
     if not description or not description.strip():
-        raise ValueError(gettext("Event description is required"))
+        raise ValueError(gettext("Write the note before adding it."))
 
     try:
         # Lock the job to prevent race conditions
@@ -1930,7 +1930,9 @@ def add_job_event(
             user.office_email,
             exc,
         )
-        raise ValueError(gettext("Unable to create event due to duplicate constraint")) from exc
+        raise ValueError(
+            gettext("That note was just added. It hasn't been added a second time.")
+        ) from exc
 
     if not created:
         logger.warning(
@@ -2769,7 +2771,7 @@ def copy_estimate_to_quote(
     estimate = job.get_latest("estimate")
     quote = job.get_latest("quote")
     if estimate is None or quote is None:
-        raise ValueError(gettext("Job is missing its estimate or quote cost set."))
+        raise ValueError(gettext("This job has no estimate or quote costs and revenue to copy."))
     archived_quote_revision: int | None = None
     with transaction.atomic():
         lock_costing_jobs([job.id])
@@ -3069,12 +3071,12 @@ def _check_labour_subtype_update_guards(
                 if is_ws:
                     message = gettext(
                         "'%(name)s' is the only active Workshop subtype; "
-                        "job creation, Xero sync and quote import depend on it."
+                        "creating jobs, updating from Xero and importing quotes all need one."
                     )
                 else:
                     message = gettext(
                         "'%(name)s' is the only active non-workshop subtype; "
-                        "job creation, Xero sync and quote import depend on it."
+                        "creating jobs, updating from Xero and importing quotes all need one."
                     )
                 raise ValueError(message % {"name": subtype.name})
 

@@ -98,9 +98,8 @@ class PhoneEndpoint(models.Model):
             if conflict:
                 raise ValidationError(
                     gettext(
-                        "phone number %(number)s already belongs to "
-                        "%(owner)s and cannot be an active "
-                        "internal phone endpoint"
+                        "Phone number %(number)s already belongs to "
+                        "%(owner)s, so it can't be one of our own phone numbers"
                     )
                     % {"number": self.normalized_number, "owner": conflict.owner_display_name()}
                 )

@@ -174,7 +174,8 @@ def build_xero_payroll_url(pay_run_xero_id: UUID) -> str:
     if not shortcode:
         raise ValueError(
             gettext(
-                "Xero shortcode not configured. Run 'python manage.py xero --setup' to fetch it."
+                "DocketWorks doesn't have Xero's short code for this organisation yet, so it "
+                "can't link to Xero. Ask an administrator to finish Xero setup, which fetches it."
             )
         )
     return f"https://payroll.xero.com/PayRun?CID={shortcode}#payruns/{pay_run_xero_id}"
@@ -186,8 +187,8 @@ def get_payroll_calendar_id() -> UUID:
     if not calendar_id:
         raise ValueError(
             gettext(
-                "xero_payroll_calendar_id not configured in CompanyDefaults. "
-                "Run: python manage.py xero --setup"
+                "DocketWorks doesn't know which Xero pay calendar to use yet. Ask an "
+                "administrator to finish Xero setup, which fetches it."
             )
         )
     return calendar_id

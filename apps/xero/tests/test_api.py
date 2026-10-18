@@ -130,7 +130,11 @@ class TestXeroPing:
         assert body["connected"] is False
         # Fixed message: refresh failures can quote upstream responses, and
         # error_id already keys into the persisted detail.
-        assert body["error"] == "Xero connection check failed; see error_id."
+        assert (
+            body["error"]
+            == "Could not check the Xero connection. Its error reference is shown with "
+            "this message."
+        )
         assert body["error_id"] == str(app_error.id)
         # One failure is one row (ADR 0019) — the endpoint reuses the
         # pre-persisted error instead of writing a duplicate.
@@ -273,7 +277,7 @@ class TestXeroAppsCreate:
         response = api.post(APPS_URL, data=_CREATE_PAYLOAD, content_type="application/json")
 
         assert response.status_code == 400
-        assert "already exists" in response.json()["detail"]
+        assert "already saved" in response.json()["detail"]
 
     @pytest.mark.parametrize("missing", ["client_secret", "webhook_key"])
     def test_create_without_either_secret_rejected(self, api: Client, missing: str) -> None:

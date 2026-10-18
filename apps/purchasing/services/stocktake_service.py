@@ -211,7 +211,10 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
             count,
             if_match,
             count.version - 1,
-            gettext("This posting request does not match the posted draft."),
+            gettext(
+                "This stocktake has already been posted, and not from this screen's copy. "
+                "Reload the stocktake to see what was posted."
+            ),
         )
         return count
     require_draft(count, if_match)
@@ -270,7 +273,7 @@ def correct_stocktake(count_id: UUID, staff: Staff, *, if_match: str) -> Stockta
         stock = line.stock
         if stock is None:
             raise InvalidInputError(
-                gettext("A posted material count is missing its stock identity.")
+                gettext("A posted count is for a stock item that no longer exists.")
             )
         StocktakeLine.objects.create(
             stocktake=correction,

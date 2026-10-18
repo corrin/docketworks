@@ -245,7 +245,13 @@ def _apply_picked_place(instance: CompanyDefaults, place_id: object) -> dict[str
         try:
             place = fetch_place(str(place_id))
         except GeocodingNotConfiguredError as exc:
-            raise HttpError(503, gettext("Address lookup service not configured")) from exc
+            raise HttpError(
+                503,
+                gettext(
+                    "Address lookup isn't set up: the Google Maps key is missing. Ask an "
+                    "administrator to enter it under Admin > Integrations."
+                ),
+            ) from exc
         except GeocodingError as exc:
             persist_app_error(exc)
             raise HttpError(503, str(exc)) from exc

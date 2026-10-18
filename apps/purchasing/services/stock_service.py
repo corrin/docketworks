@@ -157,7 +157,9 @@ def deactivate_stock(stock: Stock) -> None:
     """Retire an empty stock identity while preserving its history."""
     stock = Stock.objects.select_for_update().get(pk=stock.pk)
     if stock.quantity != 0:
-        raise InvalidInputError(gettext("Count this stock before retiring its identity."))
+        raise InvalidInputError(
+            gettext("This stock item still has stock on hand. Count it to zero before retiring it.")
+        )
     stock.is_active = False
     stock.save(update_fields=["is_active"])
 

@@ -493,7 +493,7 @@ class PhoneAssignmentConflictError(Exception):
         """Record the conflicting method (or None for an internal endpoint)."""
         self.conflict = conflict
         if conflict is None:
-            message = gettext("phone number is an active internal phone endpoint")
+            message = gettext("This is one of our own phone numbers.")
         else:
             message = gettext("phone number already belongs to %(owner)s") % {
                 "owner": conflict.owner_display_name()
@@ -617,7 +617,8 @@ class ContactMethod(models.Model):
                 if exc.conflict is None:
                     raise ValidationError(
                         gettext(
-                            "internal phone endpoint cannot be saved as a company contact method"
+                            "This is one of our own phone numbers, so it can't be saved as a "
+                            "company's phone number."
                         )
                     ) from exc
                 raise ValidationError(

@@ -493,7 +493,13 @@ def companies_addresses_validate_create(
         places = search_places(address)
     except GeocodingNotConfiguredError as exc:
         logger.warning("Google Maps API key not set on IntegrationSettings")
-        raise HttpError(503, gettext("Address validation service not configured")) from exc
+        raise HttpError(
+            503,
+            gettext(
+                "Address checking isn't set up: the Google Maps key is missing. Ask an "
+                "administrator to enter it under Admin > Integrations."
+            ),
+        ) from exc
     except GeocodingError as exc:
         persist_app_error(exc)
         logger.exception("Address lookup failed")

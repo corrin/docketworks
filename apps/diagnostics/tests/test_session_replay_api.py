@@ -121,7 +121,7 @@ def test_a_restored_recording_without_payloads_refuses_cleanly(
 
     response = superuser_api.get(f"/api/session-replays/recordings/{recording_id}/events/")
     assert response.status_code == 409
-    assert "pull_prod_files.sh" in response.json()["detail"]
+    assert "production files are copied" in response.json()["detail"]
 
 
 def test_a_missing_chunk_file_fails_loudly(

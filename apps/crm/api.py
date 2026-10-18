@@ -609,8 +609,7 @@ def _endpoint_field_errors(
         if conflict:
             message = gettext(
                 "Phone number %(number)s already belongs to "
-                "%(owner)s and cannot be an "
-                "active internal phone endpoint."
+                "%(owner)s, so it can't be one of our own phone numbers."
             ) % {"number": normalized, "owner": conflict.owner_display_name()}
             return {"number": [message]}
     return None

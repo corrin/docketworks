@@ -212,7 +212,7 @@ class TestSalesForecastMonthDetail:
         assert xero_only_row["job_revenue"] == 0.0
 
         jm_only_row = next(r for r in rows if r["job_id"] == str(jm_only.id))
-        assert jm_only_row["note"] == "JM only"
+        assert jm_only_row["note"] == "DocketWorks only"
         assert jm_only_row["invoice_numbers"] is None
         assert jm_only_row["job_revenue"] == 300.0
 

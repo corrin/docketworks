@@ -230,7 +230,7 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
     if start is None or end is None:
         return
     if end <= start:
-        raise ValueError(gettext("end_time must be after start_time."))
+        raise ValueError(gettext("The finish time must be after the start time."))
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
     duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
     if hours - duration > _TIME_AGREEMENT_TOLERANCE:

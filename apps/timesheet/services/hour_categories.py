@@ -144,7 +144,7 @@ class LeaveCatalogue:
         if code is None:
             raise ValueError(
                 gettext(
-                    "Xero leave type %(leave_type)s is not mapped to a Docketworks leave "
+                    "Xero leave type %(leave_type)s is not mapped to a DocketWorks leave "
                     "category, so how it is reported and paid is unknown. Map it under "
                     "Timesheets -> Leave settings."
                 )

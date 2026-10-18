@@ -335,7 +335,12 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     """
     general_work_id = CompanyDefaults.get_solo().general_work_job_id
     if general_work_id is None:
-        raise GeneralWorkNotSetUpError(gettext("General work is not set up. Run create_shop_jobs."))
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work isn't set up: there is no General work job yet. Ask an administrator "
+                "to choose it in Company Defaults > Working Hours."
+            )
+        )
     # Two offices sweeping the same person would both read the same stretches
     # before either writes, and pay them twice; the second waits here and
     # reads the first's entries. Ordered by pk so two sweeps never deadlock.

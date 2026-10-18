@@ -73,7 +73,7 @@ def _publish_sync_failure(
             "datetime": timezone.now().isoformat(),
             "entity": "sync",
             "severity": "info",
-            "message": gettext("Sync stream ended"),
+            "message": gettext("The update from Xero has finished sending progress."),
             "sync_status": sync_status,
             "progress": None,
             "task_id": task_id,
@@ -130,7 +130,9 @@ def xero_sync_task(
         if settings.XERO_READONLY:
             # v1 parity: XeroReadOnlyProvider.run_full_sync skipped the whole
             # run with this message.
-            _publish_abort_marker(task_id, gettext("Sync skipped: XERO_READONLY is set"))
+            _publish_abort_marker(
+                task_id, gettext("Did not update from Xero: this site is in Xero read-only mode.")
+            )
             logger.info("Xero sync task %s skipped: XERO_READONLY", task_id)
             return
 
@@ -177,7 +179,7 @@ def xero_sync_task(
                 "datetime": timezone.now().isoformat(),
                 "entity": "sync",
                 "severity": "info",
-                "message": gettext("Sync stream ended"),
+                "message": gettext("The update from Xero has finished sending progress."),
                 "overall_progress": 1.0,
                 "entity_progress": 1.0,
                 "sync_status": "success",
@@ -193,7 +195,9 @@ def xero_sync_task(
     # what made the gate a four-way policy.
     except XeroSyncDisabled as exc:
         logger.info("Xero sync task %s skipped: %s", task_id, exc)
-        _publish_abort_marker(task_id, gettext("Sync skipped: %(reason)s") % {"reason": exc})
+        _publish_abort_marker(
+            task_id, gettext("Did not update from Xero: %(reason)s") % {"reason": exc}
+        )
 
     # deliberate-swallow: operational abort, not a defect. Do NOT
     # persist_app_error (24+ rows/day at the floor would be noise), do not
@@ -209,7 +213,7 @@ def xero_sync_task(
         logger.warning("Xero sync %s aborted: %s", task_id, exc)
         _publish_sync_failure(
             task_id=task_id,
-            message=gettext("Sync aborted: %(reason)s") % {"reason": exc},
+            message=gettext("Stopped updating from Xero: %(reason)s") % {"reason": exc},
             sync_status="aborted",
         )
 
@@ -217,7 +221,7 @@ def xero_sync_task(
         err = persist_app_error(exc)
         _publish_sync_failure(
             task_id=task_id,
-            message=gettext("Error during sync: %(error)s") % {"error": exc},
+            message=gettext("Updating from Xero failed: %(error)s") % {"error": exc},
             sync_status="error",
             app_error_id=str(err.id),
         )

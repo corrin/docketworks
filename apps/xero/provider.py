@@ -288,7 +288,12 @@ class XeroAccountingProvider:
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
             if not response.invoices:
-                raise ValueError(gettext("Xero returned no invoices for a create_invoices call"))
+                raise ValueError(
+                    gettext(
+                        "Xero answered but sent back no invoice, so DocketWorks can't tell "
+                        "whether it was created. Check Xero before trying again."
+                    )
+                )
             created = response.invoices[0]
             invoice_id = str(created.invoice_id)
             logger.info("Created Xero invoice %s (%s)", created.invoice_number, invoice_id)
@@ -367,7 +372,12 @@ class XeroAccountingProvider:
                 summarize_errors=False,
             )
             if not response.quotes:
-                raise ValueError(gettext("Xero returned no quotes for a create_quotes call"))
+                raise ValueError(
+                    gettext(
+                        "Xero answered but sent back no quote, so DocketWorks can't tell "
+                        "whether it was created. Check Xero before trying again."
+                    )
+                )
             created = response.quotes[0]
             if created.validation_errors:
                 errors = [str(ve.message) for ve in created.validation_errors]

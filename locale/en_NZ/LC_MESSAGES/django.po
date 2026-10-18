@@ -232,7 +232,7 @@ msgid "Xero only"
 msgstr ""
 
 #: apps/accounting/services/sales_forecast_service.py
-msgid "JM only"
+msgid "DocketWorks only"
 msgstr ""
 
 #: apps/accounting/types.py
@@ -342,8 +342,8 @@ msgstr ""
 #: apps/accounts/services/payroll_terms.py
 #, python-format
 msgid ""
-"Payroll terms are not synced from Xero for %(staff)s on %(date)s. Sync the "
-"employee from Xero before costing their time."
+"%(staff)s's pay details for %(date)s haven't come across from Xero yet. "
+"Update from Xero before costing their time."
 msgstr ""
 
 #: apps/accounts/services/payroll_terms.py
@@ -369,8 +369,8 @@ msgstr ""
 #: apps/accounts/services/payroll_terms.py
 #, python-format
 msgid ""
-"Payroll terms are not synced from Xero for %(staff)s, so their contracted "
-"hours on %(date)s are unknown. Sync the employee from Xero."
+"%(staff)s's pay details haven't come across from Xero yet, so their "
+"contracted hours on %(date)s are unknown. Update from Xero."
 msgstr ""
 
 #: apps/accounts/services/payroll_terms.py
@@ -470,13 +470,15 @@ msgid "No AI provider of type %(provider_type)s is configured in the database"
 msgstr ""
 
 #: apps/ai/services/llm_client.py
-msgid "No AI provider configured in the database"
+msgid ""
+"The quoting chat isn't set up yet: no AI provider has been added. Ask an "
+"administrator to add one under Admin > Integrations."
 msgstr ""
 
 #: apps/ai/services/llm_client.py
 msgid ""
-"AI providers are configured but none is marked default; select the "
-"application default in Admin > Integrations"
+"The quoting chat has AI providers but no default one. Ask an administrator "
+"to choose the default under Admin > Integrations."
 msgstr ""
 
 #: apps/ai/services/llm_client.py
@@ -497,15 +499,21 @@ msgid ""
 msgstr ""
 
 #: apps/ai/services/provider_configuration.py
-msgid "The provider rejected these credentials or model permissions."
+msgid ""
+"The AI provider refused this API key, or the key is not allowed to use this "
+"model."
 msgstr ""
 
 #: apps/ai/services/provider_configuration.py
-msgid "The provider rejected this model or chat request configuration."
+msgid ""
+"The AI provider refused this model name or the way the test question was set "
+"up. Check the model name."
 msgstr ""
 
 #: apps/ai/services/provider_configuration.py
-msgid "The provider's quota or rate limit prevented this test."
+msgid ""
+"The AI provider refused the test: this account has used up its allowance or "
+"sent too many questions too fast. Try again later."
 msgstr ""
 
 #: apps/company/api.py
@@ -523,7 +531,9 @@ msgid "Address is required"
 msgstr ""
 
 #: apps/company/api.py
-msgid "Address validation service not configured"
+msgid ""
+"Address checking isn't set up: the Google Maps key is missing. Ask an "
+"administrator to enter it under Admin > Integrations."
 msgstr ""
 
 #: apps/company/api.py
@@ -580,7 +590,7 @@ msgid "Company Person Links"
 msgstr ""
 
 #: apps/company/models.py
-msgid "phone number is an active internal phone endpoint"
+msgid "This is one of our own phone numbers."
 msgstr ""
 
 #: apps/company/models.py apps/crm/services/phone_call_service.py
@@ -617,7 +627,9 @@ msgid "contact method requires a value"
 msgstr ""
 
 #: apps/company/models.py
-msgid "internal phone endpoint cannot be saved as a company contact method"
+msgid ""
+"This is one of our own phone numbers, so it can't be saved as a company's "
+"phone number."
 msgstr ""
 
 #: apps/company/models.py
@@ -707,7 +719,9 @@ msgid "Company '%(name)s' already exists in the accounting provider"
 msgstr ""
 
 #: apps/company/services/company_rest_service.py
-msgid "Accounting provider authentication required"
+msgid ""
+"DocketWorks is not logged in to the accounting system (Xero). Connect to "
+"Xero, then try again."
 msgstr ""
 
 #: apps/company/services/company_rest_service.py
@@ -748,7 +762,9 @@ msgid "%(name)s: blank is not a value; send null to clear"
 msgstr ""
 
 #: apps/core/api.py
-msgid "Address lookup service not configured"
+msgid ""
+"Address lookup isn't set up: the Google Maps key is missing. Ask an "
+"administrator to enter it under Admin > Integrations."
 msgstr ""
 
 #: apps/core/api.py
@@ -922,15 +938,19 @@ msgid ""
 msgstr ""
 
 #: apps/core/models.py
-msgid "Active accounting integration: 'xero' or 'myob'"
+msgid "Which accounting system DocketWorks works with: Xero or MYOB."
 msgstr ""
 
 #: apps/core/models.py
-msgid "The Xero tenant ID to use for this company"
+msgid ""
+"The Xero organisation this DocketWorks is connected to. Filled in when Xero "
+"is connected."
 msgstr ""
 
 #: apps/core/models.py
-msgid "Xero organisation shortcode for deep linking (e.g., '!8-5Xl')"
+msgid ""
+"Xero's short code for this organisation, used to open documents straight in "
+"Xero (e.g. '!8-5Xl')."
 msgstr ""
 
 #: apps/core/models.py
@@ -951,22 +971,23 @@ msgstr ""
 #: apps/core/models.py
 msgid ""
 "Terms sent on every quote created by DocketWorks. Required — Xero does not "
-"apply its own Terms (Quotes) default to quotes created through the API. Copy "
-"the same text to Xero's Terms (Quotes) setting so quotes created directly in "
+"add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the "
+"same text to Xero's Terms (Quotes) setting so quotes created directly in "
 "Xero during an outage use the same terms."
 msgstr ""
 
 #: apps/core/models.py
 msgid ""
-"Gate for Xero sync. Defaults True (prod). Dev fixture sets False; "
-"seed_xero_from_database sets True after prod IDs are cleared."
+"Lets DocketWorks update from and send to Xero. On for a live site. A "
+"development copy starts with it off and turns it on once it is linked to its "
+"own test Xero organisation."
 msgstr ""
 
 #: apps/core/models.py
 msgid ""
-"Reserve this many Xero daily API calls for user-initiated work. Automated "
-"sync aborts when the active Xero app reports remaining daily calls at or "
-"below this value."
+"How many of Xero's daily request allowance to keep for people working in "
+"DocketWorks. Automatic updates from Xero stop when this many or fewer "
+"requests are left for the day."
 msgstr ""
 
 #: apps/core/models.py
@@ -974,7 +995,7 @@ msgid "Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')"
 msgstr ""
 
 #: apps/core/models.py
-msgid "Cached Xero Payroll calendar ID (set by xero --setup command)"
+msgid "Filled in by Xero setup from the payroll calendar name above."
 msgstr ""
 
 #: apps/core/models.py
@@ -990,8 +1011,9 @@ msgstr ""
 
 #: apps/core/models.py
 msgid ""
-"When enabled, job delta checksum mismatches are logged and recorded without "
-"blocking the save. Disable to reject stale updates."
+"When on, a job saved from a screen that was out of date is still saved and "
+"the mismatch is recorded. When off, that save is refused and the person must "
+"reload the job."
 msgstr ""
 
 #: apps/core/models.py
@@ -1036,11 +1058,12 @@ msgid "Length of the paid afternoon break in minutes: 5 to 120, or 0 for none."
 msgstr ""
 
 #: apps/core/models.py
-msgid "The last time Xero data was synchronized"
+msgid "When DocketWorks last finished updating from Xero"
 msgstr ""
 
 #: apps/core/models.py
-msgid "The last time a deep Xero sync was performed (looking back 90 days)"
+msgid ""
+"When DocketWorks last did a full update from Xero (looking back 90 days)"
 msgstr ""
 
 #: apps/core/models.py
@@ -1199,8 +1222,8 @@ msgstr ""
 
 #: apps/core/models.py
 msgid ""
-"Connect the Xero organisation before enabling sync: xero_tenant_id is unset, "
-"and onboarding binds it."
+"Connect to Xero before switching on updates from Xero: no Xero organisation "
+"is connected yet."
 msgstr ""
 
 #: apps/core/models.py
@@ -1285,8 +1308,8 @@ msgstr ""
 #: apps/crm/api.py
 #, python-format
 msgid ""
-"Phone number %(number)s already belongs to %(owner)s and cannot be an active "
-"internal phone endpoint."
+"Phone number %(number)s already belongs to %(owner)s, so it can't be one of "
+"our own phone numbers."
 msgstr ""
 
 #: apps/crm/api.py
@@ -1316,8 +1339,8 @@ msgstr ""
 #: apps/crm/models.py
 #, python-format
 msgid ""
-"phone number %(number)s already belongs to %(owner)s and cannot be an active "
-"internal phone endpoint"
+"Phone number %(number)s already belongs to %(owner)s, so it can't be one of "
+"our own phone numbers"
 msgstr ""
 
 #: apps/crm/models.py
@@ -1361,7 +1384,8 @@ msgid "phone number is required"
 msgstr ""
 
 #: apps/crm/services/phone_call_service.py
-msgid "internal phone endpoint cannot be assigned to a company"
+msgid ""
+"This is one of our own phone numbers, so it can't be given to a company."
 msgstr ""
 
 #: apps/crm/services/phone_call_service.py
@@ -1387,9 +1411,9 @@ msgstr ""
 
 #: apps/diagnostics/api.py
 msgid ""
-"This recording's events are not on this machine. Recording and chunk rows "
-"travel inside a database restore; the payloads only arrive with scripts/ops/"
-"pull_prod_files.sh."
+"This screen recording isn't on this server. Its listing came across with a "
+"copy of the database; the recording itself comes across only when the "
+"production files are copied."
 msgstr ""
 
 #: apps/job/api.py
@@ -1397,11 +1421,12 @@ msgid "Job created successfully"
 msgstr ""
 
 #: apps/job/api.py
-msgid "Request too frequent. Please wait before adding another event."
+msgid ""
+"You added one moments ago. Wait a few seconds before adding another note."
 msgstr ""
 
-#: apps/job/api.py
-msgid "Duplicate event detected. An identical event was recently created."
+#: apps/job/api.py apps/job/services/job_service.py
+msgid "That note was just added. It hasn't been added a second time."
 msgstr ""
 
 #: apps/job/api.py apps/job/services/job_service.py
@@ -1424,11 +1449,12 @@ msgstr ""
 
 #: apps/job/api.py
 #, python-format
-msgid "No %(kind)s cost set found for this job"
+msgid "This job has no %(kind)s costs and revenue"
 msgstr ""
 
 #: apps/job/api.py
-msgid "Only office staff can manage non-actual cost sets"
+msgid ""
+"Only office staff can change the costs and revenue in the estimate or quote"
 msgstr ""
 
 #: apps/job/api.py
@@ -1874,8 +1900,9 @@ msgstr ""
 
 #: apps/job/models/job.py
 msgid ""
-"Cannot create Job: 'Ordinary Time' XeroPayItem not found. Run Xero sync or "
-"check database seed data."
+"Can't create the job: Xero's 'Ordinary Time' pay item hasn't come across to "
+"DocketWorks. Ask an administrator to update from Xero on the Xero page, or "
+"to check the site's setup."
 msgstr ""
 
 #: apps/job/models/job.py
@@ -2014,7 +2041,7 @@ msgstr ""
 
 #: apps/job/models/job_event.py
 msgid ""
-"A similar manual event was created recently. Please wait before adding "
+"You added a note like this moments ago. Wait a few seconds before adding "
 "another."
 msgstr ""
 
@@ -2170,11 +2197,15 @@ msgid "Company-level rate used to seed JobLabourRate on new jobs"
 msgstr ""
 
 #: apps/job/models/labour.py
-msgid "No active workshop LabourSubtype configured."
+msgid ""
+"No workshop labour type is set up (or every one is switched off). Add one "
+"under Admin > Labour rates."
 msgstr ""
 
 #: apps/job/models/labour.py
-msgid "No active non-workshop LabourSubtype configured."
+msgid ""
+"No office (non-workshop) labour type is set up (or every one is switched "
+"off). Add one under Admin > Labour rates."
 msgstr ""
 
 #: apps/job/models/spreadsheet.py
@@ -2384,16 +2415,12 @@ msgid "Field '%(field)s' cannot be blank; send null to clear it"
 msgstr ""
 
 #: apps/job/services/job_service.py
-msgid "Event description is required"
+msgid "Write the note before adding it."
 msgstr ""
 
 #: apps/job/services/job_service.py
 #, python-format
 msgid "Job %(job_id)s not found"
-msgstr ""
-
-#: apps/job/services/job_service.py
-msgid "Unable to create event due to duplicate constraint"
 msgstr ""
 
 #: apps/job/services/job_service.py
@@ -2500,7 +2527,7 @@ msgid "A time and materials job has no quote — there is nothing to copy onto."
 msgstr ""
 
 #: apps/job/services/job_service.py
-msgid "Job is missing its estimate or quote cost set."
+msgid "This job has no estimate or quote costs and revenue to copy."
 msgstr ""
 
 #: apps/job/services/job_service.py
@@ -2536,15 +2563,15 @@ msgstr ""
 #: apps/job/services/job_service.py
 #, python-format
 msgid ""
-"'%(name)s' is the only active Workshop subtype; job creation, Xero sync and "
-"quote import depend on it."
+"'%(name)s' is the only active Workshop subtype; creating jobs, updating from "
+"Xero and importing quotes all need one."
 msgstr ""
 
 #: apps/job/services/job_service.py
 #, python-format
 msgid ""
-"'%(name)s' is the only active non-workshop subtype; job creation, Xero sync "
-"and quote import depend on it."
+"'%(name)s' is the only active non-workshop subtype; creating jobs, updating "
+"from Xero and importing quotes all need one."
 msgstr ""
 
 #: apps/job/services/job_service.py
@@ -2597,7 +2624,7 @@ msgstr ""
 #: apps/job/services/time_entry_rates.py
 #, python-format
 msgid ""
-"Xero leave type '%(name)s' is not mapped to a Docketworks leave category, so "
+"Xero leave type '%(name)s' is not mapped to a DocketWorks leave category, so "
 "whether it is paid is unknown. Map it under Timesheets -> Leave settings "
 "before booking time against it."
 msgstr ""
@@ -2705,7 +2732,9 @@ msgid "Number of jobs that could not be scheduled in this run"
 msgstr ""
 
 #: apps/platform/integrations/google/places.py
-msgid "Google Maps API key not set — enter it on Admin > Integrations"
+msgid ""
+"The Google Maps key hasn't been entered. An administrator enters it under "
+"Admin > Integrations."
 msgstr ""
 
 #: apps/platform/integrations/google/places.py
@@ -2900,7 +2929,7 @@ msgid "Form updated"
 msgstr ""
 
 #: apps/process/models/process_event.py
-msgid "Form schema updated"
+msgid "Form fields changed"
 msgstr ""
 
 #: apps/process/schemas.py
@@ -3268,7 +3297,7 @@ msgid "Opening balance"
 msgstr ""
 
 #: apps/purchasing/models.py
-msgid "Job position at cutover"
+msgid "On the job when stock tracking started"
 msgstr ""
 
 #: apps/purchasing/models.py
@@ -3276,7 +3305,7 @@ msgid "Delivery"
 msgstr ""
 
 #: apps/purchasing/models.py
-msgid "Delivered allocation at cutover"
+msgid "Delivered to the job before stock tracking started"
 msgstr ""
 
 #: apps/purchasing/models.py
@@ -3443,8 +3472,9 @@ msgstr ""
 
 #: apps/purchasing/services/purchase_order_service.py
 msgid ""
-"This line preserves inventory provenance and cannot be deleted. See its "
-"allocations."
+"This purchase order line can't be deleted: goods received on it are recorded "
+"on jobs or in stock, and DocketWorks keeps that record. See where the "
+"received goods went."
 msgstr ""
 
 #: apps/purchasing/services/stock_movement_service.py
@@ -3460,7 +3490,7 @@ msgid "A stock movement requires a reason."
 msgstr ""
 
 #: apps/purchasing/services/stock_movement_service.py
-msgid "This stock movement requires a counterpart job."
+msgid "Pick the job this stock is going to or coming back from."
 msgstr ""
 
 #: apps/purchasing/services/stock_movement_service.py
@@ -3500,7 +3530,8 @@ msgid "Search query too long."
 msgstr ""
 
 #: apps/purchasing/services/stock_service.py
-msgid "Count this stock before retiring its identity."
+msgid ""
+"This stock item still has stock on hand. Count it to zero before retiring it."
 msgstr ""
 
 #: apps/purchasing/services/stock_service.py
@@ -3559,7 +3590,9 @@ msgid "%(description)s: choose a reason for the difference."
 msgstr ""
 
 #: apps/purchasing/services/stocktake_service.py
-msgid "This posting request does not match the posted draft."
+msgid ""
+"This stocktake has already been posted, and not from this screen's copy. "
+"Reload the stocktake to see what was posted."
 msgstr ""
 
 #: apps/purchasing/services/stocktake_service.py
@@ -3579,7 +3612,7 @@ msgid "Edit this draft directly; it has not been posted."
 msgstr ""
 
 #: apps/purchasing/services/stocktake_service.py
-msgid "A posted material count is missing its stock identity."
+msgid "A posted count is for a stock item that no longer exists."
 msgstr ""
 
 #: apps/purchasing/services/supplier_search_service.py
@@ -3825,7 +3858,7 @@ msgid "Leave type not found."
 msgstr ""
 
 #: apps/timesheet/leave_api.py
-msgid "Docketworks Job not found."
+msgid "DocketWorks Job not found."
 msgstr ""
 
 #: apps/timesheet/models.py
@@ -3855,7 +3888,7 @@ msgid ""
 msgstr ""
 
 #: apps/timesheet/models.py apps/timesheet/services/leave_settings.py
-msgid "Leave types must use a special Docketworks job."
+msgid "Leave types must use a special DocketWorks job."
 msgstr ""
 
 #: apps/timesheet/models.py
@@ -3932,7 +3965,9 @@ msgid "Over by %(over)s"
 msgstr ""
 
 #: apps/timesheet/services/approval.py
-msgid "General work is not set up. Run create_shop_jobs."
+msgid ""
+"General work isn't set up: there is no General work job yet. Ask an "
+"administrator to choose it in Company Defaults > Working Hours."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
@@ -4059,7 +4094,7 @@ msgstr ""
 #: apps/timesheet/services/hour_categories.py
 #, python-format
 msgid ""
-"Xero leave type %(leave_type)s is not mapped to a Docketworks leave "
+"Xero leave type %(leave_type)s is not mapped to a DocketWorks leave "
 "category, so how it is reported and paid is unknown. Map it under Timesheets "
 "-> Leave settings."
 msgstr ""
@@ -4132,7 +4167,7 @@ msgstr ""
 
 #: apps/timesheet/services/leave_settings.py
 #, python-format
-msgid "%(leave_type)s already uses that Docketworks job."
+msgid "%(leave_type)s already uses that DocketWorks job."
 msgstr ""
 
 #: apps/timesheet/services/leave_settings.py
@@ -4158,24 +4193,25 @@ msgstr ""
 #: apps/timesheet/services/leave_settings.py
 #, python-format
 msgid ""
-"Docketworks leave type %(leave_type)s is not linked to a Xero leave type."
+"DocketWorks leave type %(leave_type)s is not linked to a Xero leave type."
 msgstr ""
 
 #: apps/timesheet/services/leave_settings.py
 #, python-format
-msgid "All %(count)s Docketworks payroll leave types must be configured."
+msgid "All %(count)s DocketWorks payroll leave types must be configured."
 msgstr ""
 
 #: apps/timesheet/services/payroll_service.py
 msgid ""
-"Xero shortcode not configured. Run 'python manage.py xero --setup' to fetch "
+"DocketWorks doesn't have Xero's short code for this organisation yet, so it "
+"can't link to Xero. Ask an administrator to finish Xero setup, which fetches "
 "it."
 msgstr ""
 
 #: apps/timesheet/services/payroll_service.py
 msgid ""
-"xero_payroll_calendar_id not configured in CompanyDefaults. Run: python "
-"manage.py xero --setup"
+"DocketWorks doesn't know which Xero pay calendar to use yet. Ask an "
+"administrator to finish Xero setup, which fetches it."
 msgstr ""
 
 #: apps/timesheet/services/payroll_service.py
@@ -4218,7 +4254,7 @@ msgid "date must be provided in YYYY-MM-DD format."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
-msgid "end_time must be after start_time."
+msgid "The finish time must be after the start time."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
@@ -4268,7 +4304,9 @@ msgid "Backend Xero mode disagrees with the requested mode."
 msgstr ""
 
 #: apps/xero/api.py
-msgid "Xero connection check failed; see error_id."
+msgid ""
+"Could not check the Xero connection. Its error reference is shown with this "
+"message."
 msgstr ""
 
 #: apps/xero/api.py
@@ -4318,7 +4356,7 @@ msgid "Purchase order with ID %(purchase_order_id)s not found."
 msgstr ""
 
 #: apps/xero/api.py
-msgid "Purchase order sync failed."
+msgid "Could not send the purchase order to Xero."
 msgstr ""
 
 #: apps/xero/api.py
@@ -4326,23 +4364,23 @@ msgid "Purchase order deletion failed."
 msgstr ""
 
 #: apps/xero/api.py
-msgid "No valid Xero token. Please authenticate."
+msgid "DocketWorks is not logged in to Xero. Connect to Xero, then try again."
 msgstr ""
 
 #: apps/xero/api.py
-msgid "A sync is already running"
+msgid "DocketWorks is already updating from Xero"
 msgstr ""
 
 #: apps/xero/api.py
-msgid "Started new Xero sync"
+msgid "Started updating from Xero"
 msgstr ""
 
 #: apps/xero/api.py
-msgid "Syncing data since last successful sync"
+msgid "everything changed in Xero since the last update that finished"
 msgstr ""
 
 #: apps/xero/api.py
-msgid "A XeroApp with that client_id already exists."
+msgid "A Xero app with this client ID is already saved."
 msgstr ""
 
 #: apps/xero/api.py
@@ -4384,8 +4422,8 @@ msgstr ""
 #: apps/xero/documents/base.py
 #, python-format
 msgid ""
-"Company %(company)s does not have a valid Xero contact ID. Sync the company "
-"with Xero first."
+"The company %(company)s isn't in Xero yet. Add it in Xero, or update from "
+"Xero if it is already there."
 msgstr ""
 
 #: apps/xero/documents/invoice.py
@@ -4394,8 +4432,8 @@ msgstr ""
 
 #: apps/xero/documents/invoice.py
 msgid ""
-"Configure the Xero sales branding theme by running Xero setup or selecting "
-"it in Company Settings before creating an invoice."
+"Choose the Xero branding theme for sales documents (Company Defaults > Xero, "
+"or during Xero setup) before creating an invoice."
 msgstr ""
 
 #: apps/xero/documents/invoice.py
@@ -4405,15 +4443,14 @@ msgstr ""
 #: apps/xero/documents/po.py
 #, python-format
 msgid ""
-"Supplier '%(supplier)s' is not linked to Xero. Please ensure the supplier "
-"has a valid Xero contact ID configured. You may need to sync the supplier "
-"with Xero first."
+"The supplier '%(supplier)s' isn't in Xero yet. Add them in Xero, or update "
+"from Xero if they are already there."
 msgstr ""
 
 #: apps/xero/documents/po.py
 msgid ""
-"Purchase order is not ready for sync. Please ensure all required fields are "
-"completed (supplier, lines with descriptions and costs)."
+"This purchase order can't be sent to Xero yet: it needs a supplier, and "
+"every line needs a description and a cost."
 msgstr ""
 
 #: apps/xero/documents/po.py
@@ -4438,14 +4475,15 @@ msgstr ""
 
 #: apps/xero/documents/quote.py
 msgid ""
-"Configure the Xero sales branding theme by running Xero setup or selecting "
-"it in Company Settings before creating a quote."
+"Choose the Xero branding theme for sales documents (Company Defaults > Xero, "
+"or during Xero setup) before creating a quote."
 msgstr ""
 
 #: apps/xero/documents/quote.py
 msgid ""
-"Configure Xero quote terms in Company Settings before creating a quote. Xero "
-"does not apply its quote terms default to API-created quotes."
+"Enter the Xero quote terms in Company Defaults > Xero before creating a "
+"quote. Xero does not add its own default quote terms to quotes DocketWorks "
+"creates."
 msgstr ""
 
 #: apps/xero/documents/quote.py
@@ -4458,8 +4496,7 @@ msgstr ""
 #: apps/xero/documents/quote.py
 #, python-format
 msgid ""
-"Job %(job_number)s's quote cost set has no cost lines; there is nothing to "
-"quote."
+"Job %(job_number)s's quote has no lines, so there is nothing to send to Xero."
 msgstr ""
 
 #: apps/xero/documents/quote.py
@@ -4572,8 +4609,8 @@ msgstr ""
 
 #: apps/xero/payroll_leave.py
 msgid ""
-"the draft pay run (it has not yet synced to Docketworks — look for it under "
-"Payroll then Pay runs)"
+"the draft pay run (it hasn't come across to DocketWorks yet — look for it in "
+"Xero under Payroll then Pay runs)"
 msgstr ""
 
 #: apps/xero/payroll_leave.py
@@ -4690,12 +4727,14 @@ msgstr ""
 
 #: apps/xero/payroll_push.py
 msgid ""
-"xero_payroll_calendar_id is not configured. Run 'python manage.py xero --"
-"setup' first."
+"DocketWorks doesn't know which Xero pay calendar to use yet. Ask an "
+"administrator to finish Xero setup first."
 msgstr ""
 
 #: apps/xero/payroll_push.py
-msgid "xero_payroll_calendar_name is not configured in CompanyDefaults"
+msgid ""
+"No Xero payroll calendar name is entered. Enter it in Company Defaults > "
+"Xero."
 msgstr ""
 
 #: apps/xero/payroll_push.py
@@ -4730,9 +4769,9 @@ msgstr ""
 #: apps/xero/payroll_push.py
 #, python-format
 msgid ""
-"Xero pay run %(pay_run_id)s covers %(period_start)s to %(period_end)s, which "
-"does not start on a Monday. Docketworks requires a Monday-start weekly "
-"payroll calendar; re-run `python manage.py xero --setup`."
+"The Xero pay run covers %(period_start)s to %(period_end)s, which does not "
+"start on a Monday. DocketWorks needs a weekly pay calendar that starts on "
+"Monday: ask an administrator to finish Xero setup with one."
 msgstr ""
 
 #: apps/xero/payroll_push.py
@@ -4765,7 +4804,9 @@ msgid ""
 msgstr ""
 
 #: apps/xero/provider.py
-msgid "Xero returned no invoices for a create_invoices call"
+msgid ""
+"Xero answered but sent back no invoice, so DocketWorks can't tell whether it "
+"was created. Check Xero before trying again."
 msgstr ""
 
 #: apps/xero/provider.py
@@ -4779,7 +4820,9 @@ msgid "Xero invoice %(external_id)s has no contact"
 msgstr ""
 
 #: apps/xero/provider.py
-msgid "Xero returned no quotes for a create_quotes call"
+msgid ""
+"Xero answered but sent back no quote, so DocketWorks can't tell whether it "
+"was created. Check Xero before trying again."
 msgstr ""
 
 #: apps/xero/provider.py
@@ -4824,7 +4867,9 @@ msgstr ""
 
 #: apps/xero/stock_sync.py
 #, python-format
-msgid "Skipping local stock sync: Xero day quota at floor (%(floor)s)"
+msgid ""
+"Did not send stock items to Xero: Xero's daily request allowance is down to "
+"the %(floor)s kept for people working in DocketWorks"
 msgstr ""
 
 #: apps/xero/stock_sync.py
@@ -4836,37 +4881,44 @@ msgstr ""
 
 #: apps/xero/sync.py
 msgid ""
-"Xero sync is disabled: CompanyDefaults.enable_xero_sync is False. "
-"finalize_instance_onboarding enables it once onboarding has succeeded."
+"Updating from Xero is switched off for this site (Company Defaults > Xero, "
+"\"Enable Xero sync\"). It is switched on automatically when setting up the "
+"site has finished."
 msgstr ""
 
 #: apps/xero/sync.py
-msgid "Sync aborted: Production/tenant mismatch"
-msgstr ""
-
-#: apps/xero/sync.py
-#, python-format
-msgid "Skipping %(entity)s: Xero day quota at floor (%(floor)s)"
-msgstr ""
-
-#: apps/xero/sync.py
-#, python-format
-msgid "Processed %(count)s %(entity)s"
-msgstr ""
-
-#: apps/xero/sync.py
-#, python-format
-msgid "Completed sync of %(entity)s"
-msgstr ""
-
-#: apps/xero/sync.py
-msgid "No valid Xero token found"
+msgid ""
+"Stopped updating from Xero: this site is connected to the wrong Xero "
+"organisation for a live site."
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
 msgid ""
-"Owed purchase orders left for later: Xero day quota at floor (%(floor)s)"
+"Stopped before %(entity)s: Xero's daily request allowance is down to the "
+"%(floor)s kept for people working in DocketWorks"
+msgstr ""
+
+#: apps/xero/sync.py
+#, python-format
+msgid "Fetched %(count)s %(entity)s"
+msgstr ""
+
+#: apps/xero/sync.py
+#, python-format
+msgid "Finished updating %(entity)s from Xero"
+msgstr ""
+
+#: apps/xero/sync.py
+msgid "Stopped: DocketWorks is not logged in to Xero. Connect to Xero again."
+msgstr ""
+
+#: apps/xero/sync.py
+#, python-format
+msgid ""
+"Purchase orders waiting to go to Xero are left for later: Xero's daily "
+"request allowance is down to the %(floor)s kept for people working in "
+"DocketWorks"
 msgstr ""
 
 #: apps/xero/sync.py
@@ -4880,69 +4932,70 @@ msgid "Sent %(sent)s purchase orders; %(still_owed)s still owed"
 msgstr ""
 
 #: apps/xero/sync.py
-msgid "Starting sync of local stock items to Xero"
+msgid "Sending stock items created in DocketWorks to Xero…"
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
-msgid "Synced %(count)s local stock items to Xero"
+msgid "Sent %(count)s stock items to Xero"
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
-msgid "Failed to sync %(count)s stock items to Xero"
+msgid "Could not send %(count)s stock items to Xero"
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
-msgid "Completed local stock sync: %(success_rate)s%% success rate"
+msgid "Finished sending stock items to Xero: %(success_rate)s%% went through"
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
-msgid "Error syncing local stock to Xero: %(error)s"
-msgstr ""
-
-#: apps/xero/sync.py
-#, python-format
-msgid "Skipping sync: Xero day quota at floor (%(floor)s)"
+msgid "Could not send stock items to Xero: %(error)s"
 msgstr ""
 
 #: apps/xero/sync.py
 #, python-format
 msgid ""
-"Synced pay items: %(leave_types)s leave types, %(earnings_rates)s earnings "
-"rates"
+"Did not update from Xero: Xero's daily request allowance is down to the "
+"%(floor)s kept for people working in DocketWorks"
 msgstr ""
 
 #: apps/xero/sync.py
-msgid "Completed sync of pay_items"
+#, python-format
+msgid ""
+"Updated pay items from Xero: %(leave_types)s leave types, %(earnings_rates)s "
+"earnings rates"
+msgstr ""
+
+#: apps/xero/sync.py
+msgid "Finished updating pay items from Xero"
 msgstr ""
 
 #: apps/xero/sync_constants.py
-#, python-format
-msgid "Sync run %(owner)s no longer holds the lock; another run owns it."
+msgid "Another update from Xero took over, so this one stopped."
 msgstr ""
 
 #: apps/xero/sync_worker.py
-msgid "Sync stream ended"
+msgid "The update from Xero has finished sending progress."
 msgstr ""
 
 #: apps/xero/sync_worker.py
-msgid "Sync skipped: XERO_READONLY is set"
-msgstr ""
-
-#: apps/xero/sync_worker.py
-#, python-format
-msgid "Sync skipped: %(reason)s"
+msgid "Did not update from Xero: this site is in Xero read-only mode."
 msgstr ""
 
 #: apps/xero/sync_worker.py
 #, python-format
-msgid "Sync aborted: %(reason)s"
+msgid "Did not update from Xero: %(reason)s"
 msgstr ""
 
 #: apps/xero/sync_worker.py
 #, python-format
-msgid "Error during sync: %(error)s"
+msgid "Stopped updating from Xero: %(reason)s"
+msgstr ""
+
+#: apps/xero/sync_worker.py
+#, python-format
+msgid "Updating from Xero failed: %(error)s"
 msgstr ""

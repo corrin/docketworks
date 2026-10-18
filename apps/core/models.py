@@ -324,19 +324,25 @@ class CompanyDefaults(SingletonModel):
     accounting_provider = models.CharField(
         max_length=20,
         default="xero",
-        help_text=gettext_lazy("Active accounting integration: 'xero' or 'myob'"),
+        help_text=gettext_lazy("Which accounting system DocketWorks works with: Xero or MYOB."),
     )
     xero_tenant_id = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text=gettext_lazy("The Xero tenant ID to use for this company"),
+        help_text=gettext_lazy(
+            "The Xero organisation this DocketWorks is connected to. Filled in when Xero is "
+            "connected."
+        ),
     )
     xero_shortcode = models.CharField(  # noqa: DJ001
         max_length=20,
         null=True,
         blank=True,
-        help_text=gettext_lazy("Xero organisation shortcode for deep linking (e.g., '!8-5Xl')"),
+        help_text=gettext_lazy(
+            "Xero's short code for this organisation, used to open documents straight in Xero "
+            "(e.g. '!8-5Xl')."
+        ),
     )
     xero_sales_branding_theme_id = models.UUIDField(
         null=True,
@@ -357,8 +363,8 @@ class CompanyDefaults(SingletonModel):
         help_text=(
             gettext_lazy(
                 "Terms sent on every quote created by DocketWorks. Required — Xero does "
-                "not apply its own Terms (Quotes) default to quotes created through the "
-                "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
+                "not add its own Terms (Quotes) default to quotes DocketWorks creates. "
+                "Copy the same text to Xero's Terms (Quotes) setting so quotes "
                 "created directly in Xero during an outage use the same terms."
             )
         ),
@@ -367,8 +373,9 @@ class CompanyDefaults(SingletonModel):
         default=True,
         help_text=(
             gettext_lazy(
-                "Gate for Xero sync. Defaults True (prod). Dev fixture sets False; "
-                "seed_xero_from_database sets True after prod IDs are cleared."
+                "Lets DocketWorks update from and send to Xero. On for a live site. A "
+                "development copy starts with it off and turns it on once it is linked to "
+                "its own test Xero organisation."
             )
         ),
     )
@@ -376,9 +383,9 @@ class CompanyDefaults(SingletonModel):
         default=100,
         help_text=(
             gettext_lazy(
-                "Reserve this many Xero daily API calls for user-initiated work. "
-                "Automated sync aborts when the active Xero app reports remaining "
-                "daily calls at or below this value."
+                "How many of Xero's daily request allowance to keep for people working in "
+                "DocketWorks. Automatic updates from Xero stop when this many or fewer "
+                "requests are left for the day."
             )
         ),
     )
@@ -393,7 +400,7 @@ class CompanyDefaults(SingletonModel):
     xero_payroll_calendar_id = models.UUIDField(
         null=True,
         blank=True,
-        help_text=gettext_lazy("Cached Xero Payroll calendar ID (set by xero --setup command)"),
+        help_text=gettext_lazy("Filled in by Xero setup from the payroll calendar name above."),
     )
     xero_payroll_start_date = models.DateField(
         null=True,
@@ -420,8 +427,9 @@ class CompanyDefaults(SingletonModel):
         default=True,
         help_text=(
             gettext_lazy(
-                "When enabled, job delta checksum mismatches are logged and recorded "
-                "without blocking the save. Disable to reject stale updates."
+                "When on, a job saved from a screen that was out of date is still saved and "
+                "the mismatch is recorded. When off, that save is refused and the person "
+                "must reload the job."
             )
         ),
     )
@@ -502,13 +510,15 @@ class CompanyDefaults(SingletonModel):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_xero_sync = models.DateTimeField(
-        null=True, blank=True, help_text=gettext_lazy("The last time Xero data was synchronized")
+        null=True,
+        blank=True,
+        help_text=gettext_lazy("When DocketWorks last finished updating from Xero"),
     )
     last_xero_deep_sync = models.DateTimeField(
         null=True,
         blank=True,
         help_text=gettext_lazy(
-            "The last time a deep Xero sync was performed (looking back 90 days)"
+            "When DocketWorks last did a full update from Xero (looking back 90 days)"
         ),
     )
 
@@ -891,8 +901,8 @@ class CompanyDefaults(SingletonModel):
         if enabled and company_defaults.xero_tenant_id is None:
             raise InvalidInputError(
                 gettext(
-                    "Connect the Xero organisation before enabling sync: xero_tenant_id "
-                    "is unset, and onboarding binds it."
+                    "Connect to Xero before switching on updates from Xero: no Xero "
+                    "organisation is connected yet."
                 )
             )
         company_defaults.enable_xero_sync = enabled

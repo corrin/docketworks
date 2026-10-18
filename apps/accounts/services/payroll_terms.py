@@ -53,9 +53,8 @@ def salary_term_on(staff: Staff, target_date: date) -> StaffPayrollTerm:
     if term is None:
         raise ValidationError(
             gettext(
-                "Payroll terms are not synced from Xero for "
-                "%(staff)s on %(date)s. "
-                "Sync the employee from Xero before costing their time."
+                "%(staff)s's pay details for %(date)s haven't come across from Xero yet. "
+                "Update from Xero before costing their time."
             )
             % {"staff": staff.get_display_full_name(), "date": target_date.isoformat()}
         )
@@ -109,9 +108,8 @@ def contracted_hours_on(staff: Staff, target_date: date) -> Decimal:
         # question, it is a different question that happens to return a number.
         raise ValidationError(
             gettext(
-                "Payroll terms are not synced from Xero for "
-                "%(staff)s, so their contracted hours on "
-                "%(date)s are unknown. Sync the employee from Xero."
+                "%(staff)s's pay details haven't come across from Xero yet, so their "
+                "contracted hours on %(date)s are unknown. Update from Xero."
             )
             % {"staff": staff.get_display_full_name(), "date": target_date.isoformat()}
         )

@@ -321,7 +321,7 @@ class TestWorkerAbortedBranch:
         # a failed one (review fix over v1, which used "error").
         penultimate = events[-2]
         assert penultimate["severity"] == "warning"
-        assert "abort" in str(penultimate["message"]).lower()
+        assert "stopped" in str(penultimate["message"]).lower()
 
 
 @pytest.mark.django_db

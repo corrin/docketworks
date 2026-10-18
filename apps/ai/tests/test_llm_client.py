@@ -87,7 +87,7 @@ class TestResolveTarget:
         problem. The fix is one click on the admin, so demand it."""
         make_provider(name="Mistral", provider_type=AIProviderTypes.MISTRAL, model_name="large")
 
-        with pytest.raises(LLMConfigurationError, match="none is marked default"):
+        with pytest.raises(LLMConfigurationError, match="has AI providers but no default one"):
             resolve_target()
 
     @pytest.mark.parametrize(
@@ -114,7 +114,7 @@ class TestResolveTarget:
         }
 
     def test_an_empty_database_names_the_missing_configuration(self) -> None:
-        with pytest.raises(LLMConfigurationError, match="No AI provider configured"):
+        with pytest.raises(LLMConfigurationError, match="no AI provider has been added"):
             resolve_target()
 
     def test_asking_for_a_type_nobody_configured_names_that_type(self) -> None:

@@ -49,10 +49,7 @@ def require_sync_lock(owner: str) -> None:
     or the decision.
     """
     if not renew_sync_lock(owner):
-        raise XeroSyncLockLost(
-            gettext("Sync run %(owner)s no longer holds the lock; another run owns it.")
-            % {"owner": owner}
-        )
+        raise XeroSyncLockLost(gettext("Another update from Xero took over, so this one stopped."))
 
 
 def release_sync_lock(owner: str) -> bool:

@@ -954,7 +954,9 @@ def assign_phone_number(
     if not normalized:
         raise ValueError(gettext("phone number is required"))
     if normalized in configured_own_numbers():
-        raise ValueError(gettext("internal phone endpoint cannot be assigned to a company"))
+        raise ValueError(
+            gettext("This is one of our own phone numbers, so it can't be given to a company.")
+        )
 
     owner_filter: dict[str, Company | Person | None]
     if person_id:

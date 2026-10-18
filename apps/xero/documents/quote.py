@@ -84,8 +84,8 @@ class XeroQuoteManager(XeroDocumentManager):
         if document_theme_external_id is None:
             return self._refusal(
                 gettext(
-                    "Configure the Xero sales branding theme by running Xero setup "
-                    "or selecting it in Company Settings before creating a quote."
+                    "Choose the Xero branding theme for sales documents (Company "
+                    "Defaults > Xero, or during Xero setup) before creating a quote."
                 ),
                 error_type="configuration_error",
             )
@@ -93,9 +93,9 @@ class XeroQuoteManager(XeroDocumentManager):
         if terms is None:
             return self._refusal(
                 gettext(
-                    "Configure Xero quote terms in Company Settings before creating "
-                    "a quote. Xero does not apply its quote terms default to "
-                    "API-created quotes."
+                    "Enter the Xero quote terms in Company Defaults > Xero before "
+                    "creating a quote. Xero does not add its own default quote terms "
+                    "to quotes DocketWorks creates."
                 ),
                 error_type="configuration_error",
             )
@@ -119,8 +119,7 @@ class XeroQuoteManager(XeroDocumentManager):
         if cost_set is None or not cost_lines:
             return self._refusal(
                 gettext(
-                    "Job %(job_number)s's quote cost set has no cost lines; "
-                    "there is nothing to quote."
+                    "Job %(job_number)s's quote has no lines, so there is nothing to send to Xero."
                 )
                 % {"job_number": self.job.job_number}
             )

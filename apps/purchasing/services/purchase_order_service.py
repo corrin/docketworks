@@ -561,8 +561,9 @@ def update_purchase_order(
             ):
                 raise DjangoValidationError(
                     gettext(
-                        "This line preserves inventory provenance and cannot be deleted. "
-                        "See its allocations."
+                        "This purchase order line can't be deleted: goods received on it are "
+                        "recorded on jobs or in stock, and DocketWorks keeps that record. See "
+                        "where the received goods went."
                     )
                 )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()

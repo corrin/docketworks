@@ -149,8 +149,8 @@ class XeroDocumentManager(ABC):
         if not self.company.xero_contact_id:
             raise ValueError(
                 gettext(
-                    "Company %(company)s does not have a valid Xero contact ID. "
-                    "Sync the company with Xero first."
+                    "The company %(company)s isn't in Xero yet. Add it in Xero, or "
+                    "update from Xero if it is already there."
                 )
                 % {"company": self.company.name}
             )

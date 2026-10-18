@@ -221,7 +221,7 @@ def leave_wage_rate_multiplier(pay_item: PayItem) -> Decimal:
     if leave_type is None:
         raise ValidationError(
             gettext(
-                "Xero leave type '%(name)s' is not mapped to a Docketworks leave "
+                "Xero leave type '%(name)s' is not mapped to a DocketWorks leave "
                 "category, so whether it is paid is unknown. Map it under "
                 "Timesheets -> Leave settings before booking time against it."
             )

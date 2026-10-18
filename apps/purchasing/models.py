@@ -780,9 +780,12 @@ class StockMovementKind(models.TextChoices):
     """Live postings and the three historical cutover observations."""
 
     OPENING = "opening", gettext_lazy("Opening balance")
-    JOB_OPENING = "job_opening", gettext_lazy("Job position at cutover")
+    JOB_OPENING = "job_opening", gettext_lazy("On the job when stock tracking started")
     DELIVERY = "delivery", gettext_lazy("Delivery")
-    DELIVERY_OPENING = "delivery_opening", gettext_lazy("Delivered allocation at cutover")
+    DELIVERY_OPENING = (
+        "delivery_opening",
+        gettext_lazy("Delivered to the job before stock tracking started"),
+    )
     DELIVERY_REVERSAL = "delivery_reversal", gettext_lazy("Delivery reversal")
     ISSUE = "issue", gettext_lazy("Job issue")
     RETURN = "return", gettext_lazy("Job return")

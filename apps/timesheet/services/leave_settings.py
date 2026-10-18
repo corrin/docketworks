@@ -166,14 +166,14 @@ def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> No
     leave_type = LeaveType.objects.select_for_update().get(code=update.code)
     job = Job.objects.select_for_update().get(id=update.job_id)
     if job.status != "special":
-        raise ValidationError(gettext("Leave types must use a special Docketworks job."))
+        raise ValidationError(gettext("Leave types must use a special DocketWorks job."))
     # The batch detach above frees only the codes being saved, so a job still
     # held by an untouched type would surface as an IntegrityError rather than
     # a named refusal.
     clash = LeaveType.objects.filter(job_id=job.id).exclude(code=update.code).first()
     if clash is not None:
         raise ValidationError(
-            gettext("%(leave_type)s already uses that Docketworks job.")
+            gettext("%(leave_type)s already uses that DocketWorks job.")
             % {"leave_type": clash.display_name}
         )
 
@@ -266,7 +266,7 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
         # item on a Leave-API row is already unconfigured.
         if pay_item is None or not leave_type_data(row)["configured"]:
             raise ValueError(
-                gettext("Docketworks leave type %(leave_type)s is not linked to a Xero leave type.")
+                gettext("DocketWorks leave type %(leave_type)s is not linked to a Xero leave type.")
                 % {"leave_type": row.display_name}
             )
         mappings.append(
@@ -279,7 +279,7 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
         )
     if len(mappings) != len(LEAVE_API_CODES):
         raise ValueError(
-            gettext("All %(count)s Docketworks payroll leave types must be configured.")
+            gettext("All %(count)s DocketWorks payroll leave types must be configured.")
             % {"count": len(LEAVE_API_CODES)}
         )
     return mappings

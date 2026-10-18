@@ -259,8 +259,8 @@ def _draft_pay_run_summary(tenant_id: str) -> str:
     )
     if not drafts:
         return gettext(
-            "the draft pay run (it has not yet synced to Docketworks — "
-            "look for it under Payroll then Pay runs)"
+            "the draft pay run (it hasn't come across to DocketWorks yet — "
+            "look for it in Xero under Payroll then Pay runs)"
         )
     return gettext(" and ").join(
         gettext("the draft pay run for %(start)s to %(end)s")

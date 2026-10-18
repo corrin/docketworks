@@ -242,7 +242,7 @@ class TestLeaveHttpContract:
             content_type="application/json",
         )
         assert unknown_job.status_code == 400
-        assert "Docketworks Job not found" in unknown_job.json()["detail"]
+        assert "DocketWorks Job not found" in unknown_job.json()["detail"]
 
     def test_the_balance_endpoint_reads_two_query_params_and_returns_a_number(
         self,

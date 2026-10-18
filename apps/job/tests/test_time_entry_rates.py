@@ -339,7 +339,7 @@ class TestPriceTimeEntry:
         leave_job.default_xero_pay_item_id = unmapped.pk
         leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])
 
-        with pytest.raises(ValidationError, match="not mapped to a Docketworks leave category"):
+        with pytest.raises(ValidationError, match="not mapped to a DocketWorks leave category"):
             price_time_entry(
                 job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
             )

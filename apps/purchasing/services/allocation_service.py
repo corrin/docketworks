@@ -184,7 +184,7 @@ def create_stock_from_allocation(
         qty,
         MovementContext(
             kind=StockMovementKind.DELIVERY,
-            reason=f"Receipt against PO line {line.id}",
+            reason=f"Received on PO {line.purchase_order.po_number}",
             actor=staff,
         ),
     )
@@ -446,7 +446,7 @@ def reverse_allocation(
             -quantity,
             MovementContext(
                 kind=StockMovementKind.DELIVERY_REVERSAL,
-                reason=f"Reverse receipt allocation from PO line {po_line.id}",
+                reason=f"Receipt on PO {po.po_number} reversed",
                 actor=staff,
                 reverses=receipt,
             ),

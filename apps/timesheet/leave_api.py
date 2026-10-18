@@ -241,6 +241,6 @@ def update_settings(
     except LeaveType.DoesNotExist as exc:
         raise HttpError(404, gettext("Leave type not found.")) from exc
     except Job.DoesNotExist as exc:
-        raise HttpError(400, gettext("Docketworks Job not found.")) from exc
+        raise HttpError(400, gettext("DocketWorks Job not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc

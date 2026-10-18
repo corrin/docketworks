@@ -40,7 +40,7 @@ class ProcessEvent(AuditEvent):
         "form_created": gettext_lazy("Form created"),
         "form_archived": gettext_lazy("Form archived"),
         "form_updated": gettext_lazy("Form updated"),
-        "schema_updated": gettext_lazy("Form schema updated"),
+        "schema_updated": gettext_lazy("Form fields changed"),
     }
 
     class Meta(AuditEvent.Meta):

@@ -61,7 +61,12 @@ class ProviderAuthRequiredError(ValueError):
 
     def __init__(self) -> None:
         """Use the fixed message; the endpoint maps this type to 401."""
-        super().__init__(gettext("Accounting provider authentication required"))
+        super().__init__(
+            gettext(
+                "DocketWorks is not logged in to the accounting system (Xero). Connect to "
+                "Xero, then try again."
+            )
+        )
 
 
 class CompanyPhoneAnnotations(TypedDict):

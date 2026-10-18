@@ -17,7 +17,7 @@ def test_blank_maps_key_fails_without_an_http_request() -> None:
 
     with (
         patch("apps.platform.integrations.google.places.requests.post") as post,
-        pytest.raises(GeocodingNotConfiguredError, match="Google Maps API key not set"),
+        pytest.raises(GeocodingNotConfiguredError, match="The Google Maps key hasn't been entered"),
     ):
         check_integration_settings.main()
 

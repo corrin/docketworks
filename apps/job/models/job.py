@@ -541,8 +541,9 @@ class Job(models.Model):
             if not ordinary_time:
                 raise ValueError(
                     gettext(
-                        "Cannot create Job: 'Ordinary Time' XeroPayItem not found. "
-                        "Run Xero sync or check database seed data."
+                        "Can't create the job: Xero's 'Ordinary Time' pay item hasn't come "
+                        "across to DocketWorks. Ask an administrator to update from Xero on "
+                        "the Xero page, or to check the site's setup."
                     )
                 )
             self.default_xero_pay_item = ordinary_time

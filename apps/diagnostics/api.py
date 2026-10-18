@@ -253,9 +253,9 @@ def session_replay_recording_events_retrieve(
         raise HttpError(
             409,
             gettext(
-                "This recording's events are not on this machine. Recording and chunk "
-                "rows travel inside a database restore; the payloads only arrive with "
-                "scripts/ops/pull_prod_files.sh."
+                "This screen recording isn't on this server. Its listing came across with "
+                "a copy of the database; the recording itself comes across only when the "
+                "production files are copied."
             ),
         ) from exc
     return {"recording_id": recording.id, "events": events}

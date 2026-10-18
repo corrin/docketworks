@@ -53,7 +53,10 @@ def get_api_key() -> str:
     api_key = IntegrationSettings.get_solo().google_maps_api_key
     if api_key is None:
         raise GeocodingNotConfiguredError(
-            gettext("Google Maps API key not set — enter it on Admin > Integrations")
+            gettext(
+                "The Google Maps key hasn't been entered. An administrator enters it under "
+                "Admin > Integrations."
+            )
         )
     return api_key
 

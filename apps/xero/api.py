@@ -181,7 +181,10 @@ def xero_ping_retrieve(
             500,
             XeroPingErrorOut(
                 connected=False,
-                error=gettext("Xero connection check failed; see error_id."),
+                error=gettext(
+                    "Could not check the Xero connection. Its error reference is shown with "
+                    "this message."
+                ),
                 error_id=str(app_error.id),
             ),
         )
@@ -732,7 +735,7 @@ def xero_create_purchase_order(
     result = manager.sync_to_xero()
 
     if not result["success"]:
-        return _document_failure(result, gettext("Purchase order sync failed."))
+        return _document_failure(result, gettext("Could not send the purchase order to Xero."))
     return _document_success(result, 200)
 
 
@@ -834,7 +837,9 @@ def xero_sync_create(
             XeroAuthRequiredOut(
                 success=False,
                 redirect_to_auth=True,
-                message=gettext("No valid Xero token. Please authenticate."),
+                message=gettext(
+                    "DocketWorks is not logged in to Xero. Connect to Xero, then try again."
+                ),
             ),
         )
     if result.reason == "already_running":
@@ -842,14 +847,14 @@ def xero_sync_create(
             409,
             XeroSyncStartOut(
                 status="already_running",
-                message=gettext("A sync is already running"),
+                message=gettext("DocketWorks is already updating from Xero"),
                 task_id=result.task_id,
             ),
         )
     return Status(
         202,
         XeroSyncStartOut(
-            status="started", message=gettext("Started new Xero sync"), task_id=result.task_id
+            status="started", message=gettext("Started updating from Xero"), task_id=result.task_id
         ),
     )
 
@@ -900,7 +905,7 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
 
     return XeroSyncInfoOut(
         last_syncs=last_syncs,
-        sync_range=gettext("Syncing data since last successful sync"),
+        sync_range=gettext("everything changed in Xero since the last update that finished"),
         sync_in_progress=sync_in_progress,
         last_detail_refresh=last_detail_refresh(CompanyDefaults.get_solo().xero_tenant_id),
     )
@@ -1046,7 +1051,7 @@ def xero_apps_create(
     # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
         return Status(
-            400, XeroAppErrorOut(detail=gettext("A XeroApp with that client_id already exists."))
+            400, XeroAppErrorOut(detail=gettext("A Xero app with this client ID is already saved."))
         )
     return Status(201, _app_out(app))
 
@@ -1082,7 +1087,7 @@ def xero_apps_partial_update(
     # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
         return Status(
-            400, XeroAppErrorOut(detail=gettext("A XeroApp with that client_id already exists."))
+            400, XeroAppErrorOut(detail=gettext("A Xero app with this client ID is already saved."))
         )
 
     credentials_changed = (

@@ -111,8 +111,9 @@ def _require_sync_enabled() -> None:
     if not is_accounting_enabled():
         raise XeroSyncDisabled(
             gettext(
-                "Xero sync is disabled: CompanyDefaults.enable_xero_sync is False. "
-                "finalize_instance_onboarding enables it once onboarding has succeeded."
+                "Updating from Xero is switched off for this site (Company Defaults > Xero, "
+                '"Enable Xero sync"). It is switched on automatically when setting up the '
+                "site has finished."
             )
         )
 
@@ -203,7 +204,10 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
             "severity": "warning",
-            "message": gettext("Sync aborted: Production/tenant mismatch"),
+            "message": gettext(
+                "Stopped updating from Xero: this site is connected to the wrong Xero "
+                "organisation for a live site."
+            ),
             "progress": 0.0,
         }
         return
@@ -242,8 +246,11 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             # through `yield from` to the worker task, which has a
             # XeroQuotaFloorReached branch that emits sync_status:"aborted".
             raise XeroQuotaFloorReached(
-                gettext("Skipping %(entity)s: Xero day quota at floor (%(floor)s)")
-                % {"entity": our_entity_type, "floor": floor}
+                gettext(
+                    "Stopped before %(entity)s: Xero's daily request allowance is down to the "
+                    "%(floor)s kept for people working in DocketWorks"
+                )
+                % {"entity": our_entity_type.replace("_", " "), "floor": floor}
             )
 
         # Update pagination params
@@ -303,8 +310,8 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
             "severity": "info",
-            "message": gettext("Processed %(count)s %(entity)s")
-            % {"count": len(items_to_sync), "entity": our_entity_type},
+            "message": gettext("Fetched %(count)s %(entity)s")
+            % {"count": len(items_to_sync), "entity": our_entity_type.replace("_", " ")},
             "progress": None,
             "recordsUpdated": len(items_to_sync),
         }
@@ -332,7 +339,8 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
         "datetime": timezone.now().isoformat(),
         "entity": our_entity_type,
         "severity": "info",
-        "message": gettext("Completed sync of %(entity)s") % {"entity": our_entity_type},
+        "message": gettext("Finished updating %(entity)s from Xero")
+        % {"entity": our_entity_type.replace("_", " ")},
         "status": "Completed",
         "progress": 1.0,
     }
@@ -600,7 +608,7 @@ def sync_all_xero_data(
 
     token = get_valid_token()
     if not token:
-        message = gettext("No valid Xero token found")
+        message = gettext("Stopped: DocketWorks is not logged in to Xero. Connect to Xero again.")
         logger.warning(message)
         raise NoValidXeroTokenError(message)
 
@@ -707,7 +715,8 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
             "entity": "purchase_orders_local_to_xero",
             "severity": "info",
             "message": gettext(
-                "Owed purchase orders left for later: Xero day quota at floor (%(floor)s)"
+                "Purchase orders waiting to go to Xero are left for later: Xero's daily request "
+                "allowance is down to the %(floor)s kept for people working in DocketWorks"
             )
             % {"floor": floor},
             "progress": None,
@@ -763,7 +772,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "info",
-            "message": gettext("Starting sync of local stock items to Xero"),
+            "message": gettext("Sending stock items created in DocketWorks to Xero…"),
             "progress": None,
         }
 
@@ -779,7 +788,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
                 "datetime": timezone.now().isoformat(),
                 "entity": "stock_local_to_xero",
                 "severity": "info",
-                "message": gettext("Synced %(count)s local stock items to Xero")
+                "message": gettext("Sent %(count)s stock items to Xero")
                 % {"count": result["synced_count"]},
                 "progress": None,
                 "recordsUpdated": result["synced_count"],
@@ -790,7 +799,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
                 "datetime": timezone.now().isoformat(),
                 "entity": "stock_local_to_xero",
                 "severity": "warning",
-                "message": gettext("Failed to sync %(count)s stock items to Xero")
+                "message": gettext("Could not send %(count)s stock items to Xero")
                 % {"count": result["failed_count"]},
                 "progress": None,
             }
@@ -799,7 +808,9 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "info",
-            "message": gettext("Completed local stock sync: %(success_rate)s%% success rate")
+            "message": gettext(
+                "Finished sending stock items to Xero: %(success_rate)s%% went through"
+            )
             % {"success_rate": f"{result['success_rate']:.1f}"},
             "status": "Completed",
             "progress": 1.0,
@@ -819,7 +830,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "error",
-            "message": gettext("Error syncing local stock to Xero: %(error)s") % {"error": exc},
+            "message": gettext("Could not send stock items to Xero: %(error)s") % {"error": exc},
             "progress": None,
         }
 
@@ -865,7 +876,11 @@ def synchronise_xero_data(
         # finish normally and emit sync_status:"success", silently hiding the
         # abort. Raising lets its XeroQuotaFloorReached branch emit "aborted".
         raise XeroQuotaFloorReached(
-            gettext("Skipping sync: Xero day quota at floor (%(floor)s)") % {"floor": floor}
+            gettext(
+                "Did not update from Xero: Xero's daily request allowance is down to the "
+                "%(floor)s kept for people working in DocketWorks"
+            )
+            % {"floor": floor}
         )
 
     if detail_refresh:
@@ -895,7 +910,8 @@ def synchronise_xero_data(
         "entity": "pay_items",
         "severity": "info",
         "message": gettext(
-            "Synced pay items: %(leave_types)s leave types, %(earnings_rates)s earnings rates"
+            "Updated pay items from Xero: %(leave_types)s leave types, "
+            "%(earnings_rates)s earnings rates"
         )
         % {
             "leave_types": lt["created"] + lt["updated"],
@@ -908,7 +924,7 @@ def synchronise_xero_data(
         "datetime": timezone.now().isoformat(),
         "entity": "pay_items",
         "severity": "info",
-        "message": gettext("Completed sync of pay_items"),
+        "message": gettext("Finished updating pay items from Xero"),
         "status": "Completed",
         "progress": 1.0,
     }

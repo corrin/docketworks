@@ -121,4 +121,7 @@ def test_missing_api_key_is_503(client: Client) -> None:
     )
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Address validation service not configured"
+    assert response.json()["detail"] == (
+        "Address checking isn't set up: the Google Maps key is missing. Ask an "
+        "administrator to enter it under Admin > Integrations."
+    )

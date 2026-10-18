@@ -68,7 +68,7 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
     if not context.reason.strip():
         raise InvalidInputError(gettext("A stock movement requires a reason."))
     if context.kind in ("issue", "return", "stocktake") and context.counterpart_job is None:
-        raise InvalidInputError(gettext("This stock movement requires a counterpart job."))
+        raise InvalidInputError(gettext("Pick the job this stock is going to or coming back from."))
     if context.kind in ("issue", "return", "stocktake"):
         cost = context.cost_line
         if cost is None or cost.quantity != -change:

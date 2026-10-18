@@ -344,7 +344,7 @@ def test_a_job_held_by_an_untouched_leave_type_is_refused_by_name(
     make_leave_job(company, superuser, "Annual Leave")
     sick_job = make_leave_job(company, superuser, "Sick Leave")
 
-    with pytest.raises(ValidationError, match="Sick Leave already uses that Docketworks job"):
+    with pytest.raises(ValidationError, match="Sick Leave already uses that DocketWorks job"):
         leave_settings.update_leave_types(
             updates=[
                 leave_settings.LeaveTypeUpdateData(
@@ -764,7 +764,7 @@ class TestLeaveMappingRules:
         customer_job = make_job(company, superuser, name="Real Customer Work")
         pay_item_id = self._pay_item_id()
 
-        with pytest.raises(ValidationError, match="must use a special Docketworks job"):
+        with pytest.raises(ValidationError, match="must use a special DocketWorks job"):
             leave_settings.update_leave_types(
                 updates=[self._update(customer_job, pay_item_id)], actor=superuser
             )

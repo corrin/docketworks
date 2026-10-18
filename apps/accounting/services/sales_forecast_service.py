@@ -194,7 +194,7 @@ def _job_note(job: Job | None, match_type: str) -> str | None:
     if match_type == "xero_only":
         return gettext("Xero only")
     if match_type == "jm_only":
-        return gettext("JM only")
+        return gettext("DocketWorks only")
     return None
 
 

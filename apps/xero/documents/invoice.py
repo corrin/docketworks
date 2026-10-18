@@ -168,8 +168,8 @@ class XeroInvoiceManager(XeroDocumentManager):
                 return {
                     "success": False,
                     "error": gettext(
-                        "Configure the Xero sales branding theme by running Xero "
-                        "setup or selecting it in Company Settings before "
+                        "Choose the Xero branding theme for sales documents "
+                        "(Company Defaults > Xero, or during Xero setup) before "
                         "creating an invoice."
                     ),
                     "error_type": "configuration_error",

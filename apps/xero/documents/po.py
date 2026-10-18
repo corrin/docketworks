@@ -130,17 +130,16 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         if not self.company.xero_contact_id:
             raise ValueError(
                 gettext(
-                    "Supplier '%(supplier)s' is not linked to Xero. "
-                    "Please ensure the supplier has a valid Xero contact ID configured. "
-                    "You may need to sync the supplier with Xero first."
+                    "The supplier '%(supplier)s' isn't in Xero yet. Add them in Xero, or "
+                    "update from Xero if they are already there."
                 )
                 % {"supplier": self.company.name}
             )
         if not self.can_sync_to_xero():
             raise ValueError(
                 gettext(
-                    "Purchase order is not ready for sync. Please ensure all required "
-                    "fields are completed (supplier, lines with descriptions and costs)."
+                    "This purchase order can't be sent to Xero yet: it needs a supplier, "
+                    "and every line needs a description and a cost."
                 )
             )
 

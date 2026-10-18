@@ -571,8 +571,8 @@ def _calendar_id() -> UUID:
     if not calendar_id:
         raise ValueError(
             gettext(
-                "xero_payroll_calendar_id is not configured. "
-                "Run 'python manage.py xero --setup' first."
+                "DocketWorks doesn't know which Xero pay calendar to use yet. "
+                "Ask an administrator to finish Xero setup first."
             )
         )
     return calendar_id
@@ -597,7 +597,11 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     defaults = CompanyDefaults.get_solo()
     calendar_name = defaults.xero_payroll_calendar_name
     if not calendar_name:
-        raise ValueError(gettext("xero_payroll_calendar_name is not configured in CompanyDefaults"))
+        raise ValueError(
+            gettext(
+                "No Xero payroll calendar name is entered. Enter it in Company Defaults > Xero."
+            )
+        )
 
     calendars = get_payroll_calendars(tenant_id=tenant_id)
     calendar = next((c for c in calendars if c.name == calendar_name), None)
@@ -715,12 +719,11 @@ def find_live_pay_run_for_week(week_start_date: date, *, tenant_id: str) -> PayR
         if period_start.weekday() != 0:
             raise ValueError(
                 gettext(
-                    "Xero pay run %(pay_run_id)s covers %(period_start)s to %(period_end)s, "
-                    "which does not start on a Monday. Docketworks requires a Monday-start "
-                    "weekly payroll calendar; re-run `python manage.py xero --setup`."
+                    "The Xero pay run covers %(period_start)s to %(period_end)s, which does "
+                    "not start on a Monday. DocketWorks needs a weekly pay calendar that starts "
+                    "on Monday: ask an administrator to finish Xero setup with one."
                 )
                 % {
-                    "pay_run_id": pay_run.pay_run_id,
                     "period_start": period_start.strftime("%A %Y-%m-%d"),
                     "period_end": period_end,
                 }

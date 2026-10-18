@@ -484,7 +484,8 @@ def job_rest_jobs_events_create(
     if _check_request_debounce(request, f"add_event:{job_id}", debounce_seconds=2):
         logger.warning("Request debounced for user %s on job %s", user.office_email, job_id)
         raise HttpError(
-            429, gettext("Request too frequent. Please wait before adding another event.")
+            429,
+            gettext("You added one moments ago. Wait a few seconds before adding another note."),
         )
 
     # Additional duplicate check via cache
@@ -497,7 +498,7 @@ def job_rest_jobs_events_create(
             job_id,
         )
         raise HttpError(
-            409, gettext("Duplicate event detected. An identical event was recently created.")
+            409, gettext("That note was just added. It hasn't been added a second time.")
         )
 
     try:
@@ -803,7 +804,7 @@ def job_jobs_cost_sets_retrieve(
     job = _get_job_or_404(job_id)
     cost_set = job_service.get_latest_cost_set(job, kind)
     if cost_set is None:
-        raise HttpError(404, gettext("No %(kind)s cost set found for this job") % {"kind": kind})
+        raise HttpError(404, gettext("This job has no %(kind)s costs and revenue") % {"kind": kind})
     return job_service.cost_set_data(cost_set)
 
 
@@ -812,7 +813,10 @@ def _create_cost_line(
 ) -> job_service.CostLineData:
     staff = authenticated_staff(request)
     if kind != "actual" and not staff.is_office_staff:
-        raise HttpError(403, gettext("Only office staff can manage non-actual cost sets"))
+        raise HttpError(
+            403,
+            gettext("Only office staff can change the costs and revenue in the estimate or quote"),
+        )
     job = _get_job_or_404(job_id)
     data: CostLineWriteData = {
         "kind": payload.kind,

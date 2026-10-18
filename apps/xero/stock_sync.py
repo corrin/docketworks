@@ -242,7 +242,10 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
         # would let the orchestrator continue to its sync_status:"success"
         # marker, masking the abort.
         raise XeroQuotaFloorReached(
-            gettext("Skipping local stock sync: Xero day quota at floor (%(floor)s)")
+            gettext(
+                "Did not send stock items to Xero: Xero's daily request allowance is down to "
+                "the %(floor)s kept for people working in DocketWorks"
+            )
             % {"floor": floor}
         )
 

@@ -5,7 +5,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, ClassVar, TypedDict
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import models
 from django.utils.functional import Promise
 from django.utils.timezone import now
@@ -155,6 +155,10 @@ _FIELD_DESCRIPTORS: dict[str, Callable[[JsonScalar, JsonScalar], str]] = {
 }
 
 
+#: ValidationError code for a manual note repeated within seconds; create_safe absorbs it.
+DUPLICATE_NOTE_CODE = "duplicate_manual_note"
+
+
 class JobEvent(AuditEvent):
     """One audit event on a job: a field change, status move, or business action."""
 
@@ -273,9 +277,10 @@ class JobEvent(AuditEvent):
             if self._check_recent_duplicate():
                 raise ValidationError(
                     gettext(
-                        "A similar manual event was created recently. "
-                        "Please wait before adding another."
-                    )
+                        "You added a note like this moments ago. "
+                        "Wait a few seconds before adding another."
+                    ),
+                    code=DUPLICATE_NOTE_CODE,
                 )
 
     def build_description(self) -> str:
@@ -583,7 +588,11 @@ class JobEvent(AuditEvent):
         # their own colleague. Any OTHER ValidationError still re-raises below.
         except ValidationError as e:
             # If duplicate error, try to find existing event
-            if "similar manual event" in str(e).lower():
+            # The code, not the words: the wording is the catalogue's (ADR 0069).
+            # save() runs full_clean, which files clean()'s refusal under
+            # NON_FIELD_ERRORS; a field error leaves that key absent.
+            non_field = e.error_dict.get(NON_FIELD_ERRORS, [])
+            if any(error.code == DUPLICATE_NOTE_CODE for error in non_field):
                 detail = kwargs.get("detail", {})
                 note_text = detail.get("note_text", "").strip() if detail else ""
                 existing_event = cls.objects.filter(

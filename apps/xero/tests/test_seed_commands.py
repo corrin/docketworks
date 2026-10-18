@@ -554,7 +554,7 @@ class TestStartXeroSync:
                 "apps.xero.management.commands.start_xero_sync.synchronise_xero_data",
                 return_value=steal_the_lock_midway(),
             ),
-            pytest.raises(CommandError, match="no longer holds the lock"),
+            pytest.raises(CommandError, match="Another update from Xero took over"),
         ):
             call_command("start_xero_sync")
 
@@ -580,7 +580,7 @@ class TestStartXeroSync:
         with pytest.raises(CommandError) as refusal:
             call_command("start_xero_sync")
 
-        assert "enable_xero_sync is False" in str(refusal.value)
+        assert "Updating from Xero is switched off" in str(refusal.value)
         assert "--entity <name> --force" in str(refusal.value)
         assert isinstance(refusal.value.__cause__, XeroSyncDisabled)
         assert caches["shared"].get(SYNC_STATUS_KEY) is None
@@ -591,7 +591,7 @@ class TestStartXeroSync:
         # only diagnose by guessing the gate's value back out of the count.
         CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
 
-        with pytest.raises(CommandError, match="enable_xero_sync is False"):
+        with pytest.raises(CommandError, match="Updating from Xero is switched off"):
             call_command("start_xero_sync", "--deep-sync")
 
         assert caches["shared"].get(SYNC_STATUS_KEY) is None
