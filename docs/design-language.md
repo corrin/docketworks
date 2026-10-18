@@ -79,7 +79,8 @@ Change a shared default at its owner, rather than recolouring each caller.
 ## Controls, editing and feedback
 
 - Show everything, and say why when it can't be used (ADR 0067).
-- Use the words a sheet metal shop manager would use, from the [glossary](glossary.md) (ADR 0068).
+- Use the words a sheet metal shop manager would use, from the [glossary](glossary.md); a word
+  that can still be read two ways gets a tooltip saying what it covers (ADR 0068).
 - Use visible field labels; placeholders are examples or hints, not labels. Icon-only
   actions need accessible names. Preserve focus indication, tab order and the shared
   tab/picker/dialog keyboard behaviour.
