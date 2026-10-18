@@ -13,6 +13,7 @@ import { z } from 'zod'
 
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
+import { getMe } from '../fixtures/api'
 import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import {
@@ -104,8 +105,12 @@ test("office staff correct a person's clock times, and the screen holds at three
   const listed = z
     .object({ staff: z.array(z.object({ staff_id: z.string() })) })
     .parse(await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json())
-  const staffId = listed.staff[0]?.staff_id
-  if (staffId === undefined) throw new Error(`Nobody is on the timesheet for ${day}.`)
+  // Someone other than the office login: a person's own typed times are
+  // "not clocked" and warned about, and this step proves the office's are not.
+  const me = await getMe(page)
+  const staffId = listed.staff.find((person) => person.staff_id !== me.id)?.staff_id
+  if (staffId === undefined)
+    throw new Error(`Nobody but the office login is on the timesheet for ${day}.`)
   const clock = autoId(page, `ApproveTimePage-clock-${staffId}`)
   const setClock = async (start: string, finish: string) => {
     await autoId(page, `ApproveTimePage-clock-edit-${staffId}`).click()
