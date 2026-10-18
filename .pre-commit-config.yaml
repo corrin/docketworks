@@ -63,6 +63,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: messages-catalogue
+        name: backend messages catalogue (regenerates on drift)
+        entry: uv run python -m scripts.checks.messages_catalogue
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: delta-goldens
         name: delta goldens (regenerates on drift)
         entry: uv run python -m scripts.generate.gen_delta_goldens

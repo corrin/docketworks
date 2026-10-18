@@ -11,6 +11,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
+from django.utils.functional import Promise
+from django.utils.translation import gettext, gettext_lazy
 
 from apps.core.audit import JsonScalar, json_safe
 from apps.core.data_events import notify_data_changed
@@ -215,17 +217,17 @@ class Job(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, null=False, blank=False)
-    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, str]]] = [
+    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
         # Main kanban columns (visible)
-        ("draft", "Draft"),
-        ("awaiting_approval", "Awaiting Approval"),
-        ("approved", "Approved"),
-        ("in_progress", "In Progress"),
-        ("unusual", "Unusual"),
-        ("recently_completed", "Recently Completed"),
+        ("draft", gettext_lazy("Draft")),
+        ("awaiting_approval", gettext_lazy("Awaiting Approval")),
+        ("approved", gettext_lazy("Approved")),
+        ("in_progress", gettext_lazy("In Progress")),
+        ("unusual", gettext_lazy("Unusual")),
+        ("recently_completed", gettext_lazy("Recently Completed")),
         # Hidden statuses (maintained but not shown on kanban)
-        ("special", "Special"),
-        ("archived", "Archived"),
+        ("special", gettext_lazy("Special")),
+        ("archived", gettext_lazy("Archived")),
     ]
 
     STATUS_TOOLTIPS: ClassVar[dict[str, str]] = {
@@ -262,13 +264,13 @@ class Job(models.Model):
         null=True,
         blank=True,
         related_name="jobs",
-        help_text="The person for this job",
+        help_text=gettext_lazy("The person for this job"),
     )
     job_number = models.IntegerField(unique=True)  # Job 1234
     description = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
-        help_text="This becomes the first line item on the invoice",
+        help_text=gettext_lazy("This becomes the first line item on the invoice"),
     )
 
     quote_acceptance_date = models.DateTimeField(
@@ -279,14 +281,18 @@ class Job(models.Model):
     completed_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Set automatically when job moves to recently_completed or archived",
+        help_text=gettext_lazy(
+            "Set automatically when job moves to recently_completed or archived"
+        ),
     )
     status = models.CharField(max_length=30, choices=JOB_STATUS_CHOICES, default="draft")
 
     # Flag to track jobs that were rejected
     rejected_flag = models.BooleanField(
         default=False,
-        help_text="Indicates if this job was rejected (shown in Archived with rejected styling)",
+        help_text=gettext_lazy(
+            "Indicates if this job was rejected (shown in Archived with rejected styling)"
+        ),
     )
 
     rdti_type = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
@@ -294,19 +300,21 @@ class Job(models.Model):
         choices=RDTIType.choices,
         null=True,
         blank=True,
-        help_text="R&D Tax Incentive classification for this job",
+        help_text=gettext_lazy("R&D Tax Incentive classification for this job"),
     )
 
-    PRICING_METHODOLOGY_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        ("time_materials", "Time & Materials"),
-        ("fixed_price", "Fixed Price"),
+    PRICING_METHODOLOGY_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
+        ("time_materials", gettext_lazy("Time & Materials")),
+        ("fixed_price", gettext_lazy("Fixed Price")),
     ]
 
     pricing_methodology = models.CharField(
         max_length=20,
         choices=PRICING_METHODOLOGY_CHOICES,
         default="time_materials",
-        help_text=("Determines whether job uses quotes or time and materials pricing type."),
+        help_text=(
+            gettext_lazy("Determines whether job uses quotes or time and materials pricing type.")
+        ),
     )
 
     price_cap = models.DecimalField(
@@ -315,8 +323,10 @@ class Job(models.Model):
         null=True,
         blank=True,
         help_text=(
-            "Maximum amount to invoice for T&M jobs (do not exceed). "
-            "For quoted jobs it is set to the quote."
+            gettext_lazy(
+                "Maximum amount to invoice for T&M jobs (do not exceed). "
+                "For quoted jobs it is set to the quote."
+            )
         ),
     )
 
@@ -324,7 +334,7 @@ class Job(models.Model):
         max_length=20,
         choices=SpeedQualityTradeoff.choices,
         default=SpeedQualityTradeoff.NORMAL,
-        help_text="Speed vs quality tradeoff for workshop execution",
+        help_text=gettext_lazy("Speed vs quality tradeoff for workshop execution"),
     )
 
     # Decided not to bother with parent for now since we don't have a hierarchy of jobs.
@@ -344,11 +354,15 @@ class Job(models.Model):
     customer_called = models.BooleanField(default=False)
     released = models.BooleanField(
         default=False,
-        help_text="The job has left our possession, by collection, delivery or on-site install.",
+        help_text=gettext_lazy(
+            "The job has left our possession, by collection, delivery or on-site install."
+        ),
     )
     fully_invoiced = models.BooleanField(
         default=False,
-        help_text="The total value of invoices for this job matches the total value of the job.",
+        help_text=gettext_lazy(
+            "The total value of invoices for this job matches the total value of the job."
+        ),
     )
     # Charge-out rates live in JobLabourRate, one row per labour subtype.
 
@@ -359,13 +373,13 @@ class Job(models.Model):
 
     is_urgent = models.BooleanField(
         default=False,
-        help_text="Whether this job requires urgent rates and priority handling",
+        help_text=gettext_lazy("Whether this job requires urgent rates and priority handling"),
     )
 
     notes = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
-        help_text="Internal notes about the job. Not shown on the invoice.",
+        help_text=gettext_lazy("Internal notes about the job. Not shown on the invoice."),
     )
 
     # blank=True for the same reason as company above: jobs predating
@@ -381,7 +395,7 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest estimate cost set snapshot",
+        help_text=gettext_lazy("Latest estimate cost set snapshot"),
     )
 
     latest_quote = models.OneToOneField(
@@ -390,7 +404,7 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest quote cost set snapshot",
+        help_text=gettext_lazy("Latest quote cost set snapshot"),
     )
 
     latest_actual = models.OneToOneField(
@@ -399,23 +413,27 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest actual cost set snapshot",
+        help_text=gettext_lazy("Latest actual cost set snapshot"),
     )
 
     PRIORITY_INCREMENT = 200
 
     priority = models.FloatField(
         default=0.0,
-        help_text="Priority of the job, higher numbers are higher priority.",
+        help_text=gettext_lazy("Priority of the job, higher numbers are higher priority."),
     )
 
     min_people = models.IntegerField(
         default=1,
-        help_text="Minimum number of workshop staff required to work on this job simultaneously",
+        help_text=gettext_lazy(
+            "Minimum number of workshop staff required to work on this job simultaneously"
+        ),
     )
     max_people = models.IntegerField(
         default=1,
-        help_text="Maximum number of workshop staff that can work on this job simultaneously",
+        help_text=gettext_lazy(
+            "Maximum number of workshop staff that can work on this job simultaneously"
+        ),
     )
 
     # Xero Projects sync fields
@@ -424,7 +442,7 @@ class Job(models.Model):
         max_length=255,
         null=True,
         blank=True,
-        help_text="Xero task ID for the default Labor task used for time entries",
+        help_text=gettext_lazy("Xero task ID for the default Labor task used for time entries"),
         # TODO: This won't work long term - need proper task management system
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
@@ -437,14 +455,16 @@ class Job(models.Model):
         "xero.XeroPayItem",
         on_delete=models.PROTECT,
         related_name="jobs",
-        help_text="Default pay item for time entry. Prepopulates dropdown, can be overridden.",
+        help_text=gettext_lazy(
+            "Default pay item for time entry. Prepopulates dropdown, can be overridden."
+        ),
     )
 
     objects = JobManager()
 
     class Meta:
-        verbose_name = "Job"
-        verbose_name_plural = "Jobs"
+        verbose_name = gettext_lazy("Job")
+        verbose_name_plural = gettext_lazy("Jobs")
         ordering: ClassVar[list[str]] = ["-priority", "-created_at"]
         indexes: ClassVar[list[Index]] = [
             Index(fields=["status", "priority"], name="job_priority_status_idx"),
@@ -520,8 +540,10 @@ class Job(models.Model):
             ordinary_time = XeroPayItem.get_ordinary_time()
             if not ordinary_time:
                 raise ValueError(
-                    "Cannot create Job: 'Ordinary Time' XeroPayItem not found. "
-                    "Run Xero sync or check database seed data."
+                    gettext(
+                        "Cannot create Job: 'Ordinary Time' XeroPayItem not found. "
+                        "Run Xero sync or check database seed data."
+                    )
                 )
             self.default_xero_pay_item = ordinary_time
 
@@ -532,7 +554,7 @@ class Job(models.Model):
             self.job_number = self.generate_job_number()
             if not self.job_number:
                 logger.error("Failed to generate a job number. Cannot save job.")
-                raise ValueError("Job number generation failed.")
+                raise ValueError(gettext("Job number generation failed."))
             logger.debug("Saving new job with job number: %s", self.job_number)
 
             # To assure all jobs have a priority
@@ -723,11 +745,11 @@ class Job(models.Model):
 
         errors = {}
         if self.min_people < 1:
-            errors["min_people"] = "min_people must be at least 1"
+            errors["min_people"] = gettext("min_people must be at least 1")
         if self.max_people < 1:
-            errors["max_people"] = "max_people must be at least 1"
+            errors["max_people"] = gettext("max_people must be at least 1")
         if self.max_people < self.min_people:
-            errors["max_people"] = "max_people must be >= min_people"
+            errors["max_people"] = gettext("max_people must be >= min_people")
         if errors:
             raise ValidationError(errors)
 

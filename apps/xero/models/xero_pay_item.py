@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 
 class XeroPayItem(models.Model):
@@ -36,23 +37,23 @@ class XeroPayItem(models.Model):
         unique=True,
         null=True,
         blank=True,
-        help_text="Xero's UUID for this pay item",
+        help_text=gettext_lazy("Xero's UUID for this pay item"),
     )
     xero_tenant_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
-        help_text="Xero tenant this pay item belongs to",
+        help_text=gettext_lazy("Xero tenant this pay item belongs to"),
     )
 
     # Pay item details
     name = models.CharField(
         max_length=100,
-        help_text="Display name (e.g., 'Ordinary Time', 'Annual Leave')",
+        help_text=gettext_lazy("Display name (e.g., 'Ordinary Time', 'Annual Leave')"),
     )
 
     uses_leave_api = models.BooleanField(
-        help_text="True = Xero Leave API, False = Xero Timesheets API",
+        help_text=gettext_lazy("True = Xero Leave API, False = Xero Timesheets API"),
     )
 
     multiplier = models.DecimalField(
@@ -60,20 +61,22 @@ class XeroPayItem(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Rate multiplier from Xero (1.0, 1.5, 2.0, etc.). NULL for leave types.",
+        help_text=gettext_lazy(
+            "Rate multiplier from Xero (1.0, 1.5, 2.0, etc.). NULL for leave types."
+        ),
     )
 
     # Sync metadata
     xero_last_modified = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Last modified timestamp from Xero",
+        help_text=gettext_lazy("Last modified timestamp from Xero"),
     )
     xero_last_synced = models.DateTimeField(
         null=True,
         blank=True,
         default=timezone.now,
-        help_text="When we last synced this record from Xero",
+        help_text=gettext_lazy("When we last synced this record from Xero"),
     )
 
     # Django timestamps
@@ -83,8 +86,8 @@ class XeroPayItem(models.Model):
     class Meta:
         db_table = "workflow_xeropayitem"  # v1 home was the workflow app
         ordering: ClassVar[list[str]] = ["uses_leave_api", "name"]
-        verbose_name = "Xero Pay Item"
-        verbose_name_plural = "Xero Pay Items"
+        verbose_name = gettext_lazy("Xero Pay Item")
+        verbose_name_plural = gettext_lazy("Xero Pay Items")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=["name", "uses_leave_api"],

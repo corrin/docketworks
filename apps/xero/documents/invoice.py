@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice
@@ -125,7 +126,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 invoice_external_id, file_name, pdf_buffer.read()
             )
             if not attached:
-                return "Workshop PDF could not be attached to the invoice"
+                return gettext("Workshop PDF could not be attached to the invoice")
             logger.info("Attached workshop PDF to invoice %s", invoice_external_id)
             return None  # noqa: TRY300 -- the early-return above rules out an else block
         # deliberate-swallow: a PDF rendering crash after the invoice exists
@@ -136,7 +137,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             logger.warning(
                 "Failed to attach workshop PDF to invoice %s: %s", invoice_external_id, exc
             )
-            return "Workshop PDF could not be attached to the invoice"
+            return gettext("Workshop PDF could not be attached to the invoice")
 
     def create_document(
         self,
@@ -166,7 +167,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             if document_theme_external_id is None:
                 return {
                     "success": False,
-                    "error": (
+                    "error": gettext(
                         "Configure the Xero sales branding theme by running Xero "
                         "setup or selecting it in Company Settings before "
                         "creating an invoice."
@@ -290,10 +291,10 @@ class XeroInvoiceManager(XeroDocumentManager):
 
             self._create_job_event("invoice_deleted", {"xero_invoice_number": invoice_number})
 
-            return {  # noqa: TRY300 -- returns a value built across the try body
+            return {
                 "success": True,
                 "xero_id": xero_id,
-                "message": "Invoice deleted successfully.",
+                "message": gettext("Invoice deleted successfully."),
             }
         except Exception as exc:
             logger.exception("Unexpected error during invoice deletion for job %s", self.job.id)

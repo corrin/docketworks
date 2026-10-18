@@ -6,6 +6,7 @@ from uuid import UUID
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -95,9 +96,9 @@ def create_request(request: HttpRequest, payload: LeaveRequestWrite) -> leave_se
             actor=authenticated_staff(request),
         )
     except Staff.DoesNotExist as exc:
-        raise HttpError(404, "Employee not found.") from exc
+        raise HttpError(404, gettext("Employee not found.")) from exc
     except LeaveType.DoesNotExist as exc:
-        raise HttpError(400, "Unknown leave type.") from exc
+        raise HttpError(400, gettext("Unknown leave type.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
 
@@ -122,9 +123,9 @@ def update_request(
             actor=authenticated_staff(request),
         )
     except LeaveRequest.DoesNotExist as exc:
-        raise HttpError(404, "Leave request not found.") from exc
+        raise HttpError(404, gettext("Leave request not found.")) from exc
     except LeaveType.DoesNotExist as exc:
-        raise HttpError(400, "Unknown leave type.") from exc
+        raise HttpError(400, gettext("Unknown leave type.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
 
@@ -139,7 +140,7 @@ def delete_request(request: HttpRequest, request_id: UUID) -> Status[None]:  # n
     try:
         leave_service.delete_leave_request(request_id)
     except LeaveRequest.DoesNotExist as exc:
-        raise HttpError(404, "Leave request not found.") from exc
+        raise HttpError(404, gettext("Leave request not found.")) from exc
     return Status(204, None)
 
 
@@ -158,7 +159,7 @@ def leave_balance(
     try:
         return leave_service.get_leave_balance(staff=staff, leave_type_code=leave_type_code)
     except LeaveType.DoesNotExist as exc:
-        raise HttpError(400, "Unknown leave type.") from exc
+        raise HttpError(400, gettext("Unknown leave type.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
 
@@ -238,8 +239,8 @@ def update_settings(
             updates=updates, actor=authenticated_staff(request)
         )
     except LeaveType.DoesNotExist as exc:
-        raise HttpError(404, "Leave type not found.") from exc
+        raise HttpError(404, gettext("Leave type not found.")) from exc
     except Job.DoesNotExist as exc:
-        raise HttpError(400, "Docketworks Job not found.") from exc
+        raise HttpError(400, gettext("Docketworks Job not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc

@@ -9,6 +9,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpRe
 from django.http.response import HttpResponseBase
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 from ninja import Router, Schema
 from pydantic import ValidationError
@@ -95,7 +96,7 @@ async def quote_chat(request: HttpRequest, job_id: UUID) -> HttpResponseBase:
         if refusal is not None:
             return refusal
         if not await Job.objects.filter(id=job_id).aexists():
-            return JsonResponse({"detail": "Job not found"}, status=404)
+            return JsonResponse({"detail": gettext("Job not found")}, status=404)
         result = await chat_server.process(request.body, ChatContext(job_id=job_id))
     # deliberate-swallow: a missing or differently scoped SDK resource is a normal 404.
     except NotFoundError as exc:

@@ -21,6 +21,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
+from django.utils.translation import gettext, gettext_lazy
 from solo.models import SingletonModel
 
 # Starting point for an installation that has not had its terms written yet.
@@ -36,7 +37,8 @@ def validate_break_minutes(value: int) -> None:
     """Accept a break of 5 to 120 minutes, or 0 for no such break."""
     if value != 0 and not BREAK_MINUTES_MIN <= value <= BREAK_MINUTES_MAX:
         raise ValidationError(
-            f"A break is {BREAK_MINUTES_MIN} to {BREAK_MINUTES_MAX} minutes long, or 0 for none."
+            gettext("A break is %(min)s to %(max)s minutes long, or 0 for none.")
+            % {"min": BREAK_MINUTES_MIN, "max": BREAK_MINUTES_MAX}
         )
 
 
@@ -77,8 +79,8 @@ class AppError(models.Model):  # noqa: DJ008  # callers use explicit error field
     class Meta:
         db_table = "workflow_apperror"
         ordering: ClassVar[list[str]] = ["-timestamp"]
-        verbose_name = "Application Error"
-        verbose_name_plural = "Application Errors"
+        verbose_name = gettext_lazy("Application Error")
+        verbose_name_plural = gettext_lazy("Application Errors")
         indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=["timestamp", "severity"],
@@ -192,7 +194,7 @@ class CompanyDefaults(SingletonModel):
         max_length=10,
         null=True,
         blank=True,
-        help_text="Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)",
+        help_text=gettext_lazy("Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)"),
     )
     time_markup = models.DecimalField(max_digits=5, decimal_places=2, default=0.3)
     materials_markup = models.DecimalField(max_digits=5, decimal_places=2, default=0.2)
@@ -201,9 +203,11 @@ class CompanyDefaults(SingletonModel):
         decimal_places=4,
         default=Decimal("0.1500"),
         help_text=(
-            "Sales tax rate applied to amounts DocketWorks quotes before Xero has "
-            "issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains "
-            "authoritative for tax on invoices that exist."
+            gettext_lazy(
+                "Sales tax rate applied to amounts DocketWorks quotes before Xero has "
+                "issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains "
+                "authoritative for tax on invoices that exist."
+            )
         ),
     )
     wage_rate = models.DecimalField(max_digits=6, decimal_places=2, default=32.00)  # rate per hour
@@ -218,10 +222,12 @@ class CompanyDefaults(SingletonModel):
         decimal_places=2,
         default=20.00,
         help_text=(
-            "Percentage added to each base wage to recover paid non-worked time in "
-            "the labour cost assigned to worked hours. Include annual leave, public "
-            "holidays, sick leave, bereavement leave, and employer-paid ACC time; "
-            "measure the percentage for this business (20.00 turns $40.00 into $48.00)."
+            gettext_lazy(
+                "Percentage added to each base wage to recover paid non-worked time in "
+                "the labour cost assigned to worked hours. Include annual leave, public "
+                "holidays, sick leave, bereavement leave, and employer-paid ACC time; "
+                "measure the percentage for this business (20.00 turns $40.00 into $48.00)."
+            )
         ),
     )
     workshop_efficiency_factor = models.DecimalField(
@@ -229,54 +235,60 @@ class CompanyDefaults(SingletonModel):
         decimal_places=3,
         default=Decimal("0.750"),
         help_text=(
-            "Fraction of clocked workshop hours that count as schedulable "
-            "productive output (e.g. 0.750 = 75%). Accounts for breaks, "
-            "tool changes, idle time. Applied to per-day capacity in the "
-            "workshop scheduler after subtracting booked time/leave."
+            gettext_lazy(
+                "Fraction of clocked workshop hours that count as schedulable "
+                "productive output (e.g. 0.750 = 75%). Accounts for breaks, "
+                "tool changes, idle time. Applied to per-day capacity in the "
+                "workshop scheduler after subtracting booked time/leave."
+            )
         ),
     )
     financial_year_start_month = models.IntegerField(
         default=4,
-        help_text="Month the financial year starts (1=January, 4=April, 7=July, etc.)",
+        help_text=gettext_lazy(
+            "Month the financial year starts (1=January, 4=April, 7=July, etc.)"
+        ),
     )
 
     starting_job_number = models.IntegerField(
         default=1,
-        help_text="Helper field to set the starting job number based on the latest paper job",
+        help_text=gettext_lazy(
+            "Helper field to set the starting job number based on the latest paper job"
+        ),
     )
     starting_po_number = models.IntegerField(
-        default=1, help_text="Helper field to set the starting purchase order number"
+        default=1, help_text=gettext_lazy("Helper field to set the starting purchase order number")
     )
     po_prefix = models.CharField(
         max_length=10,
         default="PO-",
-        help_text="Prefix for purchase order numbers (e.g., PO-, JO-)",
+        help_text=gettext_lazy("Prefix for purchase order numbers (e.g., PO-, JO-)"),
     )
 
     # Google Sheets integration for Job Quotes
     master_quote_template_url = models.URLField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="URL to the master Google Sheets quote template",
+        help_text=gettext_lazy("URL to the master Google Sheets quote template"),
     )
 
     master_quote_template_id = models.CharField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="Google Sheets ID for the quote template",
+        help_text=gettext_lazy("Google Sheets ID for the quote template"),
         max_length=100,
     )
 
     gdrive_quotes_folder_url = models.URLField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="URL to the Google Drive folder for storing quotes",
+        help_text=gettext_lazy("URL to the Google Drive folder for storing quotes"),
     )
 
     gdrive_quotes_folder_id = models.CharField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="Google Drive folder ID for storing quotes",
+        help_text=gettext_lazy("Google Drive folder ID for storing quotes"),
         max_length=100,
     )
 
@@ -285,79 +297,89 @@ class CompanyDefaults(SingletonModel):
         max_length=100,
         null=True,
         blank=True,
-        help_text="Google Shared Drive ID for the company shared drive",
+        help_text=gettext_lazy("Google Shared Drive ID for the company shared drive"),
     )
     gdrive_how_we_work_folder_id = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="Folder ID for '01 - How we work' (policies, basics)",
+        help_text=gettext_lazy("Folder ID for '01 - How we work' (policies, basics)"),
     )
     gdrive_sops_folder_id = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="Folder ID for '02 - SOPs' (standard operating procedures)",
+        help_text=gettext_lazy("Folder ID for '02 - SOPs' (standard operating procedures)"),
     )
     gdrive_reference_library_folder_id = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="Folder ID for '03 - Reference Library' (reference documents, forms, registers)",
+        help_text=gettext_lazy(
+            "Folder ID for '03 - Reference Library' (reference documents, forms, registers)"
+        ),
     )
 
     # Xero integration
     accounting_provider = models.CharField(
         max_length=20,
         default="xero",
-        help_text="Active accounting integration: 'xero' or 'myob'",
+        help_text=gettext_lazy("Active accounting integration: 'xero' or 'myob'"),
     )
     xero_tenant_id = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="The Xero tenant ID to use for this company",
+        help_text=gettext_lazy("The Xero tenant ID to use for this company"),
     )
     xero_shortcode = models.CharField(  # noqa: DJ001
         max_length=20,
         null=True,
         blank=True,
-        help_text="Xero organisation shortcode for deep linking (e.g., '!8-5Xl')",
+        help_text=gettext_lazy("Xero organisation shortcode for deep linking (e.g., '!8-5Xl')"),
     )
     xero_sales_branding_theme_id = models.UUIDField(
         null=True,
         blank=True,
-        verbose_name="Xero sales branding theme",
+        verbose_name=gettext_lazy("Xero sales branding theme"),
         help_text=(
-            "Controls the layout and presentation of every quote and sales invoice "
-            "created in Xero. It is configured during Xero setup and required "
-            "before sales documents can be created."
+            gettext_lazy(
+                "Controls the layout and presentation of every quote and sales invoice "
+                "created in Xero. It is configured during Xero setup and required "
+                "before sales documents can be created."
+            )
         ),
     )
     xero_quote_terms = models.TextField(
         max_length=4000,
         default=DEFAULT_XERO_QUOTE_TERMS,
-        verbose_name="Xero quote terms",
+        verbose_name=gettext_lazy("Xero quote terms"),
         help_text=(
-            "Terms sent on every quote created by DocketWorks. Required — Xero does "
-            "not apply its own Terms (Quotes) default to quotes created through the "
-            "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
-            "created directly in Xero during an outage use the same terms."
+            gettext_lazy(
+                "Terms sent on every quote created by DocketWorks. Required — Xero does "
+                "not apply its own Terms (Quotes) default to quotes created through the "
+                "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
+                "created directly in Xero during an outage use the same terms."
+            )
         ),
     )
     enable_xero_sync = models.BooleanField(
         default=True,
         help_text=(
-            "Gate for Xero sync. Defaults True (prod). Dev fixture sets False; "
-            "seed_xero_from_database sets True after prod IDs are cleared."
+            gettext_lazy(
+                "Gate for Xero sync. Defaults True (prod). Dev fixture sets False; "
+                "seed_xero_from_database sets True after prod IDs are cleared."
+            )
         ),
     )
     xero_automated_day_floor = models.PositiveIntegerField(
         default=100,
         help_text=(
-            "Reserve this many Xero daily API calls for user-initiated work. "
-            "Automated sync aborts when the active Xero app reports remaining "
-            "daily calls at or below this value."
+            gettext_lazy(
+                "Reserve this many Xero daily API calls for user-initiated work. "
+                "Automated sync aborts when the active Xero app reports remaining "
+                "daily calls at or below this value."
+            )
         ),
     )
 
@@ -366,17 +388,19 @@ class CompanyDefaults(SingletonModel):
     xero_payroll_calendar_name = models.CharField(
         max_length=100,
         default="Weekly",
-        help_text="Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')",
+        help_text=gettext_lazy("Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')"),
     )
     xero_payroll_calendar_id = models.UUIDField(
         null=True,
         blank=True,
-        help_text="Cached Xero Payroll calendar ID (set by xero --setup command)",
+        help_text=gettext_lazy("Cached Xero Payroll calendar ID (set by xero --setup command)"),
     )
     xero_payroll_start_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Date Xero payroll went live — reconciliation ignores data before this",
+        help_text=gettext_lazy(
+            "Date Xero payroll went live — reconciliation ignores data before this"
+        ),
     )
 
     # Whether to show Sat/Sun columns in timesheet views and the KPI calendar
@@ -385,36 +409,44 @@ class CompanyDefaults(SingletonModel):
     weekend_timesheets_enabled = models.BooleanField(
         default=False,
         help_text=(
-            "Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). "
-            "Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides "
-            "whether the days are drawn."
+            gettext_lazy(
+                "Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). "
+                "Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides "
+                "whether the days are drawn."
+            )
         ),
     )
     job_delta_soft_fail = models.BooleanField(
         default=True,
         help_text=(
-            "When enabled, job delta checksum mismatches are logged and recorded "
-            "without blocking the save. Disable to reject stale updates."
+            gettext_lazy(
+                "When enabled, job delta checksum mismatches are logged and recorded "
+                "without blocking the save. Disable to reject stale updates."
+            )
         ),
     )
     session_replay_enabled = models.BooleanField(
         default=True,
         help_text=(
-            "Record staff browser sessions for diagnostics. Recordings capture "
-            "everything on screen and are visible to superusers only."
+            gettext_lazy(
+                "Record staff browser sessions for diagnostics. Recordings capture "
+                "everything on screen and are visible to superusers only."
+            )
         ),
     )
     session_replay_retention_days = models.PositiveSmallIntegerField(
         default=14,
         help_text=(
-            "Days to keep session replays before the nightly purge deletes them "
-            "and their stored events. This is the only limit on how long a "
-            "recording of someone's screen survives."
+            gettext_lazy(
+                "Days to keep session replays before the nightly purge deletes them "
+                "and their stored events. This is the only limit on how long a "
+                "recording of someone's screen survives."
+            )
         ),
     )
     quote_expiry_days = models.PositiveSmallIntegerField(
         default=30,
-        help_text="Days a quote sent to a customer stays valid.",
+        help_text=gettext_lazy("Days a quote sent to a customer stays valid."),
     )
 
     # Default working hours (Mon-Fri, 7am - 3pm)
@@ -436,40 +468,48 @@ class CompanyDefaults(SingletonModel):
     # A length of 0 means the workshop has no such break.
     morning_break_start = models.TimeField(
         default="08:30",
-        help_text="When the workshop's paid morning break starts.",
+        help_text=gettext_lazy("When the workshop's paid morning break starts."),
     )
     morning_break_minutes = models.PositiveSmallIntegerField(
         default=15,
         validators=[validate_break_minutes],
-        help_text="Length of the paid morning break in minutes: 5 to 120, or 0 for none.",
+        help_text=gettext_lazy(
+            "Length of the paid morning break in minutes: 5 to 120, or 0 for none."
+        ),
     )
     lunch_start = models.TimeField(
         default="11:30",
-        help_text="When the workshop's unpaid lunch break starts.",
+        help_text=gettext_lazy("When the workshop's unpaid lunch break starts."),
     )
     lunch_minutes = models.PositiveSmallIntegerField(
         default=30,
         validators=[validate_break_minutes],
-        help_text="Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.",
+        help_text=gettext_lazy(
+            "Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none."
+        ),
     )
     afternoon_break_start = models.TimeField(
         default="13:30",
-        help_text="When the workshop's paid afternoon break starts.",
+        help_text=gettext_lazy("When the workshop's paid afternoon break starts."),
     )
     afternoon_break_minutes = models.PositiveSmallIntegerField(
         default=15,
         validators=[validate_break_minutes],
-        help_text="Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.",
+        help_text=gettext_lazy(
+            "Length of the paid afternoon break in minutes: 5 to 120, or 0 for none."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_xero_sync = models.DateTimeField(
-        null=True, blank=True, help_text="The last time Xero data was synchronized"
+        null=True, blank=True, help_text=gettext_lazy("The last time Xero data was synchronized")
     )
     last_xero_deep_sync = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="The last time a deep Xero sync was performed (looking back 90 days)",
+        help_text=gettext_lazy(
+            "The last time a deep Xero sync was performed (looking back 90 days)"
+        ),
     )
 
     # Company address (used for employee records, documents, etc.)
@@ -477,36 +517,36 @@ class CompanyDefaults(SingletonModel):
         max_length=255,
         null=True,
         blank=True,
-        help_text="Street address line 1",
+        help_text=gettext_lazy("Street address line 1"),
     )
     address_line2 = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
-        help_text="Street address line 2 (optional)",
+        help_text=gettext_lazy("Street address line 2 (optional)"),
     )
     suburb = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="Suburb (for NZ addresses)",
+        help_text=gettext_lazy("Suburb (for NZ addresses)"),
     )
     city = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="City",
+        help_text=gettext_lazy("City"),
     )
     post_code = models.CharField(  # noqa: DJ001
         max_length=20,
         null=True,
         blank=True,
-        help_text="Postal/ZIP code",
+        help_text=gettext_lazy("Postal/ZIP code"),
     )
     country = models.CharField(
         max_length=100,
         default="New Zealand",
-        help_text="Country name",
+        help_text=gettext_lazy("Country name"),
     )
 
     # What Google knows about the address above, filled when an operator picks a
@@ -523,21 +563,25 @@ class CompanyDefaults(SingletonModel):
         max_length=500,
         null=True,
         blank=True,
-        verbose_name="Address as Google has it",
+        verbose_name=gettext_lazy("Address as Google has it"),
         help_text=(
-            "The address Google matched, filled in when someone picks a candidate on this "
-            "screen. Read-only: it records what was confirmed, not what was typed."
+            gettext_lazy(
+                "The address Google matched, filled in when someone picks a candidate on this "
+                "screen. Read-only: it records what was confirmed, not what was typed."
+            )
         ),
     )
     region = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); never geocoded
         max_length=100,
         null=True,
         blank=True,
-        verbose_name="Region",
+        verbose_name=gettext_lazy("Region"),
         help_text=(
-            "The region Google reports for the address above — 'Canterbury Region', or "
-            "plainly 'Auckland'. Read-only, and the basis for which public holidays this "
-            "business observes."
+            gettext_lazy(
+                "The region Google reports for the address above — 'Canterbury Region', or "
+                "plainly 'Auckland'. Read-only, and the basis for which public holidays this "
+                "business observes."
+            )
         ),
     )
     google_place_id = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040)
@@ -548,37 +592,37 @@ class CompanyDefaults(SingletonModel):
     address_raw_json = models.JSONField(
         null=True,
         blank=True,
-        help_text="Raw JSON data from Google Places for the address above",
+        help_text=gettext_lazy("Raw JSON data from Google Places for the address above"),
     )
 
     company_email = models.EmailField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="Company contact email address",
+        help_text=gettext_lazy("Company contact email address"),
     )
     company_url = models.URLField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="Company website URL",
+        help_text=gettext_lazy("Company website URL"),
     )
     logo = models.ImageField(
         upload_to="company_logos/",
         null=True,
         blank=True,
-        help_text="Company logo (square/standard)",
+        help_text=gettext_lazy("Company logo (square/standard)"),
     )
     logo_wide = models.ImageField(
         upload_to="company_logos/",
         null=True,
         blank=True,
-        help_text="Wide company logo for letterheads and PDFs",
+        help_text=gettext_lazy("Wide company logo for letterheads and PDFs"),
     )
 
     shop_company = models.ForeignKey(
         "company.Company",
         on_delete=models.PROTECT,
         related_name="+",
-        help_text="Internal company used for tracking shop work.",
+        help_text=gettext_lazy("Internal company used for tracking shop work."),
     )
 
     # The internal job every break is booked to (KAN-376): paid breaks at
@@ -591,7 +635,7 @@ class CompanyDefaults(SingletonModel):
         related_name="+",
         null=True,
         blank=True,
-        help_text="Internal job every break is booked to: paid breaks and lunch.",
+        help_text=gettext_lazy("Internal job every break is booked to: paid breaks and lunch."),
     )
 
     # The internal job the office sweeps clocked time onto when it is on no
@@ -604,7 +648,9 @@ class CompanyDefaults(SingletonModel):
         related_name="+",
         null=True,
         blank=True,
-        help_text="Internal job that clocked time on no job is booked to at approval.",
+        help_text=gettext_lazy(
+            "Internal job that clocked time on no job is booked to at approval."
+        ),
     )
 
     # Test company configuration
@@ -613,8 +659,10 @@ class CompanyDefaults(SingletonModel):
         null=True,
         blank=True,
         help_text=(
-            "Name of the test company used for testing (e.g., 'ABC Carpet Cleaning "
-            "TEST IGNORE'). This company's name is preserved during data backports."
+            gettext_lazy(
+                "Name of the test company used for testing (e.g., 'ABC Carpet Cleaning "
+                "TEST IGNORE'). This company's name is preserved during data backports."
+            )
         ),
     )
 
@@ -623,70 +671,80 @@ class CompanyDefaults(SingletonModel):
         max_digits=5,
         decimal_places=2,
         default=0,
-        verbose_name="Daily billable hours (green)",
-        help_text="Daily total billable hours across all staff above which the day is green",
+        verbose_name=gettext_lazy("Daily billable hours (green)"),
+        help_text=gettext_lazy(
+            "Daily total billable hours across all staff above which the day is green"
+        ),
     )
     kpi_daily_billable_hours_amber = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        verbose_name="Daily billable hours (amber)",
-        help_text="Daily total billable hours across all staff above which the day is amber",
+        verbose_name=gettext_lazy("Daily billable hours (amber)"),
+        help_text=gettext_lazy(
+            "Daily total billable hours across all staff above which the day is amber"
+        ),
     )
     kpi_daily_gp_target = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        verbose_name="Daily gross profit target",
+        verbose_name=gettext_lazy("Daily gross profit target"),
         help_text=(
-            "Overhead per weekday in dollars: monthly operating expenses spread across the "
-            "month's weekdays. A day on the KPI calendar is green once its gross profit "
-            "covers this share; weekends are owed none of it."
+            gettext_lazy(
+                "Overhead per weekday in dollars: monthly operating expenses spread across the "
+                "month's weekdays. A day on the KPI calendar is green once its gross profit "
+                "covers this share; weekends are owed none of it."
+            )
         ),
     )
     kpi_daily_shop_hours_percentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        verbose_name="Daily shop hours percentage target",
-        help_text="Target percentage of daily hours spent on shop (non-billable) jobs",
+        verbose_name=gettext_lazy("Daily shop hours percentage target"),
+        help_text=gettext_lazy(
+            "Target percentage of daily hours spent on shop (non-billable) jobs"
+        ),
     )
     kpi_job_gp_target_percentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        verbose_name="Target GP % per job",
-        help_text="Target gross profit percentage for individual jobs",
+        verbose_name=gettext_lazy("Target GP % per job"),
+        help_text=gettext_lazy("Target gross profit percentage for individual jobs"),
     )
     kpi_daily_gp_green = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        verbose_name="Daily GP (green)",
-        help_text="Daily gross profit above which the day is green",
+        verbose_name=gettext_lazy("Daily GP (green)"),
+        help_text=gettext_lazy("Daily gross profit above which the day is green"),
     )
     kpi_daily_gp_amber = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        verbose_name="Daily GP (amber)",
-        help_text="Daily gross profit above which the day is amber",
+        verbose_name=gettext_lazy("Daily GP (amber)"),
+        help_text=gettext_lazy("Daily gross profit above which the day is amber"),
     )
     daily_approved_hours_target = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0,
-        verbose_name="Daily approved hours target",
+        verbose_name=gettext_lazy("Daily approved hours target"),
         help_text=(
-            "Target daily hours of newly-approved work flowing into the shop, "
-            "used by the Sales Pipeline scoreboard"
+            gettext_lazy(
+                "Target daily hours of newly-approved work flowing into the shop, "
+                "used by the Sales Pipeline scoreboard"
+            )
         ),
     )
 
     class Meta:
         db_table = "workflow_companydefaults"
-        verbose_name = "Company Defaults"
-        verbose_name_plural = "Company Defaults"
+        verbose_name = gettext_lazy("Company Defaults")
+        verbose_name_plural = gettext_lazy("Company Defaults")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
                 condition=models.Q(id=1),
@@ -832,8 +890,10 @@ class CompanyDefaults(SingletonModel):
         company_defaults = cls.objects.get(pk=cls.singleton_instance_id)
         if enabled and company_defaults.xero_tenant_id is None:
             raise InvalidInputError(
-                "Connect the Xero organisation before enabling sync: xero_tenant_id "
-                "is unset, and onboarding binds it."
+                gettext(
+                    "Connect the Xero organisation before enabling sync: xero_tenant_id "
+                    "is unset, and onboarding binds it."
+                )
             )
         company_defaults.enable_xero_sync = enabled
         company_defaults.save(update_fields=["enable_xero_sync"])
@@ -861,16 +921,20 @@ class ServiceAPIKey(models.Model):
     """API key for service-level authentication (e.g., chatbot MCP access)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, help_text="Service name (e.g., 'Chatbot Service')")
-    key = models.CharField(max_length=64, unique=True, help_text="API key for authentication")
+    name = models.CharField(
+        max_length=100, help_text=gettext_lazy("Service name (e.g., 'Chatbot Service')")
+    )
+    key = models.CharField(
+        max_length=64, unique=True, help_text=gettext_lazy("API key for authentication")
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "workflow_serviceapikey"
-        verbose_name = "Service API Key"
-        verbose_name_plural = "Service API Keys"
+        verbose_name = gettext_lazy("Service API Key")
+        verbose_name_plural = gettext_lazy("Service API Keys")
 
     def __str__(self) -> str:
         return f"{self.name} ({'Active' if self.is_active else 'Inactive'})"

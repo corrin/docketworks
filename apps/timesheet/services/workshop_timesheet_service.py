@@ -22,6 +22,7 @@ from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError
@@ -73,14 +74,14 @@ def entry_owner(actor: Staff, staff_id: UUID | None) -> Staff:
     if staff_id is None or staff_id == actor.id:
         return actor
     if not actor.is_office_staff:
-        raise EntryOwnershipError("Only office staff see or enter another person's time.")
+        raise EntryOwnershipError(gettext("Only office staff see or enter another person's time."))
     return Staff.objects.get(id=staff_id)
 
 
-def _refuse_another_persons_entry(line: CostLine, actor: Staff, verb: str) -> None:
+def _refuse_another_persons_entry(line: CostLine, actor: Staff, refusal: str) -> None:
     """Refuse a change to someone else's entry by anyone but the office."""
     if line.meta.get("staff_id") != str(actor.id) and not actor.is_office_staff:
-        raise EntryOwnershipError(f"You can only {verb} your own timesheet entries.")
+        raise EntryOwnershipError(refusal)
 
 
 def _owner_of(line: CostLine) -> Staff:
@@ -193,7 +194,7 @@ def resolve_entry_date(date_param: str | None) -> date:
         return timezone.localdate()
     parsed = parse_date(date_param)
     if parsed is None:
-        raise ValueError("date must be provided in YYYY-MM-DD format.")
+        raise ValueError(gettext("date must be provided in YYYY-MM-DD format."))
     return parsed
 
 
@@ -229,13 +230,15 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
     if start is None or end is None:
         return
     if end <= start:
-        raise ValueError("end_time must be after start_time.")
+        raise ValueError(gettext("end_time must be after start_time."))
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
     duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
     if hours - duration > _TIME_AGREEMENT_TOLERANCE:
         raise ValueError(
-            f"hours ({hours}) cannot be more than the start_time-end_time span "
-            f"({duration.quantize(Decimal('0.01'))})."
+            gettext(
+                "hours (%(hours)s) cannot be more than the start_time-end_time span (%(span)s)."
+            )
+            % {"hours": hours, "span": duration.quantize(Decimal("0.01"))}
         )
 
 
@@ -651,7 +654,9 @@ def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
         "xero_pay_item",
         "staff",
     ).get(id=entry_id, kind="time")
-    _refuse_another_persons_entry(line, actor, "update")
+    _refuse_another_persons_entry(
+        line, actor, gettext("You can only update your own timesheet entries.")
+    )
     refuse_workflow_managed(line, "edit")
     return line
 
@@ -747,7 +752,9 @@ def update_entry(
         lock_costing_jobs(job_ids)
         line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
-            raise ConflictError("This entry moved to another job. Reload before editing it.")
+            raise ConflictError(
+                gettext("This entry moved to another job. Reload before editing it.")
+            )
         refuse_worker_change_to_approved(line, actor)
         before = snapshot_if_entry(line)
         meta = dict(line.meta)
@@ -781,7 +788,7 @@ def update_entry(
             changed = True
 
         if not changed:
-            raise ValueError("No changes supplied.")
+            raise ValueError(gettext("No changes supplied."))
 
         _redraw_finish(line, meta, data)
 
@@ -827,8 +834,10 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         .get(pk=line.pk)
     )
     if line.cost_set.job_id != job_id:
-        raise ConflictError("This entry moved to another job. Reload before deleting it.")
-    _refuse_another_persons_entry(line, actor, "delete")
+        raise ConflictError(gettext("This entry moved to another job. Reload before deleting it."))
+    _refuse_another_persons_entry(
+        line, actor, gettext("You can only delete your own timesheet entries.")
+    )
     refuse_workflow_managed(line, "cancel")
     refuse_worker_change_to_approved(line, actor)
     # Recorded before the delete: Django clears the pk on the instance it

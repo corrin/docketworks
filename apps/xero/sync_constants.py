@@ -7,6 +7,7 @@ service-class would otherwise loop.
 """
 
 from django.core.cache import caches
+from django.utils.translation import gettext
 
 from apps.xero.client import XeroSyncLockLost
 
@@ -48,7 +49,10 @@ def require_sync_lock(owner: str) -> None:
     or the decision.
     """
     if not renew_sync_lock(owner):
-        raise XeroSyncLockLost(f"Sync run {owner} no longer holds the lock; another run owns it.")
+        raise XeroSyncLockLost(
+            gettext("Sync run %(owner)s no longer holds the lock; another run owns it.")
+            % {"owner": owner}
+        )
 
 
 def release_sync_lock(owner: str) -> bool:

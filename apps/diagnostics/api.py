@@ -26,6 +26,7 @@ from uuid import UUID
 from django.db import IntegrityError
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -96,7 +97,7 @@ def _require_session_replay_enabled() -> None:
     unable to stop a recording already in progress.
     """
     if not CompanyDefaults.get_solo().session_replay_enabled:
-        raise HttpError(409, "Session replay is disabled for this company.")
+        raise HttpError(409, gettext("Session replay is disabled for this company."))
 
 
 @router.post(
@@ -140,7 +141,9 @@ def session_replay_recording_chunks_create(
     if recording.chunks.filter(sequence=payload.sequence).exists():
         # 409, not 400: the client's retry loop treats this as "already
         # landed, move on" rather than discarding the recording.
-        raise HttpError(409, f"Chunk {payload.sequence} already stored.")
+        raise HttpError(
+            409, gettext("Chunk %(sequence)s already stored.") % {"sequence": payload.sequence}
+        )
 
     try:
         chunk = replays.append_chunk(
@@ -163,7 +166,9 @@ def session_replay_recording_chunks_create(
         # (recording, sequence) constraint refuses the second — the same
         # already-stored answer, so it earns the same status. A 500 here would
         # make the client treat an intact recording as a server fault.
-        raise HttpError(409, f"Chunk {payload.sequence} already stored.") from exc
+        raise HttpError(
+            409, gettext("Chunk %(sequence)s already stored.") % {"sequence": payload.sequence}
+        ) from exc
     return Status(
         201,
         {
@@ -247,9 +252,11 @@ def session_replay_recording_events_retrieve(
         # meeting "Unexpected server error" and a traceback.
         raise HttpError(
             409,
-            "This recording's events are not on this machine. Recording and chunk "
-            "rows travel inside a database restore; the payloads only arrive with "
-            "scripts/ops/pull_prod_files.sh.",
+            gettext(
+                "This recording's events are not on this machine. Recording and chunk "
+                "rows travel inside a database restore; the payloads only arrive with "
+                "scripts/ops/pull_prod_files.sh."
+            ),
         ) from exc
     return {"recording_id": recording.id, "events": events}
 

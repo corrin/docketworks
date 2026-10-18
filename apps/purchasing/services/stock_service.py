@@ -28,6 +28,7 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
@@ -156,7 +157,7 @@ def deactivate_stock(stock: Stock) -> None:
     """Retire an empty stock identity while preserving its history."""
     stock = Stock.objects.select_for_update().get(pk=stock.pk)
     if stock.quantity != 0:
-        raise InvalidInputError("Count this stock before retiring its identity.")
+        raise InvalidInputError(gettext("Count this stock before retiring its identity."))
     stock.is_active = False
     stock.save(update_fields=["is_active"])
 
@@ -179,7 +180,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
     emergency usage are real).
     """
     if qty <= 0:
-        raise ValueError("Quantity must be positive")
+        raise ValueError(gettext("Quantity must be positive"))
 
     with transaction.atomic():
         lock_costing_jobs([job.id])
@@ -193,12 +194,14 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
                 or line.cost_set.job_id != job.id
                 or line.ext_refs.get("stock_id") != str(item.id)
             ):
-                raise ValueError("This material selection changed. Reload before approving it.")
+                raise ValueError(
+                    gettext("This material selection changed. Reload before approving it.")
+                )
             if line.managed_by == "stock":
                 item.refresh_from_db(fields=["quantity"])
                 return line
             if line.approved or line.managed_by is not None:
-                raise ValueError("Only unissued material drafts can be approved.")
+                raise ValueError(gettext("Only unissued material drafts can be approved."))
         locked = Stock.objects.select_for_update().get(id=item.id)
         resolved_cost = locked.unit_cost if unit_cost is None else unit_cost
         if job.shop_job:

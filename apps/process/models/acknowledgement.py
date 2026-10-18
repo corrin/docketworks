@@ -18,6 +18,7 @@ from typing import ClassVar
 
 from django.db import models
 from django.utils.timezone import now
+from django.utils.translation import gettext
 
 
 class Acknowledgement(models.Model):
@@ -72,8 +73,11 @@ class Acknowledgement(models.Model):
         document = self.form or self.procedure
         if document is None:  # pragma: no cover - CheckConstraint guarantees one is set
             raise ValueError("Acknowledgement has neither form nor procedure set")
-        return (
-            f"{self.staff.get_display_full_name()} acknowledged at "
-            f"{self.acknowledged_at:%d %b %Y %H:%M} that he or she read and "
-            f"understood '{document.title}'"
-        )
+        return gettext(
+            "%(name)s acknowledged at %(acknowledged_at)s that he or she read and "
+            "understood '%(title)s'"
+        ) % {
+            "name": self.staff.get_display_full_name(),
+            "acknowledged_at": f"{self.acknowledged_at:%d %b %Y %H:%M}",
+            "title": document.title,
+        }

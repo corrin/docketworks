@@ -18,6 +18,7 @@ from uuid import UUID
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect
+from django.utils.translation import gettext
 
 # Its own logger, not "apps.*": the per-request stream is high volume and an
 # operator filters or silences it (journalctl -t / a LOGGING level change)
@@ -161,7 +162,7 @@ class LoginRequiredMiddleware:
         is_json = request.headers.get("Content-Type", "").lower().startswith("application/json")
         if accepts_json or is_json:
             return JsonResponse(
-                {"detail": "Authentication credentials were not provided."},
+                {"detail": gettext("Authentication credentials were not provided.")},
                 status=401,
             )
 
@@ -171,7 +172,7 @@ class LoginRequiredMiddleware:
             return redirect(frontend_url.rstrip("/") + "/login")
         # If FRONT_END_URL is not set, return 401 to avoid a redirect loop.
         return JsonResponse(
-            {"detail": "Authentication required. FRONT_END_URL not set."},
+            {"detail": gettext("Authentication required. FRONT_END_URL not set.")},
             status=401,
         )
 

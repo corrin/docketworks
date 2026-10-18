@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
+from django.utils.translation import gettext
 from pdf2image import convert_from_path
 from PIL import Image
 
@@ -123,7 +124,7 @@ def job_file_full_path(job_file: JobFile) -> Path:
     root = workflow_root()
     full_path = (root / job_file.file_path).resolve()
     if not full_path.is_relative_to(root):
-        raise ValueError("job file path escapes the workflow folder")
+        raise ValueError(gettext("job file path escapes the workflow folder"))
     return full_path
 
 
@@ -138,11 +139,13 @@ def save_uploaded_job_file(
     from apps.job.models import JobFile  # noqa: PLC0415 -- Avoid the model/service import cycle.
 
     if not file_obj.name:
-        raise ValueError("Uploaded file has no filename")
+        raise ValueError(gettext("Uploaded file has no filename"))
 
     # Fail early if empty
     if file_obj.size == 0:
-        raise ValueError(f"Uploaded file {file_obj.name} is empty (0 bytes)")
+        raise ValueError(
+            gettext("Uploaded file %(filename)s is empty (0 bytes)") % {"filename": file_obj.name}
+        )
 
     job_folder = Path(get_job_folder_path(job.job_number))
     job_folder.mkdir(parents=True, exist_ok=True)
@@ -189,7 +192,7 @@ def update_job_file(
 
     if filename is not None:
         if not filename:
-            raise ValueError("Filename cannot be empty")
+            raise ValueError(gettext("Filename cannot be empty"))
 
         # The rename target is client-supplied: sanitise to a bare name (as the
         # upload path does) AND re-check containment after the join (as the
@@ -198,20 +201,20 @@ def update_job_file(
         # delete and stat, avoiding a time-of-check/time-of-use gap.
         safe_filename = Path(filename).name
         if not safe_filename or safe_filename in {".", ".."}:
-            raise ValueError("Filename cannot be empty")
+            raise ValueError(gettext("Filename cannot be empty"))
 
         root = workflow_root()
         old_path = job_file_full_path(job_file)
         new_path = (old_path.parent / safe_filename).resolve()
         if not new_path.is_relative_to(root):
-            raise ValueError("job file path escapes the workflow folder")
+            raise ValueError(gettext("job file path escapes the workflow folder"))
 
         if not old_path.exists():
-            raise ValueError("Original file does not exist; cannot rename.")
+            raise ValueError(gettext("Original file does not exist; cannot rename."))
 
         # Prevent overwriting an existing file with a different path
         if new_path.exists() and os.path.normcase(str(new_path)) != os.path.normcase(str(old_path)):
-            raise ValueError("A file with the requested new filename already exists.")
+            raise ValueError(gettext("A file with the requested new filename already exists."))
 
         old_path.rename(new_path)
 

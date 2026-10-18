@@ -26,6 +26,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models, transaction
 from django.http import HttpRequest, HttpResponse
+from django.utils.translation import gettext
 from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -185,7 +186,9 @@ class CompanyDefaultsPatchIn(ModelSchema):
         # field because this schema is derived with fields_optional="__all__".
         for name in self.model_fields_set & _NULLABLE_TEXT_FIELDS:
             if getattr(self, name) == "":
-                raise ValueError(f"{name}: blank is not a value; send null to clear")
+                raise ValueError(
+                    gettext("%(name)s: blank is not a value; send null to clear") % {"name": name}
+                )
         return self
 
 
@@ -242,14 +245,17 @@ def _apply_picked_place(instance: CompanyDefaults, place_id: object) -> dict[str
         try:
             place = fetch_place(str(place_id))
         except GeocodingNotConfiguredError as exc:
-            raise HttpError(503, "Address lookup service not configured") from exc
+            raise HttpError(503, gettext("Address lookup service not configured")) from exc
         except GeocodingError as exc:
             persist_app_error(exc)
             raise HttpError(503, str(exc)) from exc
         if place is None:
             # Fail rather than store the address without its geocode: the two
             # are one fact, and a half-saved pair is the drift this avoids.
-            raise HttpError(400, f"Google no longer knows the place {place_id}")
+            raise HttpError(
+                400,
+                gettext("Google no longer knows the place %(place_id)s") % {"place_id": place_id},
+            )
         derived.update(
             {
                 "formatted_address": place.formatted_address,
@@ -338,8 +344,11 @@ def company_defaults_partial_update(
     # (accounting_mirror.is_locally_raised) and a shared one decides nothing.
     if supplied.get("po_prefix") == XERO_PURCHASE_ORDER_PREFIX:
         raise InvalidInputError(
-            f"{XERO_PURCHASE_ORDER_PREFIX!r} is the prefix Xero numbers its own orders with; "
-            "choose one that is only ours."
+            gettext(
+                "%(prefix)s is the prefix Xero numbers its own orders with; "
+                "choose one that is only ours."
+            )
+            % {"prefix": repr(XERO_PURCHASE_ORDER_PREFIX)}
         )
     for field, value in supplied.items():
         setattr(instance, field, value)
@@ -392,7 +401,7 @@ def company_defaults_logo_update(
     request: HttpRequest, field_name: LogoFieldName, file: File[UploadedFile]
 ) -> CompanyDefaults:
     """Save the uploaded file and delete the file it replaces."""
-    validate_image_upload(file, label="Logo")
+    validate_image_upload(file, label=gettext("Logo"))
     instance = CompanyDefaults.get_solo()
     # Opus: save the new file before unlinking the old one — a save failure
     # (full_clean, disk-full, whatever) must not leave the row pointing at a file

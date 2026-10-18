@@ -22,6 +22,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from ninja import Router, Schema
 from ninja.responses import Status
 
@@ -167,7 +168,7 @@ def xero_ping_retrieve(
     mistake an operational failure for a clean not-connected install.
     """
     if expected_fake is not None and expected_fake != settings.XERO_FAKE:
-        raise ConflictError("Backend Xero mode disagrees with the requested mode.")
+        raise ConflictError(gettext("Backend Xero mode disagrees with the requested mode."))
     try:
         token = get_valid_token()
     except Exception as exc:  # noqa: BLE001 -- persisted; the contract is a 500 payload with error_id, not a raise
@@ -180,7 +181,7 @@ def xero_ping_retrieve(
             500,
             XeroPingErrorOut(
                 connected=False,
-                error="Xero connection check failed; see error_id.",
+                error=gettext("Xero connection check failed; see error_id."),
                 error_id=str(app_error.id),
             ),
         )
@@ -339,7 +340,7 @@ def _xero_auth_refusal() -> XeroAuthRequiredOut | None:
     return XeroAuthRequiredOut(
         success=False,
         redirect_to_auth=True,
-        message="Your Xero session has expired. Please log in again.",
+        message=gettext("Your Xero session has expired. Please log in again."),
     )
 
 
@@ -435,7 +436,10 @@ def xero_create_invoice(
     except Job.DoesNotExist:
         return Status(
             404,
-            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=gettext("Job with ID %(job_id)s not found.") % {"job_id": job_id},
+            ),
         )
 
     try:
@@ -464,7 +468,7 @@ def xero_create_invoice(
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Job has no client company; set one before invoicing."
+                success=False, error=gettext("Job has no client company; set one before invoicing.")
             ),
         )
     manager = XeroInvoiceManager(company=job.company, job=job, staff=authenticated_staff(request))
@@ -473,7 +477,7 @@ def xero_create_invoice(
     )
 
     if not result["success"]:
-        return _document_failure(result, "Invoice creation failed.")
+        return _document_failure(result, gettext("Invoice creation failed."))
     return _document_success(result, 201)
 
 
@@ -515,21 +519,24 @@ def xero_create_quote(
     except Job.DoesNotExist:
         return Status(
             404,
-            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=gettext("Job with ID %(job_id)s not found.") % {"job_id": job_id},
+            ),
         )
 
     if job.company is None:
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Job has no client company; set one before quoting."
+                success=False, error=gettext("Job has no client company; set one before quoting.")
             ),
         )
     manager = XeroQuoteManager(company=job.company, job=job, staff=authenticated_staff(request))
     result = manager.create_document(breakdown=payload.breakdown)
 
     if not result["success"]:
-        return _document_failure(result, "Quote creation failed.")
+        return _document_failure(result, gettext("Quote creation failed."))
     return _document_success(result, 201)
 
 
@@ -567,7 +574,10 @@ def xero_delete_quote(
     except Job.DoesNotExist:
         return Status(
             404,
-            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=gettext("Job with ID %(job_id)s not found.") % {"job_id": job_id},
+            ),
         )
 
     # The quote row carries its own company (non-null FK): a job whose
@@ -578,14 +588,14 @@ def xero_delete_quote(
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Job has no client company and no Xero quote."
+                success=False, error=gettext("Job has no client company and no Xero quote.")
             ),
         )
     manager = XeroQuoteManager(company=company, job=job, staff=authenticated_staff(request))
     result = manager.delete_document()
 
     if not result["success"]:
-        return _document_failure(result, "Quote deletion failed.")
+        return _document_failure(result, gettext("Quote deletion failed."))
     return _document_success(result, 200)
 
 
@@ -623,7 +633,10 @@ def xero_delete_invoice(
     except Job.DoesNotExist:
         return Status(
             404,
-            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=gettext("Job with ID %(job_id)s not found.") % {"job_id": job_id},
+            ),
         )
     try:
         invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
@@ -635,7 +648,8 @@ def xero_delete_invoice(
             404,
             XeroDocumentErrorResponse(
                 success=False,
-                error=f"Invoice with Xero ID {xero_invoice_id} not found for this job.",
+                error=gettext("Invoice with Xero ID %(xero_invoice_id)s not found for this job.")
+                % {"xero_invoice_id": xero_invoice_id},
             ),
         )
 
@@ -643,7 +657,8 @@ def xero_delete_invoice(
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Job has no client company; cannot delete its invoice."
+                success=False,
+                error=gettext("Job has no client company; cannot delete its invoice."),
             ),
         )
     manager = XeroInvoiceManager(
@@ -655,7 +670,7 @@ def xero_delete_invoice(
     result = manager.delete_document()
 
     if not result["success"]:
-        return _document_failure(result, "Invoice deletion failed.")
+        return _document_failure(result, gettext("Invoice deletion failed."))
     return _document_success(result, 200)
 
 
@@ -698,14 +713,16 @@ def xero_create_purchase_order(
         return Status(
             404,
             XeroDocumentErrorResponse(
-                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+                success=False,
+                error=gettext("Purchase order with ID %(purchase_order_id)s not found.")
+                % {"purchase_order_id": purchase_order_id},
             ),
         )
     if purchase_order.supplier is None:
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Purchase order must have a supplier assigned"
+                success=False, error=gettext("Purchase order must have a supplier assigned")
             ),
         )
 
@@ -715,7 +732,7 @@ def xero_create_purchase_order(
     result = manager.sync_to_xero()
 
     if not result["success"]:
-        return _document_failure(result, "Purchase order sync failed.")
+        return _document_failure(result, gettext("Purchase order sync failed."))
     return _document_success(result, 200)
 
 
@@ -750,14 +767,16 @@ def xero_delete_purchase_order(
         return Status(
             404,
             XeroDocumentErrorResponse(
-                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+                success=False,
+                error=gettext("Purchase order with ID %(purchase_order_id)s not found.")
+                % {"purchase_order_id": purchase_order_id},
             ),
         )
     if purchase_order.supplier is None:
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Purchase order must have a supplier assigned"
+                success=False, error=gettext("Purchase order must have a supplier assigned")
             ),
         )
 
@@ -767,7 +786,7 @@ def xero_delete_purchase_order(
     result = manager.delete_document()
 
     if not result["success"]:
-        return _document_failure(result, "Purchase order deletion failed.")
+        return _document_failure(result, gettext("Purchase order deletion failed."))
     return _document_success(result, 200)
 
 
@@ -815,7 +834,7 @@ def xero_sync_create(
             XeroAuthRequiredOut(
                 success=False,
                 redirect_to_auth=True,
-                message="No valid Xero token. Please authenticate.",
+                message=gettext("No valid Xero token. Please authenticate."),
             ),
         )
     if result.reason == "already_running":
@@ -823,13 +842,15 @@ def xero_sync_create(
             409,
             XeroSyncStartOut(
                 status="already_running",
-                message="A sync is already running",
+                message=gettext("A sync is already running"),
                 task_id=result.task_id,
             ),
         )
     return Status(
         202,
-        XeroSyncStartOut(status="started", message="Started new Xero sync", task_id=result.task_id),
+        XeroSyncStartOut(
+            status="started", message=gettext("Started new Xero sync"), task_id=result.task_id
+        ),
     )
 
 
@@ -879,7 +900,7 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
 
     return XeroSyncInfoOut(
         last_syncs=last_syncs,
-        sync_range="Syncing data since last successful sync",
+        sync_range=gettext("Syncing data since last successful sync"),
         sync_in_progress=sync_in_progress,
         last_detail_refresh=last_detail_refresh(CompanyDefaults.get_solo().xero_tenant_id),
     )
@@ -1024,7 +1045,9 @@ def xero_apps_create(
     # deliberate-swallow: creating a row with a client_id another row holds
     # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
-        return Status(400, XeroAppErrorOut(detail="A XeroApp with that client_id already exists."))
+        return Status(
+            400, XeroAppErrorOut(detail=gettext("A XeroApp with that client_id already exists."))
+        )
     return Status(201, _app_out(app))
 
 
@@ -1058,7 +1081,9 @@ def xero_apps_partial_update(
     # deliberate-swallow: rotating a row ONTO a client_id its sibling holds
     # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
-        return Status(400, XeroAppErrorOut(detail="A XeroApp with that client_id already exists."))
+        return Status(
+            400, XeroAppErrorOut(detail=gettext("A XeroApp with that client_id already exists."))
+        )
 
     credentials_changed = (
         app.client_id != before_client_id or app.client_secret != before_client_secret
@@ -1101,7 +1126,7 @@ def xero_apps_destroy(request: HttpRequest, app_id: UUID) -> Status[XeroAppError
             return Status(
                 400,
                 XeroAppErrorOut(
-                    detail="Cannot delete the active XeroApp. Activate another row first."
+                    detail=gettext("Cannot delete the active XeroApp. Activate another row first.")
                 ),
             )
         app.delete()
@@ -1134,7 +1159,7 @@ def xero_apps_activate(request: HttpRequest, app_id: UUID) -> XeroAppActivateOut
     return XeroAppActivateOut(
         **base.model_dump(),
         restart_initiated=True,
-        message=(
+        message=gettext(
             "Active Xero app swapped. Workers are restarting; "
             "this page will refresh in a few seconds."
         ),

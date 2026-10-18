@@ -9,6 +9,7 @@ from typing import Any
 # it must be added at integration for these validators to import.
 import jsonschema
 from django.core.exceptions import ValidationError
+from django.utils.translation import gettext
 
 # Common schema fragments used across meta and ext_refs validation.
 STRING_OR_NULL = {"type": ["string", "null"]}
@@ -29,7 +30,7 @@ def _validate_mapping(value: Mapping[str, Any] | None, field_label: str) -> Mapp
         return {}
     if isinstance(value, Mapping):
         return value
-    raise ValidationError({field_label: "Value must be a JSON object."}, code="invalid")
+    raise ValidationError({field_label: gettext("Value must be a JSON object.")}, code="invalid")
 
 
 def _run_schema_validation(
@@ -40,7 +41,10 @@ def _run_schema_validation(
         jsonschema.validate(instance=value, schema=schema)
     except jsonschema.ValidationError as exc:  # pragma: no cover - exercised indirectly in tests
         raise ValidationError(
-            {field_label: f"{exc.message} (path: {'/'.join(map(str, exc.path)) or '.'})"},
+            {
+                field_label: gettext("%(message)s (path: %(path)s)")
+                % {"message": exc.message, "path": "/".join(map(str, exc.path)) or "."}
+            },
             code="invalid",
         ) from exc
 

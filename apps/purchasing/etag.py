@@ -11,6 +11,8 @@ rather than behind a function-local import that hides the cycle.
 
 import logging
 
+from django.utils.translation import gettext
+
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -33,4 +35,4 @@ def require_current_etag(po: PurchaseOrder, if_match: str) -> None:
         logger.warning(
             "ETag mismatch on PO %s: client sent %r, current %r", po.id, if_match, current
         )
-        raise PreconditionFailedError("Purchase order modified since it was fetched.")
+        raise PreconditionFailedError(gettext("Purchase order modified since it was fetched."))

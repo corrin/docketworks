@@ -18,6 +18,7 @@ from uuid import UUID
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext
 from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
@@ -109,8 +110,10 @@ def _require_sync_enabled() -> None:
     """
     if not is_accounting_enabled():
         raise XeroSyncDisabled(
-            "Xero sync is disabled: CompanyDefaults.enable_xero_sync is False. "
-            "finalize_instance_onboarding enables it once onboarding has succeeded."
+            gettext(
+                "Xero sync is disabled: CompanyDefaults.enable_xero_sync is False. "
+                "finalize_instance_onboarding enables it once onboarding has succeeded."
+            )
         )
 
 
@@ -200,7 +203,7 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
             "severity": "warning",
-            "message": "Sync aborted: Production/tenant mismatch",
+            "message": gettext("Sync aborted: Production/tenant mismatch"),
             "progress": 0.0,
         }
         return
@@ -239,7 +242,8 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             # through `yield from` to the worker task, which has a
             # XeroQuotaFloorReached branch that emits sync_status:"aborted".
             raise XeroQuotaFloorReached(
-                f"Skipping {our_entity_type}: Xero day quota at floor ({floor})"
+                gettext("Skipping %(entity)s: Xero day quota at floor (%(floor)s)")
+                % {"entity": our_entity_type, "floor": floor}
             )
 
         # Update pagination params
@@ -299,7 +303,8 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
             "severity": "info",
-            "message": f"Processed {len(items_to_sync)} {our_entity_type}",
+            "message": gettext("Processed %(count)s %(entity)s")
+            % {"count": len(items_to_sync), "entity": our_entity_type},
             "progress": None,
             "recordsUpdated": len(items_to_sync),
         }
@@ -327,7 +332,7 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
         "datetime": timezone.now().isoformat(),
         "entity": our_entity_type,
         "severity": "info",
-        "message": f"Completed sync of {our_entity_type}",
+        "message": gettext("Completed sync of %(entity)s") % {"entity": our_entity_type},
         "status": "Completed",
         "progress": 1.0,
     }
@@ -595,7 +600,7 @@ def sync_all_xero_data(
 
     token = get_valid_token()
     if not token:
-        message = "No valid Xero token found"
+        message = gettext("No valid Xero token found")
         logger.warning(message)
         raise NoValidXeroTokenError(message)
 
@@ -701,7 +706,10 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "purchase_orders_local_to_xero",
             "severity": "info",
-            "message": f"Owed purchase orders left for later: Xero day quota at floor ({floor})",
+            "message": gettext(
+                "Owed purchase orders left for later: Xero day quota at floor (%(floor)s)"
+            )
+            % {"floor": floor},
             "progress": None,
         }
         return
@@ -718,7 +726,8 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         "datetime": timezone.now().isoformat(),
         "entity": "purchase_orders_local_to_xero",
         "severity": "info",
-        "message": f"Sending {len(owed)} purchase orders that still owe Xero a call",
+        "message": gettext("Sending %(count)s purchase orders that still owe Xero a call")
+        % {"count": len(owed)},
         "progress": None,
     }
     for po in owed:
@@ -737,7 +746,8 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         "datetime": timezone.now().isoformat(),
         "entity": "purchase_orders_local_to_xero",
         "severity": "warning" if still_owed else "info",
-        "message": f"Sent {len(owed) - still_owed} purchase orders; {still_owed} still owed",
+        "message": gettext("Sent %(sent)s purchase orders; %(still_owed)s still owed")
+        % {"sent": len(owed) - still_owed, "still_owed": still_owed},
         "progress": None,
         "recordsUpdated": len(owed) - still_owed,
     }
@@ -753,7 +763,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "info",
-            "message": "Starting sync of local stock items to Xero",
+            "message": gettext("Starting sync of local stock items to Xero"),
             "progress": None,
         }
 
@@ -769,7 +779,8 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
                 "datetime": timezone.now().isoformat(),
                 "entity": "stock_local_to_xero",
                 "severity": "info",
-                "message": f"Synced {result['synced_count']} local stock items to Xero",
+                "message": gettext("Synced %(count)s local stock items to Xero")
+                % {"count": result["synced_count"]},
                 "progress": None,
                 "recordsUpdated": result["synced_count"],
             }
@@ -779,7 +790,8 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
                 "datetime": timezone.now().isoformat(),
                 "entity": "stock_local_to_xero",
                 "severity": "warning",
-                "message": f"Failed to sync {result['failed_count']} stock items to Xero",
+                "message": gettext("Failed to sync %(count)s stock items to Xero")
+                % {"count": result["failed_count"]},
                 "progress": None,
             }
 
@@ -787,7 +799,8 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "info",
-            "message": (f"Completed local stock sync: {result['success_rate']:.1f}% success rate"),
+            "message": gettext("Completed local stock sync: %(success_rate)s%% success rate")
+            % {"success_rate": f"{result['success_rate']:.1f}"},
             "status": "Completed",
             "progress": 1.0,
         }
@@ -806,7 +819,7 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
             "datetime": timezone.now().isoformat(),
             "entity": "stock_local_to_xero",
             "severity": "error",
-            "message": f"Error syncing local stock to Xero: {exc}",
+            "message": gettext("Error syncing local stock to Xero: %(error)s") % {"error": exc},
             "progress": None,
         }
 
@@ -851,7 +864,9 @@ def synchronise_xero_data(
         # Raise rather than yield-and-return: the latter would let the worker
         # finish normally and emit sync_status:"success", silently hiding the
         # abort. Raising lets its XeroQuotaFloorReached branch emit "aborted".
-        raise XeroQuotaFloorReached(f"Skipping sync: Xero day quota at floor ({floor})")
+        raise XeroQuotaFloorReached(
+            gettext("Skipping sync: Xero day quota at floor (%(floor)s)") % {"floor": floor}
+        )
 
     if detail_refresh:
         tenant_id = get_tenant_id()
@@ -879,10 +894,13 @@ def synchronise_xero_data(
         "datetime": timezone.now().isoformat(),
         "entity": "pay_items",
         "severity": "info",
-        "message": (
-            f"Synced pay items: {lt['created'] + lt['updated']} leave types, "
-            f"{er['created'] + er['updated']} earnings rates"
-        ),
+        "message": gettext(
+            "Synced pay items: %(leave_types)s leave types, %(earnings_rates)s earnings rates"
+        )
+        % {
+            "leave_types": lt["created"] + lt["updated"],
+            "earnings_rates": er["created"] + er["updated"],
+        },
         "progress": None,
         "recordsUpdated": result["records_updated"],
     }
@@ -890,7 +908,7 @@ def synchronise_xero_data(
         "datetime": timezone.now().isoformat(),
         "entity": "pay_items",
         "severity": "info",
-        "message": "Completed sync of pay_items",
+        "message": gettext("Completed sync of pay_items"),
         "status": "Completed",
         "progress": 1.0,
     }

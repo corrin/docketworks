@@ -9,6 +9,7 @@ import logging
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils.translation import gettext
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
@@ -109,4 +110,8 @@ def _require_source_forms_exist(schema: FormSchemaSpec) -> None:
     found = set(Form.objects.filter(pk__in=wanted).values_list("pk", flat=True))
     missing = wanted - found
     if missing:
-        raise HttpError(400, f"entry_ref source form(s) not found: {sorted(map(str, missing))}.")
+        raise HttpError(
+            400,
+            gettext("entry_ref source form(s) not found: %(missing)s.")
+            % {"missing": sorted(map(str, missing))},
+        )

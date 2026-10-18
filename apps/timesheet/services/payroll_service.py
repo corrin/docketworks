@@ -23,6 +23,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 from uuid import UUID
 
+from django.utils.translation import gettext
+
 from apps.accounting.registry import get_provider
 from apps.accounting.types import require_payroll_week_start
 from apps.accounts.staff_directory import get_displayable_staff
@@ -171,7 +173,9 @@ def build_xero_payroll_url(pay_run_xero_id: UUID) -> str:
     shortcode = CompanyDefaults.get_solo().xero_shortcode
     if not shortcode:
         raise ValueError(
-            "Xero shortcode not configured. Run 'python manage.py xero --setup' to fetch it."
+            gettext(
+                "Xero shortcode not configured. Run 'python manage.py xero --setup' to fetch it."
+            )
         )
     return f"https://payroll.xero.com/PayRun?CID={shortcode}#payruns/{pay_run_xero_id}"
 
@@ -181,8 +185,10 @@ def get_payroll_calendar_id() -> UUID:
     calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
     if not calendar_id:
         raise ValueError(
-            "xero_payroll_calendar_id not configured in CompanyDefaults. "
-            "Run: python manage.py xero --setup"
+            gettext(
+                "xero_payroll_calendar_id not configured in CompanyDefaults. "
+                "Run: python manage.py xero --setup"
+            )
         )
     return calendar_id
 
@@ -344,9 +350,12 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
     holder = payroll_runs.acquire_run_claim(connection_id, str(run_id))
     if holder is not None:
         raise PayrollRunInProgressError(
-            f"A payroll posting run ({holder}) is already in progress for this "
-            "organisation. Nothing was posted. Wait for it to finish, then check "
-            "what Xero holds before posting again."
+            gettext(
+                "A payroll posting run (%(holder)s) is already in progress for this "
+                "organisation. Nothing was posted. Wait for it to finish, then check "
+                "what Xero holds before posting again."
+            )
+            % {"holder": holder}
         )
 
     # Fable: Preflight refusals happen under the claim — refreshing the mirror
@@ -366,18 +375,27 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
         payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
         if payroll_start is not None and week_start_date < payroll_start:
             raise ValueError(
-                f"Xero payroll starts {payroll_start.isoformat()}; the week of "
-                f"{week_start_date.isoformat()} predates it. Nothing was posted."
+                gettext(
+                    "Xero payroll starts %(payroll_start)s; the week of "
+                    "%(week_start)s predates it. Nothing was posted."
+                )
+                % {
+                    "payroll_start": payroll_start.isoformat(),
+                    "week_start": week_start_date.isoformat(),
+                }
             )
         postable = next_postable_payroll_week(get_payroll_calendar_id())
         if postable is not None and week_start_date != postable[0]:
             raise ValueError(
-                f"Xero processes pay runs in order: only the week starting "
-                f"{postable[0].isoformat()} can be posted next. Nothing was posted."
+                gettext(
+                    "Xero processes pay runs in order: only the week starting "
+                    "%(week_start)s can be posted next. Nothing was posted."
+                )
+                % {"week_start": postable[0].isoformat()}
             )
         staff_ids = [staff.id for staff in _postable_staff(week_start_date)]
         if not staff_ids:
-            raise ValueError("There are no staff to post for this week.")
+            raise ValueError(gettext("There are no staff to post for this week."))
     except Exception:
         payroll_runs.release_run_claim(connection_id, str(run_id))
         raise
@@ -412,7 +430,10 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
                 payroll_runs.write(
                     connection_id,
                     payroll_runs.finished(
-                        run, "failed", message=f"Could not start the posting run: {exc}"
+                        run,
+                        "failed",
+                        message=gettext("Could not start the posting run: %(error)s")
+                        % {"error": exc},
                     ),
                 )
         finally:

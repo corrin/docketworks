@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 from apps.job.helpers import get_job_folder_path
 
@@ -57,7 +58,7 @@ class JobFile(models.Model):  # noqa: DJ008 -- Stored files have no useful short
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20,
-        choices=[("active", "Active"), ("deleted", "Deleted")],
+        choices=[("active", gettext_lazy("Active")), ("deleted", gettext_lazy("Deleted"))],
         default="active",
     )
     print_on_jobsheet = models.BooleanField(default=True)

@@ -45,6 +45,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
+from django.utils.translation import gettext
 
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
@@ -624,12 +625,12 @@ class KanbanService:
 
         for column in columns:
             # Use column as the main "status" for the kanban view
-            status_choices[column.column_id] = column.column_title
+            status_choices[column.column_id] = str(column.column_title)
 
             # Create tooltip based on column's status key
-            status_tooltips[column.column_id] = (
-                f"Status: {column.status_key.replace('_', ' ').title()}"
-            )
+            status_tooltips[column.column_id] = gettext("Status: %(status)s") % {
+                "status": column.status_key.replace("_", " ").title()
+            }
 
         return {"statuses": status_choices, "tooltips": status_tooltips}
 
@@ -792,7 +793,7 @@ class KanbanService:
 
         anchor = Job.objects.get(pk=anchor_job_id)
         if anchor.status != target_status:
-            raise ValueError("Reorder anchor must be in the target status")
+            raise ValueError(gettext("Reorder anchor must be in the target status"))
 
         return anchor
 
@@ -864,7 +865,7 @@ class KanbanService:
 
             return anchor.priority - increment
 
-        raise ValueError("placement must be 'above' or 'below'")
+        raise ValueError(gettext("placement must be 'above' or 'below'"))
 
     @staticmethod
     def reorder_job(
@@ -889,11 +890,11 @@ class KanbanService:
         logger.info("Reordering job %s (current priority: %s)", job.job_number, job.priority)
 
         if anchor_job_id and str(anchor_job_id) == str(job_id):
-            raise ValueError("Reorder anchor cannot be the moved job")
+            raise ValueError(gettext("Reorder anchor cannot be the moved job"))
         if anchor_job_id and placement not in {"above", "below"}:
-            raise ValueError("placement must be 'above' or 'below'")
+            raise ValueError(gettext("placement must be 'above' or 'below'"))
         if placement and not anchor_job_id:
-            raise ValueError("anchor_job_id is required when placement is supplied")
+            raise ValueError(gettext("anchor_job_id is required when placement is supplied"))
 
         # Determine target status for priority calculation
         target_status = new_status if new_status else job.status
@@ -1094,7 +1095,7 @@ class KanbanService:
         if column is None:
             return {
                 "success": False,
-                "error": f"Invalid column: {column_id}",
+                "error": gettext("Invalid column: %(column_id)s") % {"column_id": column_id},
                 "jobs": [],
                 "total": 0,
                 "filtered_count": 0,

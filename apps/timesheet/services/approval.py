@@ -15,6 +15,7 @@ from typing import Literal, TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
@@ -184,7 +185,10 @@ def _staff_day(
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
         over = duration_words(Decimal(str(-fill["to_go_hours"])))
-        clock = {**clock, "cautions": [*clock["cautions"], f"Over by {over}"]}
+        clock = {
+            **clock,
+            "cautions": [*clock["cautions"], gettext("Over by %(over)s") % {"over": over}],
+        }
     state: ApprovalState
     if not entries and (rostered or attendance is not None):
         # Expected and no job in: the person the office phones. His paid
@@ -331,7 +335,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     """
     general_work_id = CompanyDefaults.get_solo().general_work_job_id
     if general_work_id is None:
-        raise GeneralWorkNotSetUpError("General work is not set up. Run create_shop_jobs.")
+        raise GeneralWorkNotSetUpError(gettext("General work is not set up. Run create_shop_jobs."))
     # Two offices sweeping the same person would both read the same stretches
     # before either writes, and pay them twice; the second waits here and
     # reads the first's entries. Ordered by pk so two sweeps never deadlock.

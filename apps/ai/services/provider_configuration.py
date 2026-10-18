@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from litellm.exceptions import (
     AuthenticationError,
     BadRequestError,
@@ -95,14 +96,14 @@ def verify_provider(provider: AIProvider) -> str:
         raise InvalidInputError(str(exc)) from exc
     except (AuthenticationError, PermissionDeniedError) as exc:
         raise InvalidInputError(
-            "The provider rejected these credentials or model permissions."
+            gettext("The provider rejected these credentials or model permissions.")
         ) from exc
     except (NotFoundError, BadRequestError) as exc:
         raise InvalidInputError(
-            "The provider rejected this model or chat request configuration."
+            gettext("The provider rejected this model or chat request configuration.")
         ) from exc
     except RateLimitError as exc:
         raise UpstreamRefusedError(
-            "The provider's quota or rate limit prevented this test."
+            gettext("The provider's quota or rate limit prevented this test.")
         ) from exc
     return resolve_target(provider=provider).model

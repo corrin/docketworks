@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.db.models import Sum, prefetch_related_objects
 from django.db.models.functions import Coalesce
+from django.utils.translation import gettext
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models.invoice import Invoice
@@ -130,25 +131,31 @@ def _calculate_fixed_price(
 
     elif mode == "invoice_percent":
         if percent is None:
-            raise InvoiceCalculationError("percent is required for invoice_percent mode.")
+            raise InvoiceCalculationError(gettext("percent is required for invoice_percent mode."))
         pct = Decimal(str(percent))
         if pct > Decimal("100"):
-            raise InvoiceCalculationError(f"percent must be 100 or less, got {pct}.")
+            raise InvoiceCalculationError(
+                gettext("percent must be 100 or less, got %(percent)s.") % {"percent": pct}
+            )
         calculated = target_total * pct / Decimal("100") - prior_invoiced
 
     elif mode == "invoice_amount":
         if amount is None:
-            raise InvoiceCalculationError("amount is required for invoice_amount mode.")
+            raise InvoiceCalculationError(gettext("amount is required for invoice_amount mode."))
         calculated = Decimal(str(amount))
         remaining = target_total - prior_invoiced
         if calculated > remaining:
             raise InvoiceCalculationError(
-                f"Invoice amount ${calculated:.2f} exceeds remaining "
-                f"quote balance of ${remaining:.2f}."
+                gettext(
+                    "Invoice amount $%(amount)s exceeds remaining quote balance of $%(remaining)s."
+                )
+                % {"amount": f"{calculated:.2f}", "remaining": f"{remaining:.2f}"}
             )
 
     else:
-        raise InvoiceCalculationError(f"Invalid mode '{mode}' for fixed-price job.")
+        raise InvoiceCalculationError(
+            gettext("Invalid mode '%(mode)s' for fixed-price job.") % {"mode": mode}
+        )
 
     return InvoiceCalculationResult(
         mode=mode,
@@ -175,19 +182,23 @@ def _calculate_time_materials(
 
     elif mode == "invoice_amount":
         if amount is None:
-            raise InvoiceCalculationError("amount is required for invoice_amount mode.")
+            raise InvoiceCalculationError(gettext("amount is required for invoice_amount mode."))
         calculated = Decimal(str(amount))
 
     elif mode == "invoice_percent":
-        raise InvoiceCalculationError("invoice_percent is not supported for T&M jobs.")
+        raise InvoiceCalculationError(gettext("invoice_percent is not supported for T&M jobs."))
 
     elif mode == "invoice_full":
         raise InvoiceCalculationError(
-            "invoice_full is not supported for T&M jobs. Use invoice_costs_to_date instead."
+            gettext(
+                "invoice_full is not supported for T&M jobs. Use invoice_costs_to_date instead."
+            )
         )
 
     else:
-        raise InvoiceCalculationError(f"Invalid mode '{mode}' for T&M job.")
+        raise InvoiceCalculationError(
+            gettext("Invalid mode '%(mode)s' for T&M job.") % {"mode": mode}
+        )
 
     return InvoiceCalculationResult(
         mode=mode,
@@ -203,7 +214,10 @@ def _calculate_time_materials(
 def _validate_positive(amount: Decimal) -> Decimal:
     if amount <= Decimal("0"):
         raise InvoiceCalculationError(
-            f"Calculated invoice amount (${amount:.2f}) must be positive. "
-            "The job may already be fully invoiced."
+            gettext(
+                "Calculated invoice amount ($%(amount)s) must be positive. "
+                "The job may already be fully invoiced."
+            )
+            % {"amount": f"{amount:.2f}"}
         )
     return amount

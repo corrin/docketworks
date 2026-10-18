@@ -9,6 +9,7 @@ an anonymous endpoint. The enqueue costs the same for every caller.
 import logging
 
 from celery import shared_task
+from django.utils.translation import gettext, gettext_noop
 
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 #: The reset email's subject. The E2E reset spec finds the message by it
 #: (apps/diagnostics/management/commands/e2e_read_reset_link.py).
-RESET_EMAIL_SUBJECT = "Reset your DocketWorks password"
+RESET_EMAIL_SUBJECT = gettext_noop("Reset your DocketWorks password")
 
 
 @shared_task(name="apps.accounts.tasks.send_password_reset_email_task")
@@ -28,13 +29,14 @@ def send_password_reset_email_task(recipient: str, link: str) -> None:
         send_company_email(
             company_email=CompanyDefaults.get_solo().company_email,
             to=recipient,
-            subject=RESET_EMAIL_SUBJECT,
-            body=(
-                f"Someone asked to reset the DocketWorks password for {recipient}.\n\n"
-                f"Use this link to choose a new password:\n\n{link}\n\n"
+            subject=gettext(RESET_EMAIL_SUBJECT),
+            body=gettext(
+                "Someone asked to reset the DocketWorks password for %(recipient)s.\n\n"
+                "Use this link to choose a new password:\n\n%(link)s\n\n"
                 "If you did not ask for this, you can ignore this email — your "
                 "password is unchanged."
-            ),
+            )
+            % {"recipient": recipient, "link": link},
         )
     except Exception as exc:
         # A failed reset email is invisible from the fixed-200 endpoint by

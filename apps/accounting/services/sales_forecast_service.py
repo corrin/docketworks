@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from django.db.models import DecimalField, F, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth
+from django.utils.translation import gettext
 
 from apps.accounting.models import Invoice
 from apps.job.models import Job
@@ -184,16 +185,16 @@ def _total_invoiced_for_job(job: Job) -> float:
 def _job_note(job: Job | None, match_type: str) -> str | None:
     """Job characteristics first, then match status."""
     if job and job.shop_job:
-        return "Shop job"
+        return gettext("Shop job")
     if job:
         start = job.start_date
         end = job.last_financial_activity_date
         if start and end and (start.year, start.month) != (end.year, end.month):
-            return "Multi-month"
+            return gettext("Multi-month")
     if match_type == "xero_only":
-        return "Xero only"
+        return gettext("Xero only")
     if match_type == "jm_only":
-        return "JM only"
+        return gettext("JM only")
     return None
 
 

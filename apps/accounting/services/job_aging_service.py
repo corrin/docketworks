@@ -10,6 +10,7 @@ from typing import TypedDict
 
 from django.db.models import Prefetch
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -99,7 +100,7 @@ def get_job_aging_data(*, include_archived: bool = False) -> JobAgingData:
             id=str(job.id),
             job_number=job.job_number,
             name=job.name,
-            company_name=job.company.name if job.company else "No Company",
+            company_name=job.company.name if job.company else gettext("No Company"),
             status=job.status,
             status_display=job.get_status_display(),
             financial_data=_financial_totals(job),
@@ -183,18 +184,23 @@ def _last_activity(job: Job) -> _LastActivity | None:
             _Activity(
                 date=job.updated_at,
                 type="job_update",
-                description="Job record updated",
+                description=gettext("Job record updated"),
             )
         )
 
     for cost_set in job.cost_sets.all():
         for cost_line in cost_set.cost_lines.all():
-            description = f"{cost_line.get_kind_display()} entry: {cost_line.desc}"
+            description = gettext("%(kind)s entry: %(desc)s") % {
+                "kind": cost_line.get_kind_display(),
+                "desc": cost_line.desc,
+            }
             # Only actual time entries have staff; estimate/quote lines are
             # planning entries.
             if cost_line.kind == "time" and cost_set.kind == "actual":
                 staff = _resolve_staff(job, cost_line)
-                description = f"Time added by {staff.get_display_full_name()}"
+                description = gettext("Time added by %(staff)s") % {
+                    "staff": staff.get_display_full_name()
+                }
             activities.append(
                 _Activity(
                     date=datetime.datetime.combine(

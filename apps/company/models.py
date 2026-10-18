@@ -20,6 +20,7 @@ from django.db import DEFAULT_DB_ALIAS, models
 from django.db.models.base import ModelBase
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from django.utils.translation import gettext, gettext_lazy
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class Company(models.Model):
     is_supplier = models.BooleanField(default=False)  # Indicates if this company is also a supplier
     allow_jobs = models.BooleanField(
         default=True,
-        help_text=(
+        help_text=gettext_lazy(
             "If False, this company cannot be selected as the company on a Job. "
             "Use for Xero contacts that must exist (tax authorities, internal "
             "accounts, etc.) but should never appear on a job. Automatically "
@@ -114,13 +115,15 @@ class Company(models.Model):
     # Fields to track merged companies in Xero
     xero_archived = models.BooleanField(
         default=False,
-        help_text="Indicates if this company has been archived/merged in Xero",
+        help_text=gettext_lazy("Indicates if this company has been archived/merged in Xero"),
     )
     xero_merged_into_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
-        help_text="The Xero contact ID this company was merged into (temporary storage)",
+        help_text=gettext_lazy(
+            "The Xero contact ID this company was merged into (temporary storage)"
+        ),
     )
     merged_into = models.ForeignKey(
         "self",
@@ -128,7 +131,7 @@ class Company(models.Model):
         null=True,
         blank=True,
         related_name="merged_from_companies",
-        help_text="The company this was merged into",
+        help_text=gettext_lazy("The company this was merged into"),
     )
 
     objects = CompanyQuerySet.as_manager()
@@ -405,7 +408,7 @@ class CompanyPersonLink(models.Model):
         Company,
         on_delete=models.CASCADE,
         related_name="contacts",
-        help_text="The company this contact belongs to",
+        help_text=gettext_lazy("The company this contact belongs to"),
     )
     person = models.ForeignKey(
         Person,
@@ -416,26 +419,28 @@ class CompanyPersonLink(models.Model):
         max_length=255,
         null=True,
         blank=True,
-        help_text="Job title if it's helpful - else leave blank",
+        help_text=gettext_lazy("Job title if it's helpful - else leave blank"),
     )
     is_primary = models.BooleanField(
         default=False,
-        help_text="Indicates if this is the primary contact for the company",
+        help_text=gettext_lazy("Indicates if this is the primary contact for the company"),
     )
     notes = models.TextField(  # noqa: DJ001
-        null=True, blank=True, help_text="Additional notes about this contact"
+        null=True, blank=True, help_text=gettext_lazy("Additional notes about this contact")
     )
     is_active = models.BooleanField(
         default=True,
-        help_text="Soft delete flag - inactive contacts are hidden from normal queries",
+        help_text=gettext_lazy(
+            "Soft delete flag - inactive contacts are hidden from normal queries"
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-is_primary", "person__name"]
-        verbose_name = "Company Person Link"
-        verbose_name_plural = "Company Person Links"
+        verbose_name = gettext_lazy("Company Person Link")
+        verbose_name_plural = gettext_lazy("Company Person Links")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=["company", "person"],
@@ -488,9 +493,11 @@ class PhoneAssignmentConflictError(Exception):
         """Record the conflicting method (or None for an internal endpoint)."""
         self.conflict = conflict
         if conflict is None:
-            message = "phone number is an active internal phone endpoint"
+            message = gettext("phone number is an active internal phone endpoint")
         else:
-            message = f"phone number already belongs to {conflict.owner_display_name()}"
+            message = gettext("phone number already belongs to %(owner)s") % {
+                "owner": conflict.owner_display_name()
+            }
         super().__init__(message)
 
 
@@ -505,12 +512,12 @@ class ContactMethod(models.Model):
     """Phone or email address owned by a company or person."""
 
     class MethodType(models.TextChoices):
-        PHONE = "phone", "Phone"
-        EMAIL = "email", "Email"
+        PHONE = "phone", gettext_lazy("Phone")
+        EMAIL = "email", gettext_lazy("Email")
 
     class Source(models.TextChoices):
-        IMPORTED = "imported", "Imported"
-        LOCAL = "local", "Local"
+        IMPORTED = "imported", gettext_lazy("Imported")
+        LOCAL = "local", gettext_lazy("Local")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(
@@ -542,8 +549,8 @@ class ContactMethod(models.Model):
 
     class Meta:
         ordering: ClassVar[list[str]] = ["method_type", "-is_primary", "label", "value"]
-        verbose_name = "Contact Method"
-        verbose_name_plural = "Contact Methods"
+        verbose_name = gettext_lazy("Contact Method")
+        verbose_name_plural = gettext_lazy("Contact Methods")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
                 condition=(
@@ -596,7 +603,7 @@ class ContactMethod(models.Model):
         self.normalized_value = self.normalize_value(self.method_type, self.value)
         update_fields = _augment_update_fields(update_fields, "normalized_value")
         if not self.normalized_value:
-            raise ValueError("contact method requires a value")
+            raise ValueError(gettext("contact method requires a value"))
         if self.method_type == self.MethodType.PHONE:
             try:
                 type(self).check_phone_assignment(
@@ -609,10 +616,13 @@ class ContactMethod(models.Model):
             except PhoneAssignmentConflictError as exc:
                 if exc.conflict is None:
                     raise ValidationError(
-                        "internal phone endpoint cannot be saved as a company contact method"
+                        gettext(
+                            "internal phone endpoint cannot be saved as a company contact method"
+                        )
                     ) from exc
                 raise ValidationError(
-                    f"phone number already belongs to {exc.conflict.owner_display_name()}"
+                    gettext("phone number already belongs to %(owner)s")
+                    % {"owner": exc.conflict.owner_display_name()}
                 ) from exc
 
         if self.is_primary:
@@ -920,80 +930,86 @@ class SupplierPickupAddress(models.Model):
         Company,
         on_delete=models.CASCADE,
         related_name="pickup_addresses",
-        help_text="The supplier this pickup address belongs to",
+        help_text=gettext_lazy("The supplier this pickup address belongs to"),
     )
     name = models.CharField(
         max_length=255,
-        help_text="Friendly name for this address (e.g., 'Main Warehouse', 'City Branch')",
+        help_text=gettext_lazy(
+            "Friendly name for this address (e.g., 'Main Warehouse', 'City Branch')"
+        ),
     )
     street = models.CharField(
         max_length=255,
-        help_text="Street address including unit/suite number",
+        help_text=gettext_lazy("Street address including unit/suite number"),
     )
     suburb = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="Suburb or neighbourhood (e.g., Thorndon, Northcote Point)",
+        help_text=gettext_lazy("Suburb or neighbourhood (e.g., Thorndon, Northcote Point)"),
     )
-    city = models.CharField(max_length=100, help_text="City (e.g., Wellington, Auckland)")
+    city = models.CharField(
+        max_length=100, help_text=gettext_lazy("City (e.g., Wellington, Auckland)")
+    )
     state = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
-        help_text="State or province",
+        help_text=gettext_lazy("State or province"),
     )
     postal_code = models.CharField(  # noqa: DJ001
         max_length=20,
         null=True,
         blank=True,
-        help_text="Postal or ZIP code",
+        help_text=gettext_lazy("Postal or ZIP code"),
     )
     country = models.CharField(
         max_length=100,
         default="New Zealand",
-        help_text="Country name",
+        help_text=gettext_lazy("Country name"),
     )
     google_place_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
-        help_text="Google Place ID for this address",
+        help_text=gettext_lazy("Google Place ID for this address"),
     )
     latitude = models.DecimalField(
         max_digits=10,
         decimal_places=7,
         null=True,
         blank=True,
-        help_text="Latitude coordinate",
+        help_text=gettext_lazy("Latitude coordinate"),
     )
     longitude = models.DecimalField(
         max_digits=10,
         decimal_places=7,
         null=True,
         blank=True,
-        help_text="Longitude coordinate",
+        help_text=gettext_lazy("Longitude coordinate"),
     )
     is_primary = models.BooleanField(
         default=False,
-        help_text="Indicates if this is the primary pickup address for the supplier",
+        help_text=gettext_lazy("Indicates if this is the primary pickup address for the supplier"),
     )
     notes = models.TextField(  # noqa: DJ001
         null=True,
         blank=True,
-        help_text="Additional notes (e.g., opening hours, access instructions)",
+        help_text=gettext_lazy("Additional notes (e.g., opening hours, access instructions)"),
     )
     is_active = models.BooleanField(
         default=True,
-        help_text="Soft delete flag - inactive addresses are hidden from normal queries",
+        help_text=gettext_lazy(
+            "Soft delete flag - inactive addresses are hidden from normal queries"
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-is_primary", "name"]
-        verbose_name = "Supplier Pickup Address"
-        verbose_name_plural = "Supplier Pickup Addresses"
+        verbose_name = gettext_lazy("Supplier Pickup Address")
+        verbose_name_plural = gettext_lazy("Supplier Pickup Addresses")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=["company", "name"],

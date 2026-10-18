@@ -17,6 +17,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from django.utils.translation import gettext
+
 from apps.accounting.types import (
     ContactResult,
     DocumentLineItem,
@@ -77,7 +79,9 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         """Assign a synthetic contact id without touching the tenant."""
         if not company.validate_for_xero():
             return ContactResult(
-                success=False, error=f"Company {company.id} failed Xero validation"
+                success=False,
+                error=gettext("Company %(company_id)s failed Xero validation")
+                % {"company_id": company.id},
             )
         # Mirror contacts.create_company_contact_in_xero's side effect: callers
         # (and the frontend Xero badge) read company.xero_contact_id.
@@ -94,7 +98,9 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         # production rejects.
         if not company.validate_for_xero():
             return ContactResult(
-                success=False, error=f"Company {company.id} failed Xero validation"
+                success=False,
+                error=gettext("Company %(company_id)s failed Xero validation")
+                % {"company_id": company.id},
             )
         if not company.xero_contact_id:
             # Mirror contacts.sync_company_to_xero: updating a company that has
@@ -395,14 +401,17 @@ def _suppressed_week_posts(
         # week reports the departures and unlinked employees a real one would.
         if not staff.is_active_between(week.start, week_end):
             yield payroll_push._skip_result(
-                staff, "Not employed during this week", bool(staff_lines)
+                staff, gettext("Not employed during this week"), bool(staff_lines)
             )
             continue
         if not staff.xero_user_id:
             yield payroll_push._failure_result(
                 staff,
-                f"{staff.get_display_full_name()} is not linked to a Xero employee. "
-                "Ask an administrator to link them, then post again.",
+                gettext(
+                    "%(staff_name)s is not linked to a Xero employee. "
+                    "Ask an administrator to link them, then post again."
+                )
+                % {"staff_name": staff.get_display_full_name()},
                 bool(staff_lines),
             )
             continue
@@ -414,7 +423,7 @@ def _suppressed_week_posts(
                 staff_name=staff.get_display_full_name(),
                 success=True,
                 skipped=True,
-                reason=payroll_push.SALARY_SKIP_REASON,
+                reason=gettext(payroll_push.SALARY_SKIP_REASON),
                 work_hours=sum((line.quantity for line in split.timesheet), Decimal("0")),
                 leave_hours=leave_hours,
                 has_entries=bool(staff_lines),

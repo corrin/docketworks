@@ -19,6 +19,7 @@ from typing import Literal
 
 from django.http import HttpRequest
 from django.utils import timezone
+from django.utils.translation import gettext
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.errors import ValidationError as RequestValidationError
@@ -68,7 +69,9 @@ _report_auth = OfficeStaffCookieJWTAuth()
 def _require_ordered(start_date: datetime.date, end_date: datetime.date) -> None:
     """Reject an inverted date range before running any report."""
     if start_date > end_date:
-        raise RequestValidationError(errors=[{"msg": "start_date must not be after end_date."}])
+        raise RequestValidationError(
+            errors=[{"msg": gettext("start_date must not be after end_date.")}]
+        )
 
 
 @router.get(
@@ -112,7 +115,9 @@ def rdti_spend(
 ) -> rdti_spend_service.RDTISpendData:
     """Actual spend grouped by job and R&D classification for the period."""
     if start_date > end_date:
-        raise RequestValidationError(errors=[{"msg": "start_date must not be after end_date."}])
+        raise RequestValidationError(
+            errors=[{"msg": gettext("start_date must not be after end_date.")}]
+        )
     return rdti_spend_service.get_rdti_spend_data(start_date, end_date)
 
 
@@ -135,7 +140,9 @@ def job_movement(  # noqa: PLR0913, PLR0917 -- One argument per public report fi
 ) -> dict[str, object]:
     """Job lifecycle and quote-conversion counts for management meetings."""
     if baseline_days is not None and baseline_days <= 0:
-        raise RequestValidationError(errors=[{"msg": "baseline_days must be a positive integer"}])
+        raise RequestValidationError(
+            errors=[{"msg": gettext("baseline_days must be a positive integer")}]
+        )
     # Require both comparison dates; one without the other is ignored.
     has_comparison = compare_start_date is not None and compare_end_date is not None
     return job_movement_service.get_job_movement_metrics(
@@ -178,15 +185,19 @@ def sales_forecast_month_detail(
 def _parse_forecast_month(month: str) -> tuple[int, int]:
     """Validate the YYYY-MM path segment, including the app-adoption floor."""
     if len(month) != 7 or month[4] != "-":
-        raise RequestValidationError(errors=[{"msg": "Invalid month format. Use YYYY-MM"}])
+        raise RequestValidationError(errors=[{"msg": gettext("Invalid month format. Use YYYY-MM")}])
     try:
         year_int, month_int = int(month[:4]), int(month[5:])
     except ValueError as exc:
-        raise RequestValidationError(errors=[{"msg": f"Invalid month: {exc}"}]) from exc
+        raise RequestValidationError(
+            errors=[{"msg": gettext("Invalid month: %(error)s") % {"error": exc}}]
+        ) from exc
     if not 1 <= month_int <= 12:
-        raise RequestValidationError(errors=[{"msg": "Month must be 1-12"}])
+        raise RequestValidationError(errors=[{"msg": gettext("Month must be 1-12")}])
     if month < sales_forecast_service.APP_ADOPTION_MONTH:
-        raise RequestValidationError(errors=[{"msg": "Data not available before April 2025"}])
+        raise RequestValidationError(
+            errors=[{"msg": gettext("Data not available before April 2025")}]
+        )
     return year_int, month_int
 
 
@@ -208,7 +219,7 @@ def sales_pipeline(
     _require_ordered(start_date, resolved_end)
     if rolling_window_weeks < 1 or trend_weeks < 1:
         raise RequestValidationError(
-            errors=[{"msg": "rolling_window_weeks and trend_weeks must be >= 1"}]
+            errors=[{"msg": gettext("rolling_window_weeks and trend_weeks must be >= 1")}]
         )
     return sales_pipeline_service.SalesPipelineService.get_report(
         start_date, resolved_end, rolling_window_weeks, trend_weeks
@@ -249,7 +260,11 @@ def staff_performance_detail(
         start_date, end_date, staff_id=str(staff_id)
     )
     if not data["staff"]:
-        raise HttpError(404, f"No performance data found for staff ID: {staff_id}")
+        raise HttpError(
+            404,
+            gettext("No performance data found for staff ID: %(staff_id)s")
+            % {"staff_id": staff_id},
+        )
     return data
 
 
@@ -271,7 +286,7 @@ def kpi_calendar(
     month = month if month is not None else today.month
     # Apply explicit bounds through request validation.
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
-        raise RequestValidationError(errors=[{"msg": "Year or month out of valid range."}])
+        raise RequestValidationError(errors=[{"msg": gettext("Year or month out of valid range.")}])
     return kpi_service.get_calendar_data(year, month)
 
 
@@ -336,6 +351,8 @@ def profit_and_loss(request: HttpRequest) -> tuple[int, dict[str, str]]:
     """Return the explicit Phase 4 stub until Xero-backed P&L is rebuilt."""
     raise HttpError(
         501,
-        "Profit and Loss reporting is unavailable until it is rebuilt "
-        "against the Xero Reports API.",
+        gettext(
+            "Profit and Loss reporting is unavailable until it is rebuilt "
+            "against the Xero Reports API."
+        ),
     )

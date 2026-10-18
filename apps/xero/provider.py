@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
+from django.utils.translation import gettext
 from xero_python.accounting import (
     AccountingApi,
     Contact,
@@ -287,7 +288,7 @@ class XeroAccountingProvider:
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
             if not response.invoices:
-                raise ValueError("Xero returned no invoices for a create_invoices call")
+                raise ValueError(gettext("Xero returned no invoices for a create_invoices call"))
             created = response.invoices[0]
             invoice_id = str(created.invoice_id)
             logger.info("Created Xero invoice %s (%s)", created.invoice_number, invoice_id)
@@ -311,10 +312,15 @@ class XeroAccountingProvider:
             # and the local mirror row may already be gone.
             existing_invoices = api.get_invoice(tenant_id, external_id).invoices
             if not existing_invoices:
-                raise ValueError(f"Xero has no invoice {external_id}")
+                raise ValueError(
+                    gettext("Xero has no invoice %(external_id)s") % {"external_id": external_id}
+                )
             existing = existing_invoices[0]
             if existing.contact is None:
-                raise ValueError(f"Xero invoice {external_id} has no contact")
+                raise ValueError(
+                    gettext("Xero invoice %(external_id)s has no contact")
+                    % {"external_id": external_id}
+                )
             xero_invoice = Invoice(
                 invoice_id=external_id,
                 status="DELETED",
@@ -361,7 +367,7 @@ class XeroAccountingProvider:
                 summarize_errors=False,
             )
             if not response.quotes:
-                raise ValueError("Xero returned no quotes for a create_quotes call")
+                raise ValueError(gettext("Xero returned no quotes for a create_quotes call"))
             created = response.quotes[0]
             if created.validation_errors:
                 errors = [str(ve.message) for ve in created.validation_errors]
@@ -402,12 +408,16 @@ class XeroAccountingProvider:
                 # row), not an unexpected failure to persist.
                 return DocumentResult(
                     success=False,
-                    error=f"Xero has no quote {external_id}",
+                    error=gettext("Xero has no quote %(external_id)s")
+                    % {"external_id": external_id},
                     status_code=404,
                 )
             existing = existing_quotes[0]
             if existing.contact is None:
-                raise ValueError(f"Xero quote {external_id} has no contact")
+                raise ValueError(
+                    gettext("Xero quote %(external_id)s has no contact")
+                    % {"external_id": external_id}
+                )
             xero_quote = Quote(
                 quote_id=external_id,
                 status="DELETED",
@@ -542,7 +552,7 @@ class XeroAccountingProvider:
             summarize_errors=False,
         )
         if not response.purchase_orders:
-            raise ValueError("Xero returned no purchase orders for an upsert call")
+            raise ValueError(gettext("Xero returned no purchase orders for an upsert call"))
         result_po = response.purchase_orders[0]
         po_id = str(result_po.purchase_order_id)
 
@@ -570,11 +580,12 @@ class XeroAccountingProvider:
             return DocumentResult(
                 success=False,
                 status_code=400,
-                error=(
-                    f"Xero refused PO {payload.po_number}: a deleted purchase order in the "
+                error=gettext(
+                    "Xero refused PO %(po_number)s: a deleted purchase order in the "
                     "organisation still holds that number. Rename it in Xero, or use a "
                     "different number."
-                ),
+                )
+                % {"po_number": payload.po_number},
                 validation_errors=[str(ve.message) for ve in (result_po.validation_errors or [])],
             )
 
@@ -644,10 +655,16 @@ class XeroAccountingProvider:
             # Pre-read: Xero requires contact and date on the DELETED update.
             existing_orders = api.get_purchase_order(tenant_id, external_id).purchase_orders
             if not existing_orders:
-                raise ValueError(f"Xero has no purchase order {external_id}")
+                raise ValueError(
+                    gettext("Xero has no purchase order %(external_id)s")
+                    % {"external_id": external_id}
+                )
             existing = existing_orders[0]
             if existing.contact is None:
-                raise ValueError(f"Xero purchase order {external_id} has no contact")
+                raise ValueError(
+                    gettext("Xero purchase order %(external_id)s has no contact")
+                    % {"external_id": external_id}
+                )
             xero_po = PurchaseOrder(
                 purchase_order_id=external_id,
                 status="DELETED",
@@ -674,7 +691,7 @@ class XeroAccountingProvider:
             # inside the document, so discarding the response reports a delete
             # that never happened — and a released number that was not.
             if not response.purchase_orders:
-                raise ValueError("Xero returned no purchase orders for a delete call")
+                raise ValueError(gettext("Xero returned no purchase orders for a delete call"))
             updated = response.purchase_orders[0]
             if updated.validation_errors:
                 errors = [str(ve.message) for ve in updated.validation_errors]
@@ -769,7 +786,10 @@ class XeroAccountingProvider:
         """See AccountingProvider.get_account_code."""
         account = XeroAccount.objects.get(account_name=account_name)
         if not account.account_code:
-            raise ValueError(f"Xero account '{account_name}' has no account code")
+            raise ValueError(
+                gettext("Xero account '%(account_name)s' has no account code")
+                % {"account_name": account_name}
+            )
         return account.account_code
 
     # --- Payroll ---------------------------------------------------------

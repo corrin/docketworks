@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 
 class VendorCall(models.Model):
@@ -27,11 +28,11 @@ class VendorCall(models.Model):
     class Vendor(models.TextChoices):
         """The external system reached, one value per seam in ``conftest.py``."""
 
-        XERO = "xero", "Xero"
-        XERO_TOKEN = "xero_token", "Xero token endpoint"
-        LLM = "llm", "LLM gateway"
-        MAPS = "maps", "Google Maps"
-        PHONE = "phone", "Phone provider"
+        XERO = "xero", gettext_lazy("Xero")
+        XERO_TOKEN = "xero_token", gettext_lazy("Xero token endpoint")
+        LLM = "llm", gettext_lazy("LLM gateway")
+        MAPS = "maps", gettext_lazy("Google Maps")
+        PHONE = "phone", gettext_lazy("Phone provider")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     vendor = models.CharField(max_length=20, choices=Vendor.choices)

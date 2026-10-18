@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
+from django.utils.translation import gettext
 from ninja import Schema
 from pydantic import ConfigDict, model_validator
 
@@ -44,17 +45,26 @@ class FormFieldSchema(Schema):
     def _coherent(self) -> FormFieldSchema:
         if self.type == "select":
             if not self.options:
-                raise ValueError(f"Field '{self.key}': a select field needs options.")
+                raise ValueError(
+                    gettext("Field '%(key)s': a select field needs options.") % {"key": self.key}
+                )
         elif self.options is not None:
-            raise ValueError(f"Field '{self.key}': options belong only on select fields.")
+            raise ValueError(
+                gettext("Field '%(key)s': options belong only on select fields.")
+                % {"key": self.key}
+            )
         if self.type == "entry_ref":
             if self.source_form is None or self.display_key is None:
                 raise ValueError(
-                    f"Field '{self.key}': an entry_ref field needs source_form and display_key."
+                    gettext(
+                        "Field '%(key)s': an entry_ref field needs source_form and display_key."
+                    )
+                    % {"key": self.key}
                 )
         elif self.source_form is not None or self.display_key is not None:
             raise ValueError(
-                f"Field '{self.key}': source_form/display_key belong only on entry_ref fields."
+                gettext("Field '%(key)s': source_form/display_key belong only on entry_ref fields.")
+                % {"key": self.key}
             )
         return self
 
@@ -71,7 +81,9 @@ class FormSchemaSpec(Schema):
         keys = [field.key for field in self.fields]
         duplicates = {key for key in keys if keys.count(key) > 1}
         if duplicates:
-            raise ValueError(f"Duplicate field keys: {sorted(duplicates)}.")
+            raise ValueError(
+                gettext("Duplicate field keys: %(keys)s.") % {"keys": sorted(duplicates)}
+            )
         return self
 
 

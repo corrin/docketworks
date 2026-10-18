@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext, gettext_lazy
 
 
 class LabourSubtype(models.Model):
@@ -21,32 +22,38 @@ class LabourSubtype(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     display_order = models.PositiveIntegerField(
-        default=0, help_text="Sort order in dropdowns and reports"
+        default=0, help_text=gettext_lazy("Sort order in dropdowns and reports")
     )
     is_active = models.BooleanField(
         default=True,
         help_text=(
-            "Inactive subtypes keep historical lines valid but are not offered "
-            "for new entry and are not seeded onto new jobs"
+            gettext_lazy(
+                "Inactive subtypes keep historical lines valid but are not offered "
+                "for new entry and are not seeded onto new jobs"
+            )
         ),
     )
     is_workshop = models.BooleanField(
         default=False,
         help_text=(
-            "Whether this subtype is the default workshop subtype for staff and rate selection"
+            gettext_lazy(
+                "Whether this subtype is the default workshop subtype for staff and rate selection"
+            )
         ),
     )
     counts_for_scheduling = models.BooleanField(
         default=False,
         help_text=(
-            "Whether this labour consumes the production staff pool for "
-            "scheduling and workshop PDF remaining-hours calculations"
+            gettext_lazy(
+                "Whether this labour consumes the production staff pool for "
+                "scheduling and workshop PDF remaining-hours calculations"
+            )
         ),
     )
     default_charge_out_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        help_text="Company-level rate used to seed JobLabourRate on new jobs",
+        help_text=gettext_lazy("Company-level rate used to seed JobLabourRate on new jobs"),
     )
 
     class Meta:
@@ -68,7 +75,7 @@ class LabourSubtype(models.Model):
             cls.objects.filter(is_active=True, is_workshop=True).order_by("display_order").first()
         )
         if subtype is None:
-            raise ValueError("No active workshop LabourSubtype configured.")
+            raise ValueError(gettext("No active workshop LabourSubtype configured."))
         return subtype
 
     @classmethod
@@ -82,7 +89,7 @@ class LabourSubtype(models.Model):
             cls.objects.filter(is_active=True, is_workshop=False).order_by("display_order").first()
         )
         if subtype is None:
-            raise ValueError("No active non-workshop LabourSubtype configured.")
+            raise ValueError(gettext("No active non-workshop LabourSubtype configured."))
         return subtype
 
 

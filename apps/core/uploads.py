@@ -12,11 +12,13 @@ import os
 import warnings
 from pathlib import Path
 
+from django.core.files.uploadedfile import UploadedFile
+from django.db.models.fields.files import FieldFile
+
 # Fable: Django's UploadedFile, not ninja's subclass — the helpers need only
 # .name/.size/stream, and the wider type lets tests exercise them with
 # SimpleUploadedFile while every ninja endpoint still passes its File[...].
-from django.core.files.uploadedfile import UploadedFile
-from django.db.models.fields.files import FieldFile
+from django.utils.translation import gettext
 from ninja.errors import HttpError
 from PIL import Image
 
@@ -55,11 +57,14 @@ def validate_image_upload(file: UploadedFile[bytes], *, label: str = "Image") ->
     """400 unless the upload is a real, allowlisted, size-capped image."""
     suffix = Path(file.name or "").suffix.lower()
     if suffix not in ALLOWED_IMAGE_SUFFIXES:
-        raise HttpError(400, f"Unsupported file type {suffix or '(none)'}")
+        raise HttpError(
+            400,
+            gettext("Unsupported file type %(suffix)s") % {"suffix": suffix or gettext("(none)")},
+        )
     if not file.size:
-        raise HttpError(400, f"{label} files cannot be empty")
+        raise HttpError(400, gettext("%(label)s files cannot be empty") % {"label": label})
     if file.size > MAX_IMAGE_BYTES:
-        raise HttpError(400, f"{label} files are limited to 5 MB")
+        raise HttpError(400, gettext("%(label)s files are limited to 5 MB") % {"label": label})
     # Opus: content, not just suffix — the PO PDF consumer opens the stored
     # file with PIL and hard-fails (UnidentifiedImageError, a 500) on a mislabeled
     # non-image, so that must be a 400 here instead. verify() raises OSError for
@@ -78,6 +83,6 @@ def validate_image_upload(file: UploadedFile[bytes], *, label: str = "Image") ->
             with Image.open(file, formats=_ALLOWED_IMAGE_FORMATS) as image:
                 image.verify()
     except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise HttpError(400, "Uploaded file is not a valid image") from exc
+        raise HttpError(400, gettext("Uploaded file is not a valid image")) from exc
     finally:
         file.seek(0)
