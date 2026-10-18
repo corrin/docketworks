@@ -1,0 +1,20 @@
+{
+  "notFound": {
+    "title": "Page not found",
+    "message": "There is no page at this address.",
+    "toKanban": "Go to the kanban board"
+  },
+  "recovery": {
+    "logoAlt": "Company Logo",
+    "errorReference": "Error reference: {{errorId}}",
+    "retry": "Retry",
+    "checking": "Checking…"
+  },
+  "routeError": {
+    "unavailableTitle": "Connection interrupted",
+    "unavailableMessage": "DocketWorks could not reach the server. Your work has not been discarded.",
+    "failedTitle": "Something went wrong",
+    "failedMessage": "DocketWorks could not finish loading this page.",
+    "retryFallback": "Please retry the request."
+  }
+}
