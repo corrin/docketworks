@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { companiesSearchRetrieveInfiniteOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
@@ -20,6 +21,7 @@ type SortColumn = 'name' | 'total_spend'
  * sort would only reorder the rows the page happens to hold.
  */
 export function CompaniesListPage() {
+  const { t } = useTranslation('crm')
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
@@ -47,15 +49,15 @@ export function CompaniesListPage() {
 
   return (
     <div className="min-h-screen p-6">
-      <h1 className="text-xl font-bold text-gray-900">Companies</h1>
+      <h1 className="text-xl font-bold text-gray-900">{t('companiesList.title')}</h1>
 
       <div className="mt-4">
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search companies..."
+          placeholder={t('companiesList.searchPlaceholder')}
           automationId="CompaniesTable-search"
-          label="Search companies"
+          label={t('companiesList.searchLabel')}
         />
       </div>
 
@@ -66,16 +68,16 @@ export function CompaniesListPage() {
         // screen instead of unmounting it under the user.
         isError={companies.isError && companies.data === undefined}
         onRetry={() => void companies.refetch()}
-        loadingLabel="Loading companies..."
-        errorLabel="Failed to load companies."
+        loadingLabel={t('companiesList.loading')}
+        errorLabel={t('companiesList.loadFailed')}
         rows={rows}
-        emptyLabel="No companies found"
+        emptyLabel={t('companiesList.empty')}
         automationId="CompaniesTable-table"
         head={
           <tr className="border-b border-gray-200 text-gray-500">
             <SortHeader
               column="name"
-              label="Name"
+              label={t('companiesList.columns.name')}
               automationId="CompaniesTable-header-name"
               sortBy={sortBy}
               sortDir={sortDir}
@@ -83,14 +85,14 @@ export function CompaniesListPage() {
               onSort={onSort}
             />
             <th scope="col" className="px-3 py-2 text-left">
-              Email
+              {t('companiesList.columns.email')}
             </th>
             <th scope="col" className="px-3 py-2 text-left">
-              Phone
+              {t('companiesList.columns.phone')}
             </th>
             <SortHeader
               column="total_spend"
-              label="Total Spend"
+              label={t('companiesList.columns.totalSpend')}
               automationId="CompaniesTable-header-total-spend"
               sortBy={sortBy}
               sortDir={sortDir}
@@ -142,7 +144,7 @@ export function CompaniesListPage() {
       {rows !== undefined && lastPage !== undefined && (
         <LoadMoreSentinel
           automationId="CompaniesTable-load-more"
-          noun="companies"
+          noun={t('companiesList.noun')}
           shown={rows.length}
           total={lastPage.count}
           hasNextPage={companies.hasNextPage}

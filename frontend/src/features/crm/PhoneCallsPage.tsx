@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { crmPhoneCallsListInfiniteOptions, type PhoneCallRecordOut } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -16,9 +17,9 @@ import { PhoneCallTable } from './PhoneCallTable'
 import {
   CALLS_TABS,
   DIRECTION_FILTERS,
-  DIRECTION_LABELS,
+  directionLabel,
   phoneCallQueryFor,
-  QUEUE_META,
+  queueMeta,
   type CallsTab,
   type DirectionFilter,
 } from './phoneCallFilters'
@@ -38,6 +39,7 @@ const ID = 'PhoneCallsPage'
  * post-mutation invalidation cover what it was for.
  */
 export function PhoneCallsPage() {
+  const { t } = useTranslation('crm')
   const [tab, setTab] = useState<CallsTab>('recent')
   const [searchInput, setSearchInput] = useState('')
   const q = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
@@ -60,14 +62,14 @@ export function PhoneCallsPage() {
   })
   const rows = calls.data?.pages.flatMap((page) => page.results)
   const lastPage = calls.data?.pages.at(-1)
-  const queue = QUEUE_META[tab]
+  const queue = queueMeta(tab)
 
   return (
     <div className="min-h-screen p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Calls</h1>
-          <p className="mt-1 text-sm text-gray-600">Recent phone-provider calls and CRM triage.</p>
+          <h1 className="text-xl font-bold text-gray-900">{t('phoneCalls.title')}</h1>
+          <p className="mt-1 text-sm text-gray-600">{t('phoneCalls.intro')}</p>
         </div>
         <Button
           type="button"
@@ -77,14 +79,14 @@ export function PhoneCallsPage() {
           onClick={() => void calls.refetch()}
         >
           <RefreshCw className={calls.isFetching ? 'animate-spin' : undefined} />
-          Refresh
+          {t('phoneCalls.refresh')}
         </Button>
       </div>
 
       <TabBar
         tabs={CALLS_TABS.map((candidate) => ({
           key: candidate,
-          label: QUEUE_META[candidate].tab,
+          label: queueMeta(candidate).tab,
         }))}
         activeKey={tab}
         onChange={setTab}
@@ -112,13 +114,13 @@ export function PhoneCallsPage() {
           <SearchInput
             value={searchInput}
             onChange={setSearchInput}
-            placeholder="Search number, company, person, job, or description"
+            placeholder={t('phoneCalls.searchPlaceholder')}
             automationId={`${ID}-search`}
-            label="Search calls"
+            label={t('phoneCalls.searchLabel')}
           />
           <select
             data-automation-id={`${ID}-direction`}
-            aria-label="Direction"
+            aria-label={t('phoneCalls.directionLabel')}
             value={direction}
             className={`${INPUT_CLASS} w-auto`}
             onChange={(event) => {
@@ -131,7 +133,7 @@ export function PhoneCallsPage() {
           >
             {DIRECTION_FILTERS.map((option) => (
               <option key={option} value={option}>
-                {DIRECTION_LABELS[option]}
+                {directionLabel(option)}
               </option>
             ))}
           </select>
@@ -143,7 +145,7 @@ export function PhoneCallsPage() {
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               onChange={(event) => setRecordingsOnly(event.target.checked)}
             />
-            With recording
+            {t('phoneCalls.withRecording')}
           </label>
         </div>
 
@@ -156,14 +158,14 @@ export function PhoneCallsPage() {
           <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {/* A failed next page is LoadMoreSentinel's to report; this banner is
               only for a background refetch of the rows already on screen. */}
-            <span>Refresh failed — showing the last loaded rows.</span>
+            <span>{t('phoneCalls.refreshFailed')}</span>
             <button
               type="button"
               data-automation-id={`${ID}-refresh-retry`}
               className="font-medium underline"
               onClick={() => void calls.refetch()}
             >
-              Retry
+              {t('phoneCalls.retry')}
             </button>
           </div>
         )}
@@ -176,14 +178,14 @@ export function PhoneCallsPage() {
           isError={calls.isError && calls.data === undefined}
           onRetry={() => void calls.refetch()}
           rows={rows}
-          emptyLabel="No calls found"
+          emptyLabel={t('phoneCalls.empty')}
           onAssignNumber={setAssignTarget}
         />
 
         {rows !== undefined && lastPage !== undefined && (
           <LoadMoreSentinel
             automationId={`${ID}-load-more`}
-            noun="calls"
+            noun={t('phoneCalls.noun')}
             shown={rows.length}
             total={lastPage.count}
             hasNextPage={calls.hasNextPage}

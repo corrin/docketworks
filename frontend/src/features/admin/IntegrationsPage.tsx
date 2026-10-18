@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -85,22 +86,20 @@ function buildPatch(drafts: Drafts, server: Drafts): IntegrationSettingsPatchIn 
 }
 
 export function IntegrationsPage() {
+  const { t } = useTranslation('admin')
   const settingsQuery = useQuery(integrationSettingsRetrieveOptions())
 
   return (
     <div className="flex min-w-0 flex-col gap-6 p-6" data-automation-id="IntegrationsPage-root">
-      <h1 className="text-2xl font-semibold">Integrations</h1>
+      <h1 className="text-2xl font-semibold">{t('integrations.title')}</h1>
       <AIProvidersSection />
-      <p className="text-sm text-slate-600">
-        How this installation reaches external services. Stored values are never shown again; enter
-        a new one to replace it, or clear it.
-      </p>
+      <p className="text-sm text-slate-600">{t('integrations.intro')}</p>
       <QueryState
         isPending={settingsQuery.isPending}
         isError={settingsQuery.isError}
         onRetry={() => void settingsQuery.refetch()}
-        loadingLabel="integration settings"
-        errorLabel="integration settings"
+        loadingLabel={t('integrations.loadingLabel')}
+        errorLabel={t('integrations.errorLabel')}
       >
         {settingsQuery.data && <SettingsForm settings={settingsQuery.data} />}
       </QueryState>
@@ -109,6 +108,7 @@ export function IntegrationsPage() {
 }
 
 function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
+  const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
   const updateMutation = useMutation(integrationSettingsPartialUpdateMutation())
   // Two snapshots, seeded once and advanced together only on a successful
@@ -139,9 +139,9 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
       setStored(fresh)
       setServer(snapshot(fresh))
       setDrafts(snapshot(fresh))
-      toast.success('Integrations saved')
+      toast.success(t('integrations.saved'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not save integration settings.'))
+      toast.error(apiErrorMessage(error, t('integrations.saveFailed')))
     } finally {
       setSaving(false)
     }
@@ -151,13 +151,13 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
     <div className="flex max-w-3xl flex-col gap-6">
       <Section
         sectionKey="chatkit"
-        title="Quoting chat"
-        description="Register this site in OpenAI ChatKit and enter its public domain key. Configure model credentials in the AI providers section above."
+        title={t('integrations.chatkit.title')}
+        description={t('integrations.chatkit.description')}
       >
         <TextField
           section="chatkit"
           fieldKey="chatkit_domain_key"
-          label="ChatKit domain key"
+          label={t('integrations.chatkit.domainKey')}
           type="text"
           value={drafts.chatkit_domain_key}
           onChange={(value) => setDraft('chatkit_domain_key', value)}
@@ -165,13 +165,13 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
       </Section>
       <Section
         sectionKey="google"
-        title="Google"
-        description="Address validation for pickup addresses and company geocoding (Google Address Validation API)."
+        title={t('integrations.google.title')}
+        description={t('integrations.google.description')}
       >
         <SecretField
           section="google"
           fieldKey="google_maps_api_key"
-          label="Maps API key"
+          label={t('integrations.google.mapsApiKey')}
           configured={stored.has_google_maps_api_key}
           draft={drafts.google_maps_api_key}
           onChange={(value) => setDraft('google_maps_api_key', value)}
@@ -180,20 +180,20 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
 
       <Section
         sectionKey="phone"
-        title="Phone provider"
-        description="CRM call ingestion from the phone provider's portal."
+        title={t('integrations.phone.title')}
+        description={t('integrations.phone.description')}
       >
         <FlagField
           section="phone"
           fieldKey="phone_provider_enabled"
-          label="Enabled"
+          label={t('integrations.phone.enabled')}
           checked={drafts.phone_provider_enabled}
           onChange={(value) => setDraft('phone_provider_enabled', value)}
         />
         <TextField
           section="phone"
           fieldKey="phone_provider_base_url"
-          label="Portal URL"
+          label={t('integrations.phone.portalUrl')}
           type="url"
           value={drafts.phone_provider_base_url}
           onChange={(value) => setDraft('phone_provider_base_url', value)}
@@ -201,7 +201,7 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
         <TextField
           section="phone"
           fieldKey="phone_provider_account_code"
-          label="Account code"
+          label={t('integrations.phone.accountCode')}
           type="text"
           value={drafts.phone_provider_account_code}
           onChange={(value) => setDraft('phone_provider_account_code', value)}
@@ -209,7 +209,7 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
         <SecretField
           section="phone"
           fieldKey="phone_provider_username"
-          label="Username"
+          label={t('integrations.phone.username')}
           inputType="text"
           configured={stored.has_phone_provider_username}
           draft={drafts.phone_provider_username}
@@ -218,7 +218,7 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
         <SecretField
           section="phone"
           fieldKey="phone_provider_password"
-          label="Password"
+          label={t('integrations.phone.password')}
           configured={stored.has_phone_provider_password}
           draft={drafts.phone_provider_password}
           onChange={(value) => setDraft('phone_provider_password', value)}
@@ -226,7 +226,7 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
         <FlagField
           section="phone"
           fieldKey="phone_provider_recording_deletion_enabled"
-          label="Delete archived recordings from the provider"
+          label={t('integrations.phone.deleteRecordings')}
           checked={drafts.phone_provider_recording_deletion_enabled}
           onChange={(value) => setDraft('phone_provider_recording_deletion_enabled', value)}
         />
@@ -242,14 +242,14 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
           onClick={() => setDrafts(server)}
           data-automation-id="IntegrationsPage-cancel-button"
         >
-          Cancel
+          {t('integrations.cancel')}
         </Button>
         <Button
           disabled={saving || !isDirty}
           onClick={() => void save()}
           data-automation-id="IntegrationsPage-save-button"
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('integrations.saving') : t('integrations.save')}
         </Button>
       </div>
     </div>

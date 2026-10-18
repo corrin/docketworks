@@ -65,17 +65,7 @@
       }
     },
     {
-      "files": [
-        "src/features/shell/**",
-        "src/features/auth/**",
-        "src/routes/**",
-        "src/features/shared/**",
-        "src/components/**",
-        "src/lib/**",
-        "src/features/job/**",
-        "src/features/kanban/**",
-        "src/features/timesheet/**"
-      ],
+      "files": ["src/**"],
       "rules": {
         "i18next/no-literal-string": [
           "error",

@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { type ForecastMonthOut, salesForecastListOptions } from '@/api'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { downloadCsv } from '@/lib/csv'
 import { isIsoMonthString } from '@/lib/dates'
 import { formatCurrency, formatPercentage, localIsoDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { SalesForecastDetailTable } from './SalesForecastDetailTable'
 import { SalesForecastMonthTable } from './SalesForecastMonthTable'
@@ -42,7 +44,13 @@ function summarise(months: readonly ForecastMonthOut[]): ForecastSummary | null 
 function exportMonths(months: readonly ForecastMonthOut[]): void {
   downloadCsv(
     `sales-forecast-report-${localIsoDate()}.csv`,
-    ['Month', 'Xero Sales', 'JM Sales', 'Variance', 'Variance %'],
+    [
+      i18n.t('reports:salesForecast.csv.month'),
+      i18n.t('reports:salesForecast.csv.xeroSales'),
+      i18n.t('reports:salesForecast.csv.jmSales'),
+      i18n.t('reports:salesForecast.csv.variance'),
+      i18n.t('reports:salesForecast.csv.variancePct'),
+    ],
     months.map((month) => [
       month.month_label,
       month.xero_sales.toFixed(2),
@@ -94,6 +102,7 @@ export interface SalesForecastPageProps {
 }
 
 export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecastPageProps) {
+  const { t } = useTranslation('reports')
   const forecast = useQuery(salesForecastListOptions())
   const months = forecast.data?.months
   const summary = months === undefined ? null : summarise(months)
@@ -106,7 +115,7 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
           className="text-xl font-bold text-gray-900"
           data-automation-id="SalesForecastReport-title"
         >
-          Sales Forecast Report
+          {t('salesForecast.page.title')}
         </h1>
         {/* Opus: only over the month list. Both buttons act on that query, so
             on the drill-down Refresh left the rows the user was looking at
@@ -123,7 +132,7 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
                 if (months !== undefined) exportMonths(months)
               }}
             >
-              Export CSV
+              {t('salesForecast.page.exportCsv')}
             </button>
             <button
               type="button"
@@ -132,7 +141,7 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void forecast.refetch()}
             >
-              Refresh
+              {t('salesForecast.page.refresh')}
             </button>
           </div>
         )}
@@ -147,12 +156,8 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
           onSelect={onSelectMonth}
         >
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-            <p className="font-medium">About this report</p>
-            <p>
-              Compares Xero invoice totals against Job Manager revenue attribution by month, to
-              surface unbilled work and invoicing patterns. Pick a month to see the invoices and
-              jobs behind it.
-            </p>
+            <p className="font-medium">{t('salesForecast.page.aboutTitle')}</p>
+            <p>{t('salesForecast.page.aboutBody')}</p>
           </div>
 
           {summary !== null && (
@@ -161,19 +166,19 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
               className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
             >
               <SummaryCard
-                label="Total Xero Sales"
+                label={t('salesForecast.page.totalXeroSales')}
                 valueAutomationId="SalesForecastReport-xero-sales-value"
               >
                 {formatCurrency(summary.xeroSales)}
               </SummaryCard>
               <SummaryCard
-                label="Total JM Sales"
+                label={t('salesForecast.page.totalJmSales')}
                 valueAutomationId="SalesForecastReport-jm-sales-value"
               >
                 {formatCurrency(summary.jmSales)}
               </SummaryCard>
               <SummaryCard
-                label="Total Variance"
+                label={t('salesForecast.page.totalVariance')}
                 valueAutomationId="SalesForecastReport-variance-value"
               >
                 <span className={varianceToneClass(summary.variance)}>
@@ -181,7 +186,7 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
                 </span>
               </SummaryCard>
               <SummaryCard
-                label="Avg Variance %"
+                label={t('salesForecast.page.avgVariancePct')}
                 valueAutomationId="SalesForecastReport-avg-variance-value"
               >
                 <span className={varianceToneClass(summary.avgVariancePct)}>
@@ -215,11 +220,21 @@ export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecas
               </h2>
               {selected !== null && (
                 <div className="mt-1 flex gap-4 text-sm text-gray-600">
-                  <span>Xero: {formatCurrency(selected.xero_sales)}</span>
-                  <span>JM: {formatCurrency(selected.jm_sales)}</span>
+                  <span>
+                    {t('salesForecast.page.selectedXero', {
+                      amount: formatCurrency(selected.xero_sales),
+                    })}
+                  </span>
+                  <span>
+                    {t('salesForecast.page.selectedJm', {
+                      amount: formatCurrency(selected.jm_sales),
+                    })}
+                  </span>
                   <span className={`font-medium ${varianceToneClass(selected.variance)}`}>
-                    Variance: {formatCurrency(selected.variance)} (
-                    {formatPercentage(selected.variance_pct)})
+                    {t('salesForecast.page.selectedVariance', {
+                      amount: formatCurrency(selected.variance),
+                      pct: formatPercentage(selected.variance_pct),
+                    })}
                   </span>
                 </div>
               )}

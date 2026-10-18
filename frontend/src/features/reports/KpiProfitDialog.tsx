@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiMonthlyTotalsOut, KpiThresholdsOut } from '@/api'
 import { formatMonth } from '@/lib/format'
 
@@ -33,27 +35,28 @@ export function KpiProfitDialog({
   money,
   onClose,
 }: KpiProfitDialogProps) {
+  const { t } = useTranslation('reports')
   return (
     <KpiDialog
       open={open}
       onClose={onClose}
       automationId="KpiProfitDialog"
-      title={`Profit — ${formatMonth(month)}`}
-      description="Revenue less cost is gross profit; less overhead to date is net profit"
+      title={t('profitDialog.title', { month: formatMonth(month) })}
+      description={t('profitDialog.description')}
     >
-      <Section title="Profit flow">
+      <Section title={t('profitDialog.profitFlow')}>
         <div className="space-y-1">
-          <Row label="Total revenue" value={money(totals.total_revenue)} />
-          <Row label="less total cost" value={money(totals.total_cost)} indent />
+          <Row label={t('profitDialog.totalRevenue')} value={money(totals.total_revenue)} />
+          <Row label={t('profitDialog.lessTotalCost')} value={money(totals.total_cost)} indent />
           <Row
-            label="Gross profit"
+            label={t('profitDialog.grossProfit')}
             value={money(totals.gross_profit)}
             strong
             automationId="KpiProfitDialog-gross-profit"
           />
-          <Row label="less overhead to date" value={money(totals.elapsed_target)} indent />
+          <Row label={t('profitDialog.lessOverhead')} value={money(totals.elapsed_target)} indent />
           <Row
-            label="Net profit"
+            label={t('profitDialog.netProfit')}
             value={money(totals.net_profit)}
             strong
             className={signClass(totals.net_profit)}
@@ -62,62 +65,62 @@ export function KpiProfitDialog({
         </div>
       </Section>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Section title="Revenue">
+        <Section title={t('profitDialog.revenue')}>
           <div className="space-y-1">
-            <Row label="Labour" value={money(totals.time_revenue)} />
-            <Row label="Materials" value={money(totals.material_revenue)} />
-            <Row label="Adjustments" value={money(totals.adjustment_revenue)} />
+            <Row label={t('profitDialog.labour')} value={money(totals.time_revenue)} />
+            <Row label={t('profitDialog.materials')} value={money(totals.material_revenue)} />
+            <Row label={t('profitDialog.adjustments')} value={money(totals.adjustment_revenue)} />
           </div>
         </Section>
-        <Section title="Cost">
+        <Section title={t('profitDialog.cost')}>
           <div className="space-y-1">
-            <Row label="Labour" value={money(totals.staff_cost)} />
-            <Row label="Materials" value={money(totals.material_cost)} />
-            <Row label="Adjustments" value={money(totals.adjustment_cost)} />
+            <Row label={t('profitDialog.labour')} value={money(totals.staff_cost)} />
+            <Row label={t('profitDialog.materials')} value={money(totals.material_cost)} />
+            <Row label={t('profitDialog.adjustments')} value={money(totals.adjustment_cost)} />
           </div>
         </Section>
       </div>
-      <Section title="Margins">
+      <Section title={t('profitDialog.margins')}>
         <Stats>
           <Stat
-            label="Gross margin"
+            label={t('profitDialog.grossMargin')}
             value={ratioText(totals.gross_margin)}
-            note="Gross profit of revenue"
+            note={t('profitDialog.grossMarginNote')}
           />
           <Stat
-            label="Net margin"
+            label={t('profitDialog.netMargin')}
             value={ratioText(totals.net_margin)}
-            note="Net profit of revenue"
+            note={t('profitDialog.netMarginNote')}
             automationId="KpiProfitDialog-net-margin"
           />
           <Stat
-            label="Labour share"
+            label={t('profitDialog.labourShare')}
             value={ratioText(totals.labour_revenue_share)}
-            note="Labour of total revenue"
+            note={t('profitDialog.labourShareNote')}
           />
           <Stat
-            label="Average gross profit"
+            label={t('profitDialog.averageGrossProfit')}
             value={moneyText(totals.avg_weekday_gp, money)}
-            note="Per weekday"
+            note={t('profitDialog.perWeekday')}
           />
         </Stats>
       </Section>
-      <Section title="Overhead target">
+      <Section title={t('profitDialog.overheadTarget')}>
         <div className="space-y-1">
           <Row
-            label="Daily target (overhead per weekday)"
+            label={t('profitDialog.dailyTarget')}
             value={money(thresholds.kpi_daily_gp_target)}
           />
-          <Row label="Weekdays in the month" value={String(totals.weekdays)} />
-          <Row label="Weekdays elapsed" value={String(totals.elapsed_weekdays)} />
-          <Row label="Overhead to date" value={money(totals.elapsed_target)} />
+          <Row label={t('profitDialog.weekdaysInMonth')} value={String(totals.weekdays)} />
+          <Row label={t('profitDialog.weekdaysElapsed')} value={String(totals.elapsed_weekdays)} />
+          <Row label={t('profitDialog.overheadToDate')} value={money(totals.elapsed_target)} />
           <Row
-            label="Month target"
+            label={t('profitDialog.monthTarget')}
             value={money(totals.month_target)}
             automationId="KpiProfitDialog-month-target"
           />
           <Row
-            label="Gross profit against month target"
+            label={t('profitDialog.achievement')}
             value={ratioText(totals.month_target_achievement)}
             strong
             automationId="KpiProfitDialog-achievement"

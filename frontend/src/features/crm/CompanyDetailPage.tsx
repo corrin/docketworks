@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -18,14 +19,9 @@ import { formatCurrency } from '@/lib/format'
 import { TabBar } from '@/features/shared/TabBar'
 import { RelatedJobsTable } from './RelatedJobsTable'
 
-const TABS = [
-  { key: 'contact', label: 'Contact Details' },
-  { key: 'financial', label: 'Financial Summary' },
-  { key: 'jobs', label: 'Jobs' },
-  { key: 'suppliers', label: 'Supplier Aliases' },
-] as const
+const TAB_KEYS = ['contact', 'financial', 'jobs', 'suppliers'] as const
 
-type TabKey = (typeof TABS)[number]['key']
+type TabKey = (typeof TAB_KEYS)[number]
 
 interface DetailFieldProps {
   label: string
@@ -57,6 +53,7 @@ interface SupplierAliasesPanelProps {
  * use a different name than the canonical company record.
  */
 function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
+  const { t } = useTranslation('crm')
   const queryClient = useQueryClient()
   const [aliasInput, setAliasInput] = useState('')
   const aliases = useQuery(companiesSupplierAliasesListOptions({ path: { company_id: companyId } }))
@@ -85,7 +82,7 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
       await invalidateAliases()
       setAliasInput('')
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to add supplier alias.'))
+      toast.error(apiErrorMessage(error, t('companyDetail.aliases.addFailed')))
     } finally {
       addInFlight.current = false
     }
@@ -100,7 +97,7 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
       await destroyAlias.mutateAsync({ path: { alias_id: aliasId } })
       await invalidateAliases()
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to remove supplier alias.'))
+      toast.error(apiErrorMessage(error, t('companyDetail.aliases.removeFailed')))
     } finally {
       removeInFlight.current = false
     }
@@ -117,7 +114,7 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
         <input
           type="text"
           value={aliasInput}
-          placeholder="Add a search alias..."
+          placeholder={t('companyDetail.aliases.placeholder')}
           data-automation-id="CompanyDetail-alias-input"
           className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
           onChange={(event) => setAliasInput(event.target.value)}
@@ -135,28 +132,28 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => void handleAdd()}
         >
-          Add
+          {t('companyDetail.aliases.add')}
         </button>
       </div>
 
       {aliases.isPending && (
         <p data-automation-id="CompanyDetail-alias-loading" className="text-sm text-gray-500">
-          Loading aliases...
+          {t('companyDetail.aliases.loading')}
         </p>
       )}
 
       {aliases.isError && (
         <p data-automation-id="CompanyDetail-alias-error" className="text-sm text-red-600">
-          Failed to load supplier aliases.{' '}
+          {t('companyDetail.aliases.loadFailed')}{' '}
           <button type="button" className="underline" onClick={() => void aliases.refetch()}>
-            Retry
+            {t('companyDetail.aliases.retry')}
           </button>
         </p>
       )}
 
       {aliases.isSuccess && aliases.data.length === 0 && (
         <p data-automation-id="CompanyDetail-alias-empty" className="text-sm text-gray-500">
-          No search aliases yet.
+          {t('companyDetail.aliases.empty')}
         </p>
       )}
 
@@ -171,7 +168,7 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
               <span>{alias.alias}</span>
               <button
                 type="button"
-                aria-label={`Remove alias ${alias.alias}`}
+                aria-label={t('companyDetail.aliases.remove', { alias: alias.alias })}
                 data-automation-id={`CompanyDetail-alias-remove-${alias.id}`}
                 disabled={destroyAlias.isPending}
                 className="rounded-full p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -197,6 +194,7 @@ interface CompanyDetailPageProps {
  * ship with the slices that assert on them.
  */
 export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
+  const { t } = useTranslation('crm')
   const [activeTab, setActiveTab] = useState<TabKey>('contact')
   const company = useQuery(companiesRetrieveOptions({ path: { company_id: companyId } }))
 
@@ -208,22 +206,22 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
         className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
-        Back to Companies
+        {t('companyDetail.back')}
       </Link>
 
       <QueryState
         isPending={company.isPending}
         isError={company.isError}
         onRetry={() => void company.refetch()}
-        loadingLabel="Loading company..."
-        errorLabel="Failed to load the company."
+        loadingLabel={t('companyDetail.loading')}
+        errorLabel={t('companyDetail.loadFailed')}
       >
         {company.isSuccess && (
           <>
             <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
 
             <TabBar
-              tabs={TABS}
+              tabs={TAB_KEYS.map((key) => ({ key, label: t(`companyDetail.tabs.${key}`) }))}
               activeKey={activeTab}
               onChange={setActiveTab}
               idPrefix="CompanyDetail-tab"
@@ -238,9 +236,9 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
                 aria-labelledby={`CompanyDetail-tab-${activeTab}`}
                 className="mt-6 space-y-4"
               >
-                <DetailField label="Address">{company.data.address}</DetailField>
-                <DetailField label="Email">{company.data.email}</DetailField>
-                <DetailField label="Phone">{company.data.phone}</DetailField>
+                <DetailField label={t('companyDetail.address')}>{company.data.address}</DetailField>
+                <DetailField label={t('companyDetail.email')}>{company.data.email}</DetailField>
+                <DetailField label={t('companyDetail.phone')}>{company.data.phone}</DetailField>
               </div>
             )}
             {activeTab === 'financial' && (
@@ -250,13 +248,16 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
                 aria-labelledby={`CompanyDetail-tab-${activeTab}`}
                 className="mt-6 space-y-4"
               >
-                <DetailField label="Total Spend" valueAutomationId="CompanyDetail-total-spend">
+                <DetailField
+                  label={t('companyDetail.totalSpend')}
+                  valueAutomationId="CompanyDetail-total-spend"
+                >
                   <span className="text-2xl font-semibold">
                     {formatCurrency(company.data.total_spend)}
                   </span>
                 </DetailField>
-                <DetailField label="Last Invoice Date">
-                  {company.data.last_invoice_date ?? 'No invoices'}
+                <DetailField label={t('companyDetail.lastInvoiceDate')}>
+                  {company.data.last_invoice_date ?? t('companyDetail.noInvoices')}
                 </DetailField>
               </div>
             )}

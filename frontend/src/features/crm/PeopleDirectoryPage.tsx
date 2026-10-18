@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { peopleListInfiniteOptions, peopleListQueryKey, type CompanySearchResult } from '@/api'
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
@@ -18,6 +19,7 @@ import { formatCurrency } from '@/lib/format'
  * in the app is.
  */
 export function PeopleDirectoryPage() {
+  const { t } = useTranslation('crm')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchInput, setSearchInput] = useState('')
@@ -54,10 +56,8 @@ export function PeopleDirectoryPage() {
     <div className="min-h-screen p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">People</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            One identity per person, linked to every company they work with.
-          </p>
+          <h1 className="text-xl font-bold text-gray-900">{t('peopleDirectory.title')}</h1>
+          <p className="mt-1 text-sm text-gray-600">{t('peopleDirectory.intro')}</p>
         </div>
         <button
           type="button"
@@ -69,7 +69,7 @@ export function PeopleDirectoryPage() {
             setCreatePerson(null)
           }}
         >
-          {showCreate ? 'Close' : 'Add person'}
+          {showCreate ? t('peopleDirectory.close') : t('peopleDirectory.addPerson')}
         </button>
       </div>
 
@@ -78,13 +78,11 @@ export function PeopleDirectoryPage() {
           data-automation-id="PeopleDirectory-create-panel"
           className="mt-4 max-w-xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
         >
-          <p className="text-sm text-gray-600">
-            Pick or create the company first; the person is created with that company link.
-          </p>
+          <p className="text-sm text-gray-600">{t('peopleDirectory.createHint')}</p>
           <div className="mt-3 space-y-4">
             <CompanyLookup
               id="people-directory-company"
-              label="Company"
+              label={t('peopleDirectory.company')}
               selectedCompany={createCompany}
               onSelectCompany={(company) => {
                 setCreateCompany(company)
@@ -94,7 +92,7 @@ export function PeopleDirectoryPage() {
             {createCompany && (
               <PersonSelector
                 id="people-directory-person"
-                label="Person"
+                label={t('peopleDirectory.person')}
                 companyId={createCompany.id}
                 companyName={createCompany.name}
                 selectedPerson={createPerson}
@@ -119,9 +117,9 @@ export function PeopleDirectoryPage() {
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search people..."
+          placeholder={t('peopleDirectory.searchPlaceholder')}
           automationId="PeopleDirectory-search"
-          label="Search people"
+          label={t('peopleDirectory.searchLabel')}
         />
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
@@ -131,7 +129,7 @@ export function PeopleDirectoryPage() {
             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             onChange={(event) => setIncludeArchived(event.target.checked)}
           />
-          Show archived
+          {t('peopleDirectory.showArchived')}
         </label>
       </div>
 
@@ -139,14 +137,14 @@ export function PeopleDirectoryPage() {
         <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {/* Fable: a failed next page is LoadMoreSentinel's to report; this banner
               is only for a background refetch of the rows already on screen. */}
-          <span>Refresh failed — showing the last loaded rows.</span>
+          <span>{t('peopleDirectory.refreshFailed')}</span>
           <button
             type="button"
             data-automation-id="PeopleDirectory-refresh-retry"
             className="font-medium underline"
             onClick={() => void people.refetch()}
           >
-            Retry
+            {t('peopleDirectory.retry')}
           </button>
         </div>
       )}
@@ -157,24 +155,24 @@ export function PeopleDirectoryPage() {
         // refresh-failed banner above owning visibility.
         isError={people.isError && people.data === undefined}
         onRetry={() => void people.refetch()}
-        loadingLabel="Loading people..."
-        errorLabel="Failed to load people."
+        loadingLabel={t('peopleDirectory.loading')}
+        errorLabel={t('peopleDirectory.loadFailed')}
         rows={rows}
-        emptyLabel="No people found"
+        emptyLabel={t('peopleDirectory.empty')}
         automationId="PeopleDirectory-table"
         head={
           <tr className="border-b border-gray-200 text-gray-500">
             <th scope="col" className="px-3 py-2 text-left">
-              Person
+              {t('peopleDirectory.columns.person')}
             </th>
             <th scope="col" className="px-3 py-2 text-left">
-              Phone
+              {t('peopleDirectory.columns.phone')}
             </th>
             <th scope="col" className="px-3 py-2 text-left">
-              Companies
+              {t('peopleDirectory.columns.companies')}
             </th>
             <th scope="col" className="px-3 py-2 text-right">
-              Total Spend
+              {t('peopleDirectory.columns.totalSpend')}
             </th>
           </tr>
         }
@@ -206,7 +204,7 @@ export function PeopleDirectoryPage() {
                     data-automation-id={`PeopleDirectory-archived-badge-${person.id}`}
                     className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700"
                   >
-                    Archived
+                    {t('peopleDirectory.archived')}
                   </span>
                 )}
               </div>
@@ -229,7 +227,7 @@ export function PeopleDirectoryPage() {
       {rows !== undefined && lastPage !== undefined && (
         <LoadMoreSentinel
           automationId="PeopleDirectory-load-more"
-          noun="people"
+          noun={t('peopleDirectory.noun')}
           shown={rows.length}
           total={lastPage.count}
           hasNextPage={people.hasNextPage}

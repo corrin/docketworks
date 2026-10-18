@@ -13,6 +13,7 @@ import type {
   PurchaseOrderUpdateRequest,
 } from '@/api'
 import { useOptimisticRows } from '@/features/shared/optimistic'
+import { i18n } from '@/lib/i18n'
 import { isConcurrencyError, type ConcurrencyError } from '@/lib/concurrency/interceptors'
 import { draftCreateBody, type PoLineDraft } from './lines'
 
@@ -95,7 +96,7 @@ export function usePoLines(poId: string) {
     grid.patchDoc(
       { ...fields, ...display },
       () => patchMutation.mutateAsync({ path, body: fields }).then(() => undefined),
-      'Failed to save the purchase order.',
+      i18n.t('purchasing:poLines.saveFailed'),
     )
 
   const patchLine = (lineId: string, body: PoLinePatch, display?: Partial<PurchaseOrderLineOut>) =>
@@ -106,7 +107,7 @@ export function usePoLines(poId: string) {
         patchMutation
           .mutateAsync({ path, body: { lines: [{ id: lineId, ...body }] } })
           .then(() => undefined),
-      'Failed to save the purchase order line.',
+      i18n.t('purchasing:poLines.lineSaveFailed'),
     )
 
   const createLine = (draft: PoLineDraft, { onCreated, onFailed }: CreateLineCallbacks) => {
@@ -118,7 +119,7 @@ export function usePoLines(poId: string) {
         },
         onFailed,
       },
-      'Failed to add the purchase order line.',
+      i18n.t('purchasing:poLines.lineAddFailed'),
     )
   }
 
@@ -126,7 +127,7 @@ export function usePoLines(poId: string) {
     grid.deleteRow(
       lineId,
       () => patchMutation.mutateAsync({ path, body: { lines_to_delete: [lineId] } }),
-      'Failed to delete the purchase order line.',
+      i18n.t('purchasing:poLines.lineDeleteFailed'),
     )
 
   return { poQuery, patchHeader, patchLine, createLine, deleteLine }

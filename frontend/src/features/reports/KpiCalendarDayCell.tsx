@@ -1,10 +1,12 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiDayDataOut } from '@/api'
 import { formatHoursDisplay } from '@/lib/format'
 import { isoWeekday } from '@/lib/dates'
 
 import {
   dayCategory,
-  GRADE_WORDING,
+  gradeWording,
   kpiToneClass,
   type KpiTarget,
   type MoneyFormatter,
@@ -40,6 +42,7 @@ function Line({ value, label }: { value: string; label: string }) {
  * A holiday shows only its gross profit (v1 parity).
  */
 export function KpiCalendarDayCell({ day, target, money, onSelect }: KpiCalendarDayCellProps) {
+  const { t } = useTranslation('reports')
   const category = dayCategory(day, target)
   const breakdown = day.details.profit_breakdown
   return (
@@ -50,7 +53,7 @@ export function KpiCalendarDayCell({ day, target, money, onSelect }: KpiCalendar
       // Fable: the E2E spec finds a day that billed hours by this attribute
       // rather than by parsing the cell's text for a non-zero hours figure.
       data-billable-hours={day.billable_hours}
-      title={`${day.date}: ${GRADE_WORDING[category]}`}
+      title={t('dayCell.title', { date: day.date, grade: gradeWording(category) })}
       style={{ gridColumnStart: isoWeekday(day.date) }}
       className={`flex min-h-[7.5rem] flex-col rounded border p-2 text-left text-xs transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring ${kpiToneClass(category)}`}
       onClick={() => onSelect(day.date)}
@@ -58,19 +61,20 @@ export function KpiCalendarDayCell({ day, target, money, onSelect }: KpiCalendar
       <span className="mb-1 flex items-baseline justify-between">
         <span className="text-sm font-semibold">{day.day}</span>
         {day.holiday && <span className="font-medium text-gray-500">{day.holiday_name}</span>}
-        <span className="sr-only">{GRADE_WORDING[category]}</span>
+        <span className="sr-only">{gradeWording(category)}</span>
       </span>
       {!day.holiday && (
         <span className="flex flex-1 flex-col gap-0.5">
           <span className="flex flex-wrap items-baseline gap-1">
             <span className="font-medium">{formatHoursDisplay(day.billable_hours)}</span>{' '}
-            <span className="text-gray-500">billable</span> <span className="text-gray-300">/</span>{' '}
+            <span className="text-gray-500">{t('dayCell.billable')}</span>{' '}
+            <span className="text-gray-300">/</span>{' '}
             <span className="font-medium">{formatHoursDisplay(day.total_hours)}</span>{' '}
-            <span className="text-gray-500">total</span>
+            <span className="text-gray-500">{t('dayCell.total')}</span>
           </span>
-          <Line value={money(breakdown.labour_profit)} label="labour" />
-          <Line value={money(breakdown.material_profit)} label="materials" />
-          <Line value={money(breakdown.adjustment_profit)} label="adjustments" />
+          <Line value={money(breakdown.labour_profit)} label={t('dayCell.labour')} />
+          <Line value={money(breakdown.material_profit)} label={t('dayCell.materials')} />
+          <Line value={money(breakdown.adjustment_profit)} label={t('dayCell.adjustments')} />
         </span>
       )}
       <span className="mt-0.5 flex flex-wrap items-baseline gap-1 border-t border-current/20 pt-1">
@@ -80,7 +84,7 @@ export function KpiCalendarDayCell({ day, target, money, onSelect }: KpiCalendar
         >
           {money(day.gross_profit)}
         </span>{' '}
-        <span className="text-gray-500">gross profit</span>
+        <span className="text-gray-500">{t('dayCell.grossProfit')}</span>
       </span>
     </button>
   )

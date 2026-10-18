@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -73,6 +74,7 @@ const EMPTY_LINK_FORM: LinkFormState = {
  * server's answer rather than any client-side flag.
  */
 export function PersonDetailPage({ personId }: { personId: string }) {
+  const { t } = useTranslation('crm')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -142,10 +144,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
         body: { name, email: identityEmail.trim() || null },
       })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to update identity.'))
+      toast.error(apiErrorMessage(error, t('personDetail.identity.saveFailed')))
       return
     }
-    toast.success('Identity updated')
+    toast.success(t('personDetail.identity.saved'))
     await invalidatePerson()
   }
 
@@ -153,10 +155,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
     try {
       await archive.mutateAsync({ path: { person_id: personId } })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to archive person.'))
+      toast.error(apiErrorMessage(error, t('personDetail.archiveFailed')))
       return
     }
-    toast.success('Person archived')
+    toast.success(t('personDetail.archived'))
     await invalidatePerson()
   }
 
@@ -181,25 +183,25 @@ export function PersonDetailPage({ personId }: { personId: string }) {
         await saveMethodCreate.mutateAsync({ path: { person_id: personId }, body })
       }
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to save contact method.'))
+      toast.error(apiErrorMessage(error, t('personDetail.methods.saveFailed')))
       return
     }
-    toast.success('Contact method saved')
+    toast.success(t('personDetail.methods.saved'))
     setMethodForm(EMPTY_METHOD_FORM)
     await invalidateMethods()
   }
 
   const handleRemoveMethod = async (methodId: string) => {
-    if (!window.confirm('Remove this contact method?')) {
+    if (!window.confirm(t('personDetail.methods.confirmRemove'))) {
       return
     }
     try {
       await removeMethod.mutateAsync({ path: { person_id: personId, method_id: methodId } })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Contact method not removed.'))
+      toast.error(apiErrorMessage(error, t('personDetail.methods.removeFailed')))
       return
     }
-    toast.success('Contact method removed')
+    toast.success(t('personDetail.methods.removed'))
     await invalidateMethods()
   }
 
@@ -228,10 +230,12 @@ export function PersonDetailPage({ personId }: { personId: string }) {
         },
       })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Company link not saved.'))
+      toast.error(apiErrorMessage(error, t('personDetail.links.saveFailed')))
       return
     }
-    toast.success(linkForm.editingCompanyId ? 'Company link updated' : 'Company linked')
+    toast.success(
+      linkForm.editingCompanyId ? t('personDetail.links.updated') : t('personDetail.links.linked'),
+    )
     setLinkForm(EMPTY_LINK_FORM)
     await invalidatePerson()
   }
@@ -248,16 +252,16 @@ export function PersonDetailPage({ personId }: { personId: string }) {
   }
 
   const handleRemoveLink = async (companyId: string) => {
-    if (!window.confirm('Remove this company link?')) {
+    if (!window.confirm(t('personDetail.links.confirmRemove'))) {
       return
     }
     try {
       await removeLink.mutateAsync({ path: { person_id: personId, company_id: companyId } })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Company link not removed.'))
+      toast.error(apiErrorMessage(error, t('personDetail.links.removeFailed')))
       return
     }
-    toast.success('Company link removed')
+    toast.success(t('personDetail.links.removed'))
     await invalidatePerson()
   }
 
@@ -268,10 +272,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
         body: { position: link.position, notes: link.notes, is_primary: link.is_primary },
       })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Company link not restored.'))
+      toast.error(apiErrorMessage(error, t('personDetail.links.restoreFailed')))
       return
     }
-    toast.success('Company link restored')
+    toast.success(t('personDetail.links.restored'))
     await invalidatePerson()
   }
 
@@ -282,23 +286,23 @@ export function PersonDetailPage({ personId }: { personId: string }) {
           to="/crm/people"
           className="flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> People
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('personDetail.back')}
         </Link>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">{person.data?.name ?? 'Person'}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {person.data?.name ?? t('personDetail.fallbackTitle')}
+            </h1>
             {person.data && !person.data.is_active && (
               <span
                 data-automation-id="PersonDetail-archived-badge"
                 className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700"
               >
-                Archived
+                {t('personDetail.archivedBadge')}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-600">
-            Manage identity, contact methods, and company relationships.
-          </p>
+          <p className="text-sm text-gray-600">{t('personDetail.intro')}</p>
         </div>
         {person.data?.is_active && (
           <button
@@ -308,7 +312,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             disabled={archive.isPending}
             onClick={() => void handleArchive()}
           >
-            Archive person
+            {t('personDetail.archive')}
           </button>
         )}
       </header>
@@ -325,20 +329,22 @@ export function PersonDetailPage({ personId }: { personId: string }) {
           void person.refetch()
           void companyLinks.refetch()
         }}
-        loadingLabel="Loading person..."
-        errorLabel="Failed to load person."
+        loadingLabel={t('personDetail.loading')}
+        errorLabel={t('personDetail.loadFailed')}
       >
         {person.data && companyLinks.data && (
           <>
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Identity</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('personDetail.identity.title')}
+              </h2>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <div>
                   <label
                     htmlFor="person-detail-name"
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
-                    Name
+                    {t('personDetail.identity.name')}
                   </label>
                   <input
                     id="person-detail-name"
@@ -354,7 +360,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     htmlFor="person-detail-email"
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
-                    Email
+                    {t('personDetail.identity.email')}
                   </label>
                   <input
                     id="person-detail-email"
@@ -373,17 +379,19 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     disabled={saveIdentity.isPending || !identityName.trim()}
                     onClick={() => void handleSaveIdentity()}
                   >
-                    Save identity
+                    {t('personDetail.identity.save')}
                   </button>
                 </div>
               </div>
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Contact methods</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('personDetail.methods.title')}
+              </h2>
               <div className="mt-3 grid gap-3 md:grid-cols-[10rem_1fr_1fr_auto_auto]">
                 <select
-                  aria-label="Method type"
+                  aria-label={t('personDetail.methods.typeLabel')}
                   value={methodForm.methodType}
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   onChange={(event) =>
@@ -393,14 +401,14 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     }))
                   }
                 >
-                  <option value="phone">Phone</option>
-                  <option value="email">Email</option>
+                  <option value="phone">{t('personDetail.methods.typePhone')}</option>
+                  <option value="email">{t('personDetail.methods.typeEmail')}</option>
                 </select>
                 <input
                   type="text"
-                  aria-label="Method value"
+                  aria-label={t('personDetail.methods.valueLabel')}
                   data-automation-id="PersonDetail-method-value"
-                  placeholder="Phone or email"
+                  placeholder={t('personDetail.methods.valuePlaceholder')}
                   value={methodForm.value}
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   onChange={(event) =>
@@ -409,8 +417,8 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                 />
                 <input
                   type="text"
-                  aria-label="Method label"
-                  placeholder="Label"
+                  aria-label={t('personDetail.methods.labelLabel')}
+                  placeholder={t('personDetail.methods.labelPlaceholder')}
                   value={methodForm.label}
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   onChange={(event) =>
@@ -425,7 +433,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                       setMethodForm((current) => ({ ...current, isPrimary: event.target.checked }))
                     }
                   />
-                  Primary
+                  {t('personDetail.methods.primary')}
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -439,7 +447,9 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     }
                     onClick={() => void handleSaveMethod()}
                   >
-                    {methodForm.editingMethodId ? 'Update' : 'Add'}
+                    {methodForm.editingMethodId
+                      ? t('personDetail.methods.update')
+                      : t('personDetail.methods.add')}
                   </button>
                   {methodForm.editingMethodId && (
                     <button
@@ -447,7 +457,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                       className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                       onClick={() => setMethodForm(EMPTY_METHOD_FORM)}
                     >
-                      Cancel
+                      {t('personDetail.methods.cancel')}
                     </button>
                   )}
                 </div>
@@ -456,26 +466,26 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                 isPending={contactMethods.isPending}
                 isError={contactMethods.isError && contactMethods.data === undefined}
                 onRetry={() => void contactMethods.refetch()}
-                loadingLabel="Loading contact methods..."
-                errorLabel="Failed to load contact methods."
+                loadingLabel={t('personDetail.methods.loading')}
+                errorLabel={t('personDetail.methods.loadFailed')}
                 rows={contactMethods.data}
-                emptyLabel="No contact methods"
+                emptyLabel={t('personDetail.methods.empty')}
                 head={
                   <tr className="border-b border-gray-200 text-gray-500">
                     <th scope="col" className="px-3 py-2 text-left">
-                      Type
+                      {t('personDetail.methods.columns.type')}
                     </th>
                     <th scope="col" className="px-3 py-2 text-left">
-                      Value
+                      {t('personDetail.methods.columns.value')}
                     </th>
                     <th scope="col" className="px-3 py-2 text-left">
-                      Label
+                      {t('personDetail.methods.columns.label')}
                     </th>
                     <th scope="col" className="px-3 py-2 text-left">
-                      Primary
+                      {t('personDetail.methods.columns.primary')}
                     </th>
                     <th scope="col" className="px-3 py-2 text-right">
-                      Actions
+                      {t('personDetail.methods.columns.actions')}
                     </th>
                   </tr>
                 }
@@ -484,7 +494,9 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     <td className="px-3 py-2 capitalize">{method.method_type}</td>
                     <td className="px-3 py-2">{method.value}</td>
                     <td className="px-3 py-2">{method.label || '—'}</td>
-                    <td className="px-3 py-2">{method.is_primary ? 'Yes' : '—'}</td>
+                    <td className="px-3 py-2">
+                      {method.is_primary ? t('personDetail.methods.yes') : '—'}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-2">
                         <button
@@ -492,14 +504,14 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                           className="rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
                           onClick={() => startEditMethod(method)}
                         >
-                          Edit
+                          {t('personDetail.methods.edit')}
                         </button>
                         <button
                           type="button"
                           className="rounded-md px-2 py-1 text-sm font-medium text-red-700 hover:bg-red-50"
                           onClick={() => void handleRemoveMethod(method.id)}
                         >
-                          Remove
+                          {t('personDetail.methods.remove')}
                         </button>
                       </div>
                     </td>
@@ -509,10 +521,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Company links</h2>
-              <p className="text-sm text-gray-600">
-                Active and inactive relationships are retained here.
-              </p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('personDetail.links.title')}
+              </h2>
+              <p className="text-sm text-gray-600">{t('personDetail.links.intro')}</p>
               <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto_auto]">
                 {linkForm.editingCompanyId ? (
                   <div>
@@ -520,7 +532,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                       htmlFor="person-link-company-name"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
-                      Company
+                      {t('personDetail.links.company')}
                     </label>
                     <input
                       id="person-link-company-name"
@@ -533,7 +545,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                 ) : (
                   <CompanyLookup
                     id="person-link-company"
-                    label="Company"
+                    label={t('personDetail.links.company')}
                     required
                     selectedCompany={linkForm.company}
                     onSelectCompany={(company) =>
@@ -546,7 +558,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     htmlFor="person-link-position"
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
-                    Position
+                    {t('personDetail.links.position')}
                   </label>
                   <input
                     id="person-link-position"
@@ -563,7 +575,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     htmlFor="person-link-notes"
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
-                    Notes
+                    {t('personDetail.links.notes')}
                   </label>
                   <input
                     id="person-link-notes"
@@ -583,7 +595,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                       setLinkForm((current) => ({ ...current, isPrimary: event.target.checked }))
                     }
                   />
-                  Primary
+                  {t('personDetail.links.primary')}
                 </label>
                 <div className="mt-6 flex gap-2">
                   <button
@@ -595,7 +607,9 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                     }
                     onClick={() => void handleSaveLink()}
                   >
-                    {linkForm.editingCompanyId ? 'Update' : 'Add link'}
+                    {linkForm.editingCompanyId
+                      ? t('personDetail.links.update')
+                      : t('personDetail.links.add')}
                   </button>
                   {linkForm.editingCompanyId && (
                     <button
@@ -603,7 +617,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                       className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                       onClick={() => setLinkForm(EMPTY_LINK_FORM)}
                     >
-                      Cancel
+                      {t('personDetail.links.cancel')}
                     </button>
                   )}
                 </div>
@@ -627,16 +641,18 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                               : 'bg-gray-200 text-gray-700'
                           }`}
                         >
-                          {link.is_active ? 'Active' : 'Inactive'}
+                          {link.is_active
+                            ? t('personDetail.links.active')
+                            : t('personDetail.links.inactive')}
                         </span>
                         {link.is_primary && (
                           <span className="rounded-full border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">
-                            Primary
+                            {t('personDetail.links.primaryBadge')}
                           </span>
                         )}
                       </div>
                       <p className="text-sm text-gray-600">
-                        {link.position || 'No position'}
+                        {link.position || t('personDetail.links.noPosition')}
                         {link.notes && <span> · {link.notes}</span>}
                       </p>
                     </div>
@@ -646,7 +662,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                         className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                         onClick={() => startEditLink(link)}
                       >
-                        Edit
+                        {t('personDetail.links.edit')}
                       </button>
                       {link.is_active ? (
                         <button
@@ -655,7 +671,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
                           onClick={() => void handleRemoveLink(link.company_id)}
                         >
-                          Remove
+                          {t('personDetail.links.remove')}
                         </button>
                       ) : (
                         <button
@@ -664,7 +680,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                           onClick={() => void handleRestoreLink(link)}
                         >
-                          Restore
+                          {t('personDetail.links.restore')}
                         </button>
                       )}
                       <button
@@ -677,7 +693,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                           })
                         }}
                       >
-                        Company
+                        {t('personDetail.links.openCompany')}
                       </button>
                     </div>
                   </div>
@@ -686,14 +702,15 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Financial summary</h2>
-              <p className="text-sm text-gray-600">
-                Sales invoices on jobs where this person is the contact, across every company those
-                jobs were for.
-              </p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('personDetail.financial.title')}
+              </h2>
+              <p className="text-sm text-gray-600">{t('personDetail.financial.intro')}</p>
               <dl className="mt-3 grid gap-4 md:grid-cols-2">
                 <div>
-                  <dt className="text-sm font-medium text-gray-700">Total Spend</dt>
+                  <dt className="text-sm font-medium text-gray-700">
+                    {t('personDetail.financial.totalSpend')}
+                  </dt>
                   <dd
                     data-automation-id="PersonDetail-total-spend"
                     className="text-2xl font-semibold text-gray-900"
@@ -702,10 +719,12 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-700">Last Invoice Date</dt>
+                  <dt className="text-sm font-medium text-gray-700">
+                    {t('personDetail.financial.lastInvoiceDate')}
+                  </dt>
                   <dd data-automation-id="PersonDetail-last-invoice-date" className="text-gray-900">
                     {person.data.last_invoice_date === null
-                      ? 'No invoices'
+                      ? t('personDetail.financial.noInvoices')
                       : formatDate(person.data.last_invoice_date)}
                   </dd>
                 </div>
@@ -713,10 +732,10 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Jobs</h2>
-              <p className="text-sm text-gray-600">
-                Every job where this person is the contact, with the invoices raised on it.
-              </p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('personDetail.jobs.title')}
+              </h2>
+              <p className="text-sm text-gray-600">{t('personDetail.jobs.intro')}</p>
               <div className="mt-3">
                 <RelatedJobsTable
                   owner={{ kind: 'person', personId }}

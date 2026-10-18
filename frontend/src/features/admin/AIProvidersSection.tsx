@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -30,7 +31,10 @@ import { ListTable } from '@/features/shared/ListTable'
 import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard'
 import { SecretField, type SecretDraft } from './IntegrationSecretField'
 
+const PROVIDER_COLUMNS = ['name', 'vendor', 'model', 'apiKey', 'default', 'actions'] as const
+
 export function AIProvidersSection() {
+  const { t } = useTranslation('admin')
   const providers = useQuery(aiProvidersListOptions())
   const queryClient = useQueryClient()
   const remove = useMutation(aiProvidersDestroyMutation())
@@ -43,7 +47,9 @@ export function AIProvidersSection() {
     if (
       action === 'delete' &&
       !window.confirm(
-        `Delete ${provider.name}?${provider.default ? ' This leaves the application without a default provider.' : ''}`,
+        provider.default
+          ? t('aiProviders.confirmDeleteDefault', { name: provider.name })
+          : t('aiProviders.confirmDelete', { name: provider.name }),
       )
     )
       return
@@ -51,17 +57,17 @@ export function AIProvidersSection() {
       const options = { path: { provider_id: provider.id } }
       if (action === 'delete') {
         await remove.mutateAsync(options)
-        toast.success('Provider deleted')
+        toast.success(t('aiProviders.deleted'))
       } else if (action === 'default') {
         await choose.mutateAsync(options)
-        toast.success(`${provider.name} is the application default`)
+        toast.success(t('aiProviders.madeDefault', { name: provider.name }))
       } else {
         const result = await test.mutateAsync(options)
-        toast.success(`Provider test succeeded: ${result.model}`)
+        toast.success(t('aiProviders.testSucceeded', { model: result.model }))
       }
       await queryClient.invalidateQueries({ queryKey: aiProvidersListQueryKey() })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not complete the provider action.'))
+      toast.error(apiErrorMessage(error, t('aiProviders.actionFailed')))
     }
   }
 
@@ -69,39 +75,34 @@ export function AIProvidersSection() {
     <section className="space-y-4" data-automation-id="AIProviders-root">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">AI providers</h2>
-          <p className="text-sm text-slate-500">
-            Configure available models and the application default. Chat users can switch between
-            configured providers.
-          </p>
+          <h2 className="text-lg font-semibold">{t('aiProviders.title')}</h2>
+          <p className="text-sm text-slate-500">{t('aiProviders.intro')}</p>
           {providers.data && (
             <p className="text-sm text-slate-500">
-              {providers.data.length} providers
-              {providers.data.some((row) => row.default)
-                ? ''
-                : ' · No application default selected'}
+              {t('aiProviders.providerCount', { total: providers.data.length })}
+              {providers.data.some((row) => row.default) ? '' : t('aiProviders.noDefault')}
             </p>
           )}
         </div>
         <Button onClick={() => setEditing(null)} data-automation-id="AIProviders-add">
-          Add provider
+          {t('aiProviders.add')}
         </Button>
       </header>
       <ListTable
         isPending={providers.isPending}
         isError={providers.isError}
         onRetry={() => void providers.refetch()}
-        loadingLabel="Loading AI providers…"
-        errorLabel={apiErrorMessage(providers.error, 'Could not load AI providers.')}
+        loadingLabel={t('aiProviders.loading')}
+        errorLabel={apiErrorMessage(providers.error, t('aiProviders.loadFailed'))}
         rows={providers.data}
-        emptyLabel="No AI providers configured. Add a provider to get started."
+        emptyLabel={t('aiProviders.empty')}
         automationId="AIProviders-table"
         wrapperClassName="max-h-96"
         head={
           <tr>
-            {['Name', 'Vendor', 'Model', 'API key', 'Default', 'Actions'].map((label) => (
-              <th key={label} className="p-2 text-left font-medium">
-                {label}
+            {PROVIDER_COLUMNS.map((column) => (
+              <th key={column} className="p-2 text-left font-medium">
+                {t(`aiProviders.columns.${column}`)}
               </th>
             ))}
           </tr>
@@ -114,13 +115,15 @@ export function AIProvidersSection() {
           >
             <td className="p-2">{provider.name}</td>
             <td className="p-2">{provider.provider_type}</td>
-            <td className="p-2">{provider.model_name ?? 'Not configured'}</td>
-            <td className="p-2">{provider.has_api_key ? 'Configured' : 'Not configured'}</td>
+            <td className="p-2">{provider.model_name ?? t('aiProviders.notConfigured')}</td>
+            <td className="p-2">
+              {provider.has_api_key ? t('aiProviders.configured') : t('aiProviders.notConfigured')}
+            </td>
             <td className="p-2">
               <input
                 type="radio"
                 name="application-ai-default"
-                aria-label={`Use ${provider.name} as application default`}
+                aria-label={t('aiProviders.useAsDefaultAria', { name: provider.name })}
                 checked={provider.default}
                 disabled={pending || !provider.has_api_key || provider.model_name === null}
                 onChange={() => void act(provider, 'default')}
@@ -134,7 +137,7 @@ export function AIProvidersSection() {
                   disabled={pending}
                   onClick={() => setEditing(provider)}
                 >
-                  Edit
+                  {t('aiProviders.edit')}
                 </Button>
                 <Button
                   size="sm"
@@ -142,7 +145,7 @@ export function AIProvidersSection() {
                   disabled={pending || !provider.has_api_key || provider.model_name === null}
                   onClick={() => void act(provider, 'test')}
                 >
-                  Test provider
+                  {t('aiProviders.test')}
                 </Button>
                 <Button
                   size="sm"
@@ -150,16 +153,14 @@ export function AIProvidersSection() {
                   disabled={pending}
                   onClick={() => void act(provider, 'delete')}
                 >
-                  Delete
+                  {t('aiProviders.delete')}
                 </Button>
               </div>
             </td>
           </tr>
         )}
       />
-      <p className="text-xs text-slate-500">
-        Test provider sends a small, billable request using the saved key and model.
-      </p>
+      <p className="text-xs text-slate-500">{t('aiProviders.testHint')}</p>
       {editing !== undefined && (
         <ProviderDialog provider={editing} onClose={() => setEditing(undefined)} />
       )}
@@ -174,6 +175,7 @@ function ProviderDialog({
   provider: ProviderOut | null
   onClose: () => void
 }) {
+  const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
   const create = useMutation(aiProvidersCreateMutation())
   const update = useMutation(aiProvidersPartialUpdateMutation())
@@ -192,7 +194,7 @@ function ProviderDialog({
 
   function close() {
     if (saving) return
-    if (dirty && !window.confirm('Discard unsaved provider changes?')) return
+    if (dirty && !window.confirm(t('aiProviderDialog.confirmDiscard'))) return
     onClose()
   }
 
@@ -202,7 +204,7 @@ function ProviderDialog({
     try {
       if (provider === null) {
         if (typeof key !== 'string' || key.trim() === '' || model.trim() === '') {
-          setError('A new provider requires an API key and model name.')
+          setError(t('aiProviderDialog.newRequiresKeyAndModel'))
           return
         }
         await create.mutateAsync({
@@ -223,10 +225,10 @@ function ProviderDialog({
         await update.mutateAsync({ path: { provider_id: provider.id }, body: patch })
       }
       await queryClient.invalidateQueries({ queryKey: aiProvidersListQueryKey() })
-      toast.success('AI provider saved')
+      toast.success(t('aiProviderDialog.saved'))
       onClose()
     } catch (cause) {
-      setError(apiErrorMessage(cause, 'Could not save the AI provider.'))
+      setError(apiErrorMessage(cause, t('aiProviderDialog.saveFailed')))
     }
   }
 
@@ -239,11 +241,10 @@ function ProviderDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{provider === null ? 'Add AI provider' : 'Edit AI provider'}</DialogTitle>
-          <DialogDescription>
-            Use a model identifier available to your provider account. Stored API keys are never
-            displayed.
-          </DialogDescription>
+          <DialogTitle>
+            {provider === null ? t('aiProviderDialog.addTitle') : t('aiProviderDialog.editTitle')}
+          </DialogTitle>
+          <DialogDescription>{t('aiProviderDialog.description')}</DialogDescription>
         </DialogHeader>
         <form
           onSubmit={(event) => void save(event)}
@@ -251,7 +252,7 @@ function ProviderDialog({
           data-automation-id="AIProvider-form"
         >
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Name
+            {t('aiProviderDialog.name')}
             <input
               className={INPUT_CLASS}
               required
@@ -261,7 +262,7 @@ function ProviderDialog({
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Vendor
+            {t('aiProviderDialog.vendor')}
             <select
               className={INPUT_CLASS}
               value={vendor}
@@ -275,7 +276,7 @@ function ProviderDialog({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Model
+            {t('aiProviderDialog.model')}
             <input
               className={INPUT_CLASS}
               required={provider === null}
@@ -287,7 +288,7 @@ function ProviderDialog({
           <SecretField
             section="ai"
             fieldKey="api_key"
-            label="API key"
+            label={t('aiProviderDialog.apiKey')}
             configured={provider?.has_api_key ?? false}
             draft={key}
             onChange={setKey}
@@ -299,10 +300,10 @@ function ProviderDialog({
           )}
           <DialogFooter>
             <Button type="button" variant="outline" disabled={saving} onClick={close}>
-              Cancel
+              {t('aiProviderDialog.cancel')}
             </Button>
             <Button type="submit" disabled={saving || !dirty}>
-              {saving ? 'Saving…' : 'Save provider'}
+              {saving ? t('aiProviderDialog.saving') : t('aiProviderDialog.save')}
             </Button>
           </DialogFooter>
         </form>

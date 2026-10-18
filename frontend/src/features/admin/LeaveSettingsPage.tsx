@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -93,6 +94,7 @@ function updatePayload(type: LeaveTypeOut, draft: LeaveDraft) {
 }
 
 export function LeaveSettingsPage() {
+  const { t } = useTranslation('admin')
   const settingsQuery = useQuery(timesheetsLeaveSettingsRetrieveOptions())
   const payItemsQuery = useQuery(xeroPayItemsListOptions())
   // Only special jobs back a leave type, so the server sends only those —
@@ -106,16 +108,14 @@ export function LeaveSettingsPage() {
       data-automation-id="LeaveSettingsPage-root"
     >
       <header>
-        <h1 className="text-xl font-semibold text-slate-900">Leave settings</h1>
-        <p className="text-sm text-slate-500">
-          Map each fixed Docketworks leave type to its special Job and Xero payroll item.
-        </p>
+        <h1 className="text-xl font-semibold text-slate-900">{t('leaveSettings.title')}</h1>
+        <p className="text-sm text-slate-500">{t('leaveSettings.intro')}</p>
       </header>
       <QueryState
         isPending={settingsQuery.isPending || payItemsQuery.isPending || jobsQuery.isPending}
         isError={settingsQuery.isError || payItemsQuery.isError || jobsQuery.isError}
-        loadingNode={<p className="text-sm text-slate-500">Loading leave settings…</p>}
-        errorNode={<p className="text-sm text-red-700">Could not load leave settings.</p>}
+        loadingNode={<p className="text-sm text-slate-500">{t('leaveSettings.loading')}</p>}
+        errorNode={<p className="text-sm text-red-700">{t('leaveSettings.loadFailed')}</p>}
       >
         {settingsQuery.data && payItemsQuery.data && jobsQuery.data && (
           <LeaveSettingsForm
@@ -146,6 +146,7 @@ function LeaveSettingsForm({
   // save's own invalidation — produced new props and wiped whatever the admin
   // had typed. Read-only display below still reads the live `settings` prop,
   // so status stays current while edits survive.
+  const { t } = useTranslation('admin')
   const [server, setServer] = useState<LeaveDrafts>(() => snapshotLeaveSettings(settings))
   const [drafts, setDrafts] = useState<LeaveDrafts>(() => snapshotLeaveSettings(settings))
   const [saving, setSaving] = useState(false)
@@ -196,11 +197,11 @@ function LeaveSettingsForm({
       queryClient.setQueryData(timesheetsLeaveSettingsRetrieveQueryKey(), fresh)
       setServer(snapshotLeaveSettings(fresh))
       setDrafts(snapshotLeaveSettings(fresh))
-      toast.success('Leave settings saved')
+      toast.success(t('leaveSettings.saved'))
     } catch (error) {
       // The server's own message is the diagnosis ("Annual Leave requires a
       // Xero leave type."); v1's static string threw it away.
-      toast.error(apiErrorMessage(error, 'Could not save leave settings.'))
+      toast.error(apiErrorMessage(error, t('leaveSettings.saveFailed')))
     } finally {
       setSaving(false)
     }
@@ -212,10 +213,10 @@ function LeaveSettingsForm({
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-3 py-2">Docketworks leave type</th>
-              <th className="px-3 py-2">Docketworks Job</th>
-              <th className="px-3 py-2">Xero payroll item</th>
-              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">{t('leaveSettings.columns.leaveType')}</th>
+              <th className="px-3 py-2">{t('leaveSettings.columns.job')}</th>
+              <th className="px-3 py-2">{t('leaveSettings.columns.payItem')}</th>
+              <th className="px-3 py-2">{t('leaveSettings.columns.status')}</th>
             </tr>
           </thead>
           <tbody>
@@ -243,14 +244,14 @@ function LeaveSettingsForm({
           data-automation-id="LeaveSettingsPage-cancel-button"
           onClick={() => setDrafts(server)}
         >
-          Cancel
+          {t('leaveSettings.cancel')}
         </Button>
         <Button
           disabled={!canSave}
           data-automation-id="LeaveSettingsPage-save-button"
           onClick={() => void save()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('leaveSettings.saving') : t('leaveSettings.save')}
         </Button>
       </div>
     </>
@@ -272,6 +273,7 @@ function SettingsRow({
   incomplete: boolean
   onChange: (patch: Partial<LeaveDraft>) => void
 }) {
+  const { t } = useTranslation('admin')
   const selectedJob = jobs.find((job) => job.id === draft.job_id) ?? null
 
   return (
@@ -281,7 +283,7 @@ function SettingsRow({
     >
       <td className="min-w-52 px-3 py-3">
         <input
-          aria-label={`${type.code} display name`}
+          aria-label={t('leaveSettings.row.displayNameAria', { code: type.code })}
           className={INPUT_CLASS}
           value={draft.display_name}
           onChange={(event) => onChange({ display_name: event.target.value })}
@@ -291,12 +293,12 @@ function SettingsRow({
       <td className="min-w-52 px-3 py-3">
         <JobPicker
           automationIdPrefix={`LeaveSettingsPage-job-${type.code}`}
-          ariaLabel={`${type.code} job`}
+          ariaLabel={t('leaveSettings.row.jobAria', { code: type.code })}
           jobs={jobs}
           selected={selectedJob}
           disabled={false}
           loading={false}
-          placeholder="Select special Job"
+          placeholder={t('leaveSettings.row.jobPlaceholder')}
           triggerLabel={(job) => job?.name ?? ''}
           typedSearchLimit={null}
           commitOnTab={false}
@@ -312,17 +314,16 @@ function SettingsRow({
             className="text-xs text-slate-500"
             data-automation-id={`LeaveSettingsPage-computed-${type.code}`}
           >
-            Paid by Xero&rsquo;s own calculation. Docketworks records these hours and posts nothing
-            for them.
+            {t('leaveSettings.row.xeroComputed')}
           </p>
         ) : (
           <select
-            aria-label={`${type.code} Xero item`}
+            aria-label={t('leaveSettings.row.payItemAria', { code: type.code })}
             className={INPUT_CLASS}
             value={draft.xero_pay_item_id ?? ''}
             onChange={(event) => onChange({ xero_pay_item_id: event.target.value || null })}
           >
-            <option value="">Select Xero leave type</option>
+            <option value="">{t('leaveSettings.row.payItemPlaceholder')}</option>
             {payItems
               .filter((item) => item.xero_id !== null)
               .map((item) => (
@@ -335,7 +336,9 @@ function SettingsRow({
       </td>
       <td className="px-3 py-3">
         <span className={type.configured ? 'text-emerald-700' : 'text-amber-700'}>
-          {type.configured ? 'Configured' : 'Needs configuration'}
+          {type.configured
+            ? t('leaveSettings.row.configured')
+            : t('leaveSettings.row.needsConfiguration')}
         </span>
         {incomplete && (
           <p
@@ -343,8 +346,8 @@ function SettingsRow({
             data-automation-id={`LeaveSettingsPage-row-${type.code}-incomplete`}
           >
             {type.posting_surface === 'xero_computed'
-              ? 'Select a Job before saving.'
-              : 'Select a Job and a Xero payroll item before saving.'}
+              ? t('leaveSettings.row.incompleteJob')
+              : t('leaveSettings.row.incompleteJobAndPayItem')}
           </p>
         )}
       </td>

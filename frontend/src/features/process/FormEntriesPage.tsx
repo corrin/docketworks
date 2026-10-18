@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -58,6 +59,7 @@ function buildEntryPatch(existing: EntryOut, submitted: EntryFormSubmitBody): En
  * table, and edit/history/links dialogs per row.
  */
 export function FormEntriesPage({ formId }: { category: string; formId: string }) {
+  const { t } = useTranslation('process')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
@@ -105,9 +107,9 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
         },
       })
       await invalidate()
-      toast.success('Entry saved')
+      toast.success(t('entriesPage.entrySaved'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not save the entry.'))
+      toast.error(apiErrorMessage(error, t('entriesPage.entrySaveFailed')))
     }
   }
 
@@ -120,43 +122,35 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
     try {
       await updateMutation.mutateAsync({ path: { entry_id: entry.id }, body: patch })
       await invalidate()
-      toast.success('Entry updated')
+      toast.success(t('entriesPage.entryUpdated'))
       setEditingEntry(null)
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not update the entry.'))
+      toast.error(apiErrorMessage(error, t('entriesPage.entryUpdateFailed')))
     }
   }
 
   async function handleArchive(entry: EntryOut): Promise<void> {
-    if (!window.confirm('Archive this entry? It will no longer appear in the entries list.')) return
+    if (!window.confirm(t('entriesPage.archiveConfirm'))) return
     setArchivingId(entry.id)
     try {
       await archiveMutation.mutateAsync({ path: { entry_id: entry.id } })
       await invalidate()
-      toast.success('Entry archived')
+      toast.success(t('entriesPage.entryArchived'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not archive the entry.'))
+      toast.error(apiErrorMessage(error, t('entriesPage.entryArchiveFailed')))
     } finally {
       setArchivingId(null)
     }
   }
 
   if (formQuery.isPending || staffOptionsQuery.isPending) {
-    return <p className="p-6 text-sm text-slate-500">Loading...</p>
+    return <p className="p-6 text-sm text-slate-500">{t('entriesPage.loading')}</p>
   }
   if (formQuery.isError || formQuery.data === undefined) {
-    return (
-      <p className="p-6 text-sm font-medium text-red-700">
-        Could not load this form. Reload the page.
-      </p>
-    )
+    return <p className="p-6 text-sm font-medium text-red-700">{t('entriesPage.formFailed')}</p>
   }
   if (staffOptionsQuery.isError || staffOptionsQuery.data === undefined) {
-    return (
-      <p className="p-6 text-sm font-medium text-red-700">
-        Could not load the staff list. Reload the page.
-      </p>
-    )
+    return <p className="p-6 text-sm font-medium text-red-700">{t('entriesPage.staffFailed')}</p>
   }
 
   const form = formQuery.data
@@ -184,14 +178,14 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
 
       {schema.length === 0 ? (
         <p className="mt-4 text-sm text-slate-600" data-automation-id="FormEntries-no-schema">
-          This document has no form schema defined. Entries cannot be added.
+          {t('entriesPage.noSchema')}
         </p>
       ) : (
         <div
           className="mt-4 rounded-md border border-slate-200 p-4"
           data-automation-id="FormEntries-add-entry"
         >
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">Add entry</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">{t('entriesPage.addEntry')}</h2>
           <EntryForm
             schema={schema}
             initial={{ staff: user.id }}
@@ -205,7 +199,7 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
 
       <div className="mt-6 flex items-center justify-between">
         <h2 data-automation-id="FormEntries-entries-count" className="text-lg font-semibold">
-          Entries ({entriesQuery.data?.count ?? 0})
+          {t('entriesPage.entriesCount', { count: entriesQuery.data?.count ?? 0 })}
         </h2>
         {totalPages > 1 && (
           <div className="flex items-center gap-2 text-sm">
@@ -216,11 +210,9 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
               onClick={() => setPage((current) => current - 1)}
               data-automation-id="FormEntries-page-prev"
             >
-              Previous
+              {t('entriesPage.previous')}
             </Button>
-            <span className="text-slate-600">
-              Page {page} of {totalPages}
-            </span>
+            <span className="text-slate-600">{t('entriesPage.pageOf', { page, totalPages })}</span>
             <Button
               variant="outline"
               size="sm"
@@ -228,7 +220,7 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
               onClick={() => setPage((current) => current + 1)}
               data-automation-id="FormEntries-page-next"
             >
-              Next
+              {t('entriesPage.next')}
             </Button>
           </div>
         )}
@@ -256,7 +248,7 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
         >
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Edit entry</DialogTitle>
+              <DialogTitle>{t('entriesPage.editEntry')}</DialogTitle>
             </DialogHeader>
             <EntryForm
               schema={schema}

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -88,6 +89,7 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
   if (companyId === null) {
     throw new Error(`Phone call ${call.id} has no company, so it has no jobs to link`)
   }
+  const { t } = useTranslation('crm')
   const queryClient = useQueryClient()
   const contentRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<JobPickerOption | null>(linkedJobOption(call))
@@ -102,10 +104,10 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
     ...linkPhoneCallJobMutation(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: crmPhoneCallsListQueryKey() })
-      toast.success('Phone call linked to job')
+      toast.success(t('linkJob.linked'))
       onClose()
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Failed to link phone call')),
+    onError: (error) => toast.error(apiErrorMessage(error, t('linkJob.linkFailed'))),
   })
 
   return (
@@ -129,10 +131,9 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
       }}
     >
       <DialogHeader>
-        <DialogTitle>Link Phone Call To Job</DialogTitle>
+        <DialogTitle>{t('linkJob.title')}</DialogTitle>
         <DialogDescription>
-          Pick one of {call.company_name}&rsquo;s jobs. A job belonging to any other company is
-          refused by the server.
+          {t('linkJob.description', { company: call.company_name })}
         </DialogDescription>
       </DialogHeader>
       {/* isPending is false deliberately: the picker draws its own "Jobs are
@@ -143,18 +144,20 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
         isPending={false}
         isError={jobs.isError}
         onRetry={() => void jobs.refetch()}
-        errorLabel={`Failed to load ${call.company_name}'s jobs.`}
+        errorLabel={t('linkJob.jobsLoadFailed', { company: call.company_name })}
       >
         <div className="rounded-md border border-slate-200">
           <JobPicker
             automationIdPrefix="PhoneCallTable-job"
-            ariaLabel="Job for this phone call"
+            ariaLabel={t('linkJob.pickerLabel')}
             jobs={options}
             selected={selected}
             disabled={link.isPending}
             loading={jobs.isPending}
-            placeholder="Select job"
-            triggerLabel={(job) => (job === null ? '' : `#${job.job_number} - ${job.name}`)}
+            placeholder={t('linkJob.pickerPlaceholder')}
+            triggerLabel={(job) =>
+              job === null ? '' : t('linkJob.trigger', { number: job.job_number, name: job.name })
+            }
             typedSearchLimit={null}
             commitOnTab={false}
             onSelect={setSelected}
@@ -168,7 +171,7 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
           data-automation-id="PhoneCallTable-cancel-job-link"
           onClick={onClose}
         >
-          Cancel
+          {t('linkJob.cancel')}
         </Button>
         <Button
           type="button"
@@ -183,7 +186,7 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
             link.mutate({ path: { call_id: call.id }, body: { job: selected.id } })
           }}
         >
-          Save
+          {t('linkJob.save')}
         </Button>
       </DialogFooter>
     </DialogContent>

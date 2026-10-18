@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   accountingReportsPayrollWeekReconciliationRetrieveOptions,
@@ -27,20 +28,6 @@ import { SummaryCard } from '@/features/shared/SummaryCard'
 
 /** The row's closed status set, straight off the wire contract. */
 type RowStatus = PayrollStaffWeekRowOut['status']
-
-// Typed against the generated union rather than Record<string, string>, so a
-// status the backend adds is a compile error here instead of a raw code
-// rendered to the operator. The taxonomy itself — including which statuses
-// count as findings — lives on the server (unposted_count arrives computed).
-const STATUS_WORDING: Record<RowStatus, string> = {
-  ok: 'Matches',
-  mismatch: 'Differs',
-  xero_only_departed: 'Left — Xero is still paying them',
-  xero_only_unposted: 'Paid, but no hours were posted',
-  xero_only_unknown: 'Paid, but DocketWorks has no record',
-  xero_only_salaried: 'Salaried — hours are job allocation only',
-  jm_only: 'No pay slip',
-}
 
 const ROW_TONE: Record<RowStatus, string> = {
   ok: '',
@@ -96,6 +83,7 @@ export function PayrollReconciliationPage({
   wageBasis,
   onWageBasisChange,
 }: PayrollReconciliationPageProps) {
+  const { t } = useTranslation('reports')
   const report = useQuery(
     accountingReportsPayrollWeekReconciliationRetrieveOptions({
       query: { week_start_date: weekStart },
@@ -118,24 +106,23 @@ export function PayrollReconciliationPage({
         className="text-xl font-bold text-gray-900"
         data-automation-id="PayrollReconciliation-title"
       >
-        Payroll reconciliation — week of {formatDate(weekStart)}
+        {t('payrollPage.title', { week: formatDate(weekStart) })}
       </h1>
 
       <div className="mt-3 flex items-center gap-2 text-sm">
-        <span className="text-gray-500">DocketWorks wages:</span>
+        <span className="text-gray-500">{t('payrollPage.wageBasisLabel')}</span>
         <SegmentedToggle
           value={wageBasis}
           options={[
-            { value: 'base', label: 'Base' },
-            { value: 'loaded', label: 'Loaded' },
+            { value: 'base', label: t('payrollPage.base') },
+            { value: 'loaded', label: t('payrollPage.loaded') },
           ]}
           automationPrefix="PayrollReconciliation-wageBasis"
           onChange={onWageBasisChange}
         />
         {wageBasis === 'loaded' && (
           <span className="text-amber-800" data-automation-id="PayrollReconciliation-loadedNote">
-            Loaded wages allocate paid non-worked time to worked hours, while this week&rsquo;s Xero
-            gross does not — the difference column is not a reconciliation in this mode.
+            {t('payrollPage.loadedNote')}
           </span>
         )}
       </div>
@@ -145,9 +132,7 @@ export function PayrollReconciliationPage({
           className="mt-2 text-sm text-gray-500"
           data-automation-id="PayrollReconciliation-liveRunNote"
         >
-          Figures are read live from the week&rsquo;s pay run. Xero recalculates a Draft&rsquo;s pay
-          for a couple of minutes after a post, so a difference seen immediately after posting may
-          still be settling &mdash; re-check before acting on it.
+          {t('payrollPage.liveRunNote')}
         </p>
       )}
       {report.data?.xero_source === 'no_pay_run' && (
@@ -155,8 +140,7 @@ export function PayrollReconciliationPage({
           className="mt-2 text-sm text-amber-800"
           data-automation-id="PayrollReconciliation-noPayRun"
         >
-          Xero has no pay run for this week yet, so there is nothing to compare against. Any
-          difference below is that absence, not a finding.
+          {t('payrollPage.noPayRunNote')}
         </p>
       )}
 
@@ -164,21 +148,21 @@ export function PayrollReconciliationPage({
         isPending={report.isPending}
         isError={report.isError}
         onRetry={() => void report.refetch()}
-        loadingLabel="Asking Xero what it computed for this week..."
+        loadingLabel={t('payrollPage.loading')}
         loadingAutomationId="PayrollReconciliation-loading"
-        errorLabel="Could not read the payroll reconciliation."
+        errorLabel={t('payrollPage.loadError')}
         rows={rows}
-        emptyLabel="No staff and no pay slips for this week"
+        emptyLabel={t('payrollPage.empty')}
         automationId="PayrollReconciliation-table"
         head={
           <tr className="border-b border-gray-200 text-left text-gray-500">
-            <th className="px-3 py-2">Staff</th>
-            <th className="px-3 py-2 text-right">DocketWorks</th>
-            <th className="px-3 py-2 text-right">Xero</th>
-            <th className="px-3 py-2 text-right">Difference</th>
-            <th className="px-3 py-2 text-right">Our hours</th>
-            <th className="px-3 py-2 text-right">Xero hours</th>
-            <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2">{t('payrollPage.columns.staff')}</th>
+            <th className="px-3 py-2 text-right">{t('payrollPage.columns.docketworks')}</th>
+            <th className="px-3 py-2 text-right">{t('payrollPage.columns.xero')}</th>
+            <th className="px-3 py-2 text-right">{t('payrollPage.columns.difference')}</th>
+            <th className="px-3 py-2 text-right">{t('payrollPage.columns.ourHours')}</th>
+            <th className="px-3 py-2 text-right">{t('payrollPage.columns.xeroHours')}</th>
+            <th className="px-3 py-2">{t('payrollPage.columns.status')}</th>
           </tr>
         }
         renderRow={(row) => (
@@ -193,7 +177,7 @@ export function PayrollReconciliationPage({
             <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.pay_diff)}</td>
             <td className="px-3 py-2 text-right">{row.jm_hours}</td>
             <td className="px-3 py-2 text-right">{row.xero_hours}</td>
-            <td className="px-3 py-2">{STATUS_WORDING[row.status]}</td>
+            <td className="px-3 py-2">{t(`payrollPage.status.${row.status}`)}</td>
           </tr>
         )}
       >
@@ -203,16 +187,23 @@ export function PayrollReconciliationPage({
             className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3"
           >
             <SummaryCard
-              label={wageBasis === 'base' ? 'DocketWorks base wages' : 'DocketWorks loaded wages'}
+              label={
+                wageBasis === 'base'
+                  ? t('payrollPage.totalOursBase')
+                  : t('payrollPage.totalOursLoaded')
+              }
               valueAutomationId="PayrollReconciliation-total-ours"
             >
               {formatCurrency(totalOurs)}
             </SummaryCard>
-            <SummaryCard label="Xero computed" valueAutomationId="PayrollReconciliation-total-xero">
+            <SummaryCard
+              label={t('payrollPage.totalXero')}
+              valueAutomationId="PayrollReconciliation-total-xero"
+            >
               {formatCurrency(totalXero)}
             </SummaryCard>
             <SummaryCard
-              label="Paid but not posted"
+              label={t('payrollPage.unpostedCount')}
               valueAutomationId="PayrollReconciliation-unposted-count"
             >
               {report.data?.unposted_count ?? 0}

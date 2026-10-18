@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { listPurchaseOrdersInfiniteOptions } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,7 @@ import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { formatDate } from '@/lib/format'
-import { PO_STATUS_DISPLAY } from './status'
+import { PO_STATUS_DISPLAY, poStatusLabel } from './status'
 import { poListJobsLabel } from './lines'
 import { SearchInput } from '@/features/shared/SearchInput'
 
@@ -22,6 +23,7 @@ import { SearchInput } from '@/features/shared/SearchInput'
  * of them on every visit (ADR 0054).
  */
 export function PoListPage() {
+  const { t } = useTranslation('purchasing')
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
@@ -43,12 +45,12 @@ export function PoListPage() {
   return (
     <div className="min-h-screen p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Purchase Orders</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t('poList.title')}</h1>
         <Button
           data-automation-id="PurchaseOrderView-new-po"
           onClick={() => void navigate({ to: '/purchasing/po/create' })}
         >
-          New PO
+          {t('poList.newPo')}
         </Button>
       </div>
 
@@ -56,9 +58,9 @@ export function PoListPage() {
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search by PO number, supplier, or job number..."
+          placeholder={t('poList.searchPlaceholder')}
           automationId="PurchaseOrderView-search"
-          label="Search purchase orders"
+          label={t('poList.searchLabel')}
         />
       </div>
 
@@ -68,29 +70,29 @@ export function PoListPage() {
         // keeps the keepPreviousData table on screen instead of unmounting it.
         isError={purchaseOrders.isError && purchaseOrders.data === undefined}
         onRetry={() => void purchaseOrders.refetch()}
-        loadingLabel="Loading purchase orders..."
-        errorLabel="Failed to load purchase orders."
+        loadingLabel={t('poList.loading')}
+        errorLabel={t('poList.loadFailed')}
         rows={rows}
-        emptyLabel="No purchase orders found"
+        emptyLabel={t('poList.empty')}
         head={
           <tr className="border-b border-gray-200 text-left text-gray-500">
             <th scope="col" className="px-3 py-2">
-              PO Number
+              {t('poList.header.poNumber')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Jobs
+              {t('poList.header.jobs')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Supplier
+              {t('poList.header.supplier')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Order Date
+              {t('poList.header.orderDate')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Status
+              {t('poList.header.status')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Created By
+              {t('poList.header.createdBy')}
             </th>
           </tr>
         }
@@ -119,7 +121,9 @@ export function PoListPage() {
             <td
               className="px-3 py-2"
               data-automation-id={`PurchaseOrderView-jobs-${po.id}`}
-              title={po.jobs.map((job) => `${job.job_number} - ${job.name}`).join(', ')}
+              title={po.jobs
+                .map((job) => t('poList.jobTitle', { number: job.job_number, name: job.name }))
+                .join(', ')}
             >
               {poListJobsLabel(po.jobs)}
             </td>
@@ -129,11 +133,11 @@ export function PoListPage() {
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${PO_STATUS_DISPLAY[po.status].className}`}
               >
-                {PO_STATUS_DISPLAY[po.status].label}
+                {poStatusLabel(po.status)}
               </span>
             </td>
             <td className="px-3 py-2" data-automation-id={`PurchaseOrderView-created-by-${po.id}`}>
-              {po.created_by_name || '—'}
+              {po.created_by_name || t('poList.noCreator')}
             </td>
           </tr>
         )}
@@ -142,7 +146,7 @@ export function PoListPage() {
       {rows !== undefined && lastPage !== undefined && (
         <LoadMoreSentinel
           automationId="PurchaseOrderView-load-more"
-          noun="purchase orders"
+          noun={t('poList.noun')}
           shown={rows.length}
           total={lastPage.count}
           hasNextPage={purchaseOrders.hasNextPage}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   stocktakeCreateMutation,
@@ -33,6 +34,7 @@ import { formatCurrency, formatQuantity } from '@/lib/format'
 import { SearchInput } from '@/features/shared/SearchInput'
 
 export function StockPage({ costLineId, stockId }: { costLineId?: string; stockId?: string }) {
+  const { t } = useTranslation('purchasing')
   const cache = useQueryClient()
   const retire = useMutation(purchasingStockDestroyMutation())
   const [includeInactive, setIncludeInactive] = useState(false)
@@ -47,10 +49,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
             to: '/purchasing/stocktakes/$stocktakeId',
             params: { stocktakeId: count.id },
           }),
-        onError: (error) =>
-          toast.error(
-            apiErrorMessage(error, 'Open Purchases → Stocktake to complete setup first.'),
-          ),
+        onError: (error) => toast.error(apiErrorMessage(error, t('stock.setupFirst'))),
       },
     )
   const [searchInput, setSearchInput] = useState('')
@@ -73,9 +72,9 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
   return (
     <div className="min-h-screen p-6 text-sm">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-gray-900">Stock</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t('stock.title')}</h1>
         <Button disabled={createCount.isPending} onClick={() => recordCount()}>
-          Record found material
+          {t('stock.recordFound')}
         </Button>
       </div>
 
@@ -83,9 +82,9 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search stock items..."
+          placeholder={t('stock.searchPlaceholder')}
           automationId="StockView-search"
-          label="Search stock items"
+          label={t('stock.searchLabel')}
         />
       </div>
 
@@ -95,46 +94,46 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
           checked={includeInactive}
           onChange={(event) => setIncludeInactive(event.target.checked)}
         />
-        Include retired identities
+        {t('stock.includeRetired')}
       </label>
       <ListTable
         isPending={activeQuery.isPending}
         isError={activeQuery.isError}
         onRetry={() => void activeQuery.refetch()}
-        loadingLabel="Loading stock items..."
-        errorLabel="Failed to load stock items."
+        loadingLabel={t('stock.loading')}
+        errorLabel={t('stock.loadFailed')}
         rows={rows}
         automationId="StockView-table"
         wrapperClassName="max-h-[60vh]"
-        emptyLabel="No stock items found"
+        emptyLabel={t('stock.empty')}
         head={
           <tr className="border-b border-gray-200 text-left text-gray-500">
             <th scope="col" className="px-3 py-2">
-              Code
+              {t('stock.header.code')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Description
+              {t('stock.header.description')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Metal
+              {t('stock.header.metal')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Alloy
+              {t('stock.header.alloy')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Spec
+              {t('stock.header.spec')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Location
+              {t('stock.header.location')}
             </th>
             <th scope="col" className="px-3 py-2 text-right">
-              Quantity
+              {t('stock.header.quantity')}
             </th>
             <th scope="col" className="px-3 py-2 text-right">
-              Unit Cost
+              {t('stock.header.unitCost')}
             </th>
             <th scope="col" className="px-3 py-2">
-              Count
+              {t('stock.header.count')}
             </th>
           </tr>
         }
@@ -143,7 +142,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
           lastPage !== undefined && (
             <LoadMoreSentinel
               automationId="StockView-load-more"
-              noun="stock items"
+              noun={t('stock.noun')}
               shown={rows.length}
               total={lastPage.count}
               hasNextPage={activeQuery.hasNextPage}
@@ -183,7 +182,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                   disabled={createCount.isPending}
                   onClick={() => recordCount(item.id)}
                 >
-                  Record count
+                  {t('stock.recordCount')}
                 </Button>
               )}
               <Button
@@ -193,7 +192,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                   void navigate({ to: '/purchasing/stock', search: { stockId: item.id } })
                 }
               >
-                History
+                {t('stock.history')}
               </Button>
               {item.can_retire && (
                 <Button
@@ -205,7 +204,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                       { path: { id: item.id } },
                       {
                         onSuccess: () => {
-                          toast.success('Empty stock identity retired')
+                          toast.success(t('stock.retired'))
                           void cache.invalidateQueries({
                             queryKey: purchasingStockListOptions().queryKey,
                           })
@@ -214,15 +213,15 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                           })
                         },
                         onError: (error) =>
-                          toast.error(apiErrorMessage(error, 'Unable to retire stock.')),
+                          toast.error(apiErrorMessage(error, t('stock.retireFailed'))),
                       },
                     )
                   }
                 >
-                  Retire empty identity
+                  {t('stock.retire')}
                 </Button>
               )}
-              {!item.is_active && <span className="text-gray-500">Retired</span>}
+              {!item.is_active && <span className="text-gray-500">{t('stock.retiredBadge')}</span>}
             </td>
           </tr>
         )}
@@ -236,10 +235,8 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
         <DrawerContent>
           <div className="mx-auto w-full max-w-6xl p-4">
             <DrawerHeader>
-              <DrawerTitle>Stock movements</DrawerTitle>
-              <DrawerDescription>
-                Recorded receipts, issues, returns and stocktake corrections.
-              </DrawerDescription>
+              <DrawerTitle>{t('stock.drawerTitle')}</DrawerTitle>
+              <DrawerDescription>{t('stock.drawerDescription')}</DrawerDescription>
             </DrawerHeader>
             {stockId !== undefined ? (
               <StockMovementHistory stockId={stockId} />
@@ -247,7 +244,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
               costLineId !== undefined && <CostLineMovementHistory costLineId={costLineId} />
             )}
             <DrawerClose asChild>
-              <Button variant="outline">Close history</Button>
+              <Button variant="outline">{t('stock.closeHistory')}</Button>
             </DrawerClose>
           </div>
         </DrawerContent>

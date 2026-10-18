@@ -2,28 +2,24 @@
  * (../docketworks/frontend/src/components/SectionForm.vue:369-455): the same
  * two logo slots, the same tolerance bands, the same v1 message shape so an
  * admin who has seen this validation before still recognises it. */
+import { i18n } from '@/lib/i18n'
+
 interface LogoAspectRule {
   min: number
   max: number
-  label: string
-  expected: string
-  hint: string
+  slot: 'square' | 'wide'
 }
 
 const LOGO_ASPECT_RULES: Record<string, LogoAspectRule> = {
   logo: {
     min: 0.85,
     max: 1.18,
-    label: 'square logo',
-    expected: 'approximately 1:1 (square)',
-    hint: 'Please upload a square image.',
+    slot: 'square',
   },
   logo_wide: {
     min: 2.5,
     max: 8.0,
-    label: 'wide letterhead logo',
-    expected: 'between 2.5:1 and 8:1 (wide)',
-    hint: 'Please upload a wide letterhead-style image (around 4× wider than tall).',
+    slot: 'wide',
   },
 }
 
@@ -61,17 +57,18 @@ export async function aspectRatioProblem(fieldKey: string, file: File): Promise<
   try {
     dims = await readImageDimensions(file)
   } catch {
-    return 'Could not read image file. Please try a different image.'
+    return i18n.t('admin:logoAspect.unreadable')
   }
-  if (dims.height === 0) return 'Image has invalid dimensions.'
+  if (dims.height === 0) return i18n.t('admin:logoAspect.invalidDimensions')
 
   const ratio = dims.width / dims.height
   if (ratio < rule.min || ratio > rule.max) {
-    return (
-      `This image is ${ratio.toFixed(2)}:1 (width:height). ` +
-      `Expected ${rule.expected} for the ${rule.label} field. ` +
-      rule.hint
-    )
+    return i18n.t('admin:logoAspect.wrongRatio', {
+      ratio: ratio.toFixed(2),
+      expected: i18n.t(`admin:logoAspect.${rule.slot}.expected`),
+      label: i18n.t(`admin:logoAspect.${rule.slot}.label`),
+      hint: i18n.t(`admin:logoAspect.${rule.slot}.hint`),
+    })
   }
   return null
 }

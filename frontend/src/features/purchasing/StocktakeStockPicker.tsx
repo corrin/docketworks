@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { purchasingStockSearchRetrieveInfiniteOptions, type StockItem } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ export function StocktakeStockPicker({
   onSelect: (stock: StockItem) => void
   selected: ReadonlySet<string>
 }) {
+  const { t } = useTranslation('purchasing')
   const [search, setSearch] = useState('')
   const [location, setLocation] = useState('')
   const query = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
@@ -37,15 +39,15 @@ export function StocktakeStockPicker({
         <SearchInput
           value={search}
           onChange={setSearch}
-          label="Search stock"
-          placeholder="Search workshop stock"
+          label={t('stocktakePicker.searchLabel')}
+          placeholder={t('stocktakePicker.searchPlaceholder')}
           automationId="StocktakePicker-search"
         />
         <SearchInput
           value={location}
           onChange={setLocation}
-          label="Location"
-          placeholder="Filter location"
+          label={t('stocktakePicker.locationLabel')}
+          placeholder={t('stocktakePicker.locationPlaceholder')}
           automationId="StocktakePicker-location"
         />
       </div>
@@ -53,24 +55,24 @@ export function StocktakeStockPicker({
         isPending={stock.isPending}
         isError={stock.isError}
         onRetry={() => void stock.refetch()}
-        loadingLabel="Searching stock…"
-        errorLabel="Unable to search stock."
-        emptyLabel="No matching workshop stock. Use Add found item for new material."
+        loadingLabel={t('stocktakePicker.loading')}
+        errorLabel={t('stocktakePicker.loadFailed')}
+        emptyLabel={t('stocktakePicker.empty')}
         rows={rows}
         wrapperClassName="max-h-64"
         head={
           <tr>
             <th scope="col" className="p-2 text-left">
-              Item
+              {t('stocktakePicker.header.item')}
             </th>
             <th scope="col" className="p-2 text-left">
-              Location
+              {t('stocktakePicker.header.location')}
             </th>
             <th scope="col" className="p-2">
-              Recorded
+              {t('stocktakePicker.header.recorded')}
             </th>
             <th scope="col" className="p-2">
-              Count
+              {t('stocktakePicker.header.count')}
             </th>
           </tr>
         }
@@ -79,7 +81,7 @@ export function StocktakeStockPicker({
           lastPage !== undefined && (
             <LoadMoreSentinel
               automationId="StocktakePicker-load-more"
-              noun="stock items"
+              noun={t('stocktakePicker.noun')}
               shown={rows.length}
               total={lastPage.count}
               hasNextPage={stock.hasNextPage}
@@ -101,7 +103,9 @@ export function StocktakeStockPicker({
                 disabled={selected.has(item.id)}
                 onClick={() => onSelect(item)}
               >
-                {selected.has(item.id) ? 'Added' : 'Add to count'}
+                {selected.has(item.id)
+                  ? t('stocktakePicker.added')
+                  : t('stocktakePicker.addToCount')}
               </Button>
             </td>
           </tr>

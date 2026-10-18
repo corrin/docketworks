@@ -1,14 +1,22 @@
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
+import { i18n } from '@/lib/i18n'
 
 export type SecretDraft = string | null | undefined
 export const fieldId = (section: string, key: string): string =>
   `IntegrationsPage-${section}-field-${key}`
 
 function secretStatus(configured: boolean, draft: SecretDraft): string {
-  if (draft === null) return 'Will be cleared on save'
-  if (draft !== undefined) return configured ? 'Will be replaced on save' : 'Will be set on save'
-  return configured ? 'Configured' : 'Not configured'
+  if (draft === null) return i18n.t('admin:secretField.status.willClear')
+  if (draft !== undefined)
+    return configured
+      ? i18n.t('admin:secretField.status.willReplace')
+      : i18n.t('admin:secretField.status.willSet')
+  return configured
+    ? i18n.t('admin:secretField.status.configured')
+    : i18n.t('admin:secretField.status.notConfigured')
 }
 
 export function SecretField({
@@ -28,6 +36,7 @@ export function SecretField({
   draft: SecretDraft
   onChange: (value: SecretDraft) => void
 }) {
+  const { t } = useTranslation('admin')
   const clearing = draft === null
   return (
     <div className="flex flex-col gap-1 text-sm font-medium">
@@ -41,7 +50,9 @@ export function SecretField({
           className={INPUT_CLASS}
           value={draft ?? ''}
           disabled={clearing}
-          placeholder={configured ? 'Enter a new value to replace the stored one' : 'Not set'}
+          placeholder={
+            configured ? t('secretField.replacePlaceholder') : t('secretField.notSetPlaceholder')
+          }
           // An emptied box is "leave it alone", never "store blank" (ADR 0040).
           onChange={(event) => onChange(event.target.value === '' ? undefined : event.target.value)}
           data-automation-id={fieldId(section, fieldKey)}
@@ -59,7 +70,7 @@ export function SecretField({
             onClick={() => onChange(null)}
             data-automation-id={`IntegrationsPage-${section}-clear-${fieldKey}`}
           >
-            Clear
+            {t('secretField.clear')}
           </Button>
         )}
         {clearing && (
@@ -70,7 +81,7 @@ export function SecretField({
             onClick={() => onChange(undefined)}
             data-automation-id={`IntegrationsPage-${section}-keep-${fieldKey}`}
           >
-            Keep it
+            {t('secretField.keep')}
           </Button>
         )}
       </div>

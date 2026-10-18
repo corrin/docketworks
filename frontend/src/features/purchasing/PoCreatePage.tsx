@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -14,6 +15,7 @@ import { orNull } from '@/features/shared/nullableText'
 import { PoSummaryCard } from './PoSummaryCard'
 
 export function PoCreatePage() {
+  const { t } = useTranslation('purchasing')
   const navigate = useNavigate()
   const router = useRouter()
   const [supplier, setSupplier] = useState<CompanySearchResult | null>(null)
@@ -39,11 +41,11 @@ export function PoCreatePage() {
       },
       {
         onSuccess: (created) => {
-          toast.success('PO created')
+          toast.success(t('poCreate.created'))
           void navigate({ to: '/purchasing/po/$poId', params: { poId: created.id } })
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, 'Failed to create the purchase order.'))
+          toast.error(apiErrorMessage(error, t('poCreate.createFailed')))
         },
       },
     )
@@ -52,7 +54,7 @@ export function PoCreatePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
       <h1 className="text-xl font-bold text-gray-900" data-automation-id="PoCreateView-title">
-        Create Purchase Order
+        {t('poCreate.title')}
       </h1>
 
       <PoSummaryCard
@@ -73,15 +75,15 @@ export function PoCreatePage() {
           data-automation-id="PoCreateView-cancel"
           onClick={() => router.history.back()}
         >
-          Cancel
+          {t('poCreate.cancel')}
         </Button>
         <Button
           disabled={createPo.isPending || supplier === null}
-          title={supplier === null ? 'Choose a supplier first' : undefined}
+          title={supplier === null ? t('poCreate.chooseSupplierFirst') : undefined}
           data-automation-id="PoCreateView-save"
           onClick={save}
         >
-          {createPo.isPending ? 'Creating PO...' : 'Save'}
+          {createPo.isPending ? t('poCreate.creating') : t('poCreate.save')}
         </Button>
       </div>
     </div>

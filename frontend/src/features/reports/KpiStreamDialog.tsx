@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiDayDataOut, KpiMonthlyTotalsOut } from '@/api'
 import { formatMonth } from '@/lib/format'
 
@@ -6,16 +8,6 @@ import { ratioText, type MoneyFormatter } from './kpiDisplay'
 
 /** The two non-labour streams a cost line can be. */
 export type KpiStream = 'material' | 'adjustment'
-
-const STREAM_TITLE: Record<KpiStream, string> = {
-  material: 'Materials',
-  adjustment: 'Adjustments',
-}
-
-const STREAM_DESCRIPTION: Record<KpiStream, string> = {
-  material: 'Stock and purchases charged to jobs',
-  adjustment: 'Price adjustments on jobs',
-}
 
 interface KpiStreamDialogProps {
   stream: KpiStream | null
@@ -45,6 +37,7 @@ export function KpiStreamDialog({
   money,
   onClose,
 }: KpiStreamDialogProps) {
+  const { t } = useTranslation('reports')
   if (stream === null) return null
   const revenue = totals[`${stream}_revenue`]
   const cost = totals[`${stream}_cost`]
@@ -55,65 +48,69 @@ export function KpiStreamDialog({
       open
       onClose={onClose}
       automationId={`KpiStreamDialog-${stream}`}
-      title={`${STREAM_TITLE[stream]} — ${formatMonth(month)}`}
-      description={STREAM_DESCRIPTION[stream]}
+      title={t(`streamDialog.${stream}.title`, { month: formatMonth(month) })}
+      description={t(`streamDialog.${stream}.description`)}
     >
-      <Section title="Month">
+      <Section title={t('streamDialog.month')}>
         <Stats>
-          <Stat label="Revenue" value={money(revenue)} />
-          <Stat label="Cost" value={money(cost)} />
+          <Stat label={t('streamDialog.revenue')} value={money(revenue)} />
+          <Stat label={t('streamDialog.cost')} value={money(cost)} />
           <Stat
-            label="Profit"
+            label={t('streamDialog.profit')}
             value={money(profit)}
-            note="Revenue less cost"
+            note={t('streamDialog.profitNote')}
             automationId={`KpiStreamDialog-${stream}-profit`}
           />
-          <Stat label="Margin" value={ratioText(margin)} note="Profit of revenue" />
+          <Stat
+            label={t('streamDialog.margin')}
+            value={ratioText(margin)}
+            note={t('streamDialog.marginNote')}
+          />
         </Stats>
       </Section>
-      <Section title="Materials and adjustments together">
+      <Section title={t('streamDialog.together')}>
         {/* The sums this report does in the browser: two displayed server
             figures added, no denominator (owner, 2026-10-01). The share is
             the complement of a served ratio. */}
         <Stats>
           <Stat
-            label="Non-labour revenue"
+            label={t('streamDialog.nonLabourRevenue')}
             value={money(totals.material_revenue + totals.adjustment_revenue)}
           />
           <Stat
-            label="Non-labour cost"
+            label={t('streamDialog.nonLabourCost')}
             value={money(totals.material_cost + totals.adjustment_cost)}
           />
           <Stat
-            label="Non-labour profit"
+            label={t('streamDialog.nonLabourProfit')}
             value={money(totals.material_profit + totals.adjustment_profit)}
           />
           <Stat
-            label="Non-labour share"
+            label={t('streamDialog.nonLabourShare')}
             value={ratioText(
               totals.labour_revenue_share === null ? null : 100 - totals.labour_revenue_share,
             )}
-            note="Of total revenue"
+            note={t('streamDialog.nonLabourShareNote')}
           />
         </Stats>
       </Section>
-      <Section title="By day">
+      <Section title={t('streamDialog.byDay')}>
         <DailyTable
           automationId={`KpiStreamDialog-${stream}-daily`}
           days={days}
           columns={[
             {
-              header: 'Revenue',
+              header: t('streamDialog.revenue'),
               cell: (day) => money(day.details[`${stream}_revenue`]),
               total: money(revenue),
             },
             {
-              header: 'Cost',
+              header: t('streamDialog.cost'),
               cell: (day) => money(day.details[`${stream}_cost`]),
               total: money(cost),
             },
             {
-              header: 'Profit',
+              header: t('streamDialog.profit'),
               cell: (day) => money(day.details.profit_breakdown[`${stream}_profit`]),
               total: money(profit),
             },

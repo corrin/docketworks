@@ -1,1 +1,284 @@
-{}
+{
+  "grade": {
+    "green": "On target",
+    "amber": "Close",
+    "red": "Behind",
+    "weekend": "Weekend"
+  },
+  "calendarGrid": {
+    "weekday": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    }
+  },
+  "wipPage": {
+    "title": "WIP Report",
+    "loading": "Loading WIP report...",
+    "loadError": "Failed to load the WIP report.",
+    "empty": "No jobs found",
+    "columns": {
+      "job": "Job",
+      "name": "Name",
+      "company": "Company",
+      "grossWip": "Gross WIP",
+      "invoiced": "Invoiced",
+      "netWip": "Net WIP"
+    },
+    "totalGross": "Total Gross WIP",
+    "totalNet": "Total Net WIP",
+    "jobCount": "Jobs"
+  },
+  "monthNav": {
+    "previous": "Previous month",
+    "month": "Month",
+    "next": "Next month",
+    "thisMonth": "This month"
+  },
+  "dayCell": {
+    "title": "{{date}}: {{grade}}",
+    "billable": "billable",
+    "total": "total",
+    "labour": "labour",
+    "materials": "materials",
+    "adjustments": "adjustments",
+    "grossProfit": "gross profit"
+  },
+  "salesForecast": {
+    "monthTable": {
+      "loading": "Loading sales forecast...",
+      "loadError": "Failed to load the sales forecast.",
+      "empty": "No sales data available",
+      "columns": {
+        "month": "Month",
+        "xeroSales": "Xero Sales",
+        "jmSales": "JM Sales",
+        "variance": "Variance",
+        "variancePct": "Variance %"
+      }
+    },
+    "detail": {
+      "columns": {
+        "jobStart": "Job Start",
+        "jobFinish": "Job Finish",
+        "company": "Company",
+        "invoices": "Invoices",
+        "job": "Job",
+        "note": "Note",
+        "xeroRevenue": "Xero Revenue",
+        "jmRevenue": "JM Revenue",
+        "variance": "Variance",
+        "allTimeDelta": "All-Time Delta"
+      },
+      "loading": "Loading month details...",
+      "loadError": "Failed to load the month details.",
+      "empty": "No invoice or job data for this month"
+    },
+    "csv": {
+      "month": "Month",
+      "xeroSales": "Xero Sales",
+      "jmSales": "JM Sales",
+      "variance": "Variance",
+      "variancePct": "Variance %"
+    },
+    "page": {
+      "aboutBody": "Compares Xero invoice totals against Job Manager revenue attribution by month, to surface unbilled work and invoicing patterns. Pick a month to see the invoices and jobs behind it.",
+      "selectedXero": "Xero: {{amount}}",
+      "selectedJm": "JM: {{amount}}",
+      "selectedVariance": "Variance: {{amount}} ({{pct}})",
+      "title": "Sales Forecast Report",
+      "exportCsv": "Export CSV",
+      "refresh": "Refresh",
+      "aboutTitle": "About this report",
+      "totalXeroSales": "Total Xero Sales",
+      "totalJmSales": "Total JM Sales",
+      "totalVariance": "Total Variance",
+      "avgVariancePct": "Avg Variance %"
+    }
+  },
+  "dayDialog": {
+    "titleHoliday": "{{date}} (Holiday)",
+    "description": "Revenue, cost and profit for the day, and the jobs that made it",
+    "revenue": "Revenue",
+    "cost": "Cost",
+    "grossProfit": "Gross profit",
+    "profitByJob": "Profit by job",
+    "totalRevenue": "Total revenue",
+    "totalCost": "Total cost",
+    "noJobs": "No job data available for this day",
+    "columns": {
+      "job": "Job",
+      "total": "Total"
+    },
+    "labour": "Labour",
+    "materials": "Materials",
+    "adjustments": "Adjustments"
+  },
+  "streamDialog": {
+    "material": {
+      "title": "Materials — {{month}}",
+      "description": "Stock and purchases charged to jobs"
+    },
+    "adjustment": {
+      "title": "Adjustments — {{month}}",
+      "description": "Price adjustments on jobs"
+    },
+    "month": "Month",
+    "revenue": "Revenue",
+    "cost": "Cost",
+    "profit": "Profit",
+    "profitNote": "Revenue less cost",
+    "margin": "Margin",
+    "marginNote": "Profit of revenue",
+    "together": "Materials and adjustments together",
+    "nonLabourRevenue": "Non-labour revenue",
+    "nonLabourCost": "Non-labour cost",
+    "nonLabourProfit": "Non-labour profit",
+    "nonLabourShare": "Non-labour share",
+    "nonLabourShareNote": "Of total revenue",
+    "byDay": "By day"
+  },
+  "profitDialog": {
+    "title": "Profit — {{month}}",
+    "description": "Revenue less cost is gross profit; less overhead to date is net profit",
+    "profitFlow": "Profit flow",
+    "totalRevenue": "Total revenue",
+    "lessTotalCost": "less total cost",
+    "grossProfit": "Gross profit",
+    "lessOverhead": "less overhead to date",
+    "netProfit": "Net profit",
+    "revenue": "Revenue",
+    "cost": "Cost",
+    "labour": "Labour",
+    "materials": "Materials",
+    "adjustments": "Adjustments",
+    "margins": "Margins",
+    "grossMargin": "Gross margin",
+    "grossMarginNote": "Gross profit of revenue",
+    "netMargin": "Net margin",
+    "netMarginNote": "Net profit of revenue",
+    "labourShare": "Labour share",
+    "labourShareNote": "Labour of total revenue",
+    "averageGrossProfit": "Average gross profit",
+    "perWeekday": "Per weekday",
+    "overheadTarget": "Overhead target",
+    "dailyTarget": "Daily target (overhead per weekday)",
+    "weekdaysInMonth": "Weekdays in the month",
+    "weekdaysElapsed": "Weekdays elapsed",
+    "overheadToDate": "Overhead to date",
+    "monthTarget": "Month target",
+    "achievement": "Gross profit against month target"
+  },
+  "labourDialog": {
+    "title": "Labour — {{month}}",
+    "description": "Hours, cost and revenue from time entries",
+    "hours": "Hours",
+    "totalHours": "Total hours",
+    "totalHoursNote": "All recorded time",
+    "billableHours": "Billable hours",
+    "billableHoursNote": "Chargeable to a customer",
+    "shopHours": "Shop hours",
+    "shopHoursNote": "Workshop and production",
+    "billedPerActiveDay": "Billed per active day",
+    "billedPerActiveDayNote": "Days with any hours",
+    "money": "Money",
+    "labourRevenue": "Labour revenue",
+    "labourCost": "Labour cost",
+    "labourProfit": "Labour profit",
+    "averageRate": "Average rate per billable hour",
+    "efficiency": "Efficiency",
+    "utilisation": "Utilisation",
+    "utilisationNote": "Billable of total hours",
+    "shopShare": "Shop share",
+    "shopShareNote": "Shop of total hours",
+    "labourMargin": "Labour margin",
+    "labourMarginNote": "Profit of labour revenue",
+    "byDay": "By day"
+  },
+  "dailyTable": {
+    "date": "Date",
+    "holiday": "(Holiday)",
+    "total": "Total"
+  },
+  "summaryCards": {
+    "breakdown": "Breakdown",
+    "billed": "{{hours}} billed",
+    "totalHours": "{{hours}} total",
+    "billedPerActiveDay": "{{hours}} billed per active day",
+    "revenue": "{{amount}} revenue",
+    "cost": "{{amount}} cost",
+    "margin": "{{ratio}} margin",
+    "grossProfit": "{{amount}} gross profit",
+    "netMargin": "{{ratio}} net margin",
+    "labour": "Labour",
+    "materials": "Materials",
+    "adjustments": "Adjustments",
+    "netProfit": "Net profit"
+  },
+  "jobMovementPage": {
+    "title": "Job Movement Report",
+    "thisFortnight": "This Fortnight",
+    "lastFortnight": "Last Fortnight",
+    "loading": "Loading job movement report...",
+    "loadError": "Failed to load the job movement report.",
+    "draftJobsCreated": "Draft Jobs Created",
+    "quotesSubmitted": "Quotes Submitted",
+    "jobsWon": "Jobs Won",
+    "draftConversionRate": "Draft Conversion Rate",
+    "additionalMetrics": "Additional Metrics",
+    "quotesAccepted": "Quotes Accepted",
+    "quoteAcceptanceRate": "Quote Acceptance Rate",
+    "throughQuotesSkipped": "Through Quotes / Skipped",
+    "quoteUsage": "Quote Usage"
+  },
+  "calendarPage": {
+    "title": "KPI Calendar",
+    "gradeBy": "Grade by",
+    "billableHours": "Billable hours",
+    "grossProfit": "Gross profit",
+    "show": "Show",
+    "wholeDollars": "Whole dollars",
+    "cents": "Cents",
+    "refresh": "Refresh",
+    "loading": "Loading KPI calendar...",
+    "loadError": "Failed to load the KPI calendar."
+  },
+  "payrollPage": {
+    "status": {
+      "ok": "Matches",
+      "mismatch": "Differs",
+      "xero_only_departed": "Left — Xero is still paying them",
+      "xero_only_unposted": "Paid, but no hours were posted",
+      "xero_only_unknown": "Paid, but DocketWorks has no record",
+      "xero_only_salaried": "Salaried — hours are job allocation only",
+      "jm_only": "No pay slip"
+    },
+    "title": "Payroll reconciliation — week of {{week}}",
+    "loadedNote": "Loaded wages allocate paid non-worked time to worked hours, while this week’s Xero gross does not — the difference column is not a reconciliation in this mode.",
+    "liveRunNote": "Figures are read live from the week’s pay run. Xero recalculates a Draft’s pay for a couple of minutes after a post, so a difference seen immediately after posting may still be settling — re-check before acting on it.",
+    "noPayRunNote": "Xero has no pay run for this week yet, so there is nothing to compare against. Any difference below is that absence, not a finding.",
+    "totalOursBase": "DocketWorks base wages",
+    "totalOursLoaded": "DocketWorks loaded wages",
+    "wageBasisLabel": "DocketWorks wages:",
+    "base": "Base",
+    "loaded": "Loaded",
+    "loading": "Asking Xero what it computed for this week...",
+    "loadError": "Could not read the payroll reconciliation.",
+    "empty": "No staff and no pay slips for this week",
+    "columns": {
+      "staff": "Staff",
+      "docketworks": "DocketWorks",
+      "xero": "Xero",
+      "difference": "Difference",
+      "ourHours": "Our hours",
+      "xeroHours": "Xero hours",
+      "status": "Status"
+    },
+    "totalXero": "Xero computed",
+    "unpostedCount": "Paid but not posted"
+  }
+}

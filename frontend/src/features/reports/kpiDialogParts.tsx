@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { KpiDayDataOut } from '@/api'
 import {
@@ -138,12 +139,13 @@ export function DailyTable({
   columns: readonly DailyColumn[]
   automationId: string
 }) {
+  const { t } = useTranslation('reports')
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm" data-automation-id={automationId}>
         <thead>
           <tr className="border-b border-gray-300 text-xs text-gray-600">
-            <th className="px-3 py-2 text-left font-semibold">Date</th>
+            <th className="px-3 py-2 text-left font-semibold">{t('dailyTable.date')}</th>
             {columns.map((column) => (
               <th key={column.header} className="px-3 py-2 text-right font-semibold">
                 {column.header}
@@ -159,7 +161,9 @@ export function DailyTable({
             >
               <td className="px-3 py-1.5">
                 {formatDate(day.date)}
-                {day.holiday && <span className="ml-1 text-xs text-gray-500">(Holiday)</span>}
+                {day.holiday && (
+                  <span className="ml-1 text-xs text-gray-500">{t('dailyTable.holiday')}</span>
+                )}
               </td>
               {columns.map((column) => (
                 <td key={column.header} className="px-3 py-1.5 text-right">
@@ -171,7 +175,7 @@ export function DailyTable({
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-            <td className="px-3 py-2">Total</td>
+            <td className="px-3 py-2">{t('dailyTable.total')}</td>
             {columns.map((column) => (
               <td key={column.header} className="px-3 py-2 text-right">
                 {column.total}

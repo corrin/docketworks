@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiDayDataOut, KpiMonthlyTotalsOut } from '@/api'
 import { formatHoursDisplay, formatMonth } from '@/lib/format'
 
@@ -28,102 +30,103 @@ export function KpiLabourDialog({
   money,
   onClose,
 }: KpiLabourDialogProps) {
+  const { t } = useTranslation('reports')
   return (
     <KpiDialog
       open={open}
       onClose={onClose}
       automationId="KpiLabourDialog"
-      title={`Labour — ${formatMonth(month)}`}
-      description="Hours, cost and revenue from time entries"
+      title={t('labourDialog.title', { month: formatMonth(month) })}
+      description={t('labourDialog.description')}
     >
-      <Section title="Hours">
+      <Section title={t('labourDialog.hours')}>
         <Stats>
           <Stat
-            label="Total hours"
+            label={t('labourDialog.totalHours')}
             value={formatHoursDisplay(totals.total_hours)}
-            note="All recorded time"
+            note={t('labourDialog.totalHoursNote')}
           />
           <Stat
-            label="Billable hours"
+            label={t('labourDialog.billableHours')}
             value={formatHoursDisplay(totals.billable_hours)}
-            note="Chargeable to a customer"
+            note={t('labourDialog.billableHoursNote')}
           />
           <Stat
-            label="Shop hours"
+            label={t('labourDialog.shopHours')}
             value={formatHoursDisplay(totals.shop_hours)}
-            note="Workshop and production"
+            note={t('labourDialog.shopHoursNote')}
           />
           <Stat
-            label="Billed per active day"
+            label={t('labourDialog.billedPerActiveDay')}
             value={hoursText(totals.avg_active_day_billable_hours)}
-            note="Days with any hours"
+            note={t('labourDialog.billedPerActiveDayNote')}
           />
         </Stats>
       </Section>
-      <Section title="Money">
+      <Section title={t('labourDialog.money')}>
         <div className="space-y-1">
-          <Row label="Labour revenue" value={money(totals.time_revenue)} />
-          <Row label="Labour cost" value={money(totals.staff_cost)} />
+          <Row label={t('labourDialog.labourRevenue')} value={money(totals.time_revenue)} />
+          <Row label={t('labourDialog.labourCost')} value={money(totals.staff_cost)} />
           <Row
-            label="Labour profit"
+            label={t('labourDialog.labourProfit')}
             value={money(totals.labour_profit)}
             strong
             automationId="KpiLabourDialog-labour-profit"
           />
           <Row
-            label="Average rate per billable hour"
+            label={t('labourDialog.averageRate')}
             value={moneyText(totals.avg_labour_rate, money)}
             automationId="KpiLabourDialog-avg-rate"
           />
         </div>
       </Section>
-      <Section title="Efficiency">
+      <Section title={t('labourDialog.efficiency')}>
         <Stats>
           <Stat
-            label="Utilisation"
+            label={t('labourDialog.utilisation')}
             value={ratioText(totals.billable_percentage)}
-            note="Billable of total hours"
+            note={t('labourDialog.utilisationNote')}
           />
           <Stat
-            label="Shop share"
+            label={t('labourDialog.shopShare')}
             value={ratioText(totals.shop_percentage)}
-            note="Shop of total hours"
+            note={t('labourDialog.shopShareNote')}
           />
           <Stat
-            label="Labour margin"
+            label={t('labourDialog.labourMargin')}
             value={ratioText(totals.labour_margin)}
-            note="Profit of labour revenue"
+            note={t('labourDialog.labourMarginNote')}
             automationId="KpiLabourDialog-labour-margin"
           />
         </Stats>
       </Section>
-      <Section title="By day">
+      <Section title={t('labourDialog.byDay')}>
         <DailyTable
           automationId="KpiLabourDialog-daily"
           days={days}
           columns={[
             {
-              header: 'Total hours',
+              header: t('labourDialog.totalHours'),
               cell: (day) => formatHoursDisplay(day.total_hours),
               total: formatHoursDisplay(totals.total_hours),
             },
             {
-              header: 'Billable hours',
+              header: t('labourDialog.billableHours'),
               cell: (day) => formatHoursDisplay(day.billable_hours),
               total: formatHoursDisplay(totals.billable_hours),
             },
             {
-              header: 'Shop hours',
+              header: t('labourDialog.shopHours'),
               cell: (day) => formatHoursDisplay(day.shop_hours),
               total: formatHoursDisplay(totals.shop_hours),
             },
             {
-              header: 'Labour cost',
+              header: t('labourDialog.labourCost'),
               cell: (day) => money(day.details.staff_cost),
               total: money(totals.staff_cost),
             },
             {
-              header: 'Labour revenue',
+              header: t('labourDialog.labourRevenue'),
               cell: (day) => money(day.details.time_revenue),
               total: money(totals.time_revenue),
             },

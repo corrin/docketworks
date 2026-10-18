@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import type { KpiDayDataOut } from '@/api'
 import { formatDateLong } from '@/lib/format'
@@ -19,6 +20,7 @@ interface KpiDayDetailsDialogProps {
  * link to the job — the one navigation out of the report.
  */
 export function KpiDayDetailsDialog({ day, money, onClose }: KpiDayDetailsDialogProps) {
+  const { t } = useTranslation('reports')
   if (day === null) return null
   const { details } = day
   const profit = details.profit_breakdown
@@ -27,52 +29,62 @@ export function KpiDayDetailsDialog({ day, money, onClose }: KpiDayDetailsDialog
       open
       onClose={onClose}
       automationId="KpiDayDetailsDialog"
-      title={`${formatDateLong(day.date)}${day.holiday ? ' (Holiday)' : ''}`}
-      description="Revenue, cost and profit for the day, and the jobs that made it"
+      title={
+        day.holiday
+          ? t('dayDialog.titleHoliday', { date: formatDateLong(day.date) })
+          : formatDateLong(day.date)
+      }
+      description={t('dayDialog.description')}
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Section title="Revenue">
+        <Section title={t('dayDialog.revenue')}>
           <div className="space-y-1">
-            <Row label="Labour" value={money(details.time_revenue)} />
-            <Row label="Materials" value={money(details.material_revenue)} />
-            <Row label="Adjustments" value={money(details.adjustment_revenue)} />
-            <Row label="Total revenue" value={money(details.total_revenue)} strong />
+            <Row label={t('dayDialog.labour')} value={money(details.time_revenue)} />
+            <Row label={t('dayDialog.materials')} value={money(details.material_revenue)} />
+            <Row label={t('dayDialog.adjustments')} value={money(details.adjustment_revenue)} />
+            <Row label={t('dayDialog.totalRevenue')} value={money(details.total_revenue)} strong />
           </div>
         </Section>
-        <Section title="Cost">
+        <Section title={t('dayDialog.cost')}>
           <div className="space-y-1">
-            <Row label="Labour" value={money(details.staff_cost)} />
-            <Row label="Materials" value={money(details.material_cost)} />
-            <Row label="Adjustments" value={money(details.adjustment_cost)} />
-            <Row label="Total cost" value={money(details.total_cost)} strong />
+            <Row label={t('dayDialog.labour')} value={money(details.staff_cost)} />
+            <Row label={t('dayDialog.materials')} value={money(details.material_cost)} />
+            <Row label={t('dayDialog.adjustments')} value={money(details.adjustment_cost)} />
+            <Row label={t('dayDialog.totalCost')} value={money(details.total_cost)} strong />
           </div>
         </Section>
       </div>
-      <Section title="Gross profit">
+      <Section title={t('dayDialog.grossProfit')}>
         <Stats>
-          <Stat label="Labour" value={money(profit.labour_profit)} />
-          <Stat label="Materials" value={money(profit.material_profit)} />
-          <Stat label="Adjustments" value={money(profit.adjustment_profit)} />
+          <Stat label={t('dayDialog.labour')} value={money(profit.labour_profit)} />
+          <Stat label={t('dayDialog.materials')} value={money(profit.material_profit)} />
+          <Stat label={t('dayDialog.adjustments')} value={money(profit.adjustment_profit)} />
           <Stat
-            label="Gross profit"
+            label={t('dayDialog.grossProfit')}
             value={money(day.gross_profit)}
             automationId="KpiDayDetailsDialog-gross-profit"
           />
         </Stats>
       </Section>
-      <Section title="Profit by job">
+      <Section title={t('dayDialog.profitByJob')}>
         {details.job_breakdown.length === 0 ? (
-          <p className="text-sm text-gray-500">No job data available for this day</p>
+          <p className="text-sm text-gray-500">{t('dayDialog.noJobs')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm" data-automation-id="KpiDayDetailsDialog-jobs">
               <thead>
                 <tr className="border-b border-gray-300 text-xs text-gray-600">
-                  <th className="px-3 py-2 text-left font-semibold">Job</th>
-                  <th className="px-3 py-2 text-right font-semibold">Labour</th>
-                  <th className="px-3 py-2 text-right font-semibold">Materials</th>
-                  <th className="px-3 py-2 text-right font-semibold">Adjustments</th>
-                  <th className="px-3 py-2 text-right font-semibold">Total</th>
+                  <th className="px-3 py-2 text-left font-semibold">
+                    {t('dayDialog.columns.job')}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold">{t('dayDialog.labour')}</th>
+                  <th className="px-3 py-2 text-right font-semibold">{t('dayDialog.materials')}</th>
+                  <th className="px-3 py-2 text-right font-semibold">
+                    {t('dayDialog.adjustments')}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold">
+                    {t('dayDialog.columns.total')}
+                  </th>
                 </tr>
               </thead>
               <tbody>

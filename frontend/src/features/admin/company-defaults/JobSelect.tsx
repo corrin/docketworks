@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { jobJobsOptionsListOptions } from '@/api'
 import { JobPicker } from '@/features/shared/JobPicker'
@@ -12,13 +13,14 @@ import type { SettingsFieldControlProps } from './SettingsFieldInput'
  * jobs through the shared picker and the admin job list, as leave settings do.
  */
 export function JobSelect({ field, value, onChange, section }: SettingsFieldControlProps) {
+  const { t } = useTranslation('admin')
   const jobsQuery = useQuery(jobJobsOptionsListOptions({ query: { status: 'special' } }))
   const automationId = fieldAutomationId(section, field.key)
 
   if (jobsQuery.isError) {
     return (
       <p className="text-xs text-red-700" data-automation-id={`${automationId}-error`}>
-        Could not load jobs.
+        {t('jobSelect.loadFailed')}
       </p>
     )
   }
@@ -32,7 +34,7 @@ export function JobSelect({ field, value, onChange, section }: SettingsFieldCont
       selected={jobs.find((job) => job.id === value) ?? null}
       disabled={field.read_only}
       loading={jobsQuery.isPending}
-      placeholder="Select special Job"
+      placeholder={t('jobSelect.placeholder')}
       triggerLabel={(job) => job?.name ?? ''}
       typedSearchLimit={null}
       commitOnTab={false}

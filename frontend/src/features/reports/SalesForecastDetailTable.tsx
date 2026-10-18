@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { type ForecastComparisonRowOut, salesForecastMonthDetailOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
@@ -25,67 +26,77 @@ type DetailColumn = keyof Pick<
 
 const COLUMNS: readonly {
   column: DetailColumn
-  label: string
+  labelKey:
+    | 'jobStart'
+    | 'jobFinish'
+    | 'company'
+    | 'invoices'
+    | 'job'
+    | 'note'
+    | 'xeroRevenue'
+    | 'jmRevenue'
+    | 'variance'
+    | 'allTimeDelta'
   automationId: string
   align: 'left' | 'right'
 }[] = [
   {
     column: 'job_start_date',
-    label: 'Job Start',
+    labelKey: 'jobStart',
     automationId: 'SalesForecastReport-header-job-start',
     align: 'left',
   },
   {
     column: 'date',
-    label: 'Job Finish',
+    labelKey: 'jobFinish',
     automationId: 'SalesForecastReport-header-job-finish',
     align: 'left',
   },
   {
     column: 'company_name',
-    label: 'Company',
+    labelKey: 'company',
     automationId: 'SalesForecastReport-header-company',
     align: 'left',
   },
   {
     column: 'invoice_numbers',
-    label: 'Invoices',
+    labelKey: 'invoices',
     automationId: 'SalesForecastReport-header-invoices',
     align: 'left',
   },
   {
     column: 'job_number',
-    label: 'Job',
+    labelKey: 'job',
     automationId: 'SalesForecastReport-header-job',
     align: 'left',
   },
   {
     column: 'note',
-    label: 'Note',
+    labelKey: 'note',
     automationId: 'SalesForecastReport-header-note',
     align: 'left',
   },
   {
     column: 'total_invoiced',
-    label: 'Xero Revenue',
+    labelKey: 'xeroRevenue',
     automationId: 'SalesForecastReport-header-xero-revenue',
     align: 'right',
   },
   {
     column: 'job_revenue',
-    label: 'JM Revenue',
+    labelKey: 'jmRevenue',
     automationId: 'SalesForecastReport-header-jm-revenue',
     align: 'right',
   },
   {
     column: 'variance',
-    label: 'Variance',
+    labelKey: 'variance',
     automationId: 'SalesForecastReport-header-variance',
     align: 'right',
   },
   {
     column: 'variance_all_time',
-    label: 'All-Time Delta',
+    labelKey: 'allTimeDelta',
     automationId: 'SalesForecastReport-header-all-time',
     align: 'right',
   },
@@ -143,6 +154,7 @@ function Blank() {
  * parameter standing in for "nothing selected yet".
  */
 export function SalesForecastDetailTable({ month }: { month: string }) {
+  const { t } = useTranslation('reports')
   const sort = useSortState<DetailColumn>('date')
   const detail = useQuery(salesForecastMonthDetailOptions({ path: { month } }))
 
@@ -155,16 +167,21 @@ export function SalesForecastDetailTable({ month }: { month: string }) {
       isPending={detail.isPending}
       isError={detail.isError}
       onRetry={() => void detail.refetch()}
-      loadingLabel="Loading month details..."
+      loadingLabel={t('salesForecast.detail.loading')}
       loadingAutomationId="SalesForecastReport-detail-loading"
-      errorLabel="Failed to load the month details."
+      errorLabel={t('salesForecast.detail.loadError')}
       rows={rows}
-      emptyLabel="No invoice or job data for this month"
+      emptyLabel={t('salesForecast.detail.empty')}
       automationId="SalesForecastReport-detail-table"
       head={
         <tr className="border-b border-gray-200 text-gray-500">
-          {COLUMNS.map((header) => (
-            <SortHeader key={header.column} {...header} {...sort} />
+          {COLUMNS.map(({ labelKey, ...header }) => (
+            <SortHeader
+              key={header.column}
+              {...header}
+              label={t(`salesForecast.detail.columns.${labelKey}`)}
+              {...sort}
+            />
           ))}
         </tr>
       }

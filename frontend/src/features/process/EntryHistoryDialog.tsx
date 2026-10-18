@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { processEntriesHistoryListOptions, type EntryOut } from '@/api'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -30,6 +31,7 @@ export function EntryHistoryDialog({ entry, onClose }: Props) {
 }
 
 function HistoryBody({ entry }: { entry: EntryOut }) {
+  const { t } = useTranslation('process')
   const historyQuery = useQuery(processEntriesHistoryListOptions({ path: { entry_id: entry.id } }))
   const events = historyQuery.data ?? []
 
@@ -39,19 +41,19 @@ function HistoryBody({ entry }: { entry: EntryOut }) {
       data-automation-id="EntryHistoryDialog-content"
     >
       <DialogHeader>
-        <DialogTitle>Entry history</DialogTitle>
+        <DialogTitle>{t('entryHistory.title')}</DialogTitle>
       </DialogHeader>
       <QueryState
         isPending={historyQuery.isPending}
         isError={historyQuery.isError}
         onRetry={() => void historyQuery.refetch()}
-        loadingLabel="Loading history..."
-        errorLabel="Failed to load this entry's history."
+        loadingLabel={t('entryHistory.loading')}
+        errorLabel={t('entryHistory.loadFailed')}
       >
         <AuditEventList
           events={events}
           automationIdPrefix="EntryHistoryDialog"
-          emptyLabel="No history recorded yet."
+          emptyLabel={t('entryHistory.empty')}
         />
       </QueryState>
     </DialogContent>
