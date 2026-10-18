@@ -57,7 +57,7 @@ test.describe('Sales Forecast Report', () => {
     const csvPath = await download.path()
     const csvLines = readFileSync(csvPath, 'utf8').trim().split('\r\n')
     expect(csvLines[0]).toBe(
-      'Month,Xero Sales (incl GST),DocketWorks revenue (excl GST),Variance,Variance %',
+      'Month,Xero Sales (excl GST),DocketWorks revenue (excl GST),Variance,Variance %',
     )
     // One line per month on screen, and the same first month: the export has
     // to be the table the user is looking at, not a second fetch of its own.

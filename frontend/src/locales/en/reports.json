@@ -70,7 +70,7 @@
       "empty": "No invoices or job revenue in these months",
       "columns": {
         "month": "Month",
-        "xeroSales": "Xero Sales (incl GST)",
+        "xeroSales": "Xero Sales (excl GST)",
         "jmSales": "DocketWorks revenue (excl GST)",
         "variance": "Variance",
         "variancePct": "Variance %"
@@ -84,7 +84,7 @@
         "invoices": "Invoices",
         "job": "Job",
         "note": "Note",
-        "xeroRevenue": "Xero Revenue (incl GST)",
+        "xeroRevenue": "Xero Revenue (excl GST)",
         "jmRevenue": "DocketWorks revenue (excl GST)",
         "variance": "Variance",
         "allTimeDelta": "Difference to date"
@@ -99,21 +99,21 @@
     },
     "csv": {
       "month": "Month",
-      "xeroSales": "Xero Sales (incl GST)",
+      "xeroSales": "Xero Sales (excl GST)",
       "jmSales": "DocketWorks revenue (excl GST)",
       "variance": "Variance",
       "variancePct": "Variance %"
     },
     "page": {
-      "aboutBody": "Compares, month by month, what Xero has invoiced with the revenue DocketWorks puts on jobs, to show work not yet invoiced and how invoicing runs. Pick a month to see the invoices and jobs behind it. Xero figures include GST; DocketWorks revenue excludes it, so a month invoiced in full shows about 15% more in Xero.",
-      "selectedXero": "Xero (incl GST): {{amount}}",
+      "aboutBody": "Compares, month by month, what Xero has invoiced with the revenue DocketWorks puts on jobs, to show work not yet invoiced and how invoicing runs. Pick a month to see the invoices and jobs behind it. Both sides exclude GST.",
+      "selectedXero": "Xero (excl GST): {{amount}}",
       "selectedJm": "DocketWorks revenue (excl GST): {{amount}}",
       "selectedVariance": "Variance: {{amount}} ({{pct}})",
       "title": "Sales Forecast Report",
       "exportCsv": "Export CSV",
       "refresh": "Refresh",
       "aboutTitle": "About this report",
-      "totalXeroSales": "Total Xero Sales (incl GST)",
+      "totalXeroSales": "Total Xero Sales (excl GST)",
       "totalJmSales": "Total DocketWorks revenue (excl GST)",
       "totalVariance": "Total Variance",
       "avgVariancePct": "Avg Variance %"

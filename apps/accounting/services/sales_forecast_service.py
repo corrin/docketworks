@@ -1,9 +1,9 @@
 """Sales forecast: monthly Xero-invoice totals vs JM cost-line revenue.
 
-Two accepted choices are recorded in rewrite status as cross-report
-divergences: invoices count at ``total_incl_tax`` with DRAFT excluded (the
-WIP report uses ``total_excl_tax`` and counts DRAFT), and the variance sign is
-``xero - jm`` (payroll reconciliation reports ``jm - xero``).
+Invoices count excl GST, like the job revenue they are compared with (owner
+ruling 2026-10-19: apples with apples). DRAFT is excluded (the WIP report
+counts it) and the variance sign is ``xero - jm`` (payroll reconciliation
+reports ``jm - xero``); both are recorded cross-report divergences.
 """
 
 from collections import defaultdict
@@ -116,7 +116,7 @@ def _xero_sales_by_month() -> dict[str, Decimal]:
             date__isnull=False,
         )
         .values("date")
-        .annotate(total=Sum("total_incl_tax"))
+        .annotate(total=Sum("total_excl_tax"))
     )
     sales: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
     for invoice in invoices:
@@ -178,7 +178,7 @@ def _total_invoiced_for_job(job: Job) -> float:
     total = Invoice.objects.filter(
         ~Q(status__in=_EXCLUDED_INVOICE_STATUSES),
         job=job,
-    ).aggregate(total=Sum("total_incl_tax"))["total"]
+    ).aggregate(total=Sum("total_excl_tax"))["total"]
     return float(total or 0)
 
 
@@ -265,7 +265,7 @@ def _build_comparison_rows(year: int, month: int) -> list[ComparisonRow]:
                 job_number=job.job_number,
                 job_name=job.name,
                 invoice_numbers=", ".join(inv.number for inv in job_invoices),
-                total_invoiced=sum(float(inv.total_incl_tax) for inv in job_invoices),
+                total_invoiced=sum(float(inv.total_excl_tax) for inv in job_invoices),
                 job_revenue=float(revenue_by_job.get(job_id, Decimal("0"))),
                 job_id=str(job.id),
                 job_start_date=start.isoformat() if start else None,
@@ -285,7 +285,7 @@ def _build_comparison_rows(year: int, month: int) -> list[ComparisonRow]:
                 job_number=None,
                 job_name=None,
                 invoice_numbers=invoice.number,
-                total_invoiced=float(invoice.total_incl_tax),
+                total_invoiced=float(invoice.total_excl_tax),
                 job_revenue=0.0,
                 job_id=None,
                 note=_job_note(None, "xero_only"),
