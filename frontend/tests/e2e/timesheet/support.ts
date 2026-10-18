@@ -4,7 +4,8 @@ import { shiftDate } from '../../../src/lib/dates'
 import {
   getJobLabourRates,
   getPostableWeek,
-  getTimesheetStaff,
+  getWorkshopStaff,
+  getWorkshopTimesheetStaff,
   refreshPayrollMirror,
   seedTimesheetLabour,
   type TimesheetStaff,
@@ -35,12 +36,13 @@ export async function readJobNumber(page: Page): Promise<number> {
   return Number(match[1])
 }
 
-/** Daily page → click the first staff row → land on the entry page. */
+/** Daily page → click the workshop login's row → land on its entry page. */
 export async function openEntryViaDaily(page: Page, date: string): Promise<void> {
+  const { id } = await getWorkshopStaff(page)
   await page.goto(`/timesheets/daily?date=${date}`)
-  const firstStaff = page.locator('[data-automation-id^="StaffRow-name-"]').first()
-  await firstStaff.waitFor({ timeout: 15000 })
-  await firstStaff.click()
+  const staffRow = autoId(page, `StaffRow-name-${id}`)
+  await staffRow.waitFor({ timeout: 15000 })
+  await staffRow.click()
   await page.waitForURL('**/timesheets/entry**')
   await waitForEntryGrid(page)
 }
@@ -86,7 +88,7 @@ export interface SeededLabour {
 }
 
 /**
- * Hours on a [TEST] job for one linked staff member inside a payroll week.
+ * Hours on a [TEST] job for the workshop login inside a payroll week.
  *
  * The weekly-payroll post and the payroll reconciliation both need a week
  * that holds DocketWorks time: the post so it has something to transmit,
@@ -95,23 +97,12 @@ export interface SeededLabour {
  * with restored time cannot be relied on; the spec seeds its own.
  */
 export async function seedLabourForWeek(page: Page, week: string): Promise<SeededLabour> {
-  // Opus: Whoever the app lists for that day, NOT assumed to be the E2E
-  // login user: payroll requires a linked Xero employee, and
-  // `get_displayable_staff` drops anyone without a UUID-shaped xero_user_id.
-  // Whether the E2E account has one depends on the database (it does on the
-  // current dev restore, where it is listed; e2e_ensure_fixtures gives it none).
-  // Hours seeded against a login that is not listed are hours nothing posts
-  // and the week status never reports, so the first listed person is used.
-  // Tuesday: inside the week whichever way the week is configured.
+  // Opus: The workshop login, a Xero payroll employee in every environment
+  // (e2e_ensure_fixtures), so the hours are ones the post transmits and the
+  // week status reports. Tuesday: inside the week whichever way the week is
+  // configured.
   const seedDate = shiftDate(week, 1)
-  const candidates = await getTimesheetStaff(page, seedDate)
-  const staff = candidates[0]
-  if (staff === undefined) {
-    throw new Error(
-      `No staff are available for timesheet entry on ${seedDate}, so no hours can be ` +
-        'seeded for the postable week. Check the restore linked staff to Xero employees.',
-    )
-  }
+  const staff = await getWorkshopTimesheetStaff(page, seedDate)
 
   // Opus: Seed onto a [TEST] job so e2e_cleanup cascades the line away; hours left
   // on a restored production job would join every later post of this week.
@@ -195,14 +186,33 @@ export async function openPostableWeek(page: Page): Promise<string> {
   return week
 }
 
+/**
+ * Run setup as the superuser in its own browser context, for specs driven by
+ * a login that may not read the superuser screens (the staff list among them).
+ */
+export async function asSuperuser<T>(
+  browser: Browser,
+  baseURL: string,
+  setup: (page: Page) => Promise<T>,
+): Promise<T> {
+  const context = await browser.newContext({ baseURL })
+  try {
+    const page = await context.newPage()
+    const { username, password } = e2eCredentials('office')
+    await authenticateViaLoginPage(page, username, password, () => () => undefined)
+    return await setup(page)
+  } finally {
+    await context.close()
+  }
+}
+
 /** Hours no other seed uses, so a waiting figure can only be this line. */
 export const WORKER_HOURS = 1.25
 
 /**
  * Book time as the workshop login would, in its own browser context: who
  * wrote a line decides whether it starts approved, and a worker's does not.
- * It is booked to a staff member the timesheet screens list, since the
- * workshop E2E login has no Xero employee and appears on none of them.
+ * It is booked to the seeded staff member, which is the workshop login itself.
  */
 export async function bookAsWorkshopUser(
   browser: Browser,

@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
-import { getCompanyDefaults, getStaffList } from '../fixtures/api'
+import { getCompanyDefaults, getWorkshopStaff } from '../fixtures/api'
 import {
   enterHours,
   getLatestWeekdayDate,
@@ -38,11 +38,9 @@ test.describe.serial('staff wage loading', () => {
       )
     }
 
-    const staffList = await getStaffList(page)
-    const candidate = staffList.find(
-      (member) => member.date_left === null && member.base_wage_rate > 0,
-    )
-    if (!candidate) throw new Error('No active staff member with base_wage_rate > 0')
+    // The workshop login: a Xero payroll employee with a base wage, so the
+    // timesheet entry page accepts it on the day the last test books.
+    const candidate = await getWorkshopStaff(page)
     staff = {
       id: candidate.id,
       base: candidate.base_wage_rate,

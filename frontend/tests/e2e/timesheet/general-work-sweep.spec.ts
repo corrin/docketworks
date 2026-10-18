@@ -7,19 +7,15 @@
  * seeds hours on a job, the workshop login books an entry that waits, and the
  * office sets the clock times on Approve time.
  */
-import type { Browser, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { z } from 'zod'
 
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
-import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
+import { getWorkshopStaff } from '../fixtures/api'
+import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
-import {
-  bookAsWorkshopUser,
-  getLatestWeekdayDate,
-  seedLabourForWeek,
-  type SeededLabour,
-} from './support'
+import { asSuperuser, bookAsWorkshopUser, getLatestWeekdayDate, seedLabourForWeek } from './support'
 
 /**
  * 06:30 to 15:00 with the standard breaks the office's times put on the day
@@ -39,22 +35,6 @@ const STRETCHES = [
 /** Five weeks ahead: a week no other timesheet spec books or clocks on. */
 const FUTURE_WEEK = shiftDate(mondayOf(getLatestWeekdayDate()), 35)
 
-async function seedAsSuperuser(
-  browser: Browser,
-  baseURL: string,
-  week: string,
-): Promise<SeededLabour> {
-  const context = await browser.newContext({ baseURL })
-  try {
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('office')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    return await seedLabourForWeek(page, week)
-  } finally {
-    await context.close()
-  }
-}
-
 async function setClock(page: Page, staffId: string): Promise<void> {
   await autoId(page, `ApproveTimePage-open-${staffId}`).click()
   await autoId(page, `ApproveTimePage-clock-edit-${staffId}`).click()
@@ -72,7 +52,9 @@ test("a person's clocked time on no job is swept onto General work and the day a
   baseURL,
 }, testInfo) => {
   const origin = z.string().parse(baseURL)
-  const seeded = await seedAsSuperuser(browser, origin, FUTURE_WEEK)
+  const seeded = await asSuperuser(browser, origin, (setup) =>
+    seedLabourForWeek(setup, FUTURE_WEEK),
+  )
   const waitingEntryId = await bookAsWorkshopUser(browser, origin, seeded)
   const staffId = seeded.staff.id
   const sweepButton = autoId(page, `ApproveTimePage-sweep-${staffId}`)
@@ -120,14 +102,12 @@ test("a person's clocked time on no job is swept onto General work and the day a
 
 test('sweeping everyone on a day sweeps a person the office clocked', async ({
   authenticatedPage: page,
+  browser,
+  baseURL,
 }) => {
   // A weekday the week after FUTURE_WEEK, so the two tests share no day.
   const day = shiftDate(FUTURE_WEEK, 8)
-  const listed = z
-    .object({ staff: z.array(z.object({ staff_id: z.string() })) })
-    .parse(await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json())
-  const staffId = listed.staff[0]?.staff_id
-  if (staffId === undefined) throw new Error(`Nobody is on the timesheet for ${day}.`)
+  const staffId = (await asSuperuser(browser, z.string().parse(baseURL), getWorkshopStaff)).id
   const state = autoId(page, `ApproveTimePage-state-${staffId}`)
 
   await page.goto(`/timesheets/approve?date=${day}`)

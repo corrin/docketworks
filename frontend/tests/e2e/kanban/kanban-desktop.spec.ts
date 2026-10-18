@@ -1,5 +1,6 @@
-import type { Locator } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
+import { getWorkshopStaff } from '../fixtures/api'
 import { expect, test } from '../fixtures/auth'
 import { getJobIdFromUrl } from '../helpers'
 import {
@@ -11,27 +12,16 @@ import {
   STANDARD_DRAG_TIMING,
 } from './support'
 
-const pickAssignableStaff = async (card: Locator, staffItems: Locator) => {
-  const assignedIds = new Set(
-    await card
-      .locator('[data-staff-id]')
-      .evaluateAll((nodes) =>
-        nodes
-          .map((node) => node.getAttribute('data-staff-id'))
-          .filter((value): value is string => Boolean(value)),
-      ),
-  )
-
-  const staffCount = await staffItems.count()
-  for (let i = 0; i < staffCount; i += 1) {
-    const candidate = staffItems.nth(i)
-    const staffId = await candidate.getAttribute('data-staff-id')
-    if (staffId && !assignedIds.has(staffId)) {
-      return { staffItem: candidate, staffId }
-    }
-  }
-
-  throw new Error('No available staff to assign in Kanban staff panel')
+/**
+ * The workshop login, taken off the card first: the shared job is the
+ * worker's, so an earlier spec may already have assigned it. Removal of an
+ * absent assignment succeeds.
+ */
+const unassignedWorkshopStaff = async (page: Page, jobId: string): Promise<string> => {
+  const staffId = (await getWorkshopStaff(page)).id
+  const removed = await page.request.delete(`/api/job/job/${jobId}/assignment/${staffId}`)
+  expect(removed.ok(), await removed.text()).toBe(true)
+  return staffId
 }
 
 test.describe.serial('kanban desktop', () => {
@@ -79,6 +69,7 @@ test.describe.serial('kanban desktop', () => {
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const staffId = await unassignedWorkshopStaff(page, jobId)
 
     await page.goto('/kanban')
     await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
@@ -87,10 +78,9 @@ test.describe.serial('kanban desktop', () => {
     await jobCard.scrollIntoViewIfNeeded()
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
-    const staffItems = page.locator('.staff-item')
-    await expect(staffItems.first()).toBeVisible({ timeout: 15000 })
-
-    const { staffItem, staffId } = await pickAssignableStaff(jobCard, staffItems)
+    const staffItem = page.locator(`.staff-item[data-staff-id="${staffId}"]`)
+    await expect(staffItem).toBeVisible({ timeout: 15000 })
+    await expect(jobCard.locator(`[data-staff-id="${staffId}"]`)).toHaveCount(0)
 
     const assignResponse = page.waitForResponse((response) => {
       return (
