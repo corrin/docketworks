@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 127,667 (v1 172,577, -26%) |
-| tests | 89,742 (v1 50,869, +76%) |
-| generated | 54,296 (v1 20,359, +167%) |
+| code | 128,115 (v1 172,577, -26%) |
+| tests | 89,951 (v1 50,869, +77%) |
+| generated | 54,392 (v1 20,359, +167%) |
 
 ## Suppressions
 
@@ -31,7 +31,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 787 |
+| TOTAL suppressions | 788 |
 | noqa: DJ001 | 197 |
 | noqa: PLC0415 | 156 |
 | noqa: E402 | 108 |
@@ -59,6 +59,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S608 | 3 |
 | noqa: D107 | 2 |
 | noqa: DTZ001 | 2 |
+| noqa: DTZ011 | 2 |
 | noqa: F401 | 2 |
 | noqa: PIE804 | 2 |
 | noqa: S108 | 2 |
@@ -68,7 +69,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: B904 | 1 |
 | noqa: C416 | 1 |
 | noqa: DTZ007 | 1 |
-| noqa: DTZ011 | 1 |
 | noqa: F821 | 1 |
 | noqa: PLR0915 | 1 |
 | noqa: S107 | 1 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 259 |
-| non-test functions | 3095 |
+| non-test functions | 3113 |
 
 ## Broad type annotations
 

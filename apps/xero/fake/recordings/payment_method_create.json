@@ -1,0 +1,70 @@
+{
+  "recorded_at": "2026-10-18T08:00:33+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/payroll.xro/2.0/Employees/c41e2d0e-2606-4598-b199-0aa532058aee/PaymentMethods",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "892",
+      "X-MinLimit-Remaining": "52"
+    }
+  },
+  "body": {
+    "id": "60dfd01c-0b0f-4c7d-8f46-7269eae9f8be",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-10-18T08:00:45.7865467",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "paymentMethod": {
+      "bankAccounts": [
+        {
+          "accountName": "accountName-scrubbed",
+          "accountNumber": "accountNumber-scrubbed",
+          "sortCode": "010242",
+          "particulars": null,
+          "code": null,
+          "dollarAmount": null,
+          "reference": "",
+          "calculationType": "Balance"
+        }
+      ]
+    }
+  }
+}

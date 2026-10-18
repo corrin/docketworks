@@ -13,10 +13,9 @@ slips past it unnamed.
 The instance rehearsal (``instance.sh rehearse``) runs the real onboarding against the fake on
 a fresh installation and is red at its ``connect`` step until three pieces land:
 PR C below; the onboarding subset of PR B below (``POST EarningsRates``,
-``LeaveTypes`` and ``PayRunCalendars`` from ``xero --setup --seed-xero``, ``POST
-Employees`` and the per-employee ``Employment``, ``Tax``, ``SalaryAndWages``,
-``PaymentMethods``, ``Working-Patterns``, ``LeaveSetup`` and ``LeaveTypes`` from
-``seed_xero_from_database --only employees``); and ``manage.py fake_xero_connect``,
+``LeaveTypes`` and ``PayRunCalendars`` from ``xero --setup --seed-xero``; the
+employees phase, ``seed_xero_from_database --only employees``, is served); and
+``manage.py fake_xero_connect``,
 which binds a fresh installation as-if-connected by putting a token on the
 active ``XeroApp`` row (the columns ``_payload_from_row`` reads) and minting the
 tenant the connections list answers with. It must not write
@@ -59,20 +58,10 @@ _APIS: dict[type, str] = {
 EXPECTED_UNSERVED: frozenset[tuple[str, str]] = frozenset(
     {
         # PR B: payroll writes and their state machines, leave and timesheets.
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees"),
-        ("PUT", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Employment"),
         ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave"),
         ("PUT", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave/{LeaveID}"),
         ("DELETE", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave/{LeaveID}"),
         ("GET", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave"),
-        ("GET", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveTypes"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveSetup"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveTypes"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/PaymentMethods"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/SalaryAndWages"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Tax"),
-        ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Working-Patterns"),
         ("POST", "api.xero.com/payroll.xro/2.0/EarningsRates"),
         ("POST", "api.xero.com/payroll.xro/2.0/LeaveTypes"),
         ("POST", "api.xero.com/payroll.xro/2.0/PayRunCalendars"),
