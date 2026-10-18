@@ -16,3 +16,4 @@ it here in the same change.
 | Wages including paid leave | Wages plus holiday, sick and public-holiday pay, spread over the hours worked; has a tooltip | loaded wages |
 | Note (on a job) | Free text someone adds to a job's history | event |
 | Update from Xero | DocketWorks fetching what changed in Xero | sync, synced |
+| Costs and revenue (of an estimate, quote or actual) | The lines of an Estimate, Quote or Actual, and what they add up to | cost set |

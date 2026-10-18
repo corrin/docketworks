@@ -19,9 +19,9 @@
   },
   "finishTab": {
     "intro": {
-      "timeMaterials": "Compare the Estimate with the Actual for this Time & Materials job",
-      "noQuote": "Compare the Estimate with the Actual for this job (it has no quote)",
-      "withQuote": "Compare the Estimate, Quote and Actual for this job, with markers showing how each one compares"
+      "timeMaterials": "Compare the estimated costs and revenue with the actual costs and revenue for this Time & Materials job",
+      "noQuote": "Compare the estimated costs and revenue with the actual ones for this job (it has no quote)",
+      "withQuote": "Compare the costs and revenue in the Estimate, Quote and Actual, with markers showing how each compares"
     },
     "noQuoteData": "This job has no quote figures",
     "noActualData": "This job has no actual figures yet"
