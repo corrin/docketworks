@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { timesheetsWeeklyRetrieveOptions, timesheetsWeeklyRetrieveQueryKey } from '@/api'
 import type { WeeklyStaffDataOut, WeeklyTimesheetDataOut } from '@/api'
@@ -58,6 +59,7 @@ export function WeeklyOverviewPage({
   onOpenDay,
   onOpenEntry,
 }: WeeklyOverviewPageProps) {
+  const { t } = useTranslation('timesheet')
   const weekStart = search.week ?? mondayOf(localIsoDate())
   const queryClient = useQueryClient()
   const weekQuery = useQuery(timesheetsWeeklyRetrieveOptions({ query: { start_date: weekStart } }))
@@ -79,11 +81,11 @@ export function WeeklyOverviewPage({
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-4 text-lg font-semibold text-slate-800">Weekly Timesheets</h1>
+        <h1 className="mr-4 text-lg font-semibold text-slate-800">{t('weekly.title')}</h1>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Previous week"
+          aria-label={t('weekly.previousWeek')}
           onClick={() => onWeekChange(shiftDate(weekStart, -DAYS_IN_WEEK))}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -91,7 +93,7 @@ export function WeeklyOverviewPage({
         <input
           type="date"
           value={weekStart}
-          aria-label="Week starting"
+          aria-label={t('weekly.weekStarting')}
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           onChange={(event) => {
             // Opus: Any day picked selects the week it falls in; pay periods are
@@ -102,21 +104,24 @@ export function WeeklyOverviewPage({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Next week"
+          aria-label={t('weekly.nextWeek')}
           onClick={() => onWeekChange(shiftDate(weekStart, DAYS_IN_WEEK))}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => onWeekChange(mondayOf(localIsoDate()))}>
-          This week
+          {t('weekly.thisWeek')}
         </Button>
         <span className="text-sm text-slate-600" data-automation-id="WeeklyOverview-range">
-          {formatDate(weekStart)} – {formatDate(shiftDate(weekStart, DAYS_IN_WEEK - 1))}
+          {t('weekly.range', {
+            start: formatDate(weekStart),
+            end: formatDate(shiftDate(weekStart, DAYS_IN_WEEK - 1)),
+          })}
         </span>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Refresh"
+          aria-label={t('weekly.refresh')}
           onClick={() =>
             void queryClient.invalidateQueries({
               queryKey: timesheetsWeeklyRetrieveQueryKey({ query: { start_date: weekStart } }),
@@ -133,11 +138,11 @@ export function WeeklyOverviewPage({
           onClick={() =>
             void sweep(
               { start_date: weekStart, end_date: shiftDate(weekStart, DAYS_IN_WEEK - 1) },
-              "Couldn't book the week's leftover time to General work.",
+              t('weekly.sweepFailed'),
             )
           }
         >
-          Book the week's leftover time to General work
+          {t('weekly.sweepWeek')}
         </Button>
       </div>
 
@@ -162,11 +167,7 @@ export function WeeklyOverviewPage({
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
         }
-        errorNode={
-          <p className="text-sm font-medium text-red-700">
-            Could not load the weekly summary. Reload the page.
-          </p>
-        }
+        errorNode={<p className="text-sm font-medium text-red-700">{t('weekly.loadFailed')}</p>}
       >
         {weekQuery.data && (
           <WeekTable week={weekQuery.data} onOpenDay={onOpenDay} onOpenEntry={onOpenEntry} />
@@ -185,12 +186,13 @@ function WeekTable({
   onOpenDay: (date: string) => void
   onOpenEntry: (staffId: string, date: string) => void
 }) {
+  const { t } = useTranslation('timesheet')
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm" data-automation-id="WeeklyOverview-table">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-            <th className="w-56 px-2 py-2">Staff Member</th>
+            <th className="w-56 px-2 py-2">{t('weekly.staffColumn')}</th>
             {week.week_days.map((day) => (
               <th key={day} className="w-24 px-2 py-2">
                 <button
@@ -203,11 +205,11 @@ function WeekTable({
                 </button>
               </th>
             ))}
-            <th className="w-24 px-2 py-2">Total</th>
+            <th className="w-24 px-2 py-2">{t('weekly.totalColumn')}</th>
             {/* Hours the office has not approved: payroll does not post them. */}
-            <th className="w-24 px-2 py-2">Held back</th>
-            <th className="w-24 px-2 py-2">Billable</th>
-            <th className="w-28 px-2 py-2">Cost</th>
+            <th className="w-24 px-2 py-2">{t('weekly.heldBackColumn')}</th>
+            <th className="w-24 px-2 py-2">{t('weekly.billableColumn')}</th>
+            <th className="w-28 px-2 py-2">{t('weekly.costColumn')}</th>
           </tr>
         </thead>
         <tbody>
@@ -219,10 +221,12 @@ function WeekTable({
           <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
             {/* Totals come from the server's weekly_summary, never recomputed
                 here — v1 shipped both and showed the client's. */}
-            <td className="px-2 py-2">{week.weekly_summary.staff_count} staff</td>
+            <td className="px-2 py-2">
+              {t('weekly.staffCount', { staff: week.weekly_summary.staff_count })}
+            </td>
             <td className="px-2 py-2" colSpan={week.week_days.length} />
             <td className="px-2 py-2" data-automation-id="WeeklyOverview-totalHours">
-              {week.weekly_summary.total_hours}h
+              {t('weekly.hours', { hours: week.weekly_summary.total_hours })}
             </td>
             <td className="px-2 py-2" />
             <td className="px-2 py-2">
@@ -253,6 +257,7 @@ function StaffWeekRow({
   staff: WeeklyStaffDataOut
   onOpenEntry: (staffId: string, date: string) => void
 }) {
+  const { t } = useTranslation('timesheet')
   const [expanded, setExpanded] = useState(false)
   return (
     <>
@@ -276,7 +281,7 @@ function StaffWeekRow({
           <span className="ml-5 text-xs text-slate-500">{staff.week_status}</span>
           {staff.pay_basis === 'salary' && (
             <span className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
-              Salary
+              {t('weekly.salary')}
             </span>
           )}
           {/* The server already quantizes variance_hours to 0.01, so zero is
@@ -285,9 +290,9 @@ function StaffWeekRow({
           {staff.pay_basis === 'salary' && staff.variance_hours !== 0 && (
             <span className="ml-2 text-xs text-amber-700">
               {staff.variance_hours < 0
-                ? `${Math.abs(staff.variance_hours)}h unallocated`
-                : `${staff.variance_hours}h over expected`}{' '}
-              — salary unchanged
+                ? t('weekly.unallocated', { hours: Math.abs(staff.variance_hours) })
+                : t('weekly.overExpected', { hours: staff.variance_hours })}{' '}
+              {t('weekly.salaryUnchanged')}
             </span>
           )}
         </td>
@@ -302,18 +307,20 @@ function StaffWeekRow({
               data-automation-id={`WeeklyOverview-cell-${staff.staff_id}-${day.day}`}
               onClick={() => onOpenEntry(staff.staff_id, day.day)}
             >
-              {day.hours > 0 ? `${day.hours}h` : day.day_status}
+              {day.hours > 0 ? t('weekly.hours', { hours: day.hours }) : day.day_status}
             </button>
           </td>
         ))}
         <td className="px-2 py-2" data-automation-id={`WeeklyOverview-total-${staff.staff_id}`}>
-          {staff.total_hours}h
+          {t('weekly.hours', { hours: staff.total_hours })}
         </td>
         <td
           className={`px-2 py-2 ${staff.total_unapproved_hours > 0 ? 'font-semibold text-amber-800' : 'text-slate-400'}`}
           data-automation-id={`WeeklyOverview-heldBack-${staff.staff_id}`}
         >
-          {staff.total_unapproved_hours > 0 ? `${staff.total_unapproved_hours}h` : '—'}
+          {staff.total_unapproved_hours > 0
+            ? t('weekly.hours', { hours: staff.total_unapproved_hours })
+            : '—'}
         </td>
         <td className="px-2 py-2">{formatPercentage(staff.billable_percentage)}</td>
         <td className="px-2 py-2">{formatCurrency(staff.weekly_cost)}</td>
@@ -323,38 +330,71 @@ function StaffWeekRow({
   )
 }
 
-/** The payroll categories behind a staff member's week, one row each. */
+/** The payroll categories behind a staff member's week, one row each.
+    `automationId` names the row for the specs; `label` is its catalogue key. */
 const BREAKDOWN_ROWS = [
-  { label: 'Billed', day: 'billed_hours', total: 'total_billed_hours' },
-  { label: 'Unbilled', day: 'unbilled_hours', total: 'total_unbilled_hours' },
-  { label: 'Overtime 1.5x', day: 'overtime_1_5x_hours', total: 'total_overtime_1_5x_hours' },
-  { label: 'Overtime 2x', day: 'overtime_2x_hours', total: 'total_overtime_2x_hours' },
-  { label: 'Sick leave', day: 'sick_leave_hours', total: 'total_sick_leave_hours' },
-  { label: 'Annual leave', day: 'annual_leave_hours', total: 'total_annual_leave_hours' },
+  { automationId: 'Billed', label: 'billed', day: 'billed_hours', total: 'total_billed_hours' },
   {
-    label: 'Bereavement leave',
+    automationId: 'Unbilled',
+    label: 'unbilled',
+    day: 'unbilled_hours',
+    total: 'total_unbilled_hours',
+  },
+  {
+    automationId: 'Overtime 1.5x',
+    label: 'overtime15',
+    day: 'overtime_1_5x_hours',
+    total: 'total_overtime_1_5x_hours',
+  },
+  {
+    automationId: 'Overtime 2x',
+    label: 'overtime2',
+    day: 'overtime_2x_hours',
+    total: 'total_overtime_2x_hours',
+  },
+  {
+    automationId: 'Sick leave',
+    label: 'sickLeave',
+    day: 'sick_leave_hours',
+    total: 'total_sick_leave_hours',
+  },
+  {
+    automationId: 'Annual leave',
+    label: 'annualLeave',
+    day: 'annual_leave_hours',
+    total: 'total_annual_leave_hours',
+  },
+  {
+    automationId: 'Bereavement leave',
+    label: 'bereavementLeave',
     day: 'bereavement_leave_hours',
     total: 'total_bereavement_leave_hours',
   },
-  { label: 'Other leave', day: 'other_leave_hours', total: 'total_other_leave_hours' },
+  {
+    automationId: 'Other leave',
+    label: 'otherLeave',
+    day: 'other_leave_hours',
+    total: 'total_other_leave_hours',
+  },
 ] as const
 
 function PayrollBreakdownRows({ staff }: { staff: WeeklyStaffDataOut }) {
+  const { t } = useTranslation('timesheet')
   return (
     <>
       {BREAKDOWN_ROWS.filter((row) => staff[row.total] > 0).map((row) => (
         <tr
-          key={row.label}
+          key={row.automationId}
           className="border-b border-slate-100 bg-slate-50/60 text-xs text-slate-600"
-          data-automation-id={`WeeklyOverview-breakdown-${staff.staff_id}-${row.label}`}
+          data-automation-id={`WeeklyOverview-breakdown-${staff.staff_id}-${row.automationId}`}
         >
-          <td className="px-2 py-1 pl-9">{row.label}</td>
+          <td className="px-2 py-1 pl-9">{t(`weekly.breakdown.${row.label}`)}</td>
           {staff.weekly_hours.map((day) => (
             <td key={day.day} className="px-2 py-1">
-              {day[row.day] > 0 ? `${day[row.day]}h` : ''}
+              {day[row.day] > 0 ? t('weekly.hours', { hours: day[row.day] }) : ''}
             </td>
           ))}
-          <td className="px-2 py-1">{staff[row.total]}h</td>
+          <td className="px-2 py-1">{t('weekly.hours', { hours: staff[row.total] })}</td>
           <td className="px-2 py-1" />
           <td className="px-2 py-1" />
           <td className="px-2 py-1" />

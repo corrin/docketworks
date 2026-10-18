@@ -8,6 +8,7 @@ import {
   type TableFeatures,
 } from '@tanstack/react-table'
 import { Check, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type {
   CostLineUpdateRequest,
@@ -16,6 +17,7 @@ import type {
   XeroPayItemOut,
 } from '@/api'
 import { formatCurrency, formatHoursDisplay } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 import { DataTable } from '@/features/shared/DataTable'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { orNull } from '@/features/shared/nullableText'
@@ -117,11 +119,12 @@ function jobForRow(
 
 // ── Rate select options ──────────────────────────────────────────────────
 
+/** `label` is the option's catalogue key under grid.rates. */
 const RATE_OPTIONS = [
-  { value: '1', label: 'Ord', multiplier: 1.0 },
-  { value: '1.5', label: '1.5x', multiplier: 1.5 },
-  { value: '2', label: '2.0x', multiplier: 2.0 },
-  { value: '0', label: 'Unpaid', multiplier: 0.0 },
+  { value: '1', label: 'ordinary', multiplier: 1.0 },
+  { value: '1.5', label: 'timeAndAHalf', multiplier: 1.5 },
+  { value: '2', label: 'double', multiplier: 2.0 },
+  { value: '0', label: 'unpaid', multiplier: 0.0 },
 ] as const
 
 function rateValue(multiplier: number): string {
@@ -154,6 +157,7 @@ function RateSelect({
   gridCol: string
   onPick: (multiplier: number) => void
 }) {
+  const { t } = useTranslation('timesheet')
   return (
     <Select
       value={rateValue(multiplier)}
@@ -173,7 +177,7 @@ function RateSelect({
       <SelectContent>
         {RATE_OPTIONS.map((option) => (
           <SelectItem key={option.value} value={option.value}>
-            {option.label}
+            {t(`grid.rates.${option.label}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -197,6 +201,7 @@ function focusAutomationId(id: string) {
 }
 
 function JobPickerCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   const selected = jobForRow(context, gridRow)
@@ -215,18 +220,21 @@ function JobPickerCell({ row, table }: CellProps) {
   // stored number as the picker's label and still moves. A read-only label
   // for that case was rejected: the entry most worth moving is exactly the
   // one sitting on a job nobody can book any more.
-  const storedLabel = gridRow.type === 'server' ? `#${gridRow.line.job_number}` : ''
+  const storedLabel =
+    gridRow.type === 'server' ? t('grid.jobNumber', { number: gridRow.line.job_number }) : ''
 
   return (
     <JobPicker
       automationIdPrefix={`SmartTimesheetTable-jobPicker-${row.index}`}
-      ariaLabel={`Job for row ${row.index + 1}`}
+      ariaLabel={t('grid.jobForRow', { row: row.index + 1 })}
       jobs={context.jobs}
       selected={selected}
       disabled={disabled}
       loading={false}
-      placeholder="Select job…"
-      triggerLabel={(job) => (job === null ? storedLabel : `#${job.job_number}`)}
+      placeholder={t('grid.selectJob')}
+      triggerLabel={(job) =>
+        job === null ? storedLabel : t('grid.jobNumber', { number: job.job_number })
+      }
       renderTriggerBadge={(job) =>
         job.is_urgent ? (
           <span className="ml-1 inline-block rounded bg-red-50 px-1 text-[10px] font-bold text-red-600">
@@ -238,11 +246,11 @@ function JobPickerCell({ row, table }: CellProps) {
         <>
           {job.is_urgent && (
             <span className="mt-0.5 inline-block rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
-              URGENT
+              {t('grid.urgentOption')}
             </span>
           )}
           <div className="text-[11px] leading-tight text-slate-400">
-            Rate: ${rateForSubtype(job.labour_rates, null)}/hr
+            {t('grid.optionRate', { rate: rateForSubtype(job.labour_rates, null) })}
           </div>
         </>
       )}
@@ -283,6 +291,7 @@ function CompanyCell({ row, table }: CellProps) {
 }
 
 function JobNameCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   const job = jobForRow(context, gridRow)
@@ -302,7 +311,7 @@ function JobNameCell({ row, table }: CellProps) {
           className="inline-block rounded-full border border-amber-400 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
           data-automation-id={`SmartTimesheetTable-urgentBadge-${row.index}`}
         >
-          Urgent
+          {t('grid.urgent')}
         </span>
       )}
       {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
@@ -311,6 +320,7 @@ function JobNameCell({ row, table }: CellProps) {
 }
 
 function HoursCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   const hours = gridRow.type === 'server' ? Number(gridRow.line.quantity) : gridRow.draft.hours
@@ -343,7 +353,7 @@ function HoursCell({ row, table }: CellProps) {
       value={display}
       disabled={disabled}
       inputMode="decimal"
-      aria-label={`Hours row ${row.index}`}
+      aria-label={t('grid.hoursRow', { row: row.index })}
       className={`w-20 rounded border border-slate-200 px-2 py-1 text-right text-sm ${hours > 8 ? 'font-bold text-red-600' : ''}`}
       data-automation-id={`SmartTimesheetTable-hours-${row.index}`}
       onChange={(event) => {
@@ -364,6 +374,7 @@ function HoursCell({ row, table }: CellProps) {
 }
 
 function DescriptionCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   const serverValue =
@@ -387,7 +398,7 @@ function DescriptionCell({ row, table }: CellProps) {
       rows={1}
       value={field.value}
       disabled={disabled}
-      aria-label={`Description row ${row.index}`}
+      aria-label={t('grid.descriptionRow', { row: row.index })}
       className="w-full min-w-[28ch] resize-y rounded border border-slate-200 px-2 py-1 text-sm"
       data-automation-id={`SmartTimesheetTable-description-${row.index}`}
       onChange={(event) => field.onChange(event.target.value)}
@@ -466,6 +477,7 @@ function LabourTypeCell({ row, table }: CellProps) {
 }
 
 function RateCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   const multiplier =
@@ -475,7 +487,7 @@ function RateCell({ row, table }: CellProps) {
   const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 
   if (context.payBasis === 'salary') {
-    return <span className="text-xs font-medium text-slate-600">Salary</span>
+    return <span className="text-xs font-medium text-slate-600">{t('grid.salary')}</span>
   }
 
   return (
@@ -610,6 +622,7 @@ function BillCell({ row }: CellProps) {
 }
 
 function ActionsCell({ row, table }: CellProps) {
+  const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
   const gridRow = row.original
   if (gridRow.type === 'draft') {
@@ -617,7 +630,7 @@ function ActionsCell({ row, table }: CellProps) {
     return (
       <button
         type="button"
-        aria-label={`Discard draft row ${row.index}`}
+        aria-label={t('grid.discardRow', { row: row.index })}
         // Locked in flight like the inputs: discarding a persisting draft
         // would drop the row while its POST still lands.
         disabled={context.isPersisting(gridRow.localId)}
@@ -639,7 +652,7 @@ function ActionsCell({ row, table }: CellProps) {
       {!gridRow.line.approved && (
         <button
           type="button"
-          aria-label={`Approve row ${row.index}`}
+          aria-label={t('grid.approveRow', { row: row.index })}
           className="rounded p-1 text-emerald-600 hover:bg-emerald-50"
           data-automation-id={`SmartTimesheetTable-actions-${row.index}-approve`}
           onClick={() => context.approveLine(gridRow.line.id)}
@@ -649,7 +662,7 @@ function ActionsCell({ row, table }: CellProps) {
       )}
       <button
         type="button"
-        aria-label={`Delete row ${row.index}`}
+        aria-label={t('grid.deleteRow', { row: row.index })}
         className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
         data-automation-id={`SmartTimesheetTable-actions-${row.index}-delete`}
         onClick={() => context.deleteLine(gridRow.line.id)}
@@ -662,18 +675,27 @@ function ActionsCell({ row, table }: CellProps) {
 
 // Module-level constant so cell components keep identity across renders —
 // rebuilding them would remount (and blur) every input on each grid render.
+// Headers are read from the catalogue when they render, never on import.
 const COLUMNS: ColumnDef<typeof editableGridFeatures, TimesheetGridRow>[] = [
-  { id: 'jobNumber', header: 'Job', cell: JobPickerCell },
-  { id: 'company', header: 'Company', cell: CompanyCell },
-  { id: 'jobName', header: 'Job Name', cell: JobNameCell },
-  { id: 'hours', header: 'Hours', cell: HoursCell },
-  { id: 'description', header: 'Description', cell: DescriptionCell },
-  { id: 'labourType', header: 'Labour type', cell: LabourTypeCell },
-  { id: 'rate', header: 'Wage', cell: RateCell },
+  { id: 'jobNumber', header: () => i18n.t('timesheet:grid.columns.job'), cell: JobPickerCell },
+  { id: 'company', header: () => i18n.t('timesheet:grid.columns.company'), cell: CompanyCell },
+  { id: 'jobName', header: () => i18n.t('timesheet:grid.columns.jobName'), cell: JobNameCell },
+  { id: 'hours', header: () => i18n.t('timesheet:grid.columns.hours'), cell: HoursCell },
+  {
+    id: 'description',
+    header: () => i18n.t('timesheet:grid.columns.description'),
+    cell: DescriptionCell,
+  },
+  {
+    id: 'labourType',
+    header: () => i18n.t('timesheet:grid.columns.labourType'),
+    cell: LabourTypeCell,
+  },
+  { id: 'rate', header: () => i18n.t('timesheet:grid.columns.wage'), cell: RateCell },
   { id: 'payItem', header: '', cell: PayItemCell },
-  { id: 'billRate', header: 'Invoice', cell: BillRateCell },
-  { id: 'wage', header: 'Wage $', cell: WageCell },
-  { id: 'bill', header: 'Invoice $', cell: BillCell },
+  { id: 'billRate', header: () => i18n.t('timesheet:grid.columns.invoice'), cell: BillRateCell },
+  { id: 'wage', header: () => i18n.t('timesheet:grid.columns.wageAmount'), cell: WageCell },
+  { id: 'bill', header: () => i18n.t('timesheet:grid.columns.invoiceAmount'), cell: BillCell },
   { id: 'actions', header: '', cell: ActionsCell },
 ]
 

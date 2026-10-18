@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { getDailyTimesheetSummaryByDateOptions } from '@/api'
 import type { DailyTimesheetSummaryOut } from '@/api'
@@ -28,6 +29,7 @@ type StaffDaily = DailyTimesheetSummaryOut['staff_data'][number]
  * weekend rule belongs to the ENTRY page's navigation).
  */
 export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOverviewPageProps) {
+  const { t } = useTranslation('timesheet')
   const { date } = search
   const queryClient = useQueryClient()
   const summaryQuery = useQuery(
@@ -37,11 +39,11 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-4 text-lg font-semibold text-slate-800">Daily Timesheets</h1>
+        <h1 className="mr-4 text-lg font-semibold text-slate-800">{t('daily.title')}</h1>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Previous day"
+          aria-label={t('daily.previousDay')}
           onClick={() => onDateChange(shiftDate(date, -1))}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -49,7 +51,7 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         <input
           type="date"
           value={date}
-          aria-label="Date"
+          aria-label={t('daily.date')}
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           onChange={(event) => {
             if (event.target.value) onDateChange(event.target.value)
@@ -58,13 +60,13 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         <Button
           variant="outline"
           size="sm"
-          aria-label="Next day"
+          aria-label={t('daily.nextDay')}
           onClick={() => onDateChange(shiftDate(date, 1))}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => onDateChange(localIsoDate())}>
-          Today
+          {t('daily.today')}
         </Button>
         <span className="text-sm text-slate-600" data-automation-id="DailyOverview-date">
           {formatDateLong(date)}
@@ -72,7 +74,7 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         <Button
           variant="outline"
           size="sm"
-          aria-label="Refresh"
+          aria-label={t('daily.refresh')}
           onClick={() =>
             void queryClient.invalidateQueries({
               queryKey: getDailyTimesheetSummaryByDateOptions({ path: { target_date: date } })
@@ -92,20 +94,16 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
         }
-        errorNode={
-          <p className="text-sm font-medium text-red-700">
-            Could not load the daily summary. Reload the page.
-          </p>
-        }
+        errorNode={<p className="text-sm font-medium text-red-700">{t('daily.loadFailed')}</p>}
       >
         {summaryQuery.data && (
           <table className="min-w-full table-fixed text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-                <th className="w-64 px-2 py-2">Staff Member</th>
-                <th className="w-24 px-2 py-2">Hours</th>
-                <th className="w-28 px-2 py-2">Status</th>
-                <th className="w-32 px-2 py-2">Actions</th>
+                <th className="w-64 px-2 py-2">{t('daily.staffColumn')}</th>
+                <th className="w-24 px-2 py-2">{t('daily.hoursColumn')}</th>
+                <th className="w-28 px-2 py-2">{t('daily.statusColumn')}</th>
+                <th className="w-32 px-2 py-2">{t('daily.actionsColumn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +125,7 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
 }
 
 function StaffRow({ staff, onOpen }: { staff: StaffDaily; onOpen: () => void }) {
+  const { t } = useTranslation('timesheet')
   const completion = Math.max(0, Math.min(100, staff.completion_percentage))
   return (
     <tr
@@ -145,13 +144,16 @@ function StaffRow({ staff, onOpen }: { staff: StaffDaily; onOpen: () => void }) 
           </span>
           <span className="font-medium text-slate-800">{staff.staff_name}</span>
           <span className="text-xs text-slate-500">
-            {staff.entry_count} {staff.entry_count === 1 ? 'entry' : 'entries'}
+            {t('daily.entryCount', { count: staff.entry_count })}
           </span>
         </button>
       </td>
       <td className="px-2 py-2">
         <div className="text-slate-700">
-          {staff.actual_hours} / {staff.scheduled_hours}h
+          {t('daily.hoursOfScheduled', {
+            actual: staff.actual_hours,
+            scheduled: staff.scheduled_hours,
+          })}
         </div>
         <div className="mt-1 h-1.5 w-20 overflow-hidden rounded bg-slate-200">
           <div className="h-full bg-emerald-500" style={{ width: `${completion}%` }} />
@@ -174,7 +176,7 @@ function StaffRow({ staff, onOpen }: { staff: StaffDaily; onOpen: () => void }) 
       </td>
       <td className="px-2 py-2">
         <Button variant="outline" size="sm" onClick={onOpen}>
-          Edit Timesheet
+          {t('daily.editTimesheet')}
         </Button>
       </td>
     </tr>

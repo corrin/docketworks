@@ -73,7 +73,8 @@
         "src/components/**",
         "src/lib/**",
         "src/features/job/**",
-        "src/features/kanban/**"
+        "src/features/kanban/**",
+        "src/features/timesheet/**"
       ],
       "rules": {
         "i18next/no-literal-string": [

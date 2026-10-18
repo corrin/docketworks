@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,7 @@ interface WorkshopMyTimePageProps {
  * the time grid and list below it instead, still open to edit.
  */
 export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageProps) {
+  const { t } = useTranslation('timesheet')
   const date = search.date ?? localIsoDate()
   // Already in the cache: the shell loads the company defaults before any
   // authed route renders.
@@ -84,13 +86,13 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-gray-900">Workshop timesheets</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('myTime.title')}</h1>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <Button
             variant="outline"
             size="icon"
             className={TOUCH_TARGET_CLASS}
-            aria-label="Previous day"
+            aria-label={t('myTime.previousDay')}
             data-automation-id="WorkshopMyTimeHeader-previous-day"
             onClick={() => onDateChange(shiftDate(date, -1))}
           >
@@ -106,7 +108,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             variant="outline"
             size="icon"
             className={TOUCH_TARGET_CLASS}
-            aria-label="Next day"
+            aria-label={t('myTime.nextDay')}
             data-automation-id="WorkshopMyTimeHeader-next-day"
             onClick={() => onDateChange(shiftDate(date, 1))}
           >
@@ -149,17 +151,20 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <SummaryCard label="Total" valueAutomationId="WorkshopTimesheetSummaryCard-total-hours">
+          <SummaryCard
+            label={t('myTime.total')}
+            valueAutomationId="WorkshopTimesheetSummaryCard-total-hours"
+          >
             {formatHoursDisplay(summary?.total_hours)}
           </SummaryCard>
           <SummaryCard
-            label="Billable"
+            label={t('myTime.billable')}
             valueAutomationId="WorkshopTimesheetSummaryCard-billable-hours"
           >
             {formatHoursDisplay(summary?.billable_hours)}
           </SummaryCard>
           <SummaryCard
-            label="Non-billable"
+            label={t('myTime.nonBillable')}
             valueAutomationId="WorkshopTimesheetSummaryCard-non-billable-hours"
           >
             {formatHoursDisplay(summary?.non_billable_hours)}
@@ -167,13 +172,13 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           {/* The week payroll pays by: approved hours are paid, waiting hours
               are not until the office approves them. */}
           <SummaryCard
-            label="Approved this week"
+            label={t('myTime.approvedThisWeek')}
             valueAutomationId="WorkshopTimesheetSummaryCard-week-approved-hours"
           >
             {formatHoursDisplay(week?.approved_hours)}
           </SummaryCard>
           <SummaryCard
-            label="Waiting this week"
+            label={t('myTime.waitingThisWeek')}
             valueAutomationId="WorkshopTimesheetSummaryCard-week-waiting-hours"
           >
             {formatHoursDisplay(week?.waiting_hours)}
@@ -184,24 +189,24 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             className="text-sm text-gray-600"
             data-automation-id="WorkshopTimesheetSummaryCard-job-count"
           >
-            {jobCount === 1 ? '1 job' : `${jobCount} jobs`}
+            {t('myTime.jobCount', { count: jobCount })}
           </span>
           <Button
             variant="outline"
             className={TOUCH_TARGET_CLASS}
-            aria-label="Refresh"
+            aria-label={t('myTime.refresh')}
             data-automation-id="WorkshopTimesheetSummaryCard-refresh"
             disabled={day.dayQuery.isFetching}
             onClick={day.refetch}
           >
-            <RefreshCw /> Refresh
+            <RefreshCw /> {t('myTime.refresh')}
           </Button>
           <Button
             className={TOUCH_TARGET_CLASS}
             data-automation-id="WorkshopTimesheetSummaryCard-add"
             onClick={() => setDrawer({ mode: 'create', start: null })}
           >
-            <Plus /> Add entry
+            <Plus /> {t('myTime.addEntry')}
           </Button>
         </div>
       </div>
@@ -210,15 +215,15 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         isPending={day.dayQuery.isPending}
         isError={day.dayQuery.isError}
         onRetry={() => void day.dayQuery.refetch()}
-        loadingLabel="Loading your timesheet entries..."
-        errorLabel="Failed to load your timesheet entries."
+        loadingLabel={t('myTime.loading')}
+        errorLabel={t('myTime.loadFailed')}
       >
         {entries.length === 0 && (
           <p
             className="text-center text-sm text-gray-500"
             data-automation-id="WorkshopMyTimePage-empty-hint"
           >
-            No entries yet. Tap the calendar to add the first block.
+            {t('myTime.empty')}
           </p>
         )}
         <WorkshopTimesheetCalendar
@@ -296,12 +301,13 @@ function UntimedEntries({
   onEdit: (entryId: string) => void
   onDelete: (entryId: string) => void
 }) {
+  const { t } = useTranslation('timesheet')
   return (
     <div
       className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
       data-automation-id="WorkshopMyTimePage-untimed"
     >
-      <h2 className="mb-2 text-sm font-semibold text-gray-700">Entries without times</h2>
+      <h2 className="mb-2 text-sm font-semibold text-gray-700">{t('myTime.untimedTitle')}</h2>
       <ul className="divide-y divide-gray-100">
         {entries.map((entry) => (
           <li
@@ -311,7 +317,7 @@ function UntimedEntries({
           >
             <div className="min-w-0">
               <div className="truncate font-medium text-gray-900">
-                #{entry.job_number} {entry.job_name}
+                {t('myTime.entryJob', { number: entry.job_number, name: entry.job_name })}
               </div>
               {entry.company_name !== '' && (
                 <div className="truncate text-xs text-gray-500">{entry.company_name}</div>
@@ -326,7 +332,7 @@ function UntimedEntries({
                 <span
                   className={`rounded-full px-2 py-0.5 font-semibold ${entry.is_billable ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}
                 >
-                  {entry.is_billable ? 'Billable' : 'Non-billable'}
+                  {entry.is_billable ? t('myTime.billable') : t('myTime.nonBillable')}
                 </span>
                 {entryMarks(entry).map((mark) => (
                   <span
@@ -345,7 +351,7 @@ function UntimedEntries({
                 variant="outline"
                 size="icon"
                 className={TOUCH_TARGET_CLASS}
-                aria-label="Edit entry"
+                aria-label={t('myTime.editEntry')}
                 data-automation-id={`WorkshopMyTimePage-untimed-edit-${entry.id}`}
                 onClick={() => onEdit(entry.id)}
               >
@@ -355,7 +361,7 @@ function UntimedEntries({
                 variant="outline"
                 size="icon"
                 className={TOUCH_TARGET_CLASS}
-                aria-label="Delete entry"
+                aria-label={t('myTime.deleteEntry')}
                 disabled={deleting || isLocked(entry)}
                 data-automation-id={`WorkshopMyTimePage-untimed-delete-${entry.id}`}
                 onClick={() => onDelete(entry.id)}

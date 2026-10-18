@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react'
 import { Fragment, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
 import { shiftDate } from '@/lib/dates'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
@@ -33,21 +35,24 @@ interface ApproveTimePageProps {
 }
 
 /** What each state asks of the office, in words: state never rests on colour. */
-const STATE_WORDS: Record<StaffApprovalOut['state'], string> = {
-  waiting: 'Waiting for approval',
-  nothing_entered: 'Nothing entered',
-  nothing_waiting: 'Approved',
-  not_rostered: 'Not rostered',
-}
+const STATE_KEYS = {
+  waiting: 'waiting',
+  nothing_entered: 'nothingEntered',
+  nothing_waiting: 'nothingWaiting',
+  not_rostered: 'notRostered',
+} as const satisfies Record<StaffApprovalOut['state'], string>
 
 /**
  * How the whole day stands, from the server's count of the people expected
  * on it. Every day is finished on the day, so this is the screen's headline.
  */
 function dayStandingWords(summary: DaySummaryOut): string {
-  if (summary.standing === 'nobody_rostered') return 'Nobody rostered'
-  if (summary.standing === 'complete') return 'Day complete'
-  return `${summary.approved} of ${summary.expected} approved`
+  if (summary.standing === 'nobody_rostered') return i18n.t('timesheet:approve.nobodyRostered')
+  if (summary.standing === 'complete') return i18n.t('timesheet:approve.dayComplete')
+  return i18n.t('timesheet:approve.approvedOf', {
+    approved: summary.approved,
+    expected: summary.expected,
+  })
 }
 
 /** Who the entry drawer is open for; the drawer itself only knows the entry. */
@@ -64,6 +69,7 @@ type Correction = { staffId: string; drawer: EntryDrawerState }
  * it does not send the entry back.
  */
 export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) {
+  const { t } = useTranslation('timesheet')
   const { date } = search
   const queryClient = useQueryClient()
   const approvalsQuery = useQuery(timesheetsApprovalsRetrieveOptions({ query: { date } }))
@@ -91,22 +97,22 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
     try {
       await approveDay.mutateAsync({ path: { staff_id: person.staff_id, target_date: date } })
     } catch (error) {
-      toast.error(apiErrorMessage(error, `${person.staff_name}'s day could not be approved.`))
+      toast.error(apiErrorMessage(error, t('approve.approveFailed', { name: person.staff_name })))
       return
     }
-    toast.success(`${person.staff_name}'s day approved.`)
+    toast.success(t('approve.approved', { name: person.staff_name }))
     void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-gray-900">Approve time</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('approve.title')}</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            aria-label="Previous day"
+            aria-label={t('approve.previousDay')}
             data-automation-id="ApproveTimePage-previous-day"
             onClick={() => onDateChange(shiftDate(date, -1))}
           >
@@ -115,7 +121,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
           <input
             type="date"
             value={date}
-            aria-label="Date"
+            aria-label={t('approve.date')}
             className="rounded border border-slate-200 px-2 py-1 text-sm"
             data-automation-id="ApproveTimePage-date"
             onChange={(event) => {
@@ -125,7 +131,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
           <Button
             variant="outline"
             size="sm"
-            aria-label="Next day"
+            aria-label={t('approve.nextDay')}
             data-automation-id="ApproveTimePage-next-day"
             onClick={() => onDateChange(shiftDate(date, 1))}
           >
@@ -134,7 +140,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         </div>
       </div>
       <p className="text-sm text-slate-600">
-        {formatDateLong(date)}. Staff are paid for approved time only.
+        {t('approve.paidForApproved', { date: formatDateLong(date) })}
       </p>
       {approvalsQuery.data !== undefined && (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -148,18 +154,13 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
             variant="outline"
             size="sm"
             disabled={sweeping || !anyUnallocated}
-            title={anyUnallocated ? 'This also approves their days' : "Everyone's time is on jobs"}
+            title={anyUnallocated ? t('approve.sweepDayTitle') : t('approve.everyoneOnJobs')}
             data-automation-id="ApproveTimePage-sweep-day"
             onClick={() =>
-              void sweep(
-                { start_date: date, end_date: date },
-                "Couldn't book the day's leftover time to General work.",
-              )
+              void sweep({ start_date: date, end_date: date }, t('approve.sweepDayFailed'))
             }
           >
-            {anyUnallocated
-              ? "Book everyone's leftover time to General work"
-              : 'All time is on jobs'}
+            {anyUnallocated ? t('approve.sweepDay') : t('approve.allOnJobs')}
           </Button>
         </div>
       )}
@@ -168,18 +169,18 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         isPending={approvalsQuery.isPending}
         isError={approvalsQuery.isError}
         onRetry={() => void approvalsQuery.refetch()}
-        loadingLabel="Loading the day's timesheets..."
-        errorLabel="Failed to load the day's timesheets."
+        loadingLabel={t('approve.loading')}
+        errorLabel={t('approve.loadFailed')}
         rows={people}
-        emptyLabel="Nobody is on the timesheet for this day."
+        emptyLabel={t('approve.empty')}
         automationId="ApproveTimePage-table"
         head={
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-            <th className="px-2 py-2">Staff member</th>
-            <th className="hidden px-2 py-2 sm:table-cell">Clock</th>
-            <th className="w-24 px-2 py-2">Entered</th>
-            <th className="w-24 px-2 py-2">Waiting</th>
-            <th className="px-2 py-2">State</th>
+            <th className="px-2 py-2">{t('approve.staffColumn')}</th>
+            <th className="hidden px-2 py-2 sm:table-cell">{t('approve.clockColumn')}</th>
+            <th className="w-24 px-2 py-2">{t('approve.enteredColumn')}</th>
+            <th className="w-24 px-2 py-2">{t('approve.waitingColumn')}</th>
+            <th className="px-2 py-2">{t('approve.stateColumn')}</th>
             <th className="w-36 px-2 py-2" />
           </tr>
         }
@@ -233,7 +234,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 data-automation-id={`ApproveTimePage-state-${person.staff_id}`}
               >
                 <span className={person.state === 'waiting' ? 'font-semibold' : 'text-slate-600'}>
-                  {STATE_WORDS[person.state]}
+                  {t(`approve.state.${STATE_KEYS[person.state]}`)}
                 </span>
                 {/* From the small breakpoint up the warnings sit beside the state;
                     on a phone they get their own line under the row (below). */}
@@ -250,22 +251,24 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   disabled={sweeping || !((person.unallocated_hours ?? 0) > 0)}
                   title={
                     (person.unallocated_hours ?? 0) > 0
-                      ? 'This also approves the day'
+                      ? t('approve.sweepPersonTitle')
                       : person.clock.state === 'not_clocked_in'
-                        ? 'No clock in or out for this day'
-                        : 'All their time is on jobs'
+                        ? t('approve.noClockTimes')
+                        : t('approve.theirTimeOnJobs')
                   }
                   data-automation-id={`ApproveTimePage-sweep-${person.staff_id}`}
                   onClick={() =>
                     void sweep(
                       { start_date: date, end_date: date, staff_id: person.staff_id },
-                      `Couldn't book ${person.staff_name}'s leftover time to General work.`,
+                      t('approve.sweepPersonFailed', { name: person.staff_name }),
                     )
                   }
                 >
                   {(person.unallocated_hours ?? 0) > 0
-                    ? `Book ${formatHoursDisplay(person.unallocated_hours)} to General work`
-                    : 'All time is on jobs'}
+                    ? t('approve.sweepPerson', {
+                        hours: formatHoursDisplay(person.unallocated_hours),
+                      })
+                    : t('approve.allOnJobs')}
                 </Button>
                 {person.state === 'waiting' && (
                   <Button
@@ -274,7 +277,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                     data-automation-id={`ApproveTimePage-approve-${person.staff_id}`}
                     onClick={() => void approve(person)}
                   >
-                    Approve day
+                    {t('approve.approveDay')}
                   </Button>
                 )}
               </td>
@@ -320,14 +323,14 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                       data-automation-id={`ApproveTimePage-clock-edit-${person.staff_id}`}
                       onClick={() => setClockStaffId(person.staff_id)}
                     >
-                      <Pencil className="h-4 w-4" /> Correct clock times
+                      <Pencil className="h-4 w-4" /> {t('approve.correctClockTimes')}
                     </Button>
                   )}
                   <div
                     className="flex flex-wrap items-center gap-2 text-sm text-slate-700"
                     data-automation-id={`ApproveTimePage-breaks-${person.staff_id}`}
                   >
-                    {person.breaks.length === 0 && <span>No breaks.</span>}
+                    {person.breaks.length === 0 && <span>{t('approve.noBreaks')}</span>}
                     {person.breaks.map((each) => (
                       <Button
                         key={each.id ?? `planned-${each.start}`}
@@ -356,7 +359,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                           setBreakFor({ staffId: person.staff_id, sheet: { mode: 'add' } })
                         }
                       >
-                        <Plus className="h-4 w-4" /> Add a break
+                        <Plus className="h-4 w-4" /> {t('approve.addBreak')}
                       </Button>
                     )}
                   </div>
@@ -421,10 +424,11 @@ function PersonEntries({
   onEdit: (entry: WorkshopTimesheetEntryOut) => void
   onAdd: () => void
 }) {
+  const { t } = useTranslation('timesheet')
   return (
     <div className="space-y-2" data-automation-id={`ApproveTimePage-entries-${person.staff_id}`}>
       {person.entries.length === 0 && (
-        <p className="text-sm text-slate-600">Nothing entered for this day.</p>
+        <p className="text-sm text-slate-600">{t('approve.nothingEntered')}</p>
       )}
       <ul className="divide-y divide-slate-100">
         {person.entries.map((entry) => (
@@ -435,7 +439,7 @@ function PersonEntries({
           >
             <div className="min-w-0">
               <span className="font-medium text-slate-900">
-                #{entry.job_number} {entry.job_name}
+                {t('approve.entryJob', { number: entry.job_number, name: entry.job_name })}
               </span>
               {entry.description !== '' && (
                 <span className="ml-2 text-slate-600">{entry.description}</span>
@@ -447,14 +451,17 @@ function PersonEntries({
             <div className="flex shrink-0 items-center gap-2">
               {entry.start_time !== null && entry.end_time !== null && (
                 <span className="text-xs text-slate-600">
-                  {entry.start_time.slice(0, 5)} to {entry.end_time.slice(0, 5)}
+                  {t('approve.entrySpan', {
+                    start: entry.start_time.slice(0, 5),
+                    end: entry.end_time.slice(0, 5),
+                  })}
                 </span>
               )}
               <span className="font-medium">{formatHoursDisplay(entry.hours)}</span>
               <Button
                 variant="outline"
                 size="sm"
-                aria-label={`Correct entry on job ${entry.job_number}`}
+                aria-label={t('approve.correctEntry', { number: entry.job_number })}
                 data-automation-id={`ApproveTimePage-edit-${entry.id}`}
                 onClick={() => onEdit(entry)}
               >
@@ -470,7 +477,7 @@ function PersonEntries({
         data-automation-id={`ApproveTimePage-add-${person.staff_id}`}
         onClick={onAdd}
       >
-        <Plus className="h-4 w-4" /> Add entry
+        <Plus className="h-4 w-4" /> {t('approve.addEntry')}
       </Button>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +37,7 @@ const NEW_BREAK = { start: '10:00', end: '10:15' }
  * afterwards; a break of the other kind is a different break.
  */
 export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }: BreakSheetProps) {
+  const { t } = useTranslation('timesheet')
   const [paid, setPaid] = useState(true)
   const editing = state.mode === 'edit' ? state.break : null
 
@@ -49,15 +51,15 @@ export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }
       <DrawerContent data-automation-id="BreakSheet">
         <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-6">
           <DrawerHeader className="px-0">
-            <DrawerTitle>{editing === null ? 'Add a break' : editing.name}</DrawerTitle>
+            <DrawerTitle>{editing === null ? t('breakSheet.addTitle') : editing.name}</DrawerTitle>
             <DrawerDescription>
               {(editing?.paid ?? paid)
-                ? 'A paid break is paid. Make it longer and the extra is paid too.'
-                : 'An unpaid break comes off the hours you have to fill, and so does any extra.'}
+                ? t('breakSheet.paidExplained')
+                : t('breakSheet.unpaidExplained')}
             </DrawerDescription>
           </DrawerHeader>
           {editing === null && (
-            <div className="flex gap-2" role="radiogroup" aria-label="Kind of break">
+            <div className="flex gap-2" role="radiogroup" aria-label={t('breakSheet.kind')}>
               {[true, false].map((choice) => (
                 <Button
                   key={String(choice)}
@@ -69,7 +71,7 @@ export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }
                   data-automation-id={`BreakSheet-${choice ? 'paid' : 'unpaid'}`}
                   onClick={() => setPaid(choice)}
                 >
-                  {choice ? 'Paid' : 'Unpaid'}
+                  {choice ? t('breakSheet.paid') : t('breakSheet.unpaid')}
                 </Button>
               ))}
             </div>
@@ -103,7 +105,7 @@ export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }
                 })
               }
             >
-              {editing.paid ? 'Remove this break' : 'Worked through: remove it'}
+              {editing.paid ? t('breakSheet.remove') : t('breakSheet.workedThrough')}
             </Button>
           )}
         </div>

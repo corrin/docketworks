@@ -18,6 +18,7 @@ import type {
 } from '@/api'
 
 import { formatHoursDisplay } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 /** A timed entry carries a full pair; the guard narrows both nulls away. */
 export interface TimedEntry extends WorkshopTimesheetEntryOut {
@@ -48,7 +49,12 @@ export interface MyTimeCalendarEvent {
  * the calendar block, the untimed list and the drawer cannot disagree.
  */
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
-  return [entry.approved ? 'Approved' : 'Waiting', ...cautionMarks(entry)]
+  return [approvalWord(entry.approved), ...cautionMarks(entry)]
+}
+
+/** Whether the office has approved it yet, in the worker's words. */
+function approvalWord(approved: boolean): string {
+  return approved ? i18n.t('timesheet:marks.approved') : i18n.t('timesheet:marks.waiting')
 }
 
 /**
@@ -63,16 +69,19 @@ export function cautionMarks(flags: {
 }): string[] {
   const marks: string[] = []
   if (flags.clock !== undefined) marks.push(...flags.clock.cautions)
-  if (flags.entered_late) marks.push('Entered late')
-  if (flags.remote_entry) marks.push('Suspicious remote entry')
-  if (flags.clock?.sent_late) marks.push('Sent late')
+  if (flags.entered_late) marks.push(i18n.t('timesheet:marks.enteredLate'))
+  if (flags.remote_entry) marks.push(i18n.t('timesheet:marks.remoteEntry'))
+  if (flags.clock?.sent_late) marks.push(i18n.t('timesheet:marks.sentLate'))
   return marks
 }
 
 /** The company's standard hours in words, for a day nobody clocked. */
 export function standardHoursWords(standard: StandardDayOut | null): string {
-  if (standard === null) return 'No standard hours on this day. Set the times.'
-  return `Standard hours ${standard.start.slice(0, 5)} to ${standard.end.slice(0, 5)}`
+  if (standard === null) return i18n.t('timesheet:clock.noStandardHours')
+  return i18n.t('timesheet:clock.standardHours', {
+    start: standard.start.slice(0, 5),
+    end: standard.end.slice(0, 5),
+  })
 }
 
 /** "HH:mm" from the server's "HH:mm:ss". */
@@ -85,13 +94,20 @@ function clockFace(value: string): string {
  * The hours they were here come from the server: no screen works them out.
  */
 export function clockWords(day: AttendanceOut): string {
-  if (day.clock_in === null) return 'Not clocked in'
-  if (day.clock_out === null) return `At work since ${clockFace(day.clock_in)}`
-  const span = `${clockFace(day.clock_in)} to ${clockFace(day.clock_out)}`
-  const here = day.here_hours === null ? '' : `, here ${formatHoursDisplay(day.here_hours)}`
+  if (day.clock_in === null) return i18n.t('timesheet:clock.notClockedIn')
+  if (day.clock_out === null)
+    return i18n.t('timesheet:clock.atWorkSince', { time: clockFace(day.clock_in) })
+  const span = i18n.t('timesheet:clock.span', {
+    start: clockFace(day.clock_in),
+    end: clockFace(day.clock_out),
+  })
+  const here =
+    day.here_hours === null
+      ? ''
+      : i18n.t('timesheet:clock.here', { hours: formatHoursDisplay(day.here_hours) })
   return day.state === 'sent'
-    ? `Sent, waiting for approval. ${span}${here}`
-    : `Clocked out. ${span}${here}`
+    ? i18n.t('timesheet:clock.sent', { span, here })
+    : i18n.t('timesheet:clock.clockedOut', { span, here })
 }
 
 /**
@@ -138,14 +154,18 @@ export function jobChangeFields(
   return { job_id: jobId }
 }
 
-/** The pay rates a workshop entry can be booked at; `Ord` is ordinary time. */
-export const RATE_OPTIONS = [
-  { label: 'Ord', multiplier: 1 },
-  { label: '1.5', multiplier: 1.5 },
-  { label: '2.0', multiplier: 2 },
-] as const
+/** The pay rates a workshop entry can be booked at; 1 is ordinary time. */
+const STANDARD_MULTIPLIERS = [1, 1.5, 2] as const
 
 type RateOption = { label: string; multiplier: number }
+
+/** The standard rates as the select labels them: "Ord", "1.5", "2.0". */
+function standardRateOptions(): RateOption[] {
+  return STANDARD_MULTIPLIERS.map((multiplier) => ({
+    label: multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : multiplier.toFixed(1),
+    multiplier,
+  }))
+}
 
 /**
  * The rates the select offers for an entry: the three standard ones, plus the
@@ -153,13 +173,14 @@ type RateOption = { label: string; multiplier: number }
  * the stored rate stays selectable for as long as the drawer is open.
  */
 export function rateOptionsFor(storedMultiplier: number | null): readonly RateOption[] {
+  const standard = standardRateOptions()
   if (
     storedMultiplier === null ||
-    RATE_OPTIONS.some((option) => option.multiplier === storedMultiplier)
+    standard.some((option) => option.multiplier === storedMultiplier)
   ) {
-    return RATE_OPTIONS
+    return standard
   }
-  return [...RATE_OPTIONS, { label: rateLabel(storedMultiplier), multiplier: storedMultiplier }]
+  return [...standard, { label: rateLabel(storedMultiplier), multiplier: storedMultiplier }]
 }
 
 /**
@@ -243,7 +264,7 @@ export function distinctJobCount(entries: WorkshopTimesheetEntryOut[]): number {
 
 /** A rate multiplier as the workshop reads it: "Ord", "1.5x", "2x". */
 export function rateLabel(multiplier: number): string {
-  return multiplier === 1 ? 'Ord' : `${multiplier}x`
+  return multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : `${multiplier}x`
 }
 
 /** A start/end pair of "HH:mm" time-input values. */
@@ -383,7 +404,11 @@ export function entryUpdateBody(
 }
 
 export function eventTitle(entry: WorkshopTimesheetEntryOut): string {
-  return `#${entry.job_number} ${entry.job_name} (${formatHoursDisplay(entry.hours)})`
+  return i18n.t('timesheet:calendar.eventTitle', {
+    number: entry.job_number,
+    name: entry.job_name,
+    hours: formatHoursDisplay(entry.hours),
+  })
 }
 
 /** Local (unzoned) datetimes, so the block sits where the wall clock says. */
@@ -413,14 +438,29 @@ export interface FillSheetRow {
  * than he was here for is stated, not scolded: clocking binds nothing.
  */
 export function fillWords(fill: FillOut): string {
-  const toFill = `${formatHoursDisplay(fill.to_fill_hours)} to fill`
+  const toFill = i18n.t('timesheet:fill.toFill', { hours: formatHoursDisplay(fill.to_fill_hours) })
   // His paid breaks are entered for him: named so the sum adds up on sight.
-  const breaks = fill.break_hours === 0 ? '' : `, ${formatHoursDisplay(fill.break_hours)} breaks`
-  const entered = `${formatHoursDisplay(fill.entered_hours)} entered`
+  const breaks =
+    fill.break_hours === 0
+      ? ''
+      : i18n.t('timesheet:fill.breaks', { hours: formatHoursDisplay(fill.break_hours) })
+  const entered = i18n.t('timesheet:fill.entered', {
+    hours: formatHoursDisplay(fill.entered_hours),
+  })
   if (fill.to_go_hours > 0)
-    return `${toFill}${breaks}, ${entered}, ${formatHoursDisplay(fill.to_go_hours)} to go`
-  if (fill.to_go_hours === 0) return `${toFill}${breaks}, ${entered}. All filled`
-  return `${toFill}${breaks}, ${entered}: ${formatHoursDisplay(-fill.to_go_hours)} over the time you were here`
+    return i18n.t('timesheet:fill.toGo', {
+      toFill,
+      breaks,
+      entered,
+      hours: formatHoursDisplay(fill.to_go_hours),
+    })
+  if (fill.to_go_hours === 0) return i18n.t('timesheet:fill.allFilled', { toFill, breaks, entered })
+  return i18n.t('timesheet:fill.over', {
+    toFill,
+    breaks,
+    entered,
+    hours: formatHoursDisplay(-fill.to_go_hours),
+  })
 }
 
 /**
@@ -458,11 +498,18 @@ export function isRealBreak(each: BreakOut): each is RealBreak {
 
 export function breakWords(each: BreakOut): string {
   const kind = each.name
-  const span = `${each.start.slice(0, 5)} to ${each.end.slice(0, 5)}`
+  const span = i18n.t('timesheet:clock.span', {
+    start: each.start.slice(0, 5),
+    end: each.end.slice(0, 5),
+  })
   // Planned: the standard break he has not reached yet, written down when he
   // clocks out. A break is his time, so it waits for the office with the rest
   // of his day, and says so where a list of entries would.
-  if (each.planned) return `${kind} ${span}, planned`
-  if (each.approved === null) return `${kind} ${span}`
-  return `${kind} ${span} · ${each.approved ? 'Approved' : 'Waiting'}`
+  if (each.planned) return i18n.t('timesheet:breaks.planned', { kind, span })
+  if (each.approved === null) return i18n.t('timesheet:breaks.unapproved', { kind, span })
+  return i18n.t('timesheet:breaks.withApproval', {
+    kind,
+    span,
+    approval: approvalWord(each.approved),
+  })
 }

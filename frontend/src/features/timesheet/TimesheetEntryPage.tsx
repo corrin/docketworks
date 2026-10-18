@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import {
   jobTimesheetEntriesRetrieveQueryKey,
@@ -52,6 +53,7 @@ export function TimesheetEntryPage({
   onSearchChange,
   onOpenDaily,
 }: TimesheetEntryPageProps) {
+  const { t } = useTranslation('timesheet')
   const { date } = search
 
   const staffQuery = useQuery(timesheetsStaffRetrieveOptions({ query: { date } }))
@@ -72,9 +74,7 @@ export function TimesheetEntryPage({
   // grid and destroy unsaved draft rows mid-entry (the useCostLines rule).
   if (!staffQuery.data || !jobsQuery.data || !payItemsQuery.data || !defaultsQuery.data) {
     return (
-      <p className="p-6 text-sm font-medium text-red-700">
-        Could not load the timesheet reference data. Reload the page.
-      </p>
+      <p className="p-6 text-sm font-medium text-red-700">{t('entryPage.referenceLoadFailed')}</p>
     )
   }
 
@@ -87,13 +87,12 @@ export function TimesheetEntryPage({
     // staff member would record hours against the wrong person.
     return (
       <p className="p-6 text-sm font-medium text-red-700">
-        Staff {search.staffId} is not available for timesheet entry. They are not in the active
-        timesheet staff list (typically because they have no Xero payroll ID configured).
+        {t('entryPage.staffUnavailable', { staffId: search.staffId })}
       </p>
     )
   }
   if (!staff) {
-    return <p className="p-6 text-sm text-slate-600">No staff are available for timesheet entry.</p>
+    return <p className="p-6 text-sm text-slate-600">{t('entryPage.noStaff')}</p>
   }
 
   const weekendEnabled = defaultsQuery.data.weekend_timesheets_enabled
@@ -133,6 +132,7 @@ function EntryWorkspace({
   onSearchChange,
   onOpenDaily,
 }: EntryWorkspaceProps) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const { entriesQuery, patchLine, moveLine, createLine, deleteLine, approveLine } =
     useTimesheetEntries(staff.id, date)
@@ -165,14 +165,18 @@ function EntryWorkspace({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Previous staff member"
+          aria-label={t('entryPage.previousStaff')}
           disabled={staffIndex <= 0}
           onClick={() => onSearchChange({ date, staffId: staffList[staffIndex - 1]!.id })}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <Select value={staff.id} onValueChange={(staffId) => onSearchChange({ date, staffId })}>
-          <SelectTrigger size="sm" className="min-w-[14rem]" aria-label="Staff member">
+          <SelectTrigger
+            size="sm"
+            className="min-w-[14rem]"
+            aria-label={t('entryPage.staffMember')}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -186,7 +190,7 @@ function EntryWorkspace({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Next staff member"
+          aria-label={t('entryPage.nextStaff')}
           disabled={staffIndex < 0 || staffIndex >= staffList.length - 1}
           onClick={() => onSearchChange({ date, staffId: staffList[staffIndex + 1]!.id })}
         >
@@ -198,7 +202,7 @@ function EntryWorkspace({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Previous day"
+          aria-label={t('entryPage.previousDay')}
           onClick={() =>
             onSearchChange({ date: nextWeekday(date, -1, weekendEnabled), staffId: staff.id })
           }
@@ -214,7 +218,7 @@ function EntryWorkspace({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Next day"
+          aria-label={t('entryPage.nextDay')}
           onClick={() =>
             onSearchChange({ date: nextWeekday(date, 1, weekendEnabled), staffId: staff.id })
           }
@@ -231,18 +235,21 @@ function EntryWorkspace({
             })
           }
         >
-          Today
+          {t('entryPage.today')}
         </Button>
 
         <span className="mx-2 h-6 w-px bg-slate-200" />
 
         <span className={`text-sm font-medium ${hoursTone}`}>
-          {formatHoursDisplay(totalHours)} of {formatHoursDisplay(scheduledHours)}
+          {t('entryPage.hoursOfScheduled', {
+            total: formatHoursDisplay(totalHours),
+            scheduled: formatHoursDisplay(scheduledHours),
+          })}
         </span>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Refresh entries"
+          aria-label={t('entryPage.refresh')}
           onClick={() =>
             void queryClient.invalidateQueries({
               queryKey: jobTimesheetEntriesRetrieveQueryKey({
@@ -254,7 +261,7 @@ function EntryWorkspace({
           <RefreshCw className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => onOpenDaily(date)}>
-          Daily Overview
+          {t('entryPage.dailyOverview')}
         </Button>
         <Button
           variant="outline"
@@ -262,7 +269,7 @@ function EntryWorkspace({
           data-automation-id="TimesheetEntry-history"
           onClick={() => setHistoryOpen(true)}
         >
-          History
+          {t('entryPage.history')}
         </Button>
       </div>
 
@@ -275,9 +282,7 @@ function EntryWorkspace({
           </div>
         }
         errorNode={
-          <p className="text-sm font-medium text-red-700">
-            Could not load the timesheet entries. Reload the page.
-          </p>
+          <p className="text-sm font-medium text-red-700">{t('entryPage.entriesLoadFailed')}</p>
         }
       >
         <SmartTimesheetTable
@@ -300,10 +305,10 @@ function EntryWorkspace({
           an N+1 wave) are deferred; no spec asserts them. The Daily
           Breakdown tiles below are the kept half of the summary section. */}
       <div className="grid max-w-xl grid-cols-4 gap-2">
-        <BreakdownTile label="Total Hours" value={formatHoursDisplay(totalHours)} />
-        <BreakdownTile label="Total Bill" value={formatCurrency(totalBill)} />
-        <BreakdownTile label="Billable" value={String(billableCount)} />
-        <BreakdownTile label="Non-Billable" value={String(nonBillableCount)} />
+        <BreakdownTile label={t('entryPage.totalHours')} value={formatHoursDisplay(totalHours)} />
+        <BreakdownTile label={t('entryPage.totalBill')} value={formatCurrency(totalBill)} />
+        <BreakdownTile label={t('entryPage.billable')} value={String(billableCount)} />
+        <BreakdownTile label={t('entryPage.nonBillable')} value={String(nonBillableCount)} />
       </div>
 
       <TimesheetHistoryDialog

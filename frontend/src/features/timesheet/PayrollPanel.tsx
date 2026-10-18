@@ -1,8 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import type { StaffWeekPostResultOut } from '@/api'
 import type { UsePayrollWeekResult } from './usePayrollWeek'
@@ -33,19 +35,14 @@ export interface PayrollPanelProps {
   onSelectWeek: (week: string) => void
 }
 
-const PAY_RUN_WORDING = {
-  draft: 'Pay run ready for posting',
-  posted: 'Pay run locked (already paid)',
-  missing: 'Pay run not created yet',
-} as const
-
 export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: PayrollPanelProps) {
+  const { t } = useTranslation('timesheet')
   if (payroll.loadFailed) {
     // Opus: A failed read must not render as "no pay run exists" — the wording
     // below would then misdescribe a week that may already have one.
     return (
       <p className="rounded border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-        Could not load pay runs from Xero. Reload the page.
+        {t('payrollPanel.loadFailed')}
       </p>
     )
   }
@@ -71,10 +68,12 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
           className="text-sm font-semibold text-slate-800"
           data-automation-id="PayrollPanel-status"
         >
-          {payroll.isLoading ? 'Reading pay runs from Xero…' : PAY_RUN_WORDING[payRunState]}
+          {payroll.isLoading ? t('payrollPanel.reading') : t(`payrollPanel.payRun.${payRunState}`)}
         </span>
         {payRun && (
-          <span className="text-xs text-slate-600">Paid {formatDate(payRun.payment_date)}</span>
+          <span className="text-xs text-slate-600">
+            {t('payrollPanel.paid', { date: formatDate(payRun.payment_date) })}
+          </span>
         )}
         {payRun && (
           <a
@@ -83,7 +82,7 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open in Xero
+            {t('payrollPanel.openInXero')}
           </a>
         )}
       </div>
@@ -93,15 +92,14 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
           className="rounded bg-amber-50 p-2 text-xs text-amber-900"
           data-automation-id="PayrollPanel-notPostable"
         >
-          Xero processes pay runs in order, so the next postable week starts{' '}
-          {formatDate(postableWeekStart ?? weekStart)}; posting this one will be refused.{' '}
+          {t('payrollPanel.notPostable', { date: formatDate(postableWeekStart ?? weekStart) })}{' '}
           <button
             type="button"
             className="font-medium text-amber-900 underline underline-offset-2"
             data-automation-id="PayrollPanel-goToPostableWeek"
             onClick={() => onSelectWeek(postableWeekStart ?? weekStart)}
           >
-            Go to that week
+            {t('payrollPanel.goToWeek')}
           </button>
         </p>
       )}
@@ -111,9 +109,11 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
           className="rounded bg-amber-50 p-2 text-xs text-amber-900"
           data-automation-id="PayrollPanel-heldBack"
         >
-          Not approved, so not paid by this post:{' '}
-          {heldBack.map((row) => `${row.name} ${row.hours}h`).join(', ')}. Approve the entries first
-          to pay them this week.
+          {t('payrollPanel.heldBack', {
+            list: heldBack
+              .map((row) => t('payrollPanel.heldBackRow', { name: row.name, hours: row.hours }))
+              .join(', '),
+          })}
         </p>
       )}
 
@@ -140,11 +140,11 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
           variant="outline"
           size="sm"
           disabled={busy || payroll.isCheckingXero}
-          title="Ask Xero what it holds for each staff member this week"
+          title={t('payrollPanel.checkXeroTitle')}
           data-automation-id="PayrollPanel-checkXero"
           onClick={payroll.checkXero}
         >
-          {payroll.isCheckingXero ? 'Checking Xero…' : 'Check against Xero'}
+          {payroll.isCheckingXero ? t('payrollPanel.checkingXero') : t('payrollPanel.checkXero')}
         </Button>
         {/* A link, not a redirect after posting: the per-staff results below
             live in session state and any navigation wipes them, so the
@@ -153,10 +153,10 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
           to="/reports/payroll-reconciliation"
           search={{ week: weekStart }}
           className="text-sm font-medium text-blue-700 underline underline-offset-2"
-          title="What we expect Xero to pay this week, beside what Xero computed"
+          title={t('payrollPanel.checkMoneyTitle')}
           data-automation-id="PayrollPanel-checkTheMoney"
         >
-          Check the money
+          {t('payrollPanel.checkMoney')}
         </Link>
         {isPosting && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
       </div>
@@ -182,18 +182,18 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
  * nobody asked.
  */
 function XeroReconciliation({ payroll }: { payroll: UsePayrollWeekResult }) {
+  const { t } = useTranslation('timesheet')
   if (payroll.isCheckingXero) {
     return (
       <p className="text-xs text-slate-500" data-automation-id="PayrollPanel-checkingXero">
-        Asking Xero what it holds for each staff member…
+        {t('payrollPanel.asking')}
       </p>
     )
   }
   if (payroll.postingStatusFailed) {
     return (
       <p className="text-xs text-amber-800" data-automation-id="PayrollPanel-statusUnavailable">
-        Could not read what Xero holds for this week. The hours below are what DocketWorks recorded,
-        not what Xero has.
+        {t('payrollPanel.statusUnavailable')}
       </p>
     )
   }
@@ -209,8 +209,7 @@ function XeroReconciliation({ payroll }: { payroll: UsePayrollWeekResult }) {
             nothing for, and Xero pays those their default pay-template hours —
             typically a full week nobody worked. Wording that implied "Xero is
             correct" would be reassurance covering the costliest case. */}
-        Xero matches the timesheet for all {status.length} staff shown here. It does not check for
-        Xero employees missing from this list, who would be paid their default hours.
+        {t('payrollPanel.inSync', { staff: status.length })}
       </p>
     )
   }
@@ -225,9 +224,12 @@ function XeroReconciliation({ payroll }: { payroll: UsePayrollWeekResult }) {
           {/* Both surfaces are named because they are posted through different
               Xero APIs: only leave debits a leave balance, so "3h short" means
               something different on each. */}
-          Xero holds {row.posted_timesheet_hours}h worked and {row.posted_leave_hours}h leave; the
-          timesheet records {row.recorded_timesheet_hours}h worked and {row.recorded_leave_hours}h
-          leave.
+          {t('payrollPanel.outOfSync', {
+            postedWork: row.posted_timesheet_hours,
+            postedLeave: row.posted_leave_hours,
+            recordedWork: row.recorded_timesheet_hours,
+            recordedLeave: row.recorded_leave_hours,
+          })}
         </li>
       ))}
     </ul>
@@ -238,20 +240,24 @@ function postButtonLabel(
   payroll: UsePayrollWeekResult,
   progress: UsePayrollWeekResult['progress'],
 ): string {
-  if (progress) return `Posting ${progress.current} of ${progress.total}…`
-  if (payroll.hasPosted) return 'Re-post to Xero'
-  return 'Post All Staff to Xero'
+  if (progress)
+    return i18n.t('timesheet:payrollPanel.posting', {
+      current: progress.current,
+      total: progress.total,
+    })
+  if (payroll.hasPosted) return i18n.t('timesheet:payrollPanel.repost')
+  return i18n.t('timesheet:payrollPanel.postAll')
 }
 
 function postButtonTitle(payRunState: string): string {
-  if (payRunState === 'posted') return 'This week is locked'
+  if (payRunState === 'posted') return i18n.t('timesheet:payrollPanel.lockedTitle')
   // Opus: A missing pay run is no longer a blocker, so it must not read as one.
   // Posting creates the run itself, and must, because it reconciles leave first
   // and Xero locks leave once the employee is in a draft (KAN-326).
   if (payRunState === 'missing') {
-    return 'Post every staff member’s hours for this week to Xero, creating the pay run'
+    return i18n.t('timesheet:payrollPanel.postCreatingTitle')
   }
-  return 'Post every staff member’s hours for this week to Xero'
+  return i18n.t('timesheet:payrollPanel.postTitle')
 }
 
 function PostResults({ results }: { results: StaffWeekPostResultOut[] }) {
@@ -277,20 +283,30 @@ function resultTone(result: StaffWeekPostResultOut): string {
 }
 
 function resultText(result: StaffWeekPostResultOut): string {
-  if (!result.success) return result.error ?? 'Failed to post'
+  if (!result.success) return result.error ?? i18n.t('timesheet:payrollPanel.result.failed')
   if (result.posting_mode === 'salary') {
-    const cleanup = result.salary_timesheet_removed ? ' Removed an overriding Xero timesheet.' : ''
-    return `${result.reason ?? 'Salary remains on Xero regular earnings'}${cleanup}`
+    const cleanup = result.salary_timesheet_removed
+      ? i18n.t('timesheet:payrollPanel.result.timesheetRemoved')
+      : ''
+    return `${result.reason ?? i18n.t('timesheet:payrollPanel.result.salary')}${cleanup}`
   }
   if (result.skipped) {
-    const reason = result.reason ?? 'not posted'
+    const reason = result.reason ?? i18n.t('timesheet:payrollPanel.result.notPosted')
     // Opus: Hours that exist but were deliberately not posted are the case an
     // operator must not discover later by reconciling against Xero.
-    return result.has_entries ? `${reason} — hours NOT posted to Xero` : reason
+    return result.has_entries
+      ? i18n.t('timesheet:payrollPanel.result.hoursNotPosted', { reason })
+      : reason
   }
   // Opus: All three buckets ADR 0007 routes, not two. other_leave is paid leave that
   // goes through the Timesheets API rather than the Leave API, so omitting it
   // under-reported what had just been written to someone's pay.
-  const otherLeave = result.other_leave_hours ? `, ${result.other_leave_hours}h other leave` : ''
-  return `posted ${result.work_hours}h work, ${result.leave_hours}h leave${otherLeave}`
+  const otherLeave = result.other_leave_hours
+    ? i18n.t('timesheet:payrollPanel.result.otherLeave', { hours: result.other_leave_hours })
+    : ''
+  return i18n.t('timesheet:payrollPanel.result.posted', {
+    work: result.work_hours,
+    leave: result.leave_hours,
+    otherLeave,
+  })
 }

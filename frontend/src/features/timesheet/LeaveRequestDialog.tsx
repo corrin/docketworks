@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   apiErrorMessage,
@@ -49,6 +50,7 @@ export function LeaveRequestDialog({
   request,
   onSaved,
 }: Props) {
+  const { t } = useTranslation('timesheet')
   const [saving, setSaving] = useState(false)
 
   return (
@@ -61,10 +63,10 @@ export function LeaveRequestDialog({
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{request ? 'Edit leave' : 'New leave'}</DialogTitle>
-          <DialogDescription>
-            Choose the employee first, then the leave type and dates.
-          </DialogDescription>
+          <DialogTitle>
+            {request ? t('leaveRequest.editTitle') : t('leaveRequest.newTitle')}
+          </DialogTitle>
+          <DialogDescription>{t('leaveRequest.description')}</DialogDescription>
         </DialogHeader>
         <LeaveRequestForm
           saving={saving}
@@ -89,6 +91,7 @@ function LeaveRequestForm({
   request,
   onSaved,
 }: Omit<Props, 'open'> & { saving: boolean; setSaving: (saving: boolean) => void }) {
+  const { t } = useTranslation('timesheet')
   const [staffId, setStaffId] = useState(request?.staff_id ?? '')
   const [leaveTypeCode, setLeaveTypeCode] = useState(request?.leave_type_code ?? '')
   const [startDate, setStartDate] = useState(request?.start_date ?? localIsoDate())
@@ -128,12 +131,10 @@ function LeaveRequestForm({
       )
       const skipped = result.days.filter((day) => !day.available).length
       setPreviewMessage(
-        skipped > 0
-          ? `${skipped} unavailable day${skipped === 1 ? '' : 's'} will be skipped.`
-          : null,
+        skipped > 0 ? t('leaveRequest.unavailableSkipped', { count: skipped }) : null,
       )
     } catch (caught) {
-      setError(apiErrorMessage(caught, 'Could not preview leave.'))
+      setError(apiErrorMessage(caught, t('leaveRequest.previewFailed')))
     }
   }
 
@@ -153,12 +154,14 @@ function LeaveRequestForm({
         ? await updateMutation.mutateAsync({ path: { request_id: request.id }, body })
         : await createMutation.mutateAsync({ body: { ...body, staff_id: staffId } })
       if (result.skipped_days.length > 0) {
-        setPreviewMessage(`${result.skipped_days.length} conflicting day(s) were skipped.`)
+        setPreviewMessage(
+          t('leaveRequest.conflictingSkipped', { skipped: result.skipped_days.length }),
+        )
       }
       await onSaved()
       onOpenChange(false)
     } catch (caught) {
-      setError(apiErrorMessage(caught, 'Could not save leave.'))
+      setError(apiErrorMessage(caught, t('leaveRequest.saveFailed')))
     } finally {
       setSaving(false)
     }
@@ -169,9 +172,9 @@ function LeaveRequestForm({
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Employee">
+        <Field label={t('leaveRequest.employee')}>
           <select
-            aria-label="Employee"
+            aria-label={t('leaveRequest.employee')}
             className={INPUT_CLASS}
             data-automation-id="LeaveRequestDialog-staff"
             value={staffId}
@@ -182,7 +185,7 @@ function LeaveRequestForm({
               setDays([])
             }}
           >
-            <option value="">Select employee</option>
+            <option value="">{t('leaveRequest.selectEmployee')}</option>
             {staff.map((member) => (
               <option key={member.id} value={member.id}>
                 {member.name}
@@ -193,9 +196,9 @@ function LeaveRequestForm({
             )}
           </select>
         </Field>
-        <Field label="Leave type">
+        <Field label={t('leaveRequest.leaveType')}>
           <select
-            aria-label="Leave type"
+            aria-label={t('leaveRequest.leaveType')}
             className={INPUT_CLASS}
             data-automation-id="LeaveRequestDialog-leave-type"
             value={leaveTypeCode}
@@ -205,7 +208,7 @@ function LeaveRequestForm({
               setDays([])
             }}
           >
-            <option value="">Select leave type</option>
+            <option value="">{t('leaveRequest.selectLeaveType')}</option>
             {leaveTypes.map((type) => (
               <option key={type.code} value={type.code}>
                 {type.display_name}
@@ -220,28 +223,29 @@ function LeaveRequestForm({
           className="rounded-md bg-slate-50 p-3 text-sm"
           data-automation-id="LeaveRequestDialog-balance"
         >
-          {selectedType?.posting_surface === 'xero_computed' &&
-            'Xero pays this from its own public-holiday calculation, so it has no balance ' +
-              'to draw down and Docketworks posts nothing for it.'}
-          {balanceEnabled && balanceQuery.isPending && 'Loading current Xero balance…'}
+          {selectedType?.posting_surface === 'xero_computed' && t('leaveRequest.xeroComputed')}
+          {balanceEnabled && balanceQuery.isPending && t('leaveRequest.balanceLoading')}
           {balanceEnabled && balanceQuery.data && (
             <span>
-              Current balance:{' '}
+              {t('leaveRequest.currentBalance')}{' '}
               <strong>
-                {balanceQuery.data.balance} {balanceQuery.data.unit}
+                {t('leaveRequest.balanceAmount', {
+                  balance: balanceQuery.data.balance,
+                  unit: balanceQuery.data.unit,
+                })}
               </strong>
             </span>
           )}
           {balanceEnabled && balanceQuery.isError && (
-            <span className="text-amber-700">Balance unavailable. You can still save leave.</span>
+            <span className="text-amber-700">{t('leaveRequest.balanceUnavailable')}</span>
           )}
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Start date">
+        <Field label={t('leaveRequest.startDate')}>
           <input
-            aria-label="Start date"
+            aria-label={t('leaveRequest.startDate')}
             type="date"
             className={INPUT_CLASS}
             data-automation-id="LeaveRequestDialog-start-date"
@@ -252,9 +256,9 @@ function LeaveRequestForm({
             }}
           />
         </Field>
-        <Field label="End date">
+        <Field label={t('leaveRequest.endDate')}>
           <input
-            aria-label="End date"
+            aria-label={t('leaveRequest.endDate')}
             type="date"
             className={INPUT_CLASS}
             data-automation-id="LeaveRequestDialog-end-date"
@@ -266,7 +270,7 @@ function LeaveRequestForm({
           />
         </Field>
       </div>
-      <Field label="Note (optional)">
+      <Field label={t('leaveRequest.note')}>
         <input
           className={INPUT_CLASS}
           data-automation-id="LeaveRequestDialog-note"
@@ -282,7 +286,7 @@ function LeaveRequestForm({
           data-automation-id="LeaveRequestDialog-preview"
           onClick={() => void preview()}
         >
-          Preview scheduled days
+          {t('leaveRequest.preview')}
         </Button>
       </div>
 
@@ -292,8 +296,8 @@ function LeaveRequestForm({
           data-automation-id="LeaveRequestDialog-days"
         >
           <div className="grid grid-cols-[1fr_8rem] bg-slate-50 px-3 py-2 text-xs font-medium uppercase text-slate-500">
-            <span>Date</span>
-            <span>Hours</span>
+            <span>{t('leaveRequest.dateColumn')}</span>
+            <span>{t('leaveRequest.hoursColumn')}</span>
           </div>
           {days.map((day, index) => (
             <div
@@ -302,7 +306,7 @@ function LeaveRequestForm({
             >
               <span>{day.date}</span>
               <input
-                aria-label={`Hours for ${day.date}`}
+                aria-label={t('leaveRequest.hoursFor', { date: day.date })}
                 type="number"
                 data-automation-id={`LeaveRequestDialog-hours-${day.date}`}
                 min="0.001"
@@ -342,14 +346,14 @@ function LeaveRequestForm({
           disabled={saving}
           onClick={() => onOpenChange(false)}
         >
-          Cancel
+          {t('leaveRequest.cancel')}
         </Button>
         <Button
           disabled={pending || days.length === 0}
           data-automation-id="LeaveRequestDialog-submit"
           onClick={() => void save()}
         >
-          {pending ? 'Saving…' : 'Save leave'}
+          {pending ? t('leaveRequest.saving') : t('leaveRequest.save')}
         </Button>
       </DialogFooter>
     </>
