@@ -13,3 +13,7 @@ would tell someone about it.
   in the code.
 - **Use the word in [`docs/glossary.md`](../glossary.md).** A screen that needs a new word adds
   it there in the same change, so one thing has one name everywhere.
+- **A word that can still be read two ways carries a tooltip saying exactly what it covers.**
+  "Wages including paid leave" explains on hover that it is wages plus holiday, sick and
+  public-holiday pay, spread over the hours worked. The tooltip text lives in the catalogue
+  beside the word (ADR 0069).
