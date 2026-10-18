@@ -47,10 +47,10 @@ describe('timelineTypeLabel', () => {
     // v1 rendered costline_updated as a blue "General" job event, because it
     // only ever tested entry_type against 'costline_created'.
     expect(timelineTypeLabel(entry({ entry_type: 'costline_created', event_type: null }))).toBe(
-      'Costline Created',
+      'Line added',
     )
     expect(timelineTypeLabel(entry({ entry_type: 'costline_updated', event_type: null }))).toBe(
-      'Costline Updated',
+      'Line changed',
     )
   })
 })
@@ -94,8 +94,8 @@ describe('formatDelta', () => {
   })
 
   it('says so when there is no delta at all', () => {
-    expect(formatDelta(null)).toBe('No data')
-    expect(formatDelta({})).toBe('No data')
+    expect(formatDelta(null)).toBe('Nothing recorded')
+    expect(formatDelta({})).toBe('Nothing recorded')
   })
 })
 

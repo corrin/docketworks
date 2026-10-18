@@ -24,7 +24,7 @@ test.describe('integrations', () => {
     // The dev database holds the Maps key (the pickup-address spec depends on
     // it); the screen says so without ever putting the value in the DOM.
     const mapsStatus = autoId(page, 'IntegrationsPage-google-status-google_maps_api_key')
-    await expect(mapsStatus).toHaveText('Configured')
+    await expect(mapsStatus).toHaveText('Saved')
     await expect(autoId(page, 'IntegrationsPage-google-field-google_maps_api_key')).toHaveValue('')
 
     const save = autoId(page, 'IntegrationsPage-save-button')

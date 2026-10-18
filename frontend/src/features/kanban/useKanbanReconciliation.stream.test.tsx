@@ -489,7 +489,7 @@ describe('useKanbanReconciliation over the push channel', () => {
 
     expect(toastError).toHaveBeenCalledTimes(1)
     expect(toastError).toHaveBeenCalledWith(
-      'Live updates disconnected — falling back to periodic refresh',
+      "Lost the live connection to the board. It now checks for changes every 30 seconds while this tab is in front, so other people's moves can take up to 30 seconds to show.",
     )
   })
 

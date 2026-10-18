@@ -15,7 +15,7 @@ import { autoId } from '../helpers'
 const DEFAULTS_PATH = '/api/company-defaults/'
 const THEME_FIELD_ID = 'CompanyDefaultsPage-xero-field-xero_sales_branding_theme_id'
 /** BrandingThemeSelect's label for an id Xero no longer offers — never a save target. */
-const UNAVAILABLE_THEME_PREFIX = 'Unavailable theme'
+const UNAVAILABLE_THEME_PREFIX = 'A branding theme that is no longer in Xero'
 
 test.describe('company defaults', () => {
   test('sections render from the schema and an edit round-trips', async ({
@@ -259,7 +259,7 @@ test.describe('company defaults', () => {
             .map((option) => option.value),
         UNAVAILABLE_THEME_PREFIX,
       )
-    // BrandingThemeSelect renders the `Unavailable theme (…)` option only while
+    // BrandingThemeSelect renders the `A branding theme that is no longer in Xero` option only while
     // the stale id is still selected, so saving anything else deletes the only
     // way back — the restore below could never re-select it and the tenant would
     // be stranded on the test's theme.

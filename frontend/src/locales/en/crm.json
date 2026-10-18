@@ -44,7 +44,7 @@
   },
   "peopleDirectory": {
     "title": "People",
-    "intro": "One identity per person, linked to every company they work with.",
+    "intro": "One record per person, linked to every company they work with.",
     "close": "Close",
     "addPerson": "Add person",
     "createHint": "Pick or create the company first; the person is created with that company link.",
@@ -71,19 +71,19 @@
     "back": "People",
     "fallbackTitle": "Person",
     "archivedBadge": "Archived",
-    "intro": "Manage identity, contact methods, and company relationships.",
+    "intro": "Edit this person's name, email, phone numbers and the companies they work with.",
     "archive": "Archive person",
     "archiveFailed": "Failed to archive person.",
     "archived": "Person archived",
     "loading": "Loading person...",
     "loadFailed": "Failed to load person.",
     "identity": {
-      "title": "Identity",
+      "title": "Name and email",
       "name": "Name",
       "email": "Email",
-      "save": "Save identity",
-      "saveFailed": "Failed to update identity.",
-      "saved": "Identity updated"
+      "save": "Save name and email",
+      "saveFailed": "Could not save this person's name and email.",
+      "saved": "Name and email saved"
     },
     "methods": {
       "title": "Contact methods",
@@ -173,7 +173,7 @@
   },
   "phoneCalls": {
     "title": "Calls",
-    "intro": "Recent phone-provider calls and CRM triage.",
+    "intro": "Recent calls from the phone provider, and calls still to be matched to a company or job.",
     "refresh": "Refresh",
     "searchPlaceholder": "Search number, company, person, job, or description",
     "searchLabel": "Search calls",
@@ -194,7 +194,7 @@
       "recent": {
         "tab": "Recent Calls",
         "title": "Recent Calls",
-        "description": "Newest imported calls. The provider sync runs about every five minutes."
+        "description": "Newest calls. DocketWorks fetches new calls from the phone provider about every five minutes."
       },
       "unmatched": {
         "tab": "Unmatched",
@@ -209,7 +209,7 @@
       "all": {
         "tab": "All Calls",
         "title": "All Calls",
-        "description": "Audit and search across imported calls."
+        "description": "Look through and search every call fetched from the phone provider."
       }
     }
   },
@@ -255,7 +255,7 @@
   },
   "linkJob": {
     "title": "Link Phone Call To Job",
-    "description": "Pick one of {{company}}’s jobs. A job belonging to any other company is refused by the server.",
+    "description": "Pick one of {{company}}'s jobs. A call can only be linked to a job for {{company}}.",
     "jobsLoadFailed": "Failed to load {{company}}'s jobs.",
     "pickerLabel": "Job for this phone call",
     "pickerPlaceholder": "Select job",

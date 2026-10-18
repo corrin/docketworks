@@ -15,7 +15,7 @@
     "unavailableMessage": "DocketWorks could not reach the server. Your work has not been discarded.",
     "failedTitle": "Something went wrong",
     "failedMessage": "DocketWorks could not finish loading this page.",
-    "retryFallback": "Please retry the request."
+    "retryFallback": "Please try again."
   },
   "navbar": {
     "brand": "DocketWorks",
@@ -51,16 +51,13 @@
     "companyDefaults": "Company Defaults",
     "integrations": "Integrations",
     "staff": "Staff",
-    "replays": "Session Replays",
+    "replays": "Screen recordings",
     "xero": "Xero",
     "changePassword": "Change password",
     "logout": "Log out",
     "managementHeading": "Management",
     "reconciliationHeading": "Reconciliation",
-    "welcome": "Welcome, {{name}}!",
-    "wordingCurrent": "Current wording",
-    "wordingProposed": "Proposed wording",
-    "wordingTitle": "Flips every screen between the wording in use and the wording under review. Only you see the change."
+    "welcome": "Welcome, {{name}}!"
   },
   "kanbanSearch": {
     "placeholder": "Search jobs..."
@@ -102,7 +99,7 @@
   },
   "forgotPassword": {
     "emailRequired": "An email address is required.",
-    "failed": "The request could not be sent. Please try again.",
+    "failed": "The reset email could not be sent. Please try again.",
     "title": "Reset your password",
     "sent": "If that address has an account, a reset email has been sent. Follow the link in it to choose a new password.",
     "backToSignIn": "Back to sign in",

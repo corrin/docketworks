@@ -51,6 +51,6 @@
   "reconciliation": {
     "refreshFailed": "Failed to refresh the board",
     "checkFailed": "Failed to check the board for changes",
-    "streamDisconnected": "Live updates disconnected — falling back to periodic refresh"
+    "streamDisconnected": "Lost the live connection to the board. It now checks for changes every 30 seconds while this tab is in front, so other people's moves can take up to 30 seconds to show."
   }
 }

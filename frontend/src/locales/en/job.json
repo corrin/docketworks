@@ -11,8 +11,8 @@
     "safety": "Safety"
   },
   "openBlob": {
-    "fetchFailed": "Failed to fetch the {{label}}.",
-    "notADocument": "The {{label}} response was not a document.",
+    "fetchFailed": "Could not open the {{label}}.",
+    "notADocument": "What came back for the {{label}} was not a file DocketWorks can open. Try again.",
     "printBlocked": "Failed to open print window — check the popup blocker.",
     "attachmentBlocked": "Failed to open the attachment — check the popup blocker."
   },
@@ -40,8 +40,8 @@
   "quotingChat": {
     "loading": "Loading quoting chat…",
     "loadFailed": "Could not load quoting chat.",
-    "configureIntegrations": "Configure integrations",
-    "askAdministrator": "Ask an administrator to configure the integration.",
+    "configureIntegrations": "Set up the quoting chat",
+    "askAdministrator": "Ask an administrator to set up the quoting chat.",
     "assistantTitle": "Quoting assistant",
     "composerPlaceholder": "Ask about materials, supplier prices or this job…",
     "greeting": "What would you like to quote for this job?",
@@ -55,18 +55,18 @@
     "retryFailed": "Retrying the save failed."
   },
   "costLines": {
-    "saveFailed": "Failed to save the cost line",
-    "addFailed": "Failed to add the cost line",
+    "saveFailed": "Failed to save the line",
+    "addFailed": "Failed to add the line",
     "consumeFailed": "Failed to consume the stock item",
-    "deleteFailed": "Failed to delete the cost line"
+    "deleteFailed": "Failed to delete the line"
   },
   "history": {
     "kind": {
       "event": "General",
-      "costline_created": "Costline Created",
-      "costline_updated": "Costline Updated"
+      "costline_created": "Line added",
+      "costline_updated": "Line changed"
     },
-    "noData": "No data"
+    "noData": "Nothing recorded"
   },
   "quoteRevisions": {
     "revision": "Revision {{number}}",
@@ -125,7 +125,7 @@
     "rejected": "Rejected",
     "workshopPdf": "Workshop PDF",
     "deliveryDocket": "Delivery Docket",
-    "laterSlice": "This tab ships in a later slice."
+    "laterSlice": "This tab isn't built yet."
   },
   "rejection": {
     "rejectedToast": "Job rejected and moved to Archived",
@@ -187,7 +187,7 @@
     "loadFailed": "Could not load this job's Xero quote. Reload the page.",
     "unnumbered": "Quote",
     "exclGst": "excl GST",
-    "noOnlineUrl": "No online URL available for this quote.",
+    "noOnlineUrl": "Xero has no online link for this quote.",
     "openInXero": "Open in Xero",
     "deleting": "Deleting…",
     "delete": "Delete Quote",
@@ -206,29 +206,29 @@
     "cancel": "Cancel"
   },
   "historyTab": {
-    "eventAdded": "Event added",
-    "addEventFailed": "Failed to add event.",
+    "eventAdded": "Note added",
+    "addEventFailed": "Failed to add the note.",
     "undone": "Change undone successfully",
     "undoFailed": "Failed to undo change.",
     "title": "Job History",
-    "intro": "View and manage the history of events for this job.",
-    "addEvent": "Add Event",
+    "intro": "View the notes and changes on this job, and add a note.",
+    "addEvent": "Add Note",
     "linkedCalls": "Linked Phone Calls",
     "counting": "Counting…",
     "countUnavailable": "Count unavailable",
     "showingCount": "Showing {{shown}} of {{total}}",
     "refresh": "Refresh",
     "noLinkedCalls": "No linked phone calls",
-    "addNewEvent": "Add New Event",
-    "eventDescription": "Event Description",
+    "addNewEvent": "Add New Note",
+    "eventDescription": "Note",
     "eventPlaceholder": "Describe what happened...",
     "cancel": "Cancel",
     "adding": "Adding...",
-    "timeline": "Event Timeline",
+    "timeline": "Notes and changes",
     "timelineLoadFailed": "Failed to load the job timeline.",
-    "loadingEvents": "Loading events...",
-    "emptyTitle": "No events recorded yet",
-    "emptyHint": "Get started by adding the first event to this job.",
+    "loadingEvents": "Loading notes and changes...",
+    "emptyTitle": "No notes or changes yet",
+    "emptyHint": "Add the first note to this job.",
     "hide": "Hide",
     "undo": "Undo",
     "undoChange": "Undo Change",
@@ -325,7 +325,7 @@
     "loadFailed": "Could not load this job's invoices. Reload the page.",
     "empty": "No invoices for this project",
     "openInXero": "Open invoice {{number}} in Xero",
-    "noOnlineUrl": "No online URL available for this invoice.",
+    "noOnlineUrl": "Xero has no online link for this invoice.",
     "delete": "Delete invoice {{number}}",
     "creating": "Creating...",
     "create": "Create Invoice",
@@ -357,9 +357,9 @@
     "checklistSaveFailed": "Failed to save checklist",
     "title": "Finish Job",
     "intro": {
-      "timeMaterials": "Compare Estimate and Actual cost sets for this Time & Materials job",
-      "noQuote": "Compare Estimate and Actual cost sets for this job (no quote available)",
-      "withQuote": "Compare Estimate, Quote, and Actual cost sets with visual performance indicators"
+      "timeMaterials": "Compare the estimated costs and revenue with the actual costs and revenue for this Time & Materials job",
+      "noQuote": "Compare the estimated costs and revenue with the actual ones for this job (it has no quote)",
+      "withQuote": "Compare the costs and revenue in the Estimate, Quote and Actual, with markers showing how each compares"
     },
     "loading": "Loading job financials...",
     "loadFailed": "Could not load this job's financials.",
@@ -387,7 +387,7 @@
     "totalHours": "Total Hours",
     "quoteAccuracy": "Quote Accuracy",
     "quoteAccuracyHint": "Deviation of actual cost from quoted cost",
-    "noQuoteData": "No quote data available",
-    "noActualData": "No actual data available"
+    "noQuoteData": "This job has no quote figures",
+    "noActualData": "This job has no actual figures yet"
   }
 }

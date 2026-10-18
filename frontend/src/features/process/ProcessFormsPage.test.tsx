@@ -205,7 +205,7 @@ describe('ProcessFormsPage', () => {
     const { user } = await renderPage()
 
     await user.click(autoId('ProcessFormsPage-fill-11111111-1111-1111-1111-111111111111'))
-    await screen.findByText('This document has no form schema defined. Entries cannot be added.')
+    await screen.findByText("This form has no fields set up yet, so entries can't be added.")
     expect(queryAutoId('EntryForm-submit')).toBeNull()
   })
 
@@ -227,7 +227,7 @@ describe('ProcessFormsPage', () => {
     await user.type(autoId('FormDialog-schema'), 'not valid json')
     await user.click(autoId('FormDialog-submit'))
 
-    expect(autoId('FormDialog-validation')).toHaveTextContent('Schema must be valid JSON')
+    expect(autoId('FormDialog-validation')).toHaveTextContent('The form fields must be valid JSON')
     expect(autoId('FormDialog-schema-error')).toBeInTheDocument()
   })
 

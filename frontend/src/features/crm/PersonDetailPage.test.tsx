@@ -134,7 +134,7 @@ describe('PersonDetailPage', () => {
     const name = await screen.findByLabelText('Name')
     await user.clear(name)
     await user.type(name, 'Alexandra Smith')
-    await user.click(screen.getByRole('button', { name: 'Save identity' }))
+    await user.click(screen.getByRole('button', { name: 'Save name and email' }))
 
     await waitFor(() =>
       expect(patchBody).toEqual({ name: 'Alexandra Smith', email: 'alex@example.com' }),

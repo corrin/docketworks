@@ -52,11 +52,11 @@
     "monthTable": {
       "loading": "Loading sales forecast...",
       "loadError": "Failed to load the sales forecast.",
-      "empty": "No sales data available",
+      "empty": "No invoices or job revenue in these months",
       "columns": {
         "month": "Month",
         "xeroSales": "Xero Sales",
-        "jmSales": "JM Sales",
+        "jmSales": "DocketWorks revenue",
         "variance": "Variance",
         "variancePct": "Variance %"
       }
@@ -70,32 +70,32 @@
         "job": "Job",
         "note": "Note",
         "xeroRevenue": "Xero Revenue",
-        "jmRevenue": "JM Revenue",
+        "jmRevenue": "DocketWorks revenue",
         "variance": "Variance",
-        "allTimeDelta": "All-Time Delta"
+        "allTimeDelta": "Difference to date"
       },
       "loading": "Loading month details...",
       "loadError": "Failed to load the month details.",
-      "empty": "No invoice or job data for this month"
+      "empty": "No invoices or job revenue in this month"
     },
     "csv": {
       "month": "Month",
       "xeroSales": "Xero Sales",
-      "jmSales": "JM Sales",
+      "jmSales": "DocketWorks revenue",
       "variance": "Variance",
       "variancePct": "Variance %"
     },
     "page": {
-      "aboutBody": "Compares Xero invoice totals against Job Manager revenue attribution by month, to surface unbilled work and invoicing patterns. Pick a month to see the invoices and jobs behind it.",
+      "aboutBody": "Compares, month by month, what Xero has invoiced with the revenue DocketWorks puts on jobs, to show work not yet invoiced and how invoicing runs. Pick a month to see the invoices and jobs behind it.",
       "selectedXero": "Xero: {{amount}}",
-      "selectedJm": "JM: {{amount}}",
+      "selectedJm": "DocketWorks revenue: {{amount}}",
       "selectedVariance": "Variance: {{amount}} ({{pct}})",
       "title": "Sales Forecast Report",
       "exportCsv": "Export CSV",
       "refresh": "Refresh",
       "aboutTitle": "About this report",
       "totalXeroSales": "Total Xero Sales",
-      "totalJmSales": "Total JM Sales",
+      "totalJmSales": "Total DocketWorks revenue",
       "totalVariance": "Total Variance",
       "avgVariancePct": "Avg Variance %"
     }
@@ -109,7 +109,7 @@
     "profitByJob": "Profit by job",
     "totalRevenue": "Total revenue",
     "totalCost": "Total cost",
-    "noJobs": "No job data available for this day",
+    "noJobs": "No job had revenue or cost on this day",
     "columns": {
       "job": "Job",
       "total": "Total"

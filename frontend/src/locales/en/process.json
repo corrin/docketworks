@@ -20,7 +20,7 @@
     "loading": "Loading...",
     "formFailed": "Could not load this form. Reload the page.",
     "staffFailed": "Could not load the staff list. Reload the page.",
-    "noSchema": "This document has no form schema defined. Entries cannot be added.",
+    "noSchema": "This form has no fields set up yet, so entries can't be added.",
     "addEntry": "Add entry",
     "entriesCount": "Entries ({{count}})",
     "previous": "Previous",
@@ -67,12 +67,12 @@
   "formDialog": {
     "newTitle": "New Form",
     "editTitle": "Edit Form",
-    "invalidJson": "Invalid JSON",
+    "invalidJson": "The form fields aren't valid JSON",
     "titleRequired": "A title is required.",
     "categoryRequired": "A category is required.",
     "documentTypeRequired": "A document type is required.",
-    "schemaInvalidJson": "Schema must be valid JSON: {{message}}",
-    "schemaShape": "Schema must have the shape { fields: [{ key, label, type, ... }] }.",
+    "schemaInvalidJson": "The form fields must be valid JSON: {{message}}",
+    "schemaShape": "The form fields must be written as { fields: [{ key, label, type, ... }] }.",
     "saved": "Form saved successfully",
     "saveFailed": "Could not save the form.",
     "title": "Title",
@@ -86,7 +86,7 @@
     "typeFixed": "Fixed once a form is created.",
     "tags": "Tags",
     "tagsPlaceholder": "comma, separated, tags",
-    "schema": "Schema (JSON)",
+    "schema": "Form fields (JSON)",
     "preview": "Preview",
     "previewFixJson": "Fix the JSON to preview fields.",
     "previewNoFields": "No fields yet.",
@@ -98,7 +98,7 @@
   "formsPage": {
     "entrySaved": "Entry saved",
     "entrySaveFailed": "Could not save the entry.",
-    "noSchema": "This document has no form schema defined. Entries cannot be added.",
+    "noSchema": "This form has no fields set up yet, so entries can't be added.",
     "staffFailed": "Could not load the staff list. Reload the page.",
     "staffLoading": "Loading the staff list…",
     "heading": "Forms",
@@ -134,6 +134,6 @@
     "retry": "Retry",
     "loadingOption": "Loading…",
     "chooseForm": "Choose a form…",
-    "noSchema": "This document has no form schema defined. Entries cannot be added."
+    "noSchema": "This form has no fields set up yet, so entries can't be added."
   }
 }

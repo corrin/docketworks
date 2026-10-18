@@ -1,5 +1,0 @@
-{
-  "reconciliation": {
-    "streamDisconnected": "Lost the live connection to the board. It now checks for changes every 30 seconds while this tab is in front, so other people's moves can take up to 30 seconds to show."
-  }
-}
