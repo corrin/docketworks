@@ -180,7 +180,12 @@ const columns = [
                   quantity: trimDecimal(current.quantity),
                 })}
               </p>
-              <Button size="sm" variant="outline" onClick={() => ctx.recount(row.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                title={i18n.t('purchasing:stocktakeGrid.recountTitle')}
+                onClick={() => ctx.recount(row.id)}
+              >
                 {i18n.t('purchasing:stocktakeGrid.recount')}
               </Button>
             </>
@@ -213,12 +218,30 @@ export function StocktakeGrid({ rows, ...meta }: CountContext & { rows: CountRow
       columnLayout={{
         description: { widthClassName: 'w-[25%]' },
         location: { widthClassName: 'w-36' },
-        expected: { widthClassName: 'w-20' },
-        counted: { widthClassName: 'w-24' },
-        cost: { widthClassName: 'w-24' },
-        difference: { widthClassName: 'w-20' },
-        value: { widthClassName: 'w-24' },
-        reason: { widthClassName: 'w-[20%]' },
+        expected: {
+          widthClassName: 'w-20',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.recorded'),
+        },
+        counted: {
+          widthClassName: 'w-24',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.counted'),
+        },
+        cost: {
+          widthClassName: 'w-24',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.unitCost'),
+        },
+        difference: {
+          widthClassName: 'w-20',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.difference'),
+        },
+        value: {
+          widthClassName: 'w-24',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.value'),
+        },
+        reason: {
+          widthClassName: 'w-[20%]',
+          headerTitle: i18n.t('purchasing:stocktakeGrid.titles.reason'),
+        },
         actions: { widthClassName: 'w-28' },
       }}
     />

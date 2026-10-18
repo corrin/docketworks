@@ -26,15 +26,17 @@ type TabKey = (typeof TAB_KEYS)[number]
 interface DetailFieldProps {
   label: string
   valueAutomationId?: string
+  /** The field's tooltip: what the value counts (ADR 0068). */
+  title?: string
   children: ReactNode
 }
 
 // A real <label> element, not a styled div: the E2E contract locates fields
 // by label:text(...), and SummaryCard (the near-match in features/reports)
 // renders divs inside a card, which is the wrong shape for a detail sheet.
-function DetailField({ label, valueAutomationId, children }: DetailFieldProps) {
+function DetailField({ label, valueAutomationId, title, children }: DetailFieldProps) {
   return (
-    <div>
+    <div title={title}>
       <label className="block text-sm font-medium text-gray-500">{label}</label>
       <p className="mt-1 text-gray-900" data-automation-id={valueAutomationId}>
         {children}
@@ -221,7 +223,11 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
             <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
 
             <TabBar
-              tabs={TAB_KEYS.map((key) => ({ key, label: t(`companyDetail.tabs.${key}`) }))}
+              tabs={TAB_KEYS.map((key) => ({
+                key,
+                label: t(`companyDetail.tabs.${key}`),
+                title: key === 'suppliers' ? t('companyDetail.tabTitles.suppliers') : undefined,
+              }))}
               activeKey={activeTab}
               onChange={setActiveTab}
               idPrefix="CompanyDetail-tab"
@@ -256,7 +262,10 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
                     {formatCurrency(company.data.total_spend)}
                   </span>
                 </DetailField>
-                <DetailField label={t('companyDetail.lastInvoiceDate')}>
+                <DetailField
+                  label={t('companyDetail.lastInvoiceDate')}
+                  title={t('companyDetail.lastInvoiceDateTitle')}
+                >
                   {company.data.last_invoice_date === null
                     ? t('companyDetail.noInvoices')
                     : formatDate(company.data.last_invoice_date)}

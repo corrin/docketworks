@@ -124,6 +124,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 variant="ghost"
                 size="sm"
                 data-automation-id="JobQuoteTab-revisions"
+                title={t('quoteTab.titles.revisions')}
                 onClick={() => setShowRevisionsDialog(true)}
               >
                 <BookOpen className="mr-1 h-4 w-4" />
@@ -133,6 +134,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 variant="outline"
                 size="sm"
                 data-automation-id="JobQuoteTab-copy-from-estimate"
+                title={t('quoteTab.titles.copyFromEstimate')}
                 disabled={copyFromEstimate.isPending}
                 onClick={() => executeCopy(false)}
               >

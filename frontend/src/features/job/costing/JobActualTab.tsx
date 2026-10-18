@@ -40,6 +40,7 @@ export function JobActualTab({ jobId }: JobActualTabProps) {
           actions={
             <div
               data-automation-id="JobActualTab-time-expenses"
+              title={t('actualTab.timeAndExpensesTitle')}
               className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-right"
             >
               <div className="text-xs text-slate-500">{t('actualTab.timeAndExpenses')}</div>

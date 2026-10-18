@@ -58,8 +58,10 @@ export function KanbanColumn({
     <div className="w-full shrink-0">
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-200 p-3">
-          <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
-          <span className="text-sm font-bold text-gray-400" title={column.tooltip}>
+          <h3 className="text-sm font-semibold text-gray-900" title={column.title}>
+            {column.label}
+          </h3>
+          <span className="text-sm font-bold text-gray-400" title={t('board.countTitle')}>
             ({column.countDisplay})
           </span>
         </div>

@@ -73,7 +73,11 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
     <div className="min-h-screen p-6 text-sm">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">{t('stock.title')}</h1>
-        <Button disabled={createCount.isPending} onClick={() => recordCount()}>
+        <Button
+          disabled={createCount.isPending}
+          title={t('stock.recordFoundTitle')}
+          onClick={() => recordCount()}
+        >
           {t('stock.recordFound')}
         </Button>
       </div>
@@ -88,7 +92,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
         />
       </div>
 
-      <label className="mt-3 flex items-center gap-2">
+      <label className="mt-3 flex items-center gap-2" title={t('stock.includeRetiredTitle')}>
         <input
           type="checkbox"
           checked={includeInactive}
@@ -108,28 +112,28 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
         emptyLabel={t('stock.empty')}
         head={
           <tr className="border-b border-gray-200 text-left text-gray-500">
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('stock.titles.code')}>
               {t('stock.header.code')}
             </th>
             <th scope="col" className="px-3 py-2">
               {t('stock.header.description')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('stock.titles.metal')}>
               {t('stock.header.metal')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('stock.titles.alloy')}>
               {t('stock.header.alloy')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('stock.titles.spec')}>
               {t('stock.header.spec')}
             </th>
             <th scope="col" className="px-3 py-2">
               {t('stock.header.location')}
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="px-3 py-2 text-right" title={t('stock.titles.quantity')}>
               {t('stock.header.quantity')}
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="px-3 py-2 text-right" title={t('stock.titles.unitCost')}>
               {t('stock.header.unitCost')}
             </th>
             <th scope="col" className="px-3 py-2">
@@ -180,6 +184,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                   variant="outline"
                   size="sm"
                   disabled={createCount.isPending}
+                  title={t('stock.recordCountTitle')}
                   onClick={() => recordCount(item.id)}
                 >
                   {t('stock.recordCount')}
@@ -188,6 +193,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
               <Button
                 variant="ghost"
                 size="sm"
+                title={t('stock.historyTitle')}
                 onClick={() =>
                   void navigate({ to: '/purchasing/stock', search: { stockId: item.id } })
                 }
@@ -199,6 +205,7 @@ export function StockPage({ costLineId, stockId }: { costLineId?: string; stockI
                   variant="ghost"
                   size="sm"
                   disabled={retire.isPending}
+                  title={t('stock.retireTitle')}
                   onClick={() =>
                     retire.mutate(
                       { path: { id: item.id } },

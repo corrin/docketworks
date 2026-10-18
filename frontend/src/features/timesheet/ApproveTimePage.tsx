@@ -147,6 +147,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
           <p
             className="text-lg font-semibold text-gray-900"
             data-automation-id="ApproveTimePage-standing"
+            title={t('approve.standingTitle')}
           >
             {dayStandingWords(approvalsQuery.data.summary)}
           </p>
@@ -177,9 +178,15 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         head={
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
             <th className="px-2 py-2">{t('approve.staffColumn')}</th>
-            <th className="hidden px-2 py-2 sm:table-cell">{t('approve.clockColumn')}</th>
-            <th className="w-24 px-2 py-2">{t('approve.enteredColumn')}</th>
-            <th className="w-24 px-2 py-2">{t('approve.waitingColumn')}</th>
+            <th className="hidden px-2 py-2 sm:table-cell" title={t('approve.clockColumnTitle')}>
+              {t('approve.clockColumn')}
+            </th>
+            <th className="w-24 px-2 py-2" title={t('approve.enteredColumnTitle')}>
+              {t('approve.enteredColumn')}
+            </th>
+            <th className="w-24 px-2 py-2" title={t('approve.waitingColumnTitle')}>
+              {t('approve.waitingColumn')}
+            </th>
             <th className="px-2 py-2">{t('approve.stateColumn')}</th>
             <th className="w-36 px-2 py-2" />
           </tr>
@@ -233,14 +240,21 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 className="px-2 py-2"
                 data-automation-id={`ApproveTimePage-state-${person.staff_id}`}
               >
-                <span className={person.state === 'waiting' ? 'font-semibold' : 'text-slate-600'}>
+                <span
+                  className={person.state === 'waiting' ? 'font-semibold' : 'text-slate-600'}
+                  title={t(`approve.stateTitles.${STATE_KEYS[person.state]}`)}
+                >
                   {t(`approve.state.${STATE_KEYS[person.state]}`)}
                 </span>
                 {/* From the small breakpoint up the warnings sit beside the state;
                     on a phone they get their own line under the row (below). */}
                 {cautionMarks(person).map((mark) => (
-                  <span key={mark} className="ml-2 hidden font-semibold text-amber-800 sm:inline">
-                    {mark}
+                  <span
+                    key={mark.label}
+                    className="ml-2 hidden font-semibold text-amber-800 sm:inline"
+                    title={mark.title}
+                  >
+                    {mark.label}
                   </span>
                 ))}
               </td>
@@ -274,6 +288,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   <Button
                     size="sm"
                     disabled={approveDay.isPending}
+                    title={t('approve.approveDayTitle')}
                     data-automation-id={`ApproveTimePage-approve-${person.staff_id}`}
                     onClick={() => void approve(person)}
                   >
@@ -289,7 +304,9 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   className="px-2 pb-2 pl-7 text-xs font-semibold text-amber-800"
                   data-automation-id={`ApproveTimePage-cautions-narrow-${person.staff_id}`}
                 >
-                  {cautionMarks(person).join(' · ')}
+                  {cautionMarks(person)
+                    .map((mark) => mark.label)
+                    .join(' · ')}
                 </td>
               </tr>
             )}

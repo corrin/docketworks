@@ -210,6 +210,17 @@ export function CostLineGrid({
         draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
         rowExitHandlers={draftRows.rowExitHandlers}
         tableClassName="smart-costlines-table"
+        columnLayout={{
+          // The quantity lock applies to the Actual set only.
+          quantity: {
+            headerTitle: kind === 'actual' ? t('costLineGrid.titles.quantityActual') : undefined,
+          },
+          unit_cost: { headerTitle: t('costLineGrid.titles.unitCost') },
+          unit_rev: { headerTitle: t('costLineGrid.titles.unitRev') },
+          total_cost: { headerTitle: t('costLineGrid.titles.totalCost') },
+          total_rev: { headerTitle: t('costLineGrid.titles.totalRevenue') },
+          accounting_date: { headerTitle: t('costLineGrid.titles.date') },
+        }}
       />
     </QueryState>
   )

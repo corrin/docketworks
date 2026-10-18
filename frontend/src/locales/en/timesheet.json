@@ -20,7 +20,10 @@
     "waiting": "Waiting",
     "enteredLate": "Entered late",
     "remoteEntry": "Suspicious remote entry",
-    "sentLate": "Sent late"
+    "sentLate": "Sent late",
+    "enteredLateTitle": "Some of the waiting time was entered on a later day than the day it's for.",
+    "remoteEntryTitle": "Some of the waiting time was entered from a phone that was away from the workshop, or that didn't give its location.",
+    "sentLateTitle": "They sent this day to the office on a later day."
   },
   "clock": {
     "noStandardHours": "No standard hours on this day. Set the times.",
@@ -112,7 +115,11 @@
     "entryCount_one": "{{count}} entry",
     "entryCount_other": "{{count}} entries",
     "hoursOfScheduled": "{{actual}} / {{scheduled}}h",
-    "editTimesheet": "Edit Timesheet"
+    "editTimesheet": "Edit Timesheet",
+    "titleTitle": "Shows only people rostered to work this day. Anyone not rostered is left off, even if they entered time, unless weekend timesheets are on and it's a weekend.",
+    "hoursOfScheduledTitle": "Hours on their timesheet today, leave included, against their rostered hours. Salaried staff are measured against their Xero working pattern. The bar fills as the day is covered.",
+    "entryCountTitle": "How many lines are on their timesheet today, counting breaks and lunch.",
+    "statusColumnTitle": "The same words as the weekly page: Complete reaches rostered hours, Partial is fewer, Leave means any leave that day."
   },
   "officeClosure": {
     "title": "Office closed",
@@ -160,7 +167,16 @@
     "officeClosureSource": "Office closure",
     "dateRange": "{{start}} – {{end}}",
     "edit": "Edit",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "currentTabTitle": "Leave that ends today or later.",
+    "historyTabTitle": "Leave that has already ended.",
+    "awayTodayTitle": "How many people in the list below have leave booked for today. On the History tab this is always 0.",
+    "upcomingRequestsTitle": "Leave in the list below that starts after today. Leave that starts today isn't counted.",
+    "upcomingHoursTitle": "Leave hours from today on, for the leave in the list below. The search box changes all three figures.",
+    "officeClosedTitle": "Books public holiday leave for everyone rostered on the days you choose, when the whole shop is shut.",
+    "officeClosureSourceTitle": "This leave was booked for everyone at once with Office closed.",
+    "hoursColumnTitle": "Total hours booked for this leave. Days the person wasn't rostered, or already had time entered, are not included.",
+    "cancelTitle": "Deletes this leave and takes its hours off the timesheet."
   },
   "leaveRequest": {
     "editTitle": "Edit leave",
@@ -175,7 +191,7 @@
     "selectEmployee": "Select employee",
     "leaveType": "Leave type",
     "selectLeaveType": "Select leave type",
-    "xeroComputed": "Xero pays this from its own public-holiday calculation, so it has no balance to draw down and Docketworks posts nothing for it.",
+    "xeroComputed": "Xero pays this from its own public-holiday calculation, so it has no balance to draw down and DocketWorks posts nothing for it.",
     "balanceLoading": "Loading current Xero balance…",
     "currentBalance": "Current balance:",
     "balanceAmount": "{{balance}} {{unit}}",
@@ -189,7 +205,12 @@
     "hoursFor": "Hours for {{date}}",
     "cancel": "Cancel",
     "saving": "Saving…",
-    "save": "Save leave"
+    "save": "Save leave",
+    "currentBalanceTitle": "The balance Xero holds for this person right now. Leave booked in DocketWorks only reaches Xero when that week's pay is posted, so it may not be taken off yet.",
+    "previewTitle": "Lists each day in the range the person is rostered, filled in with their rostered hours. Days outside their employment, days they're not rostered, and days that already have time entered are skipped.",
+    "hoursColumnTitle": "Hours of leave for this day. It can't be more than they're rostered for that day.",
+    "employeeLockedTitle": "Can't be changed on existing leave. Cancel it and book new leave for the other person.",
+    "saveNeedsPreviewTitle": "Preview the scheduled days first."
   },
   "fillDay": {
     "title": "Fill the day",
@@ -258,7 +279,7 @@
     "postAll": "Post All Staff to Xero",
     "lockedTitle": "This week is locked",
     "postCreatingTitle": "Post every staff member’s hours for this week to Xero, creating the pay run",
-    "postTitle": "Post every staff member’s hours for this week to Xero",
+    "postTitle": "Sends this week's approved hours and leave to Xero for every staff member. Unapproved hours are held back; salaried staff get their leave only.",
     "result": {
       "failed": "Failed to post",
       "timesheetRemoved": " Removed an overriding Xero timesheet.",
@@ -267,7 +288,14 @@
       "hoursNotPosted": "{{reason}} — hours NOT posted to Xero",
       "otherLeave": ", {{hours}}h other leave",
       "posted": "posted {{work}}h work, {{leave}}h leave{{otherLeave}}"
-    }
+    },
+    "payRunTitles": {
+      "draft": "Xero has a pay run for this week that hasn't been finalised, so hours can still be posted or posted again.",
+      "posted": "Xero has finalised this week's pay run. DocketWorks can no longer post to it; any change has to be made in Xero.",
+      "missing": "Xero has no pay run for this week yet. Posting creates it, so you don't need to make it in Xero first."
+    },
+    "paidTitle": "The pay day set on this week's pay run in Xero. It shows before the pay run is finalised, so it doesn't mean the money has gone out yet.",
+    "outOfSyncTitle": "\"Worked\" is approved hours that go on the Xero timesheet. \"Leave\" is sick, annual, bereavement and unpaid leave. Public holidays are in neither, because Xero works those out itself. For salaried staff only leave is compared."
   },
   "entryPage": {
     "referenceLoadFailed": "Could not load the staff, jobs and pay items timesheets need. Reload the page.",
@@ -285,7 +313,7 @@
     "history": "History",
     "entriesLoadFailed": "Could not load the timesheet entries. Reload the page.",
     "totalHours": "Total Hours",
-    "totalBill": "Total Bill",
+    "totalBill": "Total Bill (excl GST)",
     "billable": "Billable",
     "nonBillable": "Non-Billable"
   },
@@ -320,6 +348,27 @@
       "annualLeave": "Annual leave",
       "bereavementLeave": "Bereavement leave",
       "otherLeave": "Other leave"
+    },
+    "sweepWeekTitle": "For every day this week, Monday to Sunday, puts any time someone was clocked in but not on a job or break onto General work, then approves that person's day. A day still clocked in, or never clocked, is left alone and listed.",
+    "totalColumnTitle": "All hours on this person's timesheet for the week, leave included, approved or not. Unpaid lunch is not counted.",
+    "heldBackColumnTitle": "Hours the office has not approved yet. Posting to Xero pays approved time only, so these hours are not paid until someone approves them.",
+    "billableColumnTitle": "The share of this person's hours that are charged to a customer. Leave and shop jobs count as not charged, so leave lowers this figure.",
+    "totalsTitle": "Totals across everyone listed: all their hours this week, and the share of those hours charged to a customer.",
+    "weekStatusTitles": {
+      "Complete": "How full the week's timesheet is, by hours alone: Complete is 35 hours or more. It ignores the person's own roster.",
+      "Partial": "How full the week's timesheet is, by hours alone: Partial is 20 hours or more, but under 35. It ignores the person's own roster.",
+      "Minimal": "How full the week's timesheet is, by hours alone: Minimal is under 20 hours. It ignores the person's own roster.",
+      "Missing": "How full the week's timesheet is, by hours alone: Missing means no hours at all. It ignores the person's own roster."
+    },
+    "salaryTitle": "Paid a salary through Xero. DocketWorks posts only their leave; their hours here are for job costing.",
+    "varianceTitle": "The gap between the hours on this salaried person's timesheet and their contracted hours in Xero for the week. Their pay does not change; the hours just aren't on jobs.",
+    "dayCellTitle": "{{status}}: {{meaning}} Click to open their day.",
+    "breakdownTitles": {
+      "billed": "Hours worked on jobs charged to a customer. It means chargeable, not that an invoice has gone out. Includes any overtime; leave is not in it.",
+      "unbilled": "Hours worked that no customer is charged for, such as shop jobs and General work. Includes any overtime; leave is not in it.",
+      "overtime15": "Hours paid at time and a half. These hours are also counted in Billed or Unbilled above.",
+      "overtime2": "Hours paid at double time. These hours are also counted in Billed or Unbilled above.",
+      "otherLeave": "Unpaid leave and public holidays."
     }
   },
   "grid": {
@@ -351,7 +400,7 @@
       "wage": "Wage",
       "invoice": "Invoice",
       "wageAmount": "Wage $",
-      "invoiceAmount": "Invoice $"
+      "invoiceAmount": "Invoice $ (excl GST)"
     }
   },
   "approve": {
@@ -397,7 +446,18 @@
     "entryJob": "#{{number}} {{name}}",
     "entrySpan": "{{start}} to {{end}}",
     "correctEntry": "Correct entry on job {{number}}",
-    "addEntry": "Add entry"
+    "addEntry": "Add entry",
+    "standingTitle": "Counts everyone who was rostered, clocked in or has time today, and how many of them have nothing left to approve. People who weren't rostered and did nothing are left out.",
+    "clockColumnTitle": "When they clocked in and out. \"Here\" is the time between the two, breaks included. \"Sent\" means they have sent their day to the office.",
+    "enteredColumnTitle": "All hours on their timesheet for the day: job time, paid breaks and leave. Unpaid lunch is not counted.",
+    "waitingColumnTitle": "The part of Entered the office has not approved yet. These hours are not paid until they are approved.",
+    "stateTitles": {
+      "waiting": "They have time on jobs and some of it is not approved yet.",
+      "nothingEntered": "They were rostered or clocked in, but have no time on any job. Paid breaks alone don't count. Usually worth a phone call.",
+      "nothingWaiting": "Everything they entered for the day is approved. Leave counts here because it's approved when it's booked.",
+      "notRostered": "Not rostered today, didn't clock in and entered nothing. Nothing is expected of them."
+    },
+    "approveDayTitle": "Approves every waiting entry this person has today, so it's paid at the next post. Approval can't be undone; to change an entry afterwards, correct it here."
   },
   "entryDrawer": {
     "bookOwnTime": "Book your own time for {{date}}.",
@@ -458,5 +518,13 @@
     "entryJob": "#{{number}} {{name}}",
     "editEntry": "Edit entry",
     "deleteEntry": "Delete entry"
+  },
+  "dayStatusTitles": {
+    "Complete": "Hours reach the person's rostered hours.",
+    "Partial": "Some hours, but fewer than rostered.",
+    "No Entry": "Rostered, but nothing entered.",
+    "Leave": "Some leave that day.",
+    "Unscheduled": "Hours on a day they weren't rostered.",
+    "Off": "Not rostered, nothing entered."
   }
 }

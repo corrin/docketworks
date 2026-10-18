@@ -152,23 +152,40 @@ export function PoLinesTable({
       draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
       rowExitHandlers={draftRows.rowExitHandlers}
       tableClassName="w-full min-w-[1190px] table-fixed"
-      columnLayout={COLUMN_LAYOUT}
+      columnLayout={columnLayout()}
     />
   )
 }
 
 const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'price_tbc', 'unit_cost'])
 
-const COLUMN_LAYOUT: Readonly<Record<string, DataTableColumnLayout>> = {
+// A function, not a module constant: the header tooltips are read from the
+// catalogue at render, after i18n has loaded (ADR 0069).
+const columnLayout = (): Readonly<Record<string, DataTableColumnLayout>> => ({
   item: { widthClassName: 'w-[155px] min-[1600px]:w-[180px]' },
   description: {},
-  job: { widthClassName: 'w-[250px] min-[1600px]:w-[330px]' },
+  job: {
+    widthClassName: 'w-[250px] min-[1600px]:w-[330px]',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.job'),
+  },
   quantity: { widthClassName: 'w-[90px]', headerClassName: 'text-right' },
-  price_tbc: { widthClassName: 'w-[74px]', headerClassName: 'text-center' },
-  unit_cost: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
-  total: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
+  price_tbc: {
+    widthClassName: 'w-[74px]',
+    headerClassName: 'text-center',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.priceTbc'),
+  },
+  unit_cost: {
+    widthClassName: 'w-[106px]',
+    headerClassName: 'text-right',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.unitCost'),
+  },
+  total: {
+    widthClassName: 'w-[106px]',
+    headerClassName: 'text-right',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.total'),
+  },
   actions: { widthClassName: 'w-[38px]' },
-}
+})
 
 type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 

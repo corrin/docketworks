@@ -44,7 +44,8 @@ import { fallbackColumnLabel, OFFICE_COLUMN_IDS, type OfficeColumnId } from './c
 export interface KanbanColumnView {
   id: OfficeColumnId
   label: string
-  tooltip: string
+  /** What the column means: its title's tooltip (ADR 0068). */
+  title: string
   /** Render order, already filtered — never re-sort this. */
   jobs: KanbanJobOut[]
   /** v1's jobCountDisplay: "N", or "X of Y" when filtered or truncated. */
@@ -63,6 +64,8 @@ export interface MoveJobRequest {
 export interface StatusOption {
   key: string
   label: string
+  /** What choosing the status does: the option's tooltip. */
+  title?: string
 }
 
 export interface KanbanBoardModel {
@@ -259,9 +262,7 @@ export function useKanbanBoard(
     return {
       id: columnId,
       label: columnLabel(columnId),
-      tooltip:
-        statusValues.data?.tooltips[columnId] ??
-        t('board.fallbackTooltip', { status: fallbackColumnLabel(columnId) }),
+      title: t(`board.statusTitles.${columnId}`),
       jobs,
       countDisplay,
       isLoading: query.isPending || (isSearchActive && search.isPending),
@@ -359,8 +360,18 @@ export function useKanbanBoard(
   // Ordered per the API response: get_status_choices() builds the six office
   // columns then archived, so Object.entries (insertion order, per spec for
   // string keys) reproduces that order without a second taxonomy table here.
+  const statusMeanings = new Map<string, string>(
+    OFFICE_COLUMN_IDS.map((columnId) => [columnId, t(`board.statusTitles.${columnId}`)]),
+  )
   const statusOptions: StatusOption[] = statusValues.data
-    ? Object.entries(statusValues.data.statuses).map(([key, label]) => ({ key, label }))
+    ? Object.entries(statusValues.data.statuses).map(([key, label]) => {
+        const meaning = statusMeanings.get(key)
+        return {
+          key,
+          label,
+          title: meaning === undefined ? undefined : t('statusDrawer.optionTitle', { meaning }),
+        }
+      })
     : []
 
   const updateStatusMutation = useMutation(jobJobsUpdateStatusCreateMutation())

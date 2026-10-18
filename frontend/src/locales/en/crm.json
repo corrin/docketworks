@@ -11,7 +11,7 @@
       "name": "Name",
       "email": "Email",
       "phone": "Phone",
-      "totalSpend": "Total Spend"
+      "totalSpend": "Total Spend (excl GST)"
     }
   },
   "companyDetail": {
@@ -27,7 +27,7 @@
     "address": "Address",
     "email": "Email",
     "phone": "Phone",
-    "totalSpend": "Total Spend",
+    "totalSpend": "Total Spend (excl GST)",
     "lastInvoiceDate": "Last Invoice Date",
     "noInvoices": "No invoices",
     "aliases": {
@@ -40,7 +40,11 @@
       "retry": "Retry",
       "empty": "No search aliases yet.",
       "remove": "Remove alias {{alias}}"
-    }
+    },
+    "tabTitles": {
+      "suppliers": "Other names this supplier goes by on paperwork or in Xero. When you search for a supplier on a purchase order, these names find this company too."
+    },
+    "lastInvoiceDateTitle": "The date on the most recent invoice to this company in Xero, on a job or not."
   },
   "peopleDirectory": {
     "title": "People",
@@ -62,7 +66,7 @@
       "person": "Person",
       "phone": "Phone",
       "companies": "Companies",
-      "totalSpend": "Total Spend"
+      "totalSpend": "Total Spend (excl GST)"
     },
     "archived": "Archived",
     "noun": "people"
@@ -147,7 +151,7 @@
     "financial": {
       "title": "Financial summary",
       "intro": "Sales invoices on jobs where this person is the contact, across every company those jobs were for.",
-      "totalSpend": "Total Spend",
+      "totalSpend": "Total Spend (excl GST)",
       "lastInvoiceDate": "Last Invoice Date",
       "noInvoices": "No invoices"
     },
@@ -167,9 +171,12 @@
       "invoices": "Invoices",
       "invoiced": "Invoiced (excl. GST)"
     },
-    "totalInvoiced": "Total invoiced",
+    "totalInvoiced": "Total invoiced (excl GST)",
     "jobLabel": "#{{number}} {{name}}",
-    "notInvoiced": "Not invoiced"
+    "notInvoiced": "Not invoiced",
+    "columnTitles": {
+      "invoices": "Sales invoices on this job, oldest first. Click an invoice number to open it in Xero. A number you can't click has no Xero link yet."
+    }
   },
   "phoneCalls": {
     "title": "Calls",

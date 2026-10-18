@@ -86,19 +86,19 @@ function MovementRows({
         wrapperClassName="max-h-[55vh]"
         head={
           <tr>
-            <th scope="col" className="p-2 text-left">
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.recorded')}>
               {t('movements.header.recorded')}
             </th>
             <th scope="col" className="p-2 text-left">
               {t('movements.header.item')}
             </th>
-            <th scope="col" className="p-2">
+            <th scope="col" className="p-2" title={t('movements.titles.beforeAfter')}>
               {t('movements.header.beforeAfter')}
             </th>
-            <th scope="col" className="p-2 text-left">
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.counterpart')}>
               {t('movements.header.counterpart')}
             </th>
-            <th scope="col" className="p-2 text-left">
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.reasonOperator')}>
               {t('movements.header.reasonOperator')}
             </th>
             <th scope="col" className="p-2">
@@ -152,6 +152,7 @@ function MovementRows({
                   variant="outline"
                   size="sm"
                   disabled={reverse.isPending}
+                  title={t('movements.returnIssueTitle')}
                   onClick={() =>
                     reverse.mutate(
                       { path: { id: movement.id } },

@@ -25,13 +25,20 @@
       "job": "Job",
       "name": "Name",
       "company": "Company",
-      "grossWip": "Gross WIP",
-      "invoiced": "Invoiced",
-      "netWip": "Net WIP"
+      "grossWip": "Gross WIP (excl GST)",
+      "invoiced": "Invoiced (excl GST)",
+      "netWip": "Net WIP (excl GST)"
     },
-    "totalGross": "Total Gross WIP",
-    "totalNet": "Total Net WIP",
-    "jobCount": "Jobs"
+    "totalGross": "Total Gross WIP (excl GST)",
+    "totalNet": "Total Net WIP (excl GST)",
+    "jobCount": "Jobs",
+    "titles": {
+      "page": "Jobs not yet fully invoiced, leaving out draft jobs, jobs awaiting quote approval, rejected and archived jobs, and jobs with no revenue recorded. Sorted by most uninvoiced first.",
+      "grossWip": "Revenue of all the work on this job so far (labour, materials and adjustments) at the rates the customer is charged.",
+      "invoiced": "Total of this job's invoices excluding GST, draft invoices included.",
+      "netWip": "Gross WIP less invoiced: work done that hasn't been invoiced yet. Can be negative when a job is invoiced ahead of the work.",
+      "jobCount": "Number of jobs listed (archived jobs not counted)."
+    }
   },
   "monthNav": {
     "previous": "Previous month",
@@ -40,13 +47,21 @@
     "thisMonth": "This month"
   },
   "dayCell": {
-    "title": "{{date}}: {{grade}}",
+    "title": "{{date}}: {{grade}}. Click to see revenue, cost and profit by job.",
     "billable": "billable",
     "total": "total",
     "labour": "labour",
     "materials": "materials",
     "adjustments": "adjustments",
-    "grossProfit": "gross profit"
+    "grossProfit": "gross profit",
+    "weekendTitle": "{{date}}: {{grade}}. Weekends are never graded: they owe no share of overhead, so any money earned on them is a bonus. Their revenue and cost still count in the month's totals. Click to see revenue, cost and profit by job.",
+    "titles": {
+      "hours": "Billable: hours on customer jobs marked billable. Total: all paid hours recorded that day, including shop work; unpaid time such as lunch is left out.",
+      "labour": "Labour profit for the day: revenue from billable hours less the wage cost of every hour worked, shop hours included.",
+      "materials": "Materials profit for the day: what customers are charged for stock and purchases put on jobs, less what they cost us.",
+      "adjustments": "Profit from manual adjustment lines added to jobs that day (revenue less cost). These can be negative.",
+      "grossProfit": "Labour, materials and adjustments profit added together for the day, before overhead."
+    }
   },
   "salesForecast": {
     "monthTable": {
@@ -55,8 +70,8 @@
       "empty": "No invoices or job revenue in these months",
       "columns": {
         "month": "Month",
-        "xeroSales": "Xero Sales",
-        "jmSales": "DocketWorks revenue",
+        "xeroSales": "Xero Sales (incl GST)",
+        "jmSales": "DocketWorks revenue (excl GST)",
         "variance": "Variance",
         "variancePct": "Variance %"
       }
@@ -69,33 +84,37 @@
         "invoices": "Invoices",
         "job": "Job",
         "note": "Note",
-        "xeroRevenue": "Xero Revenue",
-        "jmRevenue": "DocketWorks revenue",
+        "xeroRevenue": "Xero Revenue (incl GST)",
+        "jmRevenue": "DocketWorks revenue (excl GST)",
         "variance": "Variance",
         "allTimeDelta": "Difference to date"
       },
       "loading": "Loading month details...",
       "loadError": "Failed to load the month details.",
-      "empty": "No invoices or job revenue in this month"
+      "empty": "No invoices or job revenue in this month",
+      "titles": {
+        "jobFinish": "For an invoiced job, the date of its first invoice this month; for an invoice not linked to a job, its date; for work not invoiced, the last date anything was recorded on the job.",
+        "note": "\"Shop job\": the shop's own job. \"Multi-month\": work on the job ran across more than one month. \"Xero only\": an invoice not linked to any job. \"DocketWorks only\": work this month with no invoice this month."
+      }
     },
     "csv": {
       "month": "Month",
-      "xeroSales": "Xero Sales",
-      "jmSales": "DocketWorks revenue",
+      "xeroSales": "Xero Sales (incl GST)",
+      "jmSales": "DocketWorks revenue (excl GST)",
       "variance": "Variance",
       "variancePct": "Variance %"
     },
     "page": {
-      "aboutBody": "Compares, month by month, what Xero has invoiced with the revenue DocketWorks puts on jobs, to show work not yet invoiced and how invoicing runs. Pick a month to see the invoices and jobs behind it.",
-      "selectedXero": "Xero: {{amount}}",
-      "selectedJm": "DocketWorks revenue: {{amount}}",
+      "aboutBody": "Compares, month by month, what Xero has invoiced with the revenue DocketWorks puts on jobs, to show work not yet invoiced and how invoicing runs. Pick a month to see the invoices and jobs behind it. Xero figures include GST; DocketWorks revenue excludes it, so a month invoiced in full shows about 15% more in Xero.",
+      "selectedXero": "Xero (incl GST): {{amount}}",
+      "selectedJm": "DocketWorks revenue (excl GST): {{amount}}",
       "selectedVariance": "Variance: {{amount}} ({{pct}})",
       "title": "Sales Forecast Report",
       "exportCsv": "Export CSV",
       "refresh": "Refresh",
       "aboutTitle": "About this report",
-      "totalXeroSales": "Total Xero Sales",
-      "totalJmSales": "Total DocketWorks revenue",
+      "totalXeroSales": "Total Xero Sales (incl GST)",
+      "totalJmSales": "Total DocketWorks revenue (excl GST)",
       "totalVariance": "Total Variance",
       "avgVariancePct": "Avg Variance %"
     }
@@ -116,7 +135,13 @@
     },
     "labour": "Labour",
     "materials": "Materials",
-    "adjustments": "Adjustments"
+    "adjustments": "Adjustments",
+    "titles": {
+      "revenueLabour": "Charge-out on billable hours only; shop hours and non-billable time earn no labour revenue.",
+      "costLabour": "Wage cost of every paid hour that day, billable or not, at wages including paid leave.",
+      "adjustments": "Manual adjustment lines added to jobs on this day.",
+      "profitByJob": "Each job's revenue less cost for this day, most profitable first. Hover a job number for its name and customer; click to open it."
+    }
   },
   "streamDialog": {
     "material": {
@@ -140,7 +165,11 @@
     "nonLabourProfit": "Non-labour profit",
     "nonLabourShare": "Non-labour share",
     "nonLabourShareNote": "Of total revenue",
-    "byDay": "By day"
+    "byDay": "By day",
+    "titles": {
+      "together": "Everything on jobs that isn't labour: materials plus adjustments, added together.",
+      "nonLabourShare": "Share of the month's total revenue that came from materials and adjustments rather than labour."
+    }
   },
   "profitDialog": {
     "title": "Profit — {{month}}",
@@ -171,7 +200,15 @@
     "weekdaysElapsed": "Weekdays elapsed",
     "overheadToDate": "Overhead to date",
     "monthTarget": "Month target",
-    "achievement": "Gross profit against month target"
+    "achievement": "Gross profit against month target",
+    "titles": {
+      "lessOverhead": "The daily gross profit target (the business's running costs per weekday) times the weekdays gone so far this month, today included.",
+      "averageGrossProfit": "Month's gross profit, weekends included, divided by every weekday in the month, including ones still to come.",
+      "dailyTarget": "Set in Company Defaults as the daily gross profit target: the month's running costs spread over its weekdays. Weekends carry none.",
+      "weekdaysElapsed": "Monday-to-Friday days up to and including today. Public holidays still count.",
+      "monthTarget": "Daily target × every weekday in the month: the overhead the whole month must cover.",
+      "achievement": "Gross profit so far as a share of the whole month's target. Below 100% mid-month is normal."
+    }
   },
   "labourDialog": {
     "title": "Labour — {{month}}",
@@ -197,7 +234,18 @@
     "shopShareNote": "Shop of total hours",
     "labourMargin": "Labour margin",
     "labourMarginNote": "Profit of labour revenue",
-    "byDay": "By day"
+    "byDay": "By day",
+    "titles": {
+      "totalHours": "All paid hours recorded this month, including weekends and shop work. Unpaid time (lunch) and staff not set up in Xero Payroll are left out.",
+      "billableHours": "Hours marked billable on customer jobs. Time on the shop's own jobs never counts, even if marked billable.",
+      "shopHours": "Hours on the shop's own jobs: work done for the business, not for a customer, such as General work.",
+      "labourRevenue": "What customers are charged for billable hours this month.",
+      "labourCost": "Wages (including paid leave) for every paid hour this month, including shop and non-billable hours.",
+      "labourProfit": "Labour revenue less labour cost. Shop hours earn nothing but still cost wages, so they pull this down.",
+      "averageRate": "Labour revenue divided by billable hours: what a billed hour actually earned on average this month.",
+      "utilisation": "Billable hours as a share of all paid hours.",
+      "labourMargin": "Labour profit as a share of labour revenue."
+    }
   },
   "dailyTable": {
     "date": "Date",
@@ -217,7 +265,15 @@
     "labour": "Labour",
     "materials": "Materials",
     "adjustments": "Adjustments",
-    "netProfit": "Net profit"
+    "netProfit": "Net profit",
+    "titles": {
+      "billedPerActiveDay": "Billable hours divided by the days so far that had any hours recorded, so empty days don't drag the average down. Weekends worked count as days.",
+      "materials": "Profit on stock and purchases put on jobs this month: what customers are charged for them less what they cost us. Includes weekends even when they're hidden.",
+      "adjustments": "Profit from manual adjustment lines on jobs this month (revenue less cost).",
+      "margin": "Profit as a share of revenue for this stream. Shows a dash when there was no revenue.",
+      "netProfit": "Gross profit for the month so far, less overhead for the weekdays gone so far (daily gross profit target × weekdays elapsed). Only a true net profit while that target is set to the real overhead.",
+      "netMargin": "Net profit as a share of the month's total revenue."
+    }
   },
   "jobMovementPage": {
     "title": "Job Movement Report",
@@ -233,7 +289,17 @@
     "quotesAccepted": "Quotes Accepted",
     "quoteAcceptanceRate": "Quote Acceptance Rate",
     "throughQuotesSkipped": "Through Quotes / Skipped",
-    "quoteUsage": "Quote Usage"
+    "quoteUsage": "Quote Usage",
+    "titles": {
+      "draftJobsCreated": "Jobs created in this period, whatever their status now.",
+      "quotesSubmitted": "Times a job was moved to Awaiting approval in this period. A job sent back and resubmitted counts twice.",
+      "jobsWon": "Jobs created in this period that have since moved past draft and aren't marked rejected. Uses their status today, and includes jobs still awaiting quote approval.",
+      "draftConversionRate": "Jobs won as a share of jobs created in this period.",
+      "quotesAccepted": "Times a job was moved to Approved in this period.",
+      "quoteAcceptanceRate": "Quotes accepted as a share of quotes submitted in this period. Can top 100% when quotes sent earlier are accepted now.",
+      "throughQuotesSkipped": "First number: jobs sent for quote approval in this period. Second: jobs created in this period that have moved past draft without being sent for quote approval in this period.",
+      "quoteUsage": "Share of jobs that went through quote approval, out of both numbers above."
+    }
   },
   "calendarPage": {
     "title": "KPI Calendar",
@@ -281,6 +347,23 @@
     "totalXero": "Xero computed",
     "unpostedCount": "Paid but not posted",
     "baseTitle": "Hours worked at each person’s base wage rate, with time and a half and double time applied. Paid leave is not spread over the hours.",
-    "loadedTitle": "Base wages plus the labour cost loading from Company Defaults, which covers annual leave, public holidays, sick leave, bereavement leave and employer-paid ACC time."
+    "loadedTitle": "Base wages plus the labour cost loading from Company Defaults, which covers annual leave, public holidays, sick leave, bereavement leave and employer-paid ACC time.",
+    "columnTitles": {
+      "xero": "Gross pay Xero has worked out for this person for the week, before tax and deductions, read live from the week's pay run.",
+      "difference": "Base wages in DocketWorks less Xero's gross. Positive means DocketWorks expects more than Xero will pay. Always uses base wages, even when the toggle shows wages including paid leave.",
+      "ourHours": "Paid hours recorded in DocketWorks for this person, Monday to Sunday. Unpaid time (lunch) is left out.",
+      "xeroHours": "Hours on Xero's pay slip, worked hours plus leave hours."
+    },
+    "statusTitles": {
+      "ok": "Base wages are within 1% of Xero's gross (or within $1 on small amounts).",
+      "mismatch": "Base wages and Xero's gross are more than 1% apart (or more than $1 on small amounts).",
+      "xero_only_departed": "DocketWorks has them as left, but Xero is paying them this week. Run their final pay and terminate them in Xero.",
+      "xero_only_unposted": "A current employee Xero is paying with no hours from DocketWorks; Xero pays their standard template hours. Either nobody entered their time, or their employment dates disagree.",
+      "xero_only_unknown": "Xero has a pay slip for someone who matches no staff member in DocketWorks.",
+      "xero_only_salaried": "Salaried: Xero pays a fixed salary, and their hours in DocketWorks only spread that cost across jobs, so the two aren't compared. Not a problem.",
+      "jm_only": "DocketWorks has hours for this person but Xero has no pay slip for them this week."
+    },
+    "unpostedCountTitle": "People Xero is paying this week with no hours from DocketWorks: those who have left, current staff with no hours, and people DocketWorks doesn't know. Salaried staff not counted.",
+    "totalXeroTitle": "Total gross pay on all of Xero's pay slips for this week."
   }
 }

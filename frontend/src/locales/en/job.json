@@ -27,7 +27,8 @@
   "actualTab": {
     "costs": "Actual Costs",
     "timeAndExpenses": "Time & Expenses",
-    "summary": "Actual Summary"
+    "summary": "Actual Summary",
+    "timeAndExpensesTitle": "The revenue on everything booked to this job so far. This is what we charge, not what it cost us. A time and materials job is invoiced from this figure."
   },
   "costSetSummary": {
     "revenue": "Revenue",
@@ -35,7 +36,13 @@
     "hours": "Hours",
     "profitMargin": "Profit margin",
     "loadFailed": "Could not load the {{title}}. Reload the page.",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "titles": {
+      "revenue": "What the customer is charged for the lines on this tab: each line's quantity × unit revenue, added up.",
+      "cost": "What the lines on this tab cost us: each line's quantity × unit cost, added up.",
+      "hours": "Hours on the labour lines on this tab. Materials and adjustments add no hours.",
+      "profitMargin": "Revenue minus cost, as a percentage of revenue. It shows 0% when there is no revenue."
+    }
   },
   "quotingChat": {
     "loading": "Loading quoting chat…",
@@ -111,6 +118,14 @@
       "totalRevenue": "Total Revenue",
       "date": "Date",
       "actions": "Actions"
+    },
+    "titles": {
+      "unitCost": "What one unit costs us. For labour this is the hourly wage rate: the company wage rate on lines added here, and the worker's own wage on timesheet lines (higher for overtime).",
+      "unitRev": "What we charge the customer for one unit. For materials it starts at the unit cost plus the company materials markup (or the stock item's own revenue), and you can change it. For labour it is the job's charge-out rate for that kind of work.",
+      "totalCost": "Quantity × unit cost for this line.",
+      "totalRevenue": "Quantity × unit revenue for this line.",
+      "date": "The date this cost counts towards in reports. For timesheet labour, it is the day the work was done.",
+      "quantityActual": "Labour lines from timesheets and lines from received purchase orders can't be changed here. Edit them in the timesheet or in purchasing."
     }
   },
   "detailPage": {
@@ -173,7 +188,11 @@
     "exportedWarning": "This quote was exported to Xero as <strong>{{number}}</strong>. Replacing the lines here does not update Xero — the exported quote will no longer match.",
     "aQuote": "a quote",
     "cancel": "Cancel",
-    "archiveAndReplace": "Archive & replace"
+    "archiveAndReplace": "Archive & replace",
+    "titles": {
+      "copyFromEstimate": "Replaces the quote's lines with a copy of the estimate's lines. If the quote already has lines with amounts on them, you are asked first, and the old quote is kept as a revision.",
+      "revisions": "Earlier versions of this quote that were archived when it was replaced, with their lines and totals."
+    }
   },
   "xeroQuote": {
     "created": "Quote created successfully!",
@@ -211,6 +230,10 @@
       "DECLINED": "Declined",
       "INVOICED": "Invoiced",
       "DELETED": "Deleted"
+    },
+    "titles": {
+      "sendTotalOnly": "Xero gets one line showing the job description and the quote's total revenue.",
+      "delete": "Deletes the quote in Xero and removes it from this job. The lines on this tab stay as they are."
     }
   },
   "historyTab": {
@@ -358,6 +381,15 @@
       "PAID": "Paid",
       "VOIDED": "Voided",
       "DELETED": "Deleted"
+    },
+    "titles": {
+      "create": "Creates the invoice in Xero for this customer and lists it here. You choose the amount in the next step.",
+      "delete": "Deletes this invoice in Xero as well as in DocketWorks, and adds its amount back to what is still to invoice.",
+      "currentAmount": "The job's revenue to date less what has already been invoiced, excluding GST. It matches \"Still to invoice\" on this tab.",
+      "fullInvoice": "Invoices the quote total less everything already invoiced on this job.",
+      "percentMode": "The percentage is of the whole quote and counts invoices already raised. For example, entering 50 after a 30% deposit invoices another 20%.",
+      "costsToDate": "Invoices the revenue on everything booked to the job so far, held to any agreed maximum, less what has already been invoiced.",
+      "amountMode": "Invoices exactly the amount you type, excluding GST. On a Fixed Price job it can't be more than what is left of the quote."
     }
   },
   "finishTab": {
@@ -385,7 +417,7 @@
     "stillToInvoice": "Still to invoice (excl GST)",
     "gst": "GST",
     "unpaidInvoices": "Unpaid invoices (incl GST)",
-    "totalToPay": "Total to pay",
+    "totalToPay": "Total to pay (incl GST)",
     "overInvoiced": "<strong>Job appears over-invoiced by {{amount}}</strong> (excl GST). The job value may be out of date, or invoicing may need correcting.",
     "checklistTitle": "Completion checklist",
     "checklistHint": "Self-checklist.",
@@ -404,6 +436,24 @@
     "quoteAccuracy": "Quote Accuracy",
     "quoteAccuracyHint": "Deviation of actual cost from quoted cost",
     "noQuoteData": "This job has no quote figures",
-    "noActualData": "This job has no actual figures yet"
+    "noActualData": "This job has no actual figures yet",
+    "titles": {
+      "quoteTotal": "The revenue on this job's current quote. A Fixed Price job is invoiced against this figure.",
+      "jobValueToDate": "The revenue on everything booked to this job so far (the Actual tab), held to the job's agreed maximum if it has one.",
+      "alreadyInvoiced": "The total of every invoice on this job that hasn't been voided or deleted, drafts included.",
+      "stillToInvoice": "The job's revenue to date less what is already invoiced. Never below zero: if the invoices add up to more, the excess shows as an over-invoiced warning instead.",
+      "gst": "The GST on the amount still to invoice, at the company's GST rate. It does not include GST on invoices already raised.",
+      "unpaidInvoices": "The amount Xero says the customer still owes on this job's invoices, including GST.",
+      "totalToPay": "What the customer still owes on this job, including GST: their unpaid invoices plus whatever is still to invoice, with its GST.",
+      "labourBudget": "Hours of labour on the quote for a Fixed Price job that has a quote; otherwise hours of labour on the estimate.",
+      "hoursUsed": "Hours of labour booked to this job so far, from timesheets and any labour lines on the Actual tab.",
+      "hoursRemaining": "Labour budget minus hours used. Once the job uses more hours than budgeted, this turns red and shows the hours over budget.",
+      "actual": "What has really been booked to the job so far. The arrow and percentage compare it with the quote on a quoted Fixed Price job, otherwise with the estimate. Green is better than planned and red is worse.",
+      "totalCost": "What the job costs us: every line's quantity × unit cost, covering labour at wage rates, materials and adjustments.",
+      "totalRevenue": "What we charge the customer for the job: every line's quantity × unit revenue.",
+      "profitMargin": "Revenue minus cost, as a percentage of revenue. It shows 0% when there is no revenue.",
+      "totalHours": "Hours on the labour lines only. Materials and adjustments add no hours.",
+      "quoteAccuracy": "How far actual cost is from quoted cost, as a percentage of the quoted cost. Green means within 20%, amber within 40%, and red more than 40% over or under."
+    }
   }
 }

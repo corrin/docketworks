@@ -134,6 +134,7 @@ export function WeeklyOverviewPage({
           variant="outline"
           size="sm"
           disabled={sweeping}
+          title={t('weekly.sweepWeekTitle')}
           data-automation-id="WeeklyOverview-sweep-week"
           onClick={() =>
             void sweep(
@@ -205,10 +206,16 @@ function WeekTable({
                 </button>
               </th>
             ))}
-            <th className="w-24 px-2 py-2">{t('weekly.totalColumn')}</th>
+            <th className="w-24 px-2 py-2" title={t('weekly.totalColumnTitle')}>
+              {t('weekly.totalColumn')}
+            </th>
             {/* Hours the office has not approved: payroll does not post them. */}
-            <th className="w-24 px-2 py-2">{t('weekly.heldBackColumn')}</th>
-            <th className="w-24 px-2 py-2">{t('weekly.billableColumn')}</th>
+            <th className="w-24 px-2 py-2" title={t('weekly.heldBackColumnTitle')}>
+              {t('weekly.heldBackColumn')}
+            </th>
+            <th className="w-24 px-2 py-2" title={t('weekly.billableColumnTitle')}>
+              {t('weekly.billableColumn')}
+            </th>
             <th className="w-28 px-2 py-2">{t('weekly.costColumn')}</th>
           </tr>
         </thead>
@@ -218,7 +225,10 @@ function WeekTable({
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+          <tr
+            className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800"
+            title={t('weekly.totalsTitle')}
+          >
             {/* Totals come from the server's weekly_summary, never recomputed
                 here — v1 shipped both and showed the client's. */}
             <td className="px-2 py-2">
@@ -259,6 +269,12 @@ function StaffWeekRow({
 }) {
   const { t } = useTranslation('timesheet')
   const [expanded, setExpanded] = useState(false)
+  const weekStatusTitles: Readonly<Record<string, string>> = t('weekly.weekStatusTitles', {
+    returnObjects: true,
+  })
+  const dayStatusTitles: Readonly<Record<string, string>> = t('dayStatusTitles', {
+    returnObjects: true,
+  })
   return (
     <>
       <tr
@@ -278,9 +294,14 @@ function StaffWeekRow({
             />
             {staff.staff_name}
           </button>
-          <span className="ml-5 text-xs text-slate-500">{staff.week_status}</span>
+          <span className="ml-5 text-xs text-slate-500" title={weekStatusTitles[staff.week_status]}>
+            {staff.week_status}
+          </span>
           {staff.pay_basis === 'salary' && (
-            <span className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+            <span
+              className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700"
+              title={t('weekly.salaryTitle')}
+            >
               {t('weekly.salary')}
             </span>
           )}
@@ -288,7 +309,7 @@ function StaffWeekRow({
               the only "no variance" value — a client-side band on top of that
               was a second materiality rule, and it swallowed a genuine 0.01h. */}
           {staff.pay_basis === 'salary' && staff.variance_hours !== 0 && (
-            <span className="ml-2 text-xs text-amber-700">
+            <span className="ml-2 text-xs text-amber-700" title={t('weekly.varianceTitle')}>
               {staff.variance_hours < 0
                 ? t('weekly.unallocated', { hours: Math.abs(staff.variance_hours) })
                 : t('weekly.overExpected', { hours: staff.variance_hours })}{' '}
@@ -303,7 +324,10 @@ function StaffWeekRow({
               className={`w-full cursor-pointer rounded px-1 py-0.5 text-left ${
                 DAY_STATUS_TONE[day.day_status] ?? 'bg-slate-50 text-slate-700'
               }`}
-              title={day.day_status}
+              title={t('weekly.dayCellTitle', {
+                status: day.day_status,
+                meaning: dayStatusTitles[day.day_status],
+              })}
               data-automation-id={`WeeklyOverview-cell-${staff.staff_id}-${day.day}`}
               onClick={() => onOpenEntry(staff.staff_id, day.day)}
             >
@@ -380,6 +404,10 @@ const BREAKDOWN_ROWS = [
 
 function PayrollBreakdownRows({ staff }: { staff: WeeklyStaffDataOut }) {
   const { t } = useTranslation('timesheet')
+  // Only some rows carry a tooltip: the leave rows name themselves.
+  const breakdownTitles: Readonly<Record<string, string>> = t('weekly.breakdownTitles', {
+    returnObjects: true,
+  })
   return (
     <>
       {BREAKDOWN_ROWS.filter((row) => staff[row.total] > 0).map((row) => (
@@ -388,7 +416,9 @@ function PayrollBreakdownRows({ staff }: { staff: WeeklyStaffDataOut }) {
           className="border-b border-slate-100 bg-slate-50/60 text-xs text-slate-600"
           data-automation-id={`WeeklyOverview-breakdown-${staff.staff_id}-${row.automationId}`}
         >
-          <td className="px-2 py-1 pl-9">{t(`weekly.breakdown.${row.label}`)}</td>
+          <td className="px-2 py-1 pl-9" title={breakdownTitles[row.label]}>
+            {t(`weekly.breakdown.${row.label}`)}
+          </td>
           {staff.weekly_hours.map((day) => (
             <td key={day.day} className="px-2 py-1">
               {day[row.day] > 0 ? t('weekly.hours', { hours: day[row.day] }) : ''}

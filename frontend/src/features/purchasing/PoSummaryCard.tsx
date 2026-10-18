@@ -16,7 +16,7 @@ import { formatCurrency, formatDate } from '@/lib/format'
 import { poOrderValue } from './lines'
 import { PickupAddressSelector } from './PickupAddressSelector'
 import { PoDocumentActions } from './PoDocumentActions'
-import { PO_STATUS_ORDER, poStatusLabel, toPoStatus } from './status'
+import { PO_STATUS_ORDER, poStatusLabel, poStatusTitle, toPoStatus } from './status'
 import type { PoHeaderPatch } from './usePoLines'
 
 interface PoSummaryCardCreateProps {
@@ -67,6 +67,7 @@ export function PoDetailHeader({ po, patchHeader }: PoDetailProps) {
           >
             <SelectTrigger
               aria-label={t('poSummary.statusLabel')}
+              title={t('poSummary.statusLabelTitle')}
               data-automation-id="PoSummaryCard-status-trigger"
             >
               <SelectValue />
@@ -76,6 +77,7 @@ export function PoDetailHeader({ po, patchHeader }: PoDetailProps) {
                 <SelectItem
                   key={status}
                   value={status}
+                  title={poStatusTitle(status)}
                   data-automation-id={`PoSummaryCard-status-${status}`}
                 >
                   {poStatusLabel(status)}
@@ -98,7 +100,7 @@ export function PoOrderValue({ lines }: Pick<PurchaseOrderDetail, 'lines'>) {
   const { t } = useTranslation('purchasing')
   const orderValue = poOrderValue(lines)
   return (
-    <div className="text-right">
+    <div className="text-right" title={t('poSummary.totalTitle')}>
       <span className="mr-2 text-sm text-slate-500">
         {orderValue.unresolvedCount === 0 ? t('poSummary.total') : t('poSummary.knownSubtotal')}
       </span>
@@ -109,7 +111,7 @@ export function PoOrderValue({ lines }: Pick<PurchaseOrderDetail, 'lines'>) {
         {formatCurrency(orderValue.knownSubtotal)}
       </span>
       {orderValue.unresolvedCount > 0 && (
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-amber-700" title={t('poSummary.unpricedTitle')}>
           {t('poSummary.unpriced', { count: orderValue.unresolvedCount })}
         </p>
       )}
@@ -222,6 +224,7 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
         <label
           htmlFor="po-expected-delivery"
           className="mb-1 block text-sm font-medium text-gray-700"
+          title={t('poSummary.expectedDeliveryTitle')}
         >
           {t('poSummary.expectedDelivery')}
         </label>

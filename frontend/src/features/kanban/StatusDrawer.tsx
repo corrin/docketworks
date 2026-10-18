@@ -115,6 +115,7 @@ export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: St
                       key={option.key}
                       type="button"
                       disabled={pendingKey !== null}
+                      title={option.title}
                       onClick={() => void handleSelect(option)}
                       className={`group w-full rounded-xl border p-3 text-left transition ${
                         isCurrent

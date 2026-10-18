@@ -124,24 +124,28 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
             >
               <SummaryCard
                 label={t('jobMovementPage.draftJobsCreated')}
+                title={t('jobMovementPage.titles.draftJobsCreated')}
                 valueAutomationId="JobMovementReport-draft-jobs-count"
               >
                 {report.data.metrics.draft_jobs_created.count}
               </SummaryCard>
               <SummaryCard
                 label={t('jobMovementPage.quotesSubmitted')}
+                title={t('jobMovementPage.titles.quotesSubmitted')}
                 valueAutomationId="JobMovementReport-quotes-submitted-count"
               >
                 {report.data.metrics.quotes_submitted.count}
               </SummaryCard>
               <SummaryCard
                 label={t('jobMovementPage.jobsWon')}
+                title={t('jobMovementPage.titles.jobsWon')}
                 valueAutomationId="JobMovementReport-jobs-won-count"
               >
                 {report.data.metrics.jobs_won.count}
               </SummaryCard>
               <SummaryCard
                 label={t('jobMovementPage.draftConversionRate')}
+                title={t('jobMovementPage.titles.draftConversionRate')}
                 valueAutomationId="JobMovementReport-conversion-rate-value"
               >
                 {formatPercentage(report.data.metrics.draft_conversion_rate.rate)}
@@ -156,26 +160,26 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
                 {t('jobMovementPage.additionalMetrics')}
               </h2>
               <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
+                <div title={t('jobMovementPage.titles.quotesAccepted')}>
                   <dt className="text-gray-500">{t('jobMovementPage.quotesAccepted')}</dt>
                   <dd className="font-medium text-gray-900">
                     {report.data.metrics.quotes_accepted.count}
                   </dd>
                 </div>
-                <div>
+                <div title={t('jobMovementPage.titles.quoteAcceptanceRate')}>
                   <dt className="text-gray-500">{t('jobMovementPage.quoteAcceptanceRate')}</dt>
                   <dd className="font-medium text-gray-900">
                     {formatPercentage(report.data.metrics.quote_acceptance_rate.rate)}
                   </dd>
                 </div>
-                <div>
+                <div title={t('jobMovementPage.titles.throughQuotesSkipped')}>
                   <dt className="text-gray-500">{t('jobMovementPage.throughQuotesSkipped')}</dt>
                   <dd className="font-medium text-gray-900">
                     {report.data.metrics.workflow_paths.through_quotes} /{' '}
                     {report.data.metrics.workflow_paths.skip_quotes}
                   </dd>
                 </div>
-                <div>
+                <div title={t('jobMovementPage.titles.quoteUsage')}>
                   <dt className="text-gray-500">{t('jobMovementPage.quoteUsage')}</dt>
                   <dd className="font-medium text-gray-900">
                     {formatPercentage(report.data.metrics.workflow_paths.quote_usage_percent)}

@@ -79,19 +79,19 @@ export function PoListPage() {
             <th scope="col" className="px-3 py-2">
               {t('poList.header.poNumber')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('poList.titles.jobs')}>
               {t('poList.header.jobs')}
             </th>
             <th scope="col" className="px-3 py-2">
               {t('poList.header.supplier')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('poList.titles.orderDate')}>
               {t('poList.header.orderDate')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('poList.titles.status')}>
               {t('poList.header.status')}
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-3 py-2" title={t('poList.titles.createdBy')}>
               {t('poList.header.createdBy')}
             </th>
           </tr>

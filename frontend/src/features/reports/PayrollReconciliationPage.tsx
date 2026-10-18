@@ -162,10 +162,18 @@ export function PayrollReconciliationPage({
           <tr className="border-b border-gray-200 text-left text-gray-500">
             <th className="px-3 py-2">{t('payrollPage.columns.staff')}</th>
             <th className="px-3 py-2 text-right">{t('payrollPage.columns.docketworks')}</th>
-            <th className="px-3 py-2 text-right">{t('payrollPage.columns.xero')}</th>
-            <th className="px-3 py-2 text-right">{t('payrollPage.columns.difference')}</th>
-            <th className="px-3 py-2 text-right">{t('payrollPage.columns.ourHours')}</th>
-            <th className="px-3 py-2 text-right">{t('payrollPage.columns.xeroHours')}</th>
+            <th className="px-3 py-2 text-right" title={t('payrollPage.columnTitles.xero')}>
+              {t('payrollPage.columns.xero')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('payrollPage.columnTitles.difference')}>
+              {t('payrollPage.columns.difference')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('payrollPage.columnTitles.ourHours')}>
+              {t('payrollPage.columns.ourHours')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('payrollPage.columnTitles.xeroHours')}>
+              {t('payrollPage.columns.xeroHours')}
+            </th>
             <th className="px-3 py-2">{t('payrollPage.columns.status')}</th>
           </tr>
         }
@@ -181,7 +189,9 @@ export function PayrollReconciliationPage({
             <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.pay_diff)}</td>
             <td className="px-3 py-2 text-right">{row.jm_hours}</td>
             <td className="px-3 py-2 text-right">{row.xero_hours}</td>
-            <td className="px-3 py-2">{t(`payrollPage.status.${row.status}`)}</td>
+            <td className="px-3 py-2" title={t(`payrollPage.statusTitles.${row.status}`)}>
+              {t(`payrollPage.status.${row.status}`)}
+            </td>
           </tr>
         )}
       >
@@ -202,12 +212,14 @@ export function PayrollReconciliationPage({
             </SummaryCard>
             <SummaryCard
               label={t('payrollPage.totalXero')}
+              title={t('payrollPage.totalXeroTitle')}
               valueAutomationId="PayrollReconciliation-total-xero"
             >
               {formatCurrency(totalXero)}
             </SummaryCard>
             <SummaryCard
               label={t('payrollPage.unpostedCount')}
+              title={t('payrollPage.unpostedCountTitle')}
               valueAutomationId="PayrollReconciliation-unposted-count"
             >
               {report.data?.unposted_count ?? 0}

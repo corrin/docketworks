@@ -39,17 +39,33 @@ export function KpiDayDetailsDialog({ day, money, onClose }: KpiDayDetailsDialog
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Section title={t('dayDialog.revenue')}>
           <div className="space-y-1">
-            <Row label={t('dayDialog.labour')} value={money(details.time_revenue)} />
+            <Row
+              label={t('dayDialog.labour')}
+              value={money(details.time_revenue)}
+              title={t('dayDialog.titles.revenueLabour')}
+            />
             <Row label={t('dayDialog.materials')} value={money(details.material_revenue)} />
-            <Row label={t('dayDialog.adjustments')} value={money(details.adjustment_revenue)} />
+            <Row
+              label={t('dayDialog.adjustments')}
+              value={money(details.adjustment_revenue)}
+              title={t('dayDialog.titles.adjustments')}
+            />
             <Row label={t('dayDialog.totalRevenue')} value={money(details.total_revenue)} strong />
           </div>
         </Section>
         <Section title={t('dayDialog.cost')}>
           <div className="space-y-1">
-            <Row label={t('dayDialog.labour')} value={money(details.staff_cost)} />
+            <Row
+              label={t('dayDialog.labour')}
+              value={money(details.staff_cost)}
+              title={t('dayDialog.titles.costLabour')}
+            />
             <Row label={t('dayDialog.materials')} value={money(details.material_cost)} />
-            <Row label={t('dayDialog.adjustments')} value={money(details.adjustment_cost)} />
+            <Row
+              label={t('dayDialog.adjustments')}
+              value={money(details.adjustment_cost)}
+              title={t('dayDialog.titles.adjustments')}
+            />
             <Row label={t('dayDialog.totalCost')} value={money(details.total_cost)} strong />
           </div>
         </Section>
@@ -66,7 +82,7 @@ export function KpiDayDetailsDialog({ day, money, onClose }: KpiDayDetailsDialog
           />
         </Stats>
       </Section>
-      <Section title={t('dayDialog.profitByJob')}>
+      <Section title={t('dayDialog.profitByJob')} hint={t('dayDialog.titles.profitByJob')}>
         {details.job_breakdown.length === 0 ? (
           <p className="text-sm text-gray-500">{t('dayDialog.noJobs')}</p>
         ) : (

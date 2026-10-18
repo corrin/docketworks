@@ -37,6 +37,8 @@ const COLUMNS: readonly {
     | 'jmRevenue'
     | 'variance'
     | 'allTimeDelta'
+  /** Columns whose header carries a tooltip (ADR 0068). */
+  titleKey?: 'jobFinish' | 'note'
   automationId: string
   align: 'left' | 'right'
 }[] = [
@@ -49,6 +51,7 @@ const COLUMNS: readonly {
   {
     column: 'date',
     labelKey: 'jobFinish',
+    titleKey: 'jobFinish',
     automationId: 'SalesForecastReport-header-job-finish',
     align: 'left',
   },
@@ -73,6 +76,7 @@ const COLUMNS: readonly {
   {
     column: 'note',
     labelKey: 'note',
+    titleKey: 'note',
     automationId: 'SalesForecastReport-header-note',
     align: 'left',
   },
@@ -175,11 +179,14 @@ export function SalesForecastDetailTable({ month }: { month: string }) {
       automationId="SalesForecastReport-detail-table"
       head={
         <tr className="border-b border-gray-200 text-gray-500">
-          {COLUMNS.map(({ labelKey, ...header }) => (
+          {COLUMNS.map(({ labelKey, titleKey, ...header }) => (
             <SortHeader
               key={header.column}
               {...header}
               label={t(`salesForecast.detail.columns.${labelKey}`)}
+              title={
+                titleKey === undefined ? undefined : t(`salesForecast.detail.titles.${titleKey}`)
+              }
               {...sort}
             />
           ))}

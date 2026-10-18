@@ -31,8 +31,8 @@ export function LeavePage() {
   // the shared bar renders a label string, and every other tab bar in the app
   // already names its tabs rather than styling its keys into titles.
   const leaveTabs: readonly TabBarItem<LeaveScope>[] = [
-    { key: 'current', label: t('leave.currentTab') },
-    { key: 'history', label: t('leave.historyTab') },
+    { key: 'current', label: t('leave.currentTab'), title: t('leave.currentTabTitle') },
+    { key: 'history', label: t('leave.historyTab'), title: t('leave.historyTabTitle') },
   ]
   const [scope, setScope] = useState<LeaveScope>('current')
   const [search, setSearch] = useState('')
@@ -106,7 +106,11 @@ export function LeavePage() {
             </p>
           )}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setClosureOpen(true)}>
+            <Button
+              variant="outline"
+              title={t('leave.officeClosedTitle')}
+              onClick={() => setClosureOpen(true)}
+            >
               <CalendarDays className="h-4 w-4" /> {t('leave.officeClosed')}
             </Button>
             <Button data-automation-id="LeavePage-new" onClick={() => setNewOpen(true)}>
@@ -117,16 +121,25 @@ export function LeavePage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard label={t('leave.awayToday')} valueAutomationId="LeavePage-away-today">
+        <SummaryCard
+          label={t('leave.awayToday')}
+          title={t('leave.awayTodayTitle')}
+          valueAutomationId="LeavePage-away-today"
+        >
           {listQuery.data?.summary.away_today ?? 0}
         </SummaryCard>
         <SummaryCard
           label={t('leave.upcomingRequests')}
+          title={t('leave.upcomingRequestsTitle')}
           valueAutomationId="LeavePage-upcoming-requests"
         >
           {listQuery.data?.summary.upcoming_requests ?? 0}
         </SummaryCard>
-        <SummaryCard label={t('leave.upcomingHours')} valueAutomationId="LeavePage-upcoming-hours">
+        <SummaryCard
+          label={t('leave.upcomingHours')}
+          title={t('leave.upcomingHoursTitle')}
+          valueAutomationId="LeavePage-upcoming-hours"
+        >
           {listQuery.data?.summary.upcoming_hours ?? 0}
         </SummaryCard>
       </div>
@@ -222,7 +235,9 @@ function LeaveTable({
             <th className="px-4 py-2">{t('leave.employeeColumn')}</th>
             <th className="px-4 py-2">{t('leave.leaveTypeColumn')}</th>
             <th className="px-4 py-2">{t('leave.datesColumn')}</th>
-            <th className="px-4 py-2">{t('leave.hoursColumn')}</th>
+            <th className="px-4 py-2" title={t('leave.hoursColumnTitle')}>
+              {t('leave.hoursColumn')}
+            </th>
             <th className="px-4 py-2">{t('leave.actionsColumn')}</th>
           </tr>
         </thead>
@@ -233,7 +248,10 @@ function LeaveTable({
               <td className="px-4 py-3">
                 {row.leave_type_name}
                 {row.source === 'office_closure' && (
-                  <span className="ml-2 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                  <span
+                    className="ml-2 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
+                    title={t('leave.officeClosureSourceTitle')}
+                  >
                     {t('leave.officeClosureSource')}
                   </span>
                 )}
@@ -249,7 +267,12 @@ function LeaveTable({
                 <Button size="sm" variant="outline" onClick={() => onEdit(row)}>
                   {t('leave.edit')}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => onCancel(row)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title={t('leave.cancelTitle')}
+                  onClick={() => onCancel(row)}
+                >
                   {t('leave.cancel')}
                 </Button>
               </td>

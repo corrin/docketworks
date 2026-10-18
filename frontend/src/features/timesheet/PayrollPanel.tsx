@@ -67,11 +67,12 @@ export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: Pay
         <span
           className="text-sm font-semibold text-slate-800"
           data-automation-id="PayrollPanel-status"
+          title={payroll.isLoading ? undefined : t(`payrollPanel.payRunTitles.${payRunState}`)}
         >
           {payroll.isLoading ? t('payrollPanel.reading') : t(`payrollPanel.payRun.${payRunState}`)}
         </span>
         {payRun && (
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-slate-600" title={t('payrollPanel.paidTitle')}>
             {t('payrollPanel.paid', { date: formatDate(payRun.payment_date) })}
           </span>
         )}
@@ -214,7 +215,11 @@ function XeroReconciliation({ payroll }: { payroll: UsePayrollWeekResult }) {
     )
   }
   return (
-    <ul className="flex flex-col gap-1 text-xs" data-automation-id="PayrollPanel-outOfSync">
+    <ul
+      className="flex flex-col gap-1 text-xs"
+      data-automation-id="PayrollPanel-outOfSync"
+      title={t('payrollPanel.outOfSyncTitle')}
+    >
       {outOfSync.map((row) => (
         <li
           key={row.staff_id}

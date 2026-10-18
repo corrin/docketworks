@@ -54,7 +54,12 @@ export function KpiProfitDialog({
             strong
             automationId="KpiProfitDialog-gross-profit"
           />
-          <Row label={t('profitDialog.lessOverhead')} value={money(totals.elapsed_target)} indent />
+          <Row
+            label={t('profitDialog.lessOverhead')}
+            value={money(totals.elapsed_target)}
+            indent
+            title={t('profitDialog.titles.lessOverhead')}
+          />
           <Row
             label={t('profitDialog.netProfit')}
             value={money(totals.net_profit)}
@@ -100,6 +105,7 @@ export function KpiProfitDialog({
           />
           <Stat
             label={t('profitDialog.averageGrossProfit')}
+            title={t('profitDialog.titles.averageGrossProfit')}
             value={moneyText(totals.avg_weekday_gp, money)}
             note={t('profitDialog.perWeekday')}
           />
@@ -109,18 +115,25 @@ export function KpiProfitDialog({
         <div className="space-y-1">
           <Row
             label={t('profitDialog.dailyTarget')}
+            title={t('profitDialog.titles.dailyTarget')}
             value={money(thresholds.kpi_daily_gp_target)}
           />
           <Row label={t('profitDialog.weekdaysInMonth')} value={String(totals.weekdays)} />
-          <Row label={t('profitDialog.weekdaysElapsed')} value={String(totals.elapsed_weekdays)} />
+          <Row
+            label={t('profitDialog.weekdaysElapsed')}
+            value={String(totals.elapsed_weekdays)}
+            title={t('profitDialog.titles.weekdaysElapsed')}
+          />
           <Row label={t('profitDialog.overheadToDate')} value={money(totals.elapsed_target)} />
           <Row
             label={t('profitDialog.monthTarget')}
+            title={t('profitDialog.titles.monthTarget')}
             value={money(totals.month_target)}
             automationId="KpiProfitDialog-month-target"
           />
           <Row
             label={t('profitDialog.achievement')}
+            title={t('profitDialog.titles.achievement')}
             value={ratioText(totals.month_target_achievement)}
             strong
             automationId="KpiProfitDialog-achievement"

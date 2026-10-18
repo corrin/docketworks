@@ -11,7 +11,8 @@
     "clear": "Clear",
     "quickAssignHint": "<label>Quick assign:</label> tap <action>Assign</action> on a teammate, then tap a job card.",
     "selected": "Selected",
-    "assign": "Assign"
+    "assign": "Assign",
+    "staffTitle": "Click to show only this person's jobs, meaning jobs they are on or created. Click more people to add their jobs too, and click again to remove the filter. Drag the face onto a job card to put them on that job."
   },
   "statusDrawer": {
     "updated": "Status updated to {{status}}",
@@ -20,7 +21,8 @@
     "noJob": "Select a job to update.",
     "currentStatus": "Current status",
     "hint": "Tap a status to update. Changes save immediately.",
-    "close": "Close"
+    "close": "Close",
+    "optionTitle": "{{meaning}} Moves the job to the top of this column."
   },
   "jobCard": {
     "tapToAssign": "Tap to assign",
@@ -30,7 +32,15 @@
     "urgent": "URGENT",
     "fullyInvoiced": "Fully invoiced",
     "paid": "Paid",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "overBudgetTitle": "Red means the job is over budget: the revenue on the work done so far is more than the quote, or more than the most we agreed to charge on a time-and-materials job. Blue means it is within.",
+    "urgentTitle": "This job is marked urgent. Marking it urgent put it at the top of its column.",
+    "fullyInvoicedTitle": "Fully invoiced: this job's invoices, not counting voided or deleted ones, add up to the whole job before GST. That is the quote on a Fixed Price job, or the work done so far (up to the agreed maximum) on a time-and-materials job.",
+    "paidTitle": "Paid: every invoice on this finished job is marked paid in Xero. DocketWorks checks once a night, so a payment made today shows tomorrow morning.",
+    "rejectedTitle": "Rejected: this job was marked rejected. Once it has been finished for 6 days, DocketWorks moves it to Archived.",
+    "dueTitle": "Delivery date. Red: overdue. Amber: due today. Hidden once the job is in Recently Completed or Archived.",
+    "personTitle": "The customer's contact for this job. This is not the staff member doing the work.",
+    "noStaffTitle": "The staff working on this job. To add someone, drag them from the staff strip onto the card. Everyone is taken off when the job goes to Archived."
   },
   "board": {
     "loadTarget": {
@@ -40,9 +50,18 @@
     },
     "loadFailed": "Failed to load {{target}}",
     "countOf": "{{shown}} of {{total}}",
-    "fallbackTooltip": "Status: {{status}}",
     "moveFailed": "Failed to move the job",
-    "statusUpdateFailed": "Failed to update job status"
+    "statusUpdateFailed": "Failed to update job status",
+    "countTitle": "The number of job cards in this column. \"X of Y\" means not every job is showing: either the column has more jobs than the board loads (it loads 200), or a search is hiding some.",
+    "statusTitles": {
+      "draft": "A new job. The quote is still being prepared.",
+      "awaiting_approval": "The quote has gone to the customer and we are waiting for a yes.",
+      "approved": "The customer has accepted. Work has not started.",
+      "in_progress": "Work has started on this job.",
+      "unusual": "Jobs that need special attention, such as on hold or waiting for materials, staff or site access.",
+      "recently_completed": "Work is finished. The job stays here until it is paid or rejected and has been finished for 6 days. DocketWorks then moves it to Archived overnight.",
+      "archived": "Finished jobs that are paid or rejected, moved here 6 days after they were finished, or moved here by hand. Staff are taken off a job when it is archived, so filtering by a person shows few jobs here."
+    }
   },
   "staffAssignment": {
     "loadFailed": "Failed to load the staff panel",

@@ -180,6 +180,7 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                 variant="destructive"
                 size="sm"
                 data-automation-id="JobQuoteTab-delete-quote"
+                title={t('xeroQuote.titles.delete')}
                 disabled={deleteQuote.isPending}
                 onClick={executeDelete}
               >
@@ -230,6 +231,7 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
             <Button
               className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
               data-automation-id="JobQuoteTab-send-total-only"
+              title={t('xeroQuote.titles.sendTotalOnly')}
               disabled={createQuote.isPending}
               onClick={() => executeCreate(false)}
             >

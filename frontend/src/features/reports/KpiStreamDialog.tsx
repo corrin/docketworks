@@ -68,7 +68,7 @@ export function KpiStreamDialog({
           />
         </Stats>
       </Section>
-      <Section title={t('streamDialog.together')}>
+      <Section title={t('streamDialog.together')} hint={t('streamDialog.titles.together')}>
         {/* The sums this report does in the browser: two displayed server
             figures added, no denominator (owner, 2026-10-01). The share is
             the complement of a served ratio. */}
@@ -87,6 +87,7 @@ export function KpiStreamDialog({
           />
           <Stat
             label={t('streamDialog.nonLabourShare')}
+            title={t('streamDialog.titles.nonLabourShare')}
             value={ratioText(
               totals.labour_revenue_share === null ? null : 100 - totals.labour_revenue_share,
             )}

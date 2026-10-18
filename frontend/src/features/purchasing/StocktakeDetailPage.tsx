@@ -236,6 +236,7 @@ function StocktakeEditor({
           className="text-blue-700 underline"
           to="/jobs/$jobId"
           params={{ jobId: count.adjustment_job_id }}
+          title={t('stocktakeDetail.adjustmentJobTitle')}
         >
           {t('stocktakeDetail.adjustmentJob')}
         </Link>
@@ -245,6 +246,7 @@ function StocktakeEditor({
           className="text-blue-700 underline"
           to="/purchasing/stocktakes/$stocktakeId"
           params={{ stocktakeId: count.corrects_id }}
+          title={t('stocktakeDetail.originalTitle')}
         >
           {t('stocktakeDetail.original')}
         </Link>
@@ -255,10 +257,20 @@ function StocktakeEditor({
         actions={
           !readOnly && (
             <div className="flex gap-2">
-              <Button variant="outline" disabled={busy} onClick={() => setShowPicker(!showPicker)}>
+              <Button
+                variant="outline"
+                disabled={busy}
+                title={showPicker ? undefined : t('stocktakeDetail.showPickerTitle')}
+                onClick={() => setShowPicker(!showPicker)}
+              >
                 {showPicker ? t('stocktakeDetail.hidePicker') : t('stocktakeDetail.showPicker')}
               </Button>
-              <Button variant="outline" disabled={busy} onClick={addFound}>
+              <Button
+                variant="outline"
+                disabled={busy}
+                title={t('stocktakeDetail.addFoundTitle')}
+                onClick={addFound}
+              >
                 {t('stocktakeDetail.addFound')}
               </Button>
             </div>
@@ -301,7 +313,7 @@ function StocktakeEditor({
             )
           }}
         />
-        <p className="mt-3">
+        <p className="mt-3" title={t('stocktakeDetail.progressTitle')}>
           {t('stocktakeDetail.progress', {
             items: rows.length,
             counted: rows.filter((row) => row.counted_quantity !== null).length,
@@ -324,11 +336,17 @@ function StocktakeEditor({
       <div className="flex flex-wrap gap-3">
         {!readOnly && (
           <>
-            <Button variant="outline" disabled={busy || !dirty} onClick={save}>
+            <Button
+              variant="outline"
+              disabled={busy || !dirty}
+              title={t('stocktakeDetail.saveDraftTitle')}
+              onClick={save}
+            >
               {t('stocktakeDetail.saveDraft')}
             </Button>
             <Button
               disabled={busy || dirty || !rows.some((row) => row.counted_quantity !== null)}
+              title={t('stocktakeDetail.postTitle')}
               onClick={() =>
                 post.mutate(
                   { path: { id: count.id }, headers: { 'If-Match': version } },
@@ -350,6 +368,7 @@ function StocktakeEditor({
             <Button
               variant="ghost"
               disabled={busy}
+              title={t('stocktakeDetail.checkStockTitle')}
               onClick={() =>
                 void refreshStock().catch(() =>
                   toast.error(t('stocktakeDetail.stockRefreshFailed')),
@@ -363,6 +382,7 @@ function StocktakeEditor({
         {readOnly && (
           <Button
             disabled={busy}
+            title={t('stocktakeDetail.createCorrectionTitle')}
             onClick={() =>
               correct.mutate(
                 { path: { id: count.id }, headers: { 'If-Match': version } },

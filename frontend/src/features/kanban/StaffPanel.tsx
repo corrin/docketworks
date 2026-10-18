@@ -96,6 +96,7 @@ export function StaffPanel({
                 isActive ? 'scale-105 rounded-lg ring-2 ring-blue-400 ring-offset-1' : ''
               }`}
               data-staff-id={member.id}
+              title={t('staffPanel.staffTitle')}
               draggable
               onDragStart={(event) => {
                 event.dataTransfer.setData(STAFF_DRAG_TYPE, 'staff')

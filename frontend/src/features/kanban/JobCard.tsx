@@ -124,6 +124,7 @@ export function JobCard({
 
       <div className="mb-1 flex items-center justify-between gap-2">
         <span
+          title={t('jobCard.overBudgetTitle')}
           className={`inline-flex items-center rounded-md px-2 py-1 text-[0.82rem] font-semibold tracking-wide text-white tabular-nums ${
             job.over_budget ? 'bg-red-600' : 'bg-blue-600'
           }`}
@@ -133,6 +134,7 @@ export function JobCard({
 
         <div className="flex items-center gap-1">
           <div
+            title={job.people.length === 0 ? t('jobCard.noStaffTitle') : undefined}
             className={`flex min-h-5 items-center gap-1 rounded p-1 ${
               job.people.length === 0 ? 'border border-dashed border-gray-300 bg-gray-50' : ''
             }`}
@@ -172,13 +174,19 @@ export function JobCard({
       </p>
 
       {job.person_name && (
-        <div className="truncate text-[0.8rem] font-medium text-gray-600">
+        <div
+          className="truncate text-[0.8rem] font-medium text-gray-600"
+          title={t('jobCard.personTitle')}
+        >
           <span className="font-semibold">{t('jobCard.person')}</span> {job.person_name}
         </div>
       )}
 
       {showDueDate && job.delivery_date !== null && (
-        <div className={`truncate text-[0.8rem] font-bold ${dueDateColor(job.delivery_date)}`}>
+        <div
+          className={`truncate text-[0.8rem] font-bold ${dueDateColor(job.delivery_date)}`}
+          title={t('jobCard.dueTitle')}
+        >
           {t('jobCard.due', { date: formatDate(job.delivery_date) })}
         </div>
       )}
@@ -186,18 +194,27 @@ export function JobCard({
       {hasStatusIcons && (
         <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1">
           {job.is_urgent && (
-            <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+            <span
+              className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600"
+              title={t('jobCard.urgentTitle')}
+            >
               {t('jobCard.urgent')}
             </span>
           )}
           {job.fully_invoiced && (
-            <Receipt className="h-4 w-4 text-green-600" aria-label={t('jobCard.fullyInvoiced')} />
+            <span title={t('jobCard.fullyInvoicedTitle')}>
+              <Receipt className="h-4 w-4 text-green-600" aria-label={t('jobCard.fullyInvoiced')} />
+            </span>
           )}
           {job.paid && (
-            <DollarSign className="h-4 w-4 text-green-600" aria-label={t('jobCard.paid')} />
+            <span title={t('jobCard.paidTitle')}>
+              <DollarSign className="h-4 w-4 text-green-600" aria-label={t('jobCard.paid')} />
+            </span>
           )}
           {job.rejected_flag && (
-            <XCircle className="h-4 w-4 text-red-500" aria-label={t('jobCard.rejected')} />
+            <span title={t('jobCard.rejectedTitle')}>
+              <XCircle className="h-4 w-4 text-red-500" aria-label={t('jobCard.rejected')} />
+            </span>
           )}
         </div>
       )}

@@ -43,16 +43,19 @@ export function KpiLabourDialog({
         <Stats>
           <Stat
             label={t('labourDialog.totalHours')}
+            title={t('labourDialog.titles.totalHours')}
             value={formatHoursDisplay(totals.total_hours)}
             note={t('labourDialog.totalHoursNote')}
           />
           <Stat
             label={t('labourDialog.billableHours')}
+            title={t('labourDialog.titles.billableHours')}
             value={formatHoursDisplay(totals.billable_hours)}
             note={t('labourDialog.billableHoursNote')}
           />
           <Stat
             label={t('labourDialog.shopHours')}
+            title={t('labourDialog.titles.shopHours')}
             value={formatHoursDisplay(totals.shop_hours)}
             note={t('labourDialog.shopHoursNote')}
           />
@@ -65,16 +68,26 @@ export function KpiLabourDialog({
       </Section>
       <Section title={t('labourDialog.money')}>
         <div className="space-y-1">
-          <Row label={t('labourDialog.labourRevenue')} value={money(totals.time_revenue)} />
-          <Row label={t('labourDialog.labourCost')} value={money(totals.staff_cost)} />
+          <Row
+            label={t('labourDialog.labourRevenue')}
+            value={money(totals.time_revenue)}
+            title={t('labourDialog.titles.labourRevenue')}
+          />
+          <Row
+            label={t('labourDialog.labourCost')}
+            value={money(totals.staff_cost)}
+            title={t('labourDialog.titles.labourCost')}
+          />
           <Row
             label={t('labourDialog.labourProfit')}
+            title={t('labourDialog.titles.labourProfit')}
             value={money(totals.labour_profit)}
             strong
             automationId="KpiLabourDialog-labour-profit"
           />
           <Row
             label={t('labourDialog.averageRate')}
+            title={t('labourDialog.titles.averageRate')}
             value={moneyText(totals.avg_labour_rate, money)}
             automationId="KpiLabourDialog-avg-rate"
           />
@@ -84,6 +97,7 @@ export function KpiLabourDialog({
         <Stats>
           <Stat
             label={t('labourDialog.utilisation')}
+            title={t('labourDialog.titles.utilisation')}
             value={ratioText(totals.billable_percentage)}
             note={t('labourDialog.utilisationNote')}
           />
@@ -94,6 +108,7 @@ export function KpiLabourDialog({
           />
           <Stat
             label={t('labourDialog.labourMargin')}
+            title={t('labourDialog.titles.labourMargin')}
             value={ratioText(totals.labour_margin)}
             note={t('labourDialog.labourMarginNote')}
             automationId="KpiLabourDialog-labour-margin"

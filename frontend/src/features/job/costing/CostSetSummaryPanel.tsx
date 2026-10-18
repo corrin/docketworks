@@ -38,19 +38,27 @@ export function CostSetSummaryPanel({
       {summary ? (
         <dl className="mt-3 space-y-1.5 text-sm">
           <div className="flex justify-between">
-            <dt className="text-slate-600">{t('costSetSummary.revenue')}</dt>
+            <dt className="text-slate-600" title={t('costSetSummary.titles.revenue')}>
+              {t('costSetSummary.revenue')}
+            </dt>
             <dd className="font-semibold tabular-nums">{formatCurrency(summary.rev)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-slate-600">{t('costSetSummary.cost')}</dt>
+            <dt className="text-slate-600" title={t('costSetSummary.titles.cost')}>
+              {t('costSetSummary.cost')}
+            </dt>
             <dd className="font-medium tabular-nums">{formatCurrency(summary.cost)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-slate-600">{t('costSetSummary.hours')}</dt>
+            <dt className="text-slate-600" title={t('costSetSummary.titles.hours')}>
+              {t('costSetSummary.hours')}
+            </dt>
             <dd className="font-medium tabular-nums">{HOURS.format(summary.hours)}</dd>
           </div>
           <div className="flex justify-between border-t border-slate-200 pt-1.5">
-            <dt className="text-slate-600">{t('costSetSummary.profitMargin')}</dt>
+            <dt className="text-slate-600" title={t('costSetSummary.titles.profitMargin')}>
+              {t('costSetSummary.profitMargin')}
+            </dt>
             <dd className="font-medium tabular-nums">
               {/* null margin means undefined (zero revenue), not 0.0% */}
               {summary.profitMargin === null ? '—' : formatPercentage(summary.profitMargin)}

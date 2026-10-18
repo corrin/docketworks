@@ -39,6 +39,12 @@
       "orderDate": "Order Date",
       "status": "Status",
       "createdBy": "Created By"
+    },
+    "titles": {
+      "jobs": "The jobs this order's lines are for. Lines with no job aren't counted.",
+      "orderDate": "The date the order was raised in DocketWorks.",
+      "status": "Draft: not sent to the supplier yet. Submitted to Supplier: sent and in Xero. Partially / Fully Received: some or all of the ordered quantities have arrived. Deleted: cancelled.",
+      "createdBy": "The staff member who raised the order."
     }
   },
   "poCreate": {
@@ -69,15 +75,26 @@
     "detailsHeading": "Purchase Order Details",
     "title": "Purchase Order {{number}}",
     "statusLabel": "Purchase order status",
+    "statusLabelTitle": "Changing the status updates the order in Xero. Choosing Fully Received receives everything still outstanding: each line goes to its job, or into workshop stock if it has no job. Receiving goods sets Partially or Fully Received automatically.",
+    "statusTitles": {
+      "draft": "Not sent to the supplier yet.",
+      "submitted": "The order has gone to the supplier. DocketWorks puts it in Xero at this point so the supplier's bill can be matched to it.",
+      "partiallyReceived": "Some of the ordered quantities have arrived.",
+      "fullyReceived": "All of the ordered quantities have arrived.",
+      "deleted": "The order is cancelled. If it's already in Xero it is deleted there too; it is never added to Xero."
+    },
     "orderDate": "Order date: {{date}} · Created by:",
     "total": "Total",
     "knownSubtotal": "Known subtotal",
+    "totalTitle": "Quantity times unit cost, added up over every line with a description. It shows \"Known subtotal\" while any line has no cost yet, because those lines aren't included.",
     "unpriced_one": "{{count}} line unpriced",
     "unpriced_other": "{{count}} lines unpriced",
+    "unpricedTitle": "Lines marked as cost to be confirmed, or with no unit cost entered. They are left out of the total.",
     "reference": "Reference",
     "supplier": "Supplier",
     "noSupplier": "—",
     "expectedDelivery": "Expected Delivery",
+    "expectedDeliveryTitle": "When the supplier should deliver. Set to the day the order was raised unless you change it.",
     "primaryAddressPlaceholder": "The supplier's primary address, unless chosen here",
     "noPickupAddress": "No pickup address"
   },
@@ -112,6 +129,12 @@
       "priceTbc": "Price TBC",
       "unitCost": "Unit Cost",
       "total": "Total"
+    },
+    "titles": {
+      "job": "The job this line's cost goes to when it is received. Leave it blank to put the material into workshop stock.",
+      "priceTbc": "Tick this when the supplier hasn't confirmed the cost yet. The unit cost is cleared and locked, and the line is left out of the total.",
+      "unitCost": "What we pay the supplier for one unit. Choosing a stock item fills this in from that item's cost.",
+      "total": "Quantity times unit cost for this line. Shows \"—\" until a unit cost is entered."
     }
   },
   "pickupSelector": {
@@ -162,18 +185,23 @@
     "setupFirst": "Open Purchases → Stocktake to complete setup first.",
     "title": "Stock",
     "recordFound": "Record found material",
+    "recordFoundTitle": "Starts a new, empty stocktake so you can add material that is in the workshop but not yet in DocketWorks. Nothing changes in stock until that stocktake is posted.",
     "searchPlaceholder": "Search stock items...",
     "searchLabel": "Search stock items",
     "includeRetired": "Include retired stock items",
+    "includeRetiredTitle": "Also show stock items that were retired because they ran out. Retired items keep their history.",
     "loading": "Loading stock items...",
     "loadFailed": "Failed to load stock items.",
     "empty": "No stock items found",
     "noun": "stock items",
     "recordCount": "Record count",
+    "recordCountTitle": "Starts a new stocktake with this item already on it, ready to count. Only shown for workshop stock that isn't on a job.",
     "history": "History",
+    "historyTitle": "Shows every delivery, issue to a job, return and stocktake change for this item.",
     "retired": "Empty stock item retired",
     "retireFailed": "Unable to retire stock.",
     "retire": "Retire empty stock item",
+    "retireTitle": "Removes this item from the stock list and searches. Only offered when its quantity is zero; its history is kept.",
     "retiredBadge": "Retired",
     "drawerTitle": "Stock movements",
     "drawerDescription": "Recorded receipts, issues, returns and stocktake corrections.",
@@ -188,6 +216,14 @@
       "quantity": "Quantity",
       "unitCost": "Unit Cost",
       "count": "Count"
+    },
+    "titles": {
+      "code": "The item code this material has in Xero.",
+      "metal": "If this was left blank when the item was added, DocketWorks fills it in from the description, so check it before relying on it.",
+      "alloy": "If this was left blank when the item was added, DocketWorks fills it in from the description, so check it before relying on it.",
+      "spec": "If this was left blank when the item was added, DocketWorks fills it in from the description, so check it before relying on it.",
+      "quantity": "How much of this item DocketWorks has on record right now. It goes up with deliveries and found material and down when material goes to a job, and can go below zero if more was used than was on record.",
+      "unitCost": "What we pay for one unit of this item. Material sent to a job is costed at this."
     }
   },
   "movements": {
@@ -200,6 +236,7 @@
     "returned": "Material returned",
     "returnFailed": "Unable to return material.",
     "returnIssue": "Return issue",
+    "returnIssueTitle": "Puts the whole amount sent to this job back into workshop stock and takes the same cost and revenue back off the job. Can only be done once for each issue.",
     "header": {
       "recorded": "Recorded",
       "item": "Item",
@@ -207,6 +244,12 @@
       "counterpart": "To or from",
       "reasonOperator": "Reason / operator",
       "action": "Action"
+    },
+    "titles": {
+      "recorded": "When this change to the stock was recorded in DocketWorks.",
+      "beforeAfter": "How much of this item was on record just before and just after this change.",
+      "counterpart": "The job the material went to or came from. Where no job is involved, such as a delivery or an opening balance, it names the kind of change instead.",
+      "reasonOperator": "Why the stock changed, and the staff member who recorded it. No name means DocketWorks recorded it automatically."
     }
   },
   "stocktakeList": {
@@ -217,6 +260,7 @@
     "setupLoadFailed": "Unable to load stocktake setup.",
     "setupExplanation": "Create the ongoing, non-billable Stocktake Adjustments job to record found and missing material.",
     "setUp": "Set up stocktake",
+    "setUpTitle": "Creates the \"Stocktake Adjustments\" job once. Found and missing material is booked against it, and customers are never charged for it.",
     "loading": "Loading counts…",
     "loadFailed": "Unable to load counts.",
     "empty": "No stocktakes yet.",
@@ -228,6 +272,12 @@
       "countedBy": "Counted by",
       "status": "Status",
       "difference": "Stock value difference"
+    },
+    "titles": {
+      "date": "When the stocktake was started, not when it was posted.",
+      "countedBy": "The staff member who started this stocktake.",
+      "status": "Draft: counts can still be changed and stock hasn't moved. Posted: the differences have been applied to stock and can't be edited, only corrected.",
+      "difference": "The cost of what was counted minus the cost of what DocketWorks had on record, for every counted item. Positive means more was found than recorded; negative means material is missing. Uncounted items aren't included."
     }
   },
   "stocktakePicker": {
@@ -259,6 +309,7 @@
     "reasonPlaceholder": "Unexplained surplus / shortage",
     "stockChanged": "Stock changed: now {{quantity}}. Recount required.",
     "recount": "Recount",
+    "recountTitle": "Stock for this item changed after you counted it. This updates the recorded quantity and clears your count so you can count it again.",
     "remove": "Remove",
     "header": {
       "item": "Item",
@@ -270,6 +321,14 @@
       "value": "Value",
       "reason": "Reason",
       "review": "Review"
+    },
+    "titles": {
+      "recorded": "How much DocketWorks had on record for this item when it was added to the count. Found items start at zero.",
+      "counted": "What you physically found. Leave it blank if you didn't count it; enter 0 if there is none.",
+      "unitCost": "What we pay for one unit. Fixed for items already in stock; enter it for found items.",
+      "difference": "Counted minus recorded. Positive means more was found than recorded; negative means some is missing.",
+      "value": "The cost of the difference: difference times unit cost.",
+      "reason": "Why the count differs from the record. Needed for every line with a difference before the stocktake can be posted, and shown in the item's stock history."
     }
   },
   "stocktakeDetail": {
@@ -286,23 +345,32 @@
     "draft": "Draft",
     "stateAndAuthor": "{{state}} · {{author}}",
     "adjustmentJob": "Stocktake Adjustments job",
+    "adjustmentJobTitle": "The job that found and missing material is booked against when a stocktake is posted. Customers are never charged for it.",
     "original": "Original stocktake",
+    "originalTitle": "Opens the posted stocktake this one corrects.",
     "instructions": "Count unassigned workshop material. Leave uncounted items blank; enter zero when nothing is present.",
     "physicalCount": "Physical count",
     "hidePicker": "Hide stock search",
     "showPicker": "Add stock to count",
+    "showPickerTitle": "Search workshop stock that isn't on a job and add items to this count.",
     "addFound": "Add found item",
+    "addFoundTitle": "Adds a line for material that isn't in DocketWorks yet. Enter its description, count and cost; it becomes a new stock item when the stocktake is posted.",
     "progress": "{{items}} items · {{counted}} counted",
+    "progressTitle": "Items on this stocktake, and how many have a count entered. Items left blank are not changed when posted.",
     "conflict": "This draft was saved elsewhere. Reloading will replace your retained entries with the saved draft.",
     "reloadSaved": "Reload saved draft",
     "saveFailed": "Unable to save stocktake. Your entries have been retained.",
     "saveDraft": "Save draft",
+    "saveDraftTitle": "Saves your counts without changing stock. You must save before you can post.",
     "postedRefreshFailed": "Posted, but current stock could not be refreshed.",
     "stocktakePosted": "Stocktake posted",
     "post": "Post stocktake",
+    "postTitle": "Applies every counted difference to stock and books its cost to the Stocktake Adjustments job. It can't be edited afterwards; use Create correction to fix it.",
     "stockRefreshFailed": "Unable to refresh current stock.",
     "checkStock": "Check current stock",
+    "checkStockTitle": "Re-reads current stock so you can see whether anything changed since you counted it. Lines that changed must be recounted before posting.",
     "createCorrection": "Create correction",
+    "createCorrectionTitle": "Starts a new draft stocktake for the same items, using today's quantities, so a wrong count can be put right. The original posting is kept.",
     "postedMovements": "Posted movements",
     "postedNote": "Posted {{date}}. Surplus moves from the adjustment job into workshop stock; shortages move the other way."
   }

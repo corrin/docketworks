@@ -26,6 +26,11 @@ export function poStatusLabel(status: PoStatus): string {
   return i18n.t(`purchasing:status.${PO_STATUS_DISPLAY[status].labelKey}`)
 }
 
+/** What a status means, for its select option's tooltip (ADR 0068). */
+export function poStatusTitle(status: PoStatus): string {
+  return i18n.t(`purchasing:poSummary.statusTitles.${PO_STATUS_DISPLAY[status].labelKey}`)
+}
+
 /**
  * Select options, in the order a purchase order moves through them.
  *

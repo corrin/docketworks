@@ -56,7 +56,9 @@ test.describe('Sales Forecast Report', () => {
     expect(download.suggestedFilename()).toMatch(/^sales-forecast-report-\d{4}-\d{2}-\d{2}\.csv$/)
     const csvPath = await download.path()
     const csvLines = readFileSync(csvPath, 'utf8').trim().split('\r\n')
-    expect(csvLines[0]).toBe('Month,Xero Sales,DocketWorks revenue,Variance,Variance %')
+    expect(csvLines[0]).toBe(
+      'Month,Xero Sales (incl GST),DocketWorks revenue (excl GST),Variance,Variance %',
+    )
     // One line per month on screen, and the same first month: the export has
     // to be the table the user is looking at, not a second fetch of its own.
     expect(csvLines).toHaveLength(monthCount + 1)

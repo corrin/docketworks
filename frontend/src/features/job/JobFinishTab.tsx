@@ -133,6 +133,10 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
     job.pricing_methodology === 'fixed_price'
       ? t('finishTab.quoteTotal')
       : t('finishTab.jobValueToDate')
+  const jobValueTitle =
+    job.pricing_methodology === 'fixed_price'
+      ? t('finishTab.titles.quoteTotal')
+      : t('finishTab.titles.jobValueToDate')
 
   // Invoicing changed the balance, so the server is re-read rather than the
   // figure adjusted locally; a failed reload surfaces as the query's error
@@ -256,19 +260,25 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
 
                 <dl className="mt-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">{jobValueLabel}</dt>
+                    <dt className="text-slate-600" title={jobValueTitle}>
+                      {jobValueLabel}
+                    </dt>
                     <dd className="font-medium tabular-nums">
                       {formatCurrency(Number(summary.job_value_excl_gst))}
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">{t('finishTab.alreadyInvoiced')}</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.alreadyInvoiced')}>
+                      {t('finishTab.alreadyInvoiced')}
+                    </dt>
                     <dd className="font-medium tabular-nums">
                       {formatCurrency(Number(summary.valid_invoiced_excl_gst))}
                     </dd>
                   </div>
                   <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                    <dt className="text-slate-600">{t('finishTab.stillToInvoice')}</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.stillToInvoice')}>
+                      {t('finishTab.stillToInvoice')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-remaining-excl-gst"
                       className="font-medium tabular-nums"
@@ -277,7 +287,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">{t('finishTab.gst')}</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.gst')}>
+                      {t('finishTab.gst')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-remaining-gst"
                       className="font-medium tabular-nums"
@@ -287,7 +299,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                   </div>
                   {Number(summary.outstanding_invoiced_incl_gst) > 0 && (
                     <div className="flex justify-between">
-                      <dt className="text-slate-600">{t('finishTab.unpaidInvoices')}</dt>
+                      <dt className="text-slate-600" title={t('finishTab.titles.unpaidInvoices')}>
+                        {t('finishTab.unpaidInvoices')}
+                      </dt>
                       <dd
                         data-automation-id="JobFinishTab-outstanding-incl-gst"
                         className="font-medium tabular-nums"
@@ -297,7 +311,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </div>
                   )}
                   <div className="mt-1 flex items-baseline justify-between border-t-2 border-slate-300 pt-2">
-                    <dt className="font-semibold text-slate-900">{t('finishTab.totalToPay')}</dt>
+                    <dt
+                      className="font-semibold text-slate-900"
+                      title={t('finishTab.titles.totalToPay')}
+                    >
+                      {t('finishTab.totalToPay')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-total-to-pay"
                       className="text-2xl font-bold tabular-nums text-emerald-700"
@@ -362,7 +381,10 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               data-automation-id="JobFinishTab-labour-hours"
               className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3"
             >
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div
+                className="rounded-lg border border-slate-200 bg-white p-3"
+                title={t('finishTab.titles.labourBudget')}
+              >
                 <div className="text-[11px] tracking-wide text-slate-500 uppercase">
                   {t('finishTab.labourBudget')}
                 </div>
@@ -373,7 +395,10 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                   {NUMBER.format(labourBudgetHours)}
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div
+                className="rounded-lg border border-slate-200 bg-white p-3"
+                title={t('finishTab.titles.hoursUsed')}
+              >
                 <div className="text-[11px] tracking-wide text-slate-500 uppercase">
                   {t('finishTab.hoursUsed')}
                 </div>
@@ -388,6 +413,7 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                 className={`rounded-lg border bg-white p-3 ${
                   labourOverrunHours > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200'
                 }`}
+                title={t('finishTab.titles.hoursRemaining')}
               >
                 <div className="text-[11px] tracking-wide text-slate-500 uppercase">
                   {labourOverrunHours > 0 ? t('finishTab.overrun') : t('finishTab.hoursRemaining')}
@@ -420,14 +446,19 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                         {t('finishTab.quote')}
                       </th>
                     )}
-                    <th className="px-4 py-3 text-center font-semibold text-orange-700">
+                    <th
+                      className="px-4 py-3 text-center font-semibold text-orange-700"
+                      title={t('finishTab.titles.actual')}
+                    >
                       {t('finishTab.actual')}
                     </th>
                   </tr>
                 </thead>
                 <tbody className="[&_td]:border-b [&_td]:border-gray-200 [&_th]:border-b [&_th]:border-gray-200">
                   <tr>
-                    <td className="px-4 py-2 font-medium">{t('finishTab.totalCost')}</td>
+                    <td className="px-4 py-2 font-medium" title={t('finishTab.titles.totalCost')}>
+                      {t('finishTab.totalCost')}
+                    </td>
                     <td className="px-4 py-2 text-center">{formatCurrency(estimate.cost)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{formatCurrency(quote.cost)}</td>
@@ -442,7 +473,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">{t('finishTab.totalRevenue')}</td>
+                    <td
+                      className="px-4 py-2 font-medium"
+                      title={t('finishTab.titles.totalRevenue')}
+                    >
+                      {t('finishTab.totalRevenue')}
+                    </td>
                     <td className="px-4 py-2 text-center">{formatCurrency(estimate.rev)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{formatCurrency(quote.rev)}</td>
@@ -457,7 +493,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">{t('finishTab.profitMargin')}</td>
+                    <td
+                      className="px-4 py-2 font-medium"
+                      title={t('finishTab.titles.profitMargin')}
+                    >
+                      {t('finishTab.profitMargin')}
+                    </td>
                     <td className="px-4 py-2 text-center">
                       {signedPercent(estimate.profitMargin)}
                     </td>
@@ -474,7 +515,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">{t('finishTab.totalHours')}</td>
+                    <td className="px-4 py-2 font-medium" title={t('finishTab.titles.totalHours')}>
+                      {t('finishTab.totalHours')}
+                    </td>
                     <td className="px-4 py-2 text-center">{NUMBER.format(estimate.hours)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{NUMBER.format(quote.hours)}</td>
@@ -494,7 +537,10 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               {showQuoteColumn && (
                 <div className="mt-6 flex flex-col gap-4 md:flex-row">
                   {quoteStatus !== 'nodata' ? (
-                    <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+                    <div
+                      className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4"
+                      title={t('finishTab.titles.quoteAccuracy')}
+                    >
                       <QuoteAccuracyIcon className={`h-8 w-8 ${quoteAccuracyClass}`} />
                       <div>
                         <div className="font-semibold text-gray-900">

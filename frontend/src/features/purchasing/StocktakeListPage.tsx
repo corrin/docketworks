@@ -71,6 +71,7 @@ export function StocktakeListPage() {
             <p>{t('stocktakeList.setupExplanation')}</p>
             <Button
               disabled={configure.isPending}
+              title={t('stocktakeList.setUpTitle')}
               onClick={() =>
                 configure.mutate(
                   {},
@@ -97,16 +98,16 @@ export function StocktakeListPage() {
         wrapperClassName="max-h-[65vh]"
         head={
           <tr>
-            <th scope="col" className="p-3 text-left">
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.date')}>
               {t('stocktakeList.header.date')}
             </th>
-            <th scope="col" className="p-3 text-left">
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.countedBy')}>
               {t('stocktakeList.header.countedBy')}
             </th>
-            <th scope="col" className="p-3 text-left">
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.status')}>
               {t('stocktakeList.header.status')}
             </th>
-            <th scope="col" className="p-3 text-right">
+            <th scope="col" className="p-3 text-right" title={t('stocktakeList.titles.difference')}>
               {t('stocktakeList.header.difference')}
             </th>
           </tr>

@@ -179,6 +179,7 @@ function LeaveRequestForm({
             data-automation-id="LeaveRequestDialog-staff"
             value={staffId}
             disabled={request !== undefined}
+            title={request === undefined ? undefined : t('leaveRequest.employeeLockedTitle')}
             onChange={(event) => {
               setStaffId(event.target.value)
               setLeaveTypeCode('')
@@ -226,7 +227,7 @@ function LeaveRequestForm({
           {selectedType?.posting_surface === 'xero_computed' && t('leaveRequest.xeroComputed')}
           {balanceEnabled && balanceQuery.isPending && t('leaveRequest.balanceLoading')}
           {balanceEnabled && balanceQuery.data && (
-            <span>
+            <span title={t('leaveRequest.currentBalanceTitle')}>
               {t('leaveRequest.currentBalance')}{' '}
               <strong>
                 {t('leaveRequest.balanceAmount', {
@@ -283,6 +284,7 @@ function LeaveRequestForm({
         <Button
           variant="outline"
           disabled={!staffId || !leaveTypeCode || pending}
+          title={t('leaveRequest.previewTitle')}
           data-automation-id="LeaveRequestDialog-preview"
           onClick={() => void preview()}
         >
@@ -297,7 +299,7 @@ function LeaveRequestForm({
         >
           <div className="grid grid-cols-[1fr_8rem] bg-slate-50 px-3 py-2 text-xs font-medium uppercase text-slate-500">
             <span>{t('leaveRequest.dateColumn')}</span>
-            <span>{t('leaveRequest.hoursColumn')}</span>
+            <span title={t('leaveRequest.hoursColumnTitle')}>{t('leaveRequest.hoursColumn')}</span>
           </div>
           {days.map((day, index) => (
             <div
@@ -350,6 +352,7 @@ function LeaveRequestForm({
         </Button>
         <Button
           disabled={pending || days.length === 0}
+          title={days.length === 0 ? t('leaveRequest.saveNeedsPreviewTitle') : undefined}
           data-automation-id="LeaveRequestDialog-submit"
           onClick={() => void save()}
         >

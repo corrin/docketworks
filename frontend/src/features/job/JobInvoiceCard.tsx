@@ -244,7 +244,9 @@ export function JobInvoiceCard({
                 </div>
 
                 <div className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
-                  {formatCurrency(invoice.total_excl_tax)}
+                  {t('invoiceCard.amountExclGst', {
+                    amount: formatCurrency(invoice.total_excl_tax),
+                  })}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -271,6 +273,7 @@ export function JobInvoiceCard({
                     size="icon-sm"
                     data-automation-id={`JobInvoiceCard-delete-${invoice.id}`}
                     aria-label={t('invoiceCard.delete', { number: invoice.number })}
+                    title={t('invoiceCard.titles.delete')}
                     disabled={deleteInvoice.isPending}
                     onClick={() => executeDelete(invoice.xero_id)}
                   >
@@ -294,6 +297,7 @@ export function JobInvoiceCard({
           <button
             type="button"
             data-automation-id="JobFinishTab-create-invoice"
+            title={t('invoiceCard.titles.create')}
             disabled={createInvoice.isPending || paid || !xeroConnected}
             className="flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-white hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:outline-none disabled:opacity-50"
             onClick={openModal}
@@ -330,7 +334,12 @@ export function JobInvoiceCard({
           <div className="space-y-4 py-4">
             <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
               <div className="flex justify-between border-t pt-1">
-                <span className="font-medium text-slate-700">{t('invoiceCard.currentAmount')}</span>
+                <span
+                  className="font-medium text-slate-700"
+                  title={t('invoiceCard.titles.currentAmount')}
+                >
+                  {t('invoiceCard.currentAmount')}
+                </span>
                 <span className="font-bold tabular-nums text-orange-600">
                   {formatCurrency(remainingToInvoice)}
                 </span>
@@ -343,6 +352,7 @@ export function JobInvoiceCard({
                   <Button
                     className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                     data-automation-id="JobFinishTab-mode-invoice-full"
+                    title={t('invoiceCard.titles.fullInvoice')}
                     disabled={createInvoice.isPending}
                     onClick={() => executeCreate('invoice_full')}
                   >
@@ -358,6 +368,7 @@ export function JobInvoiceCard({
                     variant="outline"
                     className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                     data-automation-id="JobFinishTab-mode-invoice-percent"
+                    title={t('invoiceCard.titles.percentMode')}
                     disabled={createInvoice.isPending}
                     onClick={() => selectMode('invoice_percent')}
                   >
@@ -399,6 +410,7 @@ export function JobInvoiceCard({
                 <Button
                   className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                   data-automation-id="JobFinishTab-mode-invoice-costs-to-date"
+                  title={t('invoiceCard.titles.costsToDate')}
                   disabled={createInvoice.isPending}
                   onClick={() => executeCreate('invoice_costs_to_date')}
                 >
@@ -413,6 +425,7 @@ export function JobInvoiceCard({
                 variant="outline"
                 className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                 data-automation-id="JobFinishTab-mode-invoice-amount"
+                title={t('invoiceCard.titles.amountMode')}
                 disabled={createInvoice.isPending}
                 onClick={() => selectMode('invoice_amount')}
               >

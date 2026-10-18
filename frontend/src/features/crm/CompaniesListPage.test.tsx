@@ -57,9 +57,9 @@ describe('CompaniesListPage', () => {
 
     // Sorting is a server concern: the click must change the request params,
     // not shuffle the rows the page happens to hold.
-    await user.click(screen.getByRole('button', { name: 'Total Spend' }))
+    await user.click(screen.getByRole('button', { name: 'Total Spend (excl GST)' }))
     await waitFor(() => expect(sortParams).toContain('total_spend:asc'))
-    await user.click(screen.getByRole('button', { name: 'Total Spend' }))
+    await user.click(screen.getByRole('button', { name: 'Total Spend (excl GST)' }))
     await waitFor(() => expect(sortParams).toContain('total_spend:desc'))
   })
 
@@ -96,7 +96,7 @@ describe('CompaniesListPage', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
 
     // A new sort is a new list: back to page one, second page dropped.
-    await user.click(screen.getByRole('button', { name: 'Total Spend' }))
+    await user.click(screen.getByRole('button', { name: 'Total Spend (excl GST)' }))
     await waitFor(() => expect(requests).toEqual(['name:1', 'name:2', 'total_spend:1']))
     await waitFor(() => expect(screen.queryByText('Beta Fabrication')).toBeNull())
     expect(screen.getByText('Showing 1 of 2 companies')).toBeVisible()

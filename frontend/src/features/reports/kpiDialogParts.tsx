@@ -58,10 +58,21 @@ export function KpiDialog({
   )
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+/** `hint` is the heading's tooltip: what the section counts (ADR 0068). */
+export function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint?: string
+  children: ReactNode
+}) {
   return (
     <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <h3 className="mb-3 text-lg font-semibold text-gray-900">{title}</h3>
+      <h3 className="mb-3 text-lg font-semibold text-gray-900" title={hint}>
+        {title}
+      </h3>
       {children}
     </section>
   )
@@ -78,11 +89,13 @@ interface StatProps {
   note?: string
   automationId?: string
   className?: string
+  /** The tile's tooltip: what the figure counts (ADR 0068). */
+  title?: string
 }
 
-export function Stat({ label, value, note, automationId, className }: StatProps) {
+export function Stat({ label, value, note, automationId, className, title }: StatProps) {
   return (
-    <div>
+    <div title={title}>
       <div
         className={`text-2xl font-semibold text-gray-900 ${className ?? ''}`}
         data-automation-id={automationId}
@@ -104,11 +117,14 @@ interface RowProps {
   indent?: boolean
   automationId?: string
   className?: string
+  /** The line's tooltip: what the figure counts (ADR 0068). */
+  title?: string
 }
 
-export function Row({ label, value, strong, indent, automationId, className }: RowProps) {
+export function Row({ label, value, strong, indent, automationId, className, title }: RowProps) {
   return (
     <div
+      title={title}
       className={`flex items-center justify-between text-sm ${strong ? 'border-t border-gray-300 pt-2 font-semibold' : ''} ${indent ? 'pl-4 text-gray-600' : ''}`}
     >
       <span>{label}</span>

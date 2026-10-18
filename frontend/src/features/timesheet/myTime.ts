@@ -49,12 +49,19 @@ export interface MyTimeCalendarEvent {
  * the calendar block, the untimed list and the drawer cannot disagree.
  */
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
-  return [approvalWord(entry.approved), ...cautionMarks(entry)]
+  return [approvalWord(entry.approved), ...cautionMarks(entry).map((mark) => mark.label)]
 }
 
 /** Whether the office has approved it yet, in the worker's words. */
 function approvalWord(approved: boolean): string {
   return approved ? i18n.t('timesheet:marks.approved') : i18n.t('timesheet:marks.waiting')
+}
+
+/** A mark's words, and its tooltip where DocketWorks words it (the server's
+    clock cautions carry none). */
+export interface CautionMark {
+  label: string
+  title?: string
 }
 
 /**
@@ -66,12 +73,24 @@ export function cautionMarks(flags: {
   remote_entry: boolean
   /** A person's day only: how it was clocked and sent, as the server words it. */
   clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
-}): string[] {
-  const marks: string[] = []
-  if (flags.clock !== undefined) marks.push(...flags.clock.cautions)
-  if (flags.entered_late) marks.push(i18n.t('timesheet:marks.enteredLate'))
-  if (flags.remote_entry) marks.push(i18n.t('timesheet:marks.remoteEntry'))
-  if (flags.clock?.sent_late) marks.push(i18n.t('timesheet:marks.sentLate'))
+}): CautionMark[] {
+  const marks: CautionMark[] = []
+  if (flags.clock !== undefined) marks.push(...flags.clock.cautions.map((label) => ({ label })))
+  if (flags.entered_late)
+    marks.push({
+      label: i18n.t('timesheet:marks.enteredLate'),
+      title: i18n.t('timesheet:marks.enteredLateTitle'),
+    })
+  if (flags.remote_entry)
+    marks.push({
+      label: i18n.t('timesheet:marks.remoteEntry'),
+      title: i18n.t('timesheet:marks.remoteEntryTitle'),
+    })
+  if (flags.clock?.sent_late)
+    marks.push({
+      label: i18n.t('timesheet:marks.sentLate'),
+      title: i18n.t('timesheet:marks.sentLateTitle'),
+    })
   return marks
 }
 

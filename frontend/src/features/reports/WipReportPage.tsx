@@ -16,7 +16,11 @@ export function WipReportPage() {
 
   return (
     <div className="min-h-screen p-6">
-      <h1 className="text-xl font-bold text-gray-900" data-automation-id="WIPReport-title">
+      <h1
+        className="text-xl font-bold text-gray-900"
+        data-automation-id="WIPReport-title"
+        title={t('wipPage.titles.page')}
+      >
         {t('wipPage.title')}
       </h1>
 
@@ -35,9 +39,15 @@ export function WipReportPage() {
             <th className="px-3 py-2">{t('wipPage.columns.job')}</th>
             <th className="px-3 py-2">{t('wipPage.columns.name')}</th>
             <th className="px-3 py-2">{t('wipPage.columns.company')}</th>
-            <th className="px-3 py-2 text-right">{t('wipPage.columns.grossWip')}</th>
-            <th className="px-3 py-2 text-right">{t('wipPage.columns.invoiced')}</th>
-            <th className="px-3 py-2 text-right">{t('wipPage.columns.netWip')}</th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.grossWip')}>
+              {t('wipPage.columns.grossWip')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.invoiced')}>
+              {t('wipPage.columns.invoiced')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.netWip')}>
+              {t('wipPage.columns.netWip')}
+            </th>
           </tr>
         }
         renderRow={(job) => (
@@ -68,7 +78,11 @@ export function WipReportPage() {
             >
               {formatCurrency(report.data.summary.total_net)}
             </SummaryCard>
-            <SummaryCard label={t('wipPage.jobCount')} valueAutomationId="WIPReport-job-count">
+            <SummaryCard
+              label={t('wipPage.jobCount')}
+              title={t('wipPage.titles.jobCount')}
+              valueAutomationId="WIPReport-job-count"
+            >
               {report.data.summary.job_count}
             </SummaryCard>
           </div>
