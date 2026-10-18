@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { strongResourceVersion } from '../../../src/lib/concurrency/interceptors'
+import { strongResourceVersion } from '../../../src/lib/concurrency/etag-store'
 
 async function setupStocktake(page: Page) {
   await expect(page.getByText('Loading stocktake setup…')).toHaveCount(0)

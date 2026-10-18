@@ -66,9 +66,12 @@
     },
     {
       "files": [
-        "src/features/shell/NotFoundPage.tsx",
-        "src/features/shell/RecoveryPage.tsx",
-        "src/features/shell/RootErrorPage.tsx"
+        "src/features/shell/**",
+        "src/features/auth/**",
+        "src/routes/**",
+        "src/features/shared/**",
+        "src/components/**",
+        "src/lib/**"
       ],
       "rules": {
         "i18next/no-literal-string": [
@@ -87,9 +90,18 @@
                 "errorLabel",
                 "confirmText"
               ]
+            },
+            "words": {
+              "exclude": ["^[^A-Za-z]*$", "^(true|false)$"]
             }
           }
         ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**"],
+      "rules": {
+        "i18next/no-literal-string": "off"
       }
     }
   ]

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { XeroPage } from '@/features/admin'
@@ -17,12 +18,13 @@ export const Route = createFileRoute('/_authed/admin/xero')({
 function XeroRoute() {
   const { xero_error } = Route.useSearch()
   const navigate = useNavigate()
+  const { t } = useTranslation('shell')
 
   useEffect(() => {
     if (!xero_error) return
-    toast.error(`Xero connection failed: ${xero_error}`)
+    toast.error(t('xeroRoute.connectionFailed', { error: xero_error }))
     void navigate({ to: '/admin/xero', search: {}, replace: true })
-  }, [xero_error, navigate])
+  }, [xero_error, navigate, t])
 
   return <XeroPage />
 }

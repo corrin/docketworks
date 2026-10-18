@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { companiesAddressesValidateCreate, type AddressCandidate } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
@@ -35,8 +36,9 @@ export function AddressAutocompleteInput({
   value,
   onChange,
   onSelectCandidate,
-  placeholder = 'Start typing the street address',
+  placeholder,
 }: AddressAutocompleteInputProps) {
+  const { t } = useTranslation('shared')
   const listId = useId()
   // Only the user's own typing is a search term: a value the owner sets
   // (editing an existing address) must not fire a round trip on mount.
@@ -99,7 +101,7 @@ export function AddressAutocompleteInput({
         aria-activedescendant={open ? `${listId}-option-${highlighted}` : undefined}
         autoComplete="off"
         className={INPUT_CLASS}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('addressAutocomplete.placeholder')}
         value={value}
         onChange={(event) => {
           onChange(event.target.value)
@@ -117,14 +119,14 @@ export function AddressAutocompleteInput({
           className="mt-1 text-xs text-red-700"
           data-automation-id="AddressAutocompleteInput-error"
         >
-          Address lookup is unavailable; type the address by hand.
+          {t('addressAutocomplete.unavailable')}
         </p>
       )}
       {open && (
         <div
           id={listId}
           role="listbox"
-          aria-label="Address candidates"
+          aria-label={t('addressAutocomplete.candidatesAria')}
           className="mt-1 max-h-60 overflow-auto rounded-md border border-slate-200 bg-white shadow-md"
           data-automation-id="AddressAutocompleteInput-suggestions"
         >

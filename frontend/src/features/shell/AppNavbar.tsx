@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ import { KanbanSearchInput } from './KanbanSearchInput'
  * NotebookLM dropdown arrive with the pages that need them.
  */
 export function AppNavbar() {
+  const { t } = useTranslation('shell')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const router = useRouter()
   const logout = useLogout()
@@ -37,7 +39,7 @@ export function AppNavbar() {
     <header className="flex flex-wrap items-center justify-between gap-y-2 border-b border-border bg-card px-4 py-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
         <Link to="/kanban" className="text-sm font-semibold">
-          DocketWorks
+          {t('navbar.brand')}
         </Link>
         {/* Without is_office_staff there is no Create Job link at all, so a
             test user missing the flag stalls every job-cluster spec at this
@@ -48,58 +50,58 @@ export function AppNavbar() {
             data-automation-id="AppNavbar-create-job"
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700"
           >
-            Create Job
+            {t('navbar.createJob')}
           </Link>
         )}
         {/* Any-staff: process_forms_list and process_forms_retrieve use
             CookieJWTAuth — regular staff sign forms day to day, so this menu
             is not office-gated (writes stay office-only behind the Edit
             button on the page itself). */}
-        <NavMenu label="Forms" automationId="AppNavbar-forms-menu">
+        <NavMenu label={t('navbar.formsMenu')} automationId="AppNavbar-forms-menu">
           <NavMenuLink
             to="/process-documents/forms/$category"
             params={{ category: 'safety' }}
             automationId="AppNavbar-forms-safety"
           >
-            Safety
+            {t('navbar.formsSafety')}
           </NavMenuLink>
           <NavMenuLink
             to="/process-documents/forms/$category"
             params={{ category: 'training' }}
             automationId="AppNavbar-forms-training"
           >
-            Training
+            {t('navbar.formsTraining')}
           </NavMenuLink>
           <NavMenuLink
             to="/process-documents/forms/$category"
             params={{ category: 'incident' }}
             automationId="AppNavbar-forms-incident"
           >
-            Incident
+            {t('navbar.formsIncident')}
           </NavMenuLink>
           <NavMenuLink
             to="/process-documents/forms/$category"
             params={{ category: 'meeting' }}
             automationId="AppNavbar-forms-meeting"
           >
-            Meeting
+            {t('navbar.formsMeeting')}
           </NavMenuLink>
           <NavMenuLink
             to="/process-documents/forms/$category"
             params={{ category: 'register' }}
             automationId="AppNavbar-forms-register"
           >
-            Register
+            {t('navbar.formsRegister')}
           </NavMenuLink>
         </NavMenu>
-        <NavMenu label="Timesheets" automationId="AppNavbar-timesheets-menu">
+        <NavMenu label={t('navbar.timesheetsMenu')} automationId="AppNavbar-timesheets-menu">
           <NavMenuLink to="/timesheets/my-time" automationId="AppNavbar-my-time">
-            My time
+            {t('navbar.myTime')}
           </NavMenuLink>
           {/* Any office staff member approves time; the screen shows no pay. */}
           {user.is_office_staff && (
             <NavMenuLink to="/timesheets/approve" automationId="AppNavbar-approve-time">
-              Approve time
+              {t('navbar.approveTime')}
             </NavMenuLink>
           )}
           {/* Superuser only: Daily, Weekly and Leave all read endpoints behind
@@ -108,13 +110,13 @@ export function AppNavbar() {
           {user.is_superuser && (
             <>
               <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
-                Daily
+                {t('navbar.dailyTimesheets')}
               </NavMenuLink>
               <NavMenuLink to="/timesheets/weekly" automationId="AppNavbar-weekly-timesheets">
-                Weekly
+                {t('navbar.weeklyTimesheets')}
               </NavMenuLink>
               <NavMenuLink to="/timesheets/leave" automationId="AppNavbar-leave">
-                Leave
+                {t('navbar.leave')}
               </NavMenuLink>
             </>
           )}
@@ -124,15 +126,15 @@ export function AppNavbar() {
             /api/crm/phone-calls* route goes through apps/crm/api.py's
             _require_office_staff. */}
         {user.is_office_staff && (
-          <NavMenu label="CRM" automationId="AppNavbar-crm-menu">
+          <NavMenu label={t('navbar.crmMenu')} automationId="AppNavbar-crm-menu">
             <NavMenuLink to="/crm/companies" automationId="AppNavbar-companies">
-              Companies
+              {t('navbar.companies')}
             </NavMenuLink>
             <NavMenuLink to="/crm/people" automationId="AppNavbar-people">
-              People
+              {t('navbar.people')}
             </NavMenuLink>
             <NavMenuLink to="/crm/calls" automationId="AppNavbar-calls">
-              Calls
+              {t('navbar.calls')}
             </NavMenuLink>
           </NavMenu>
         )}
@@ -142,34 +144,34 @@ export function AppNavbar() {
             Pricing and Product Mappings are deferred screens, and a deferred
             capability is hidden, not an inert entry. */}
         {user.is_office_staff && (
-          <NavMenu label="Purchases" automationId="AppNavbar-purchases-menu">
+          <NavMenu label={t('navbar.purchasesMenu')} automationId="AppNavbar-purchases-menu">
             <NavMenuLink to="/purchasing/po" automationId="AppNavbar-purchase-orders">
-              Purchase Orders
+              {t('navbar.purchaseOrders')}
             </NavMenuLink>
             <NavMenuLink to="/purchasing/stock" automationId="AppNavbar-use-stock">
-              Use Stock
+              {t('navbar.useStock')}
             </NavMenuLink>
             <NavMenuLink to="/purchasing/stocktakes" automationId="AppNavbar-stocktake">
-              Stocktake
+              {t('navbar.stocktake')}
             </NavMenuLink>
           </NavMenu>
         )}
         {/* Office staff only, as in v1: every entry is company-wide revenue
             or payroll, which a workshop login has no business reading. */}
         {user.is_office_staff && (
-          <NavMenu label="Reports" automationId="AppNavbar-reports-menu">
-            <DropdownMenuLabel>Management</DropdownMenuLabel>
+          <NavMenu label={t('navbar.reportsMenu')} automationId="AppNavbar-reports-menu">
+            <DropdownMenuLabel>{t('navbar.managementHeading')}</DropdownMenuLabel>
             <NavMenuLink to="/reports/job-movement" automationId="AppNavbar-job-movement">
-              Job Movement
+              {t('navbar.jobMovement')}
             </NavMenuLink>
             <NavMenuLink to="/reports/kpi" automationId="AppNavbar-kpi-calendar">
-              KPI Calendar
+              {t('navbar.kpiCalendar')}
             </NavMenuLink>
             <NavMenuLink to="/reports/sales-forecast" automationId="AppNavbar-sales-forecast">
-              Sales Forecast
+              {t('navbar.salesForecast')}
             </NavMenuLink>
             <NavMenuLink to="/reports/wip" automationId="AppNavbar-wip">
-              WIP Report
+              {t('navbar.wip')}
             </NavMenuLink>
             {/* Opus: superuser, not office staff like its neighbours — every
                 endpoint behind this page uses SuperuserCookieJWTAuth, so an
@@ -179,33 +181,33 @@ export function AppNavbar() {
             {user.is_superuser && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Reconciliation</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('navbar.reconciliationHeading')}</DropdownMenuLabel>
                 <NavMenuLink
                   to="/reports/payroll-reconciliation"
                   automationId="AppNavbar-payroll-reconciliation"
                 >
-                  Payroll (Xero)
+                  {t('navbar.payrollReconciliation')}
                 </NavMenuLink>
               </>
             )}
           </NavMenu>
         )}
         {user.is_superuser && (
-          <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
+          <NavMenu label={t('navbar.adminMenu')} automationId="AppNavbar-admin-menu">
             <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">
-              Leave settings
+              {t('navbar.leaveSettings')}
             </NavMenuLink>
             {/* Superuser only: endpoint uses SuperuserCookieJWTAuth, matching the menu gate. */}
             <NavMenuLink to="/admin/company-defaults" automationId="AppNavbar-company-defaults">
-              Company Defaults
+              {t('navbar.companyDefaults')}
             </NavMenuLink>
             <NavMenuLink to="/admin/integrations" automationId="AppNavbar-integrations">
-              Integrations
+              {t('navbar.integrations')}
             </NavMenuLink>
             {/* Superuser only: every staff endpoint uses SuperuserCookieJWTAuth,
                 matching the menu gate. */}
             <NavMenuLink to="/admin/staff" automationId="AppNavbar-staff">
-              Staff
+              {t('navbar.staff')}
             </NavMenuLink>
             {/* Owner ruling 2026-08-30 — Xero lives under Admin to
                 keep the navbar uncluttered for staff who never use it, NOT
@@ -215,10 +217,10 @@ export function AppNavbar() {
                 because a replay is an unredacted recording of a colleague's
                 screen. The menu gate matches. */}
             <NavMenuLink to="/admin/replays" automationId="AppNavbar-replays">
-              Session Replays
+              {t('navbar.replays')}
             </NavMenuLink>
             <NavMenuLink to="/admin/xero" automationId="AppNavbar-xero">
-              Xero
+              {t('navbar.xero')}
             </NavMenuLink>
           </NavMenu>
         )}
@@ -226,13 +228,15 @@ export function AppNavbar() {
       <div className="flex min-w-0 flex-wrap items-center gap-4">
         <KanbanSearchInput />
         {/* Hidden on a phone: there it cost the header a fourth row. */}
-        <span className="hidden text-sm text-gray-700 sm:inline">Welcome, {user.fullName}!</span>
+        <span className="hidden text-sm text-gray-700 sm:inline">
+          {t('navbar.welcome', { name: user.fullName })}
+        </span>
         <Link
           to="/change-password"
           data-automation-id="AppNavbar-change-password"
           className={`${TOUCH_TARGET_CLASS} text-sm text-gray-700 hover:text-gray-900 hover:underline`}
         >
-          Change password
+          {t('navbar.changePassword')}
         </Link>
         <button
           type="button"
@@ -240,7 +244,7 @@ export function AppNavbar() {
           onClick={handleLogout}
           className="rounded-md bg-red-500 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-600"
         >
-          Log out
+          {t('navbar.logout')}
         </button>
       </div>
     </header>

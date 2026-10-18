@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { jobJobsLabourRatesListOptions, purchasingStockSearchRetrieveOptions } from '@/api'
 import type { JobLabourRateOut, StockItem } from '@/api'
@@ -67,6 +68,7 @@ export function ItemSelect({
   onPickStock,
   onPickLabour,
 }: ItemSelectProps) {
+  const { t } = useTranslation('shared')
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 
@@ -133,7 +135,7 @@ export function ItemSelect({
               // moment the popover opens; Radix's focus scope lands on the
               // content wrapper, not the input, without this.
               autoFocus
-              placeholder="Search items by description, code, or type..."
+              placeholder={t('itemSelect.searchPlaceholder')}
               value={search}
               onValueChange={setSearch}
             />
@@ -141,16 +143,16 @@ export function ItemSelect({
               <CommandEmpty>
                 {/* An error must not read as an empty catalogue. */}
                 {stockQuery.isError
-                  ? 'Could not load stock items.'
+                  ? t('itemSelect.stockFailed')
                   : stockQuery.isPending
-                    ? 'Loading items…'
-                    : 'No items found.'}
+                    ? t('itemSelect.loading')
+                    : t('itemSelect.noItems')}
               </CommandEmpty>
               {labourQuery.isError && (
-                <p className="px-3 py-2 text-xs text-red-700">Could not load labour rates.</p>
+                <p className="px-3 py-2 text-xs text-red-700">{t('itemSelect.labourFailed')}</p>
               )}
               {visibleLabour.length > 0 && (
-                <CommandGroup heading="Labour">
+                <CommandGroup heading={t('itemSelect.labourHeading')}>
                   {visibleLabour.map((rate) => (
                     <CommandItem
                       key={rate.id}
@@ -160,14 +162,14 @@ export function ItemSelect({
                     >
                       <span className="font-medium">{rate.labour_subtype_name}</span>
                       <span className="ml-auto text-xs text-slate-500">
-                        {rate.charge_out_rate}/hr
+                        {t('itemSelect.perHour', { rate: rate.charge_out_rate })}
                       </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
               )}
               {stockItems.length > 0 && (
-                <CommandGroup heading="Stock">
+                <CommandGroup heading={t('itemSelect.stockHeading')}>
                   {stockItems.map((stock) => (
                     <CommandItem
                       key={stock.id}

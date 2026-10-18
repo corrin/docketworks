@@ -17,6 +17,7 @@ import {
   isAvailabilityError,
   type UserProfile,
 } from '@/api'
+import { i18n } from '@/lib/i18n'
 
 export interface LoginSearch {
   redirect?: string
@@ -139,7 +140,7 @@ function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
 
 /** Map a login failure to the user-facing message. */
 export function loginErrorMessage(err: unknown): string {
-  let errorMessage = 'An unexpected login error occurred.'
+  let errorMessage = i18n.t('shell:loginError.unexpected')
 
   if (isRecord(err)) {
     const response = isRecord(err.response) ? err.response : undefined
@@ -157,13 +158,13 @@ export function loginErrorMessage(err: unknown): string {
     const status = typeof response?.status === 'number' ? response.status : undefined
 
     if (status === 401 && detailMessage) {
-      errorMessage = 'Wrong e-mail or password, please try again.'
+      errorMessage = i18n.t('shell:loginError.wrongCredentials')
     } else if (status !== undefined && status >= 500) {
-      errorMessage = 'Server error. Please try again later.'
+      errorMessage = i18n.t('shell:loginError.server')
     } else if (detailMessage) {
       errorMessage = detailMessage
     } else if (err.code === 'NETWORK_ERROR' || err.code === 'ERR_NETWORK') {
-      errorMessage = 'Network error. Please check your internet connection.'
+      errorMessage = i18n.t('shell:loginError.network')
     }
   }
 
