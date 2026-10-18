@@ -258,14 +258,14 @@
       "jm_only": "No pay slip"
     },
     "title": "Payroll reconciliation — week of {{week}}",
-    "loadedNote": "Loaded wages allocate paid non-worked time to worked hours, while this week’s Xero gross does not — the difference column is not a reconciliation in this mode.",
+    "loadedNote": "Wages including paid leave spread holiday, sick and other paid leave over the hours worked, while this week’s Xero gross does not — the difference column is not a reconciliation in this mode.",
     "liveRunNote": "Figures are read live from the week’s pay run. Xero recalculates a Draft’s pay for a couple of minutes after a post, so a difference seen immediately after posting may still be settling — re-check before acting on it.",
     "noPayRunNote": "Xero has no pay run for this week yet, so there is nothing to compare against. Any difference below is that absence, not a finding.",
     "totalOursBase": "DocketWorks base wages",
-    "totalOursLoaded": "DocketWorks loaded wages",
+    "totalOursLoaded": "DocketWorks wages including paid leave",
     "wageBasisLabel": "DocketWorks wages:",
     "base": "Base",
-    "loaded": "Loaded",
+    "loaded": "Including paid leave",
     "loading": "Asking Xero what it computed for this week...",
     "loadError": "Could not read the payroll reconciliation.",
     "empty": "No staff and no pay slips for this week",
@@ -279,6 +279,8 @@
       "status": "Status"
     },
     "totalXero": "Xero computed",
-    "unpostedCount": "Paid but not posted"
+    "unpostedCount": "Paid but not posted",
+    "baseTitle": "Hours worked at each person’s base wage rate, with time and a half and double time applied. Paid leave is not spread over the hours.",
+    "loadedTitle": "Base wages plus the labour cost loading from Company Defaults, which covers annual leave, public holidays, sick leave, bereavement leave and employer-paid ACC time."
   }
 }

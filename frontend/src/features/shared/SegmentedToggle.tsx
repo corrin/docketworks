@@ -2,7 +2,8 @@ import { Button } from '@/components/ui/button'
 
 interface SegmentedToggleProps<T extends string | number> {
   value: T
-  options: readonly { value: T; label: string }[]
+  /** `title` is the option's tooltip: what the view counts (ADR 0068). */
+  options: readonly { value: T; label: string; title?: string }[]
   /** Each option's button carries `${automationPrefix}-${option.value}`. */
   automationPrefix: string
   onChange: (value: T) => void
@@ -34,6 +35,7 @@ export function SegmentedToggle<T extends string | number>({
           size="sm"
           variant={value === option.value ? 'default' : 'outline'}
           aria-pressed={value === option.value}
+          title={option.title}
           data-automation-id={`${automationPrefix}-${option.value}`}
           onClick={() => onChange(option.value)}
         >

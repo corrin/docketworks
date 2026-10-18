@@ -114,8 +114,12 @@ export function PayrollReconciliationPage({
         <SegmentedToggle
           value={wageBasis}
           options={[
-            { value: 'base', label: t('payrollPage.base') },
-            { value: 'loaded', label: t('payrollPage.loaded') },
+            { value: 'base', label: t('payrollPage.base'), title: t('payrollPage.baseTitle') },
+            {
+              value: 'loaded',
+              label: t('payrollPage.loaded'),
+              title: t('payrollPage.loadedTitle'),
+            },
           ]}
           automationPrefix="PayrollReconciliation-wageBasis"
           onChange={onWageBasisChange}
