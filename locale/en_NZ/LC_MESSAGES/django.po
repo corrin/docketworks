@@ -1191,19 +1191,13 @@ msgid "Target gross profit percentage for individual jobs"
 msgstr ""
 
 #: apps/core/models.py
-msgid "Daily GP (green)"
-msgstr ""
-
-#: apps/core/models.py
-msgid "Daily gross profit above which the day is green"
-msgstr ""
-
-#: apps/core/models.py
 msgid "Daily GP (amber)"
 msgstr ""
 
 #: apps/core/models.py
-msgid "Daily gross profit above which the day is amber"
+msgid ""
+"Daily gross profit from which a day on the KPI calendar is amber. It is "
+"green from the daily gross profit target, and red below this."
 msgstr ""
 
 #: apps/core/models.py

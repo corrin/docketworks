@@ -71,7 +71,6 @@ const defaults: CompanyDefaultsOut = {
   kpi_daily_billable_hours_amber: '',
   kpi_daily_billable_hours_green: '',
   kpi_daily_gp_amber: '',
-  kpi_daily_gp_green: '',
   kpi_daily_gp_target: '0.00',
   kpi_daily_shop_hours_percentage: '0.00',
   kpi_job_gp_target_percentage: '0.00',

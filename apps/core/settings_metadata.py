@@ -159,7 +159,6 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "kpi_daily_gp_target": "kpi",
     "kpi_daily_shop_hours_percentage": "kpi",
     "kpi_job_gp_target_percentage": "kpi",
-    "kpi_daily_gp_green": "kpi",
     "kpi_daily_gp_amber": "kpi",
     "daily_approved_hours_target": "kpi",
     "master_quote_template_url": "setup",

@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 128,639 (v1 172,577, -25%) |
-| tests | 89,997 (v1 50,869, +77%) |
-| generated | 54,392 (v1 20,359, +167%) |
+| code | 128,628 (v1 172,577, -25%) |
+| tests | 90,006 (v1 50,869, +77%) |
+| generated | 54,413 (v1 20,359, +167%) |
 
 ## Suppressions
 
@@ -134,7 +134,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 331 |
-| response properties | 2129 |
+| response properties | 2127 |
 | optional (pinned at zero) | 0 |
 | nullable | 471 |
 

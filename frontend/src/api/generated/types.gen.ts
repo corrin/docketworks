@@ -971,15 +971,9 @@ export type CompanyDefaultsOut = {
     /**
      * Daily GP (amber)
      *
-     * Daily gross profit above which the day is amber
+     * Daily gross profit from which a day on the KPI calendar is amber. It is green from the daily gross profit target, and red below this.
      */
     kpi_daily_gp_amber: string;
-    /**
-     * Daily GP (green)
-     *
-     * Daily gross profit above which the day is green
-     */
-    kpi_daily_gp_green: string;
     /**
      * Daily gross profit target
      *
@@ -1433,15 +1427,9 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Daily GP (amber)
      *
-     * Daily gross profit above which the day is amber
+     * Daily gross profit from which a day on the KPI calendar is amber. It is green from the daily gross profit target, and red below this.
      */
     kpi_daily_gp_amber?: number | string | null;
-    /**
-     * Daily GP (green)
-     *
-     * Daily gross profit above which the day is green
-     */
-    kpi_daily_gp_green?: number | string | null;
     /**
      * Daily gross profit target
      *
@@ -5992,10 +5980,6 @@ export type KpiThresholdsOut = {
      * Kpi Daily Gp Amber
      */
     kpi_daily_gp_amber: number;
-    /**
-     * Kpi Daily Gp Green
-     */
-    kpi_daily_gp_green: number;
     /**
      * Kpi Daily Gp Target
      */

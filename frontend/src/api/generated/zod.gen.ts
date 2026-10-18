@@ -365,7 +365,6 @@ export const zCompanyDefaultsOut = z.object({
     kpi_daily_billable_hours_amber: z.string(),
     kpi_daily_billable_hours_green: z.string(),
     kpi_daily_gp_amber: z.string(),
-    kpi_daily_gp_green: z.string(),
     kpi_daily_gp_target: z.string(),
     kpi_daily_shop_hours_percentage: z.string(),
     kpi_job_gp_target_percentage: z.string(),
@@ -467,10 +466,6 @@ export const zCompanyDefaultsPatchIn = z.object({
         z.string()
     ]).nullish(),
     kpi_daily_gp_amber: z.union([
-        z.number(),
-        z.string()
-    ]).nullish(),
-    kpi_daily_gp_green: z.union([
         z.number(),
         z.string()
     ]).nullish(),
@@ -2474,7 +2469,6 @@ export const zKpiThresholdsOut = z.object({
     kpi_daily_billable_hours_amber: z.number(),
     kpi_daily_billable_hours_green: z.number(),
     kpi_daily_gp_amber: z.number(),
-    kpi_daily_gp_green: z.number(),
     kpi_daily_gp_target: z.number(),
     kpi_daily_shop_hours_percentage: z.number()
 });

@@ -1057,12 +1057,9 @@ components:
           title: Daily billable hours (green)
           type: string
         kpi_daily_gp_amber:
-          description: Daily gross profit above which the day is amber
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-          type: string
-        kpi_daily_gp_green:
-          description: Daily gross profit above which the day is green
-          title: Daily GP (green)
           type: string
         kpi_daily_gp_target:
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
@@ -1360,7 +1357,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_billable_hours_green
       - kpi_daily_gp_amber
-      - kpi_daily_gp_green
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
       - kpi_job_gp_target_percentage
@@ -1632,15 +1628,9 @@ components:
           - type: number
           - type: string
           - type: 'null'
-          description: Daily gross profit above which the day is amber
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-        kpi_daily_gp_green:
-          anyOf:
-          - type: number
-          - type: string
-          - type: 'null'
-          description: Daily gross profit above which the day is green
-          title: Daily GP (green)
         kpi_daily_gp_target:
           anyOf:
           - type: number
@@ -6773,9 +6763,6 @@ components:
         kpi_daily_gp_amber:
           title: Kpi Daily Gp Amber
           type: number
-        kpi_daily_gp_green:
-          title: Kpi Daily Gp Green
-          type: number
         kpi_daily_gp_target:
           title: Kpi Daily Gp Target
           type: number
@@ -6787,7 +6774,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
-      - kpi_daily_gp_green
       - kpi_daily_gp_amber
       title: KPIThresholdsOut
       type: object

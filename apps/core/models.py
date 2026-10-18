@@ -724,19 +724,15 @@ class CompanyDefaults(SingletonModel):
         verbose_name=gettext_lazy("Target GP % per job"),
         help_text=gettext_lazy("Target gross profit percentage for individual jobs"),
     )
-    kpi_daily_gp_green = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
-        verbose_name=gettext_lazy("Daily GP (green)"),
-        help_text=gettext_lazy("Daily gross profit above which the day is green"),
-    )
     kpi_daily_gp_amber = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
         verbose_name=gettext_lazy("Daily GP (amber)"),
-        help_text=gettext_lazy("Daily gross profit above which the day is amber"),
+        help_text=gettext_lazy(
+            "Daily gross profit from which a day on the KPI calendar is amber. It is green "
+            "from the daily gross profit target, and red below this."
+        ),
     )
     daily_approved_hours_target = models.DecimalField(
         max_digits=5,

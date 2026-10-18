@@ -346,7 +346,6 @@ class KPIThresholdsOut(Schema):
     kpi_daily_billable_hours_amber: float
     kpi_daily_gp_target: float
     kpi_daily_shop_hours_percentage: float
-    kpi_daily_gp_green: float
     kpi_daily_gp_amber: float
 
 
