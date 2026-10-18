@@ -656,6 +656,9 @@ introduced:
 # no screen for approving and nothing that paid by it.
 - timesheets_approvals_retrieve
 - timesheets_approvals_approve_day
+# The office sweeps clocked time that is on no job onto General work, approving
+# the days (KAN-380). v1 recorded no clock times, so had nothing to sweep.
+- timesheets_approvals_sweep
 # Clocking in and out, new with KAN-376: v1 recorded hours and never when a
 # person was at work.
 - timesheets_my_day_clock

@@ -1012,6 +1012,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is booked to at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255
@@ -1342,6 +1349,7 @@ components:
       - gdrive_quotes_folder_url
       - gdrive_reference_library_folder_id
       - gdrive_sops_folder_id
+      - general_work_job
       - google_place_id
       - google_shared_drive_id
       - gst_rate
@@ -1567,6 +1575,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is booked to at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255
@@ -12424,6 +12439,7 @@ components:
       - datetime
       - date
       - company
+      - job
       - xero_branding_theme
       type: string
     SettingsSectionKey:
@@ -12501,6 +12517,11 @@ components:
           - not_rostered
           title: State
           type: string
+        unallocated_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Unallocated Hours
         waiting_hours:
           title: Waiting Hours
           type: number
@@ -12513,6 +12534,7 @@ components:
       - entered_late
       - remote_entry
       - clock
+      - unallocated_hours
       - breaks
       - entries
       - default_entry_start
@@ -14487,6 +14509,74 @@ components:
       - total_spend
       - recent_purchase_count
       title: SupplierSearchResult
+      type: object
+    SweepIn:
+      description: The days to sweep, for one person or, without ``staff_id``, everyone on them.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - start_date
+      - end_date
+      title: SweepIn
+      type: object
+    SweepOut:
+      description: What the sweep put on General work, and the worker entries it approved with the days.
+      properties:
+        approved_count:
+          title: Approved Count
+          type: integer
+        skipped:
+          items:
+            $ref: '#/components/schemas/SweepSkipOut'
+          title: Skipped
+          type: array
+        swept_hours:
+          title: Swept Hours
+          type: number
+      required:
+      - swept_hours
+      - approved_count
+      - skipped
+      title: SweepOut
+      type: object
+    SweepSkipOut:
+      description: 'A day the sweep left alone: there was no clocked time to sweep.'
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        reason:
+          enum:
+          - still_clocked_in
+          - no_clock_times
+          title: Reason
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+      required:
+      - staff_id
+      - staff_name
+      - date
+      - reason
+      title: SweepSkipOut
       type: object
     TeamAveragesOut:
       description: Wire contract for TeamAveragesOut.
@@ -23490,6 +23580,29 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: Everyone's day for the office to approve
+      tags:
+      - timesheets
+  /api/timesheets/approvals/sweep/:
+    post:
+      description: Sweep one person's days, or everyone's when no person is given (KAN-380).
+      operationId: timesheets_approvals_sweep
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SweepIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SweepOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Put clocked time that is on no job onto General work, approving the days
       tags:
       - timesheets
   /api/timesheets/approvals/{staff_id}/{target_date}/approve/:

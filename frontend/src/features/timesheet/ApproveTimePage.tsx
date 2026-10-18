@@ -18,6 +18,7 @@ import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
 import { breakWords, cautionMarks, clockWords, dayEndOf, entryMarks, isRealBreak } from './myTime'
+import { useSweep } from './useSweep'
 import { useBreaks, useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -79,8 +80,11 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   // Whose break the office has open, with the break itself.
   const [breakFor, setBreakFor] = useState<{ staffId: string; sheet: BreakSheetState } | null>(null)
   const breaks = useBreaks(false, breakFor?.staffId)
+  const { sweep, sweeping } = useSweep()
 
   const people = approvalsQuery.data?.staff
+  // Clocked time on no job anywhere on the day: what Sweep everyone would move.
+  const anyUnallocated = (people ?? []).some((person) => (person.unallocated_hours ?? 0) > 0)
   const correcting = people?.find((person) => person.staff_id === correction?.staffId)
 
   const approve = async (person: StaffApprovalOut) => {
@@ -133,12 +137,31 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         {formatDateLong(date)}. Staff are paid for approved time only.
       </p>
       {approvalsQuery.data !== undefined && (
-        <p
-          className="text-lg font-semibold text-gray-900"
-          data-automation-id="ApproveTimePage-standing"
-        >
-          {dayStandingWords(approvalsQuery.data.summary)}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p
+            className="text-lg font-semibold text-gray-900"
+            data-automation-id="ApproveTimePage-standing"
+          >
+            {dayStandingWords(approvalsQuery.data.summary)}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sweeping || !anyUnallocated}
+            title={anyUnallocated ? 'This also approves their days' : "Everyone's time is on jobs"}
+            data-automation-id="ApproveTimePage-sweep-day"
+            onClick={() =>
+              void sweep(
+                { start_date: date, end_date: date },
+                "Couldn't book the day's leftover time to General work.",
+              )
+            }
+          >
+            {anyUnallocated
+              ? "Book everyone's leftover time to General work"
+              : 'All time is on jobs'}
+          </Button>
+        </div>
       )}
 
       <ListTable
@@ -220,7 +243,30 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   </span>
                 ))}
               </td>
-              <td className="px-2 py-2 text-right">
+              <td className="space-y-1 px-2 py-2 text-right">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={sweeping || !((person.unallocated_hours ?? 0) > 0)}
+                  title={
+                    (person.unallocated_hours ?? 0) > 0
+                      ? 'This also approves the day'
+                      : person.clock.state === 'not_clocked_in'
+                        ? 'No clock in or out for this day'
+                        : 'All their time is on jobs'
+                  }
+                  data-automation-id={`ApproveTimePage-sweep-${person.staff_id}`}
+                  onClick={() =>
+                    void sweep(
+                      { start_date: date, end_date: date, staff_id: person.staff_id },
+                      `Couldn't book ${person.staff_name}'s leftover time to General work.`,
+                    )
+                  }
+                >
+                  {(person.unallocated_hours ?? 0) > 0
+                    ? `Book ${formatHoursDisplay(person.unallocated_hours)} to General work`
+                    : 'All time is on jobs'}
+                </Button>
                 {person.state === 'waiting' && (
                   <Button
                     size="sm"

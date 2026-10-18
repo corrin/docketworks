@@ -22,6 +22,7 @@ Follow these in order:
 | [code-quality.md](code-quality.md) | Generated counts of suppressions and exception shapes; a change that moves one shows it in its diff |
 | [prod-data-shape.yml](prod-data-shape.yml) | Row counts from a production instance; the volume collection screens are tested against (ADR 0054) |
 | [design-language.md](design-language.md) | Frontend design patterns, shared owners, responsive review, known breaches and tolerated exceptions |
+| [glossary.md](glossary.md) | The words the screens use, one name per thing (ADR 0068) |
 | [ngrok_setup.md](ngrok_setup.md) | ngrok static domain + tunnel config (single tunnel to the compiled frontend) |
 | [initial_install.md](initial_install.md) | One-off dev-machine setup: tools, database, `.env`, migrations |
 | [development_session.md](development_session.md) | Starting the environment day-to-day; running backend/E2E tests |

@@ -477,6 +477,7 @@ class StaffApprovalOut(Schema):
     entered_late: bool
     remote_entry: bool
     clock: AttendanceOut
+    unallocated_hours: float | None
     breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
     default_entry_start: time
@@ -503,6 +504,31 @@ class ApproveDayOut(Schema):
     """How many of the person's waiting entries the approval covered."""
 
     approved_count: int
+
+
+class SweepIn(Schema):
+    """The days to sweep, for one person or, without ``staff_id``, everyone on them."""
+
+    start_date: date
+    end_date: date
+    staff_id: UUID | None = None
+
+
+class SweepSkipOut(Schema):
+    """A day the sweep left alone: there was no clocked time to sweep."""
+
+    staff_id: str
+    staff_name: str
+    date: date
+    reason: Literal["still_clocked_in", "no_clock_times"]
+
+
+class SweepOut(Schema):
+    """What the sweep put on General work, and the worker entries it approved with the days."""
+
+    swept_hours: float
+    approved_count: int
+    skipped: list[SweepSkipOut]
 
 
 class TimesheetCostLineOut(CostLineOut):

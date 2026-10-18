@@ -11,6 +11,7 @@ import { isIsoDateString, mondayOf, shiftDate } from '@/lib/dates'
 
 import { PayrollPanel } from './PayrollPanel'
 import { usePayrollWeek } from './usePayrollWeek'
+import { useSweep } from './useSweep'
 
 const DAYS_IN_WEEK = 7
 
@@ -61,6 +62,7 @@ export function WeeklyOverviewPage({
   const queryClient = useQueryClient()
   const weekQuery = useQuery(timesheetsWeeklyRetrieveOptions({ query: { start_date: weekStart } }))
   const payroll = usePayrollWeek(weekStart)
+  const { sweep, sweeping } = useSweep()
 
   // Fable: A bare /timesheets/weekly means "the week I need to deal with",
   // which only the server can name — so land on the postable week, as v1 did.
@@ -122,6 +124,20 @@ export function WeeklyOverviewPage({
           }
         >
           <RefreshCw className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={sweeping}
+          data-automation-id="WeeklyOverview-sweep-week"
+          onClick={() =>
+            void sweep(
+              { start_date: weekStart, end_date: shiftDate(weekStart, DAYS_IN_WEEK - 1) },
+              "Couldn't book the week's leftover time to General work.",
+            )
+          }
+        >
+          Book the week's leftover time to General work
         </Button>
       </div>
 

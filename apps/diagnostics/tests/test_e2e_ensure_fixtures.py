@@ -1,10 +1,12 @@
 """The E2E fixtures command: idempotent, and exact on the wage the spec pins."""
 
+from datetime import date
 from decimal import Decimal
 from io import StringIO
 
 import pytest
 from django.core.management import CommandError, call_command
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -124,6 +126,18 @@ def test_the_office_staff_user_is_office_staff_and_never_a_superuser() -> None:
     user.refresh_from_db()
     assert user.is_office_staff and not user.is_superuser
     assert Staff.objects.filter(office_email__iexact=OFFICE_STAFF_EMAIL).count() == 1
+
+
+@pytest.mark.usefixtures("credentials")
+def test_every_e2e_login_is_employed_before_any_date_a_spec_books() -> None:
+    """A restore creates the logins today; a spec books yesterday's timesheet."""
+    _run()
+    Staff.objects.filter(office_email=E2E_EMAIL).update(employment_start_date=timezone.localdate())
+
+    _run()
+
+    for email in (E2E_EMAIL, WORKSHOP_EMAIL, OFFICE_STAFF_EMAIL):
+        assert Staff.objects.get(office_email=email).employment_start_date == date(2020, 1, 1)
 
 
 @pytest.mark.usefixtures("credentials")

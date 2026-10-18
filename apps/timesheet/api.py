@@ -26,7 +26,7 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -68,6 +68,8 @@ from apps.timesheet.schemas import (
     StaffListResponse,
     StandardHoursRequest,
     SubmitDayRequest,
+    SweepIn,
+    SweepOut,
     TimesheetEntriesOut,
     TimesheetEventOut,
     WeeklyTimesheetDataOut,
@@ -817,3 +819,27 @@ def timesheets_approvals_approve_day(
     worker = get_object_or_404(Staff, id=staff_id)
     approved = approval.approve_day(worker, _parse_date(target_date), authenticated_staff(request))
     return {"approved_count": approved}
+
+
+@router.post(
+    "/timesheets/approvals/sweep/",
+    auth=office_auth,
+    operation_id="timesheets_approvals_sweep",
+    response=SweepOut,
+    summary="Put clocked time that is on no job onto General work, approving the days",
+    tags=["timesheets"],
+)
+def timesheets_approvals_sweep(request: HttpRequest, payload: SweepIn) -> approval.SweepData:
+    """Sweep one person's days, or everyone's when no person is given (KAN-380)."""
+    if payload.end_date < payload.start_date:
+        raise HttpError(400, "The end date is before the start date.")
+    days = [
+        payload.start_date + timedelta(days=offset)
+        for offset in range((payload.end_date - payload.start_date).days + 1)
+    ]
+    actor = authenticated_staff(request)
+    return (
+        approval.sweep_everyone(days, actor)
+        if payload.staff_id is None
+        else approval.sweep_person(get_object_or_404(Staff, id=payload.staff_id), days, actor)
+    )

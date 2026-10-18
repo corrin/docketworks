@@ -69,6 +69,9 @@ describe('job rejection', () => {
     await user.dblClick(autoId('JobView-rejection-action'))
     await waitFor(() => expect(bodies).toHaveLength(1))
     expect(autoId('JobView-rejection-action')).toBeDisabled()
+    expect(autoId('JobView-rejection-action')).toHaveTextContent('Saving…')
+    // With nothing uninvoiced there is nothing to decide, so no dialog opens.
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(toast.success).not.toHaveBeenCalled()
     expect(reads).toBe(1)
     expect(bodies[0]).toMatchObject({

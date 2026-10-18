@@ -356,6 +356,7 @@ export const zCompanyDefaultsOut = z.object({
     gdrive_quotes_folder_url: z.string().nullable(),
     gdrive_reference_library_folder_id: z.string().max(100).nullable(),
     gdrive_sops_folder_id: z.string().max(100).nullable(),
+    general_work_job: z.uuid().nullable(),
     google_place_id: z.string().max(255).nullable(),
     google_shared_drive_id: z.string().max(100).nullable(),
     gst_rate: z.string(),
@@ -449,6 +450,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     gdrive_quotes_folder_url: z.string().nullish(),
     gdrive_reference_library_folder_id: z.string().max(100).nullish(),
     gdrive_sops_folder_id: z.string().max(100).nullish(),
+    general_work_job_id: z.uuid().nullish(),
     google_place_id: z.string().max(255).nullish(),
     google_shared_drive_id: z.string().max(100).nullish(),
     gst_rate: z.union([
@@ -4973,6 +4975,7 @@ export const zSettingsFieldType = z.enum([
     'datetime',
     'date',
     'company',
+    'job',
     'xero_branding_theme'
 ]);
 
@@ -5849,6 +5852,40 @@ export const zSupplierSearchResponse = z.object({
 });
 
 /**
+ * SweepIn
+ *
+ * The days to sweep, for one person or, without ``staff_id``, everyone on them.
+ */
+export const zSweepIn = z.object({
+    end_date: z.iso.date(),
+    staff_id: z.uuid().nullish(),
+    start_date: z.iso.date()
+});
+
+/**
+ * SweepSkipOut
+ *
+ * A day the sweep left alone: there was no clocked time to sweep.
+ */
+export const zSweepSkipOut = z.object({
+    date: z.iso.date(),
+    reason: z.enum(['still_clocked_in', 'no_clock_times']),
+    staff_id: z.string(),
+    staff_name: z.string()
+});
+
+/**
+ * SweepOut
+ *
+ * What the sweep put on General work, and the worker entries it approved with the days.
+ */
+export const zSweepOut = z.object({
+    approved_count: z.int(),
+    skipped: z.array(zSweepSkipOut),
+    swept_hours: z.number()
+});
+
+/**
  * TeamAveragesOut
  *
  * Wire contract for TeamAveragesOut.
@@ -6351,6 +6388,7 @@ export const zStaffApprovalOut = z.object({
         'nothing_waiting',
         'not_rostered'
     ]),
+    unallocated_hours: z.number().nullable(),
     waiting_hours: z.number()
 });
 
@@ -9031,6 +9069,13 @@ export const zTimesheetsApprovalsRetrieveQuery = z.object({
  * OK
  */
 export const zTimesheetsApprovalsRetrieveResponse = zApprovalsDayOut;
+
+export const zTimesheetsApprovalsSweepBody = zSweepIn;
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsSweepResponse = zSweepOut;
 
 export const zTimesheetsApprovalsApproveDayPath = z.object({
     staff_id: z.uuid(),

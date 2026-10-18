@@ -111,7 +111,6 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
 
   if (!user.is_office_staff) return null
 
-  const pending = state.phase === 'loading' || state.phase === 'saving'
   const rejecting = state.phase === 'idle' ? !job.rejected_flag : state.reject
 
   return (
@@ -125,27 +124,29 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
         disabled={state.phase !== 'idle'}
         onClick={() => void prepare(job, !job.rejected_flag)}
       >
-        {job.rejected_flag ? 'Reopen job' : 'Reject job'}
+        {state.phase === 'loading'
+          ? 'Checking…'
+          : state.phase === 'saving'
+            ? 'Saving…'
+            : job.rejected_flag
+              ? 'Reopen job'
+              : 'Reject job'}
       </Button>
+      {/* Opus: The dialog opens only when there is something to decide. Opening
+          it for a check or save that needs no answer left it closing as the next
+          click arrived, and Radix swallowed the reopen. */}
       <Dialog
-        open={state.phase !== 'idle'}
+        open={state.phase === 'confirm' || state.phase === 'error'}
         onOpenChange={(open) => {
           if (!open) cancel()
         }}
       >
         <DialogContent
-          showCloseButton={!pending}
           onCloseAutoFocus={(event) => {
             // GPT: Preflight and confirmation share one controlled dialog. A
             // separate trigger toggle races its transitions, so return focus here.
             event.preventDefault()
             actionRef.current?.focus()
-          }}
-          onEscapeKeyDown={(event) => {
-            if (pending) event.preventDefault()
-          }}
-          onInteractOutside={(event) => {
-            if (pending) event.preventDefault()
           }}
         >
           <DialogHeader>
@@ -156,15 +157,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
                 : 'Clearing rejection moves this job back to Draft.'}
             </DialogDescription>
           </DialogHeader>
-          {state.phase === 'loading' ? (
-            <p role="status" className="text-sm">
-              Checking uninvoiced value…
-            </p>
-          ) : state.phase === 'saving' ? (
-            <p role="status" className="text-sm">
-              Saving…
-            </p>
-          ) : state.phase === 'confirm' && state.reject ? (
+          {state.phase === 'confirm' && state.reject ? (
             <p data-automation-id="JobView-rejection-warning" className="text-sm text-amber-800">
               This job has {formatCurrency(state.remaining)} excluding GST still to be invoiced. Are
               you sure you want to reject it?
@@ -179,7 +172,6 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
               type="button"
               variant="outline"
               data-automation-id="JobView-rejection-cancel"
-              disabled={pending}
               onClick={cancel}
             >
               Cancel
