@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -34,6 +35,7 @@ function latestPerStaff(rows: AcknowledgementOut[]): AcknowledgementOut[] {
  * Mounted in `FormEntriesPage`'s header, under the title/badges.
  */
 export function AcknowledgementsPanel({ formId }: { formId: string }) {
+  const { t } = useTranslation('process')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const queryClient = useQueryClient()
   const listQuery = useQuery(processFormsAcknowledgementsListOptions({ path: { form_id: formId } }))
@@ -50,9 +52,9 @@ export function AcknowledgementsPanel({ formId }: { formId: string }) {
       await queryClient.invalidateQueries({
         queryKey: processFormsAcknowledgementsListQueryKey({ path: { form_id: formId } }),
       })
-      toast.success('Acknowledged')
+      toast.success(t('acknowledgements.acknowledged'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not record the acknowledgement.'))
+      toast.error(apiErrorMessage(error, t('acknowledgements.recordFailed')))
     }
   }
 
@@ -63,7 +65,7 @@ export function AcknowledgementsPanel({ formId }: { formId: string }) {
           className="text-sm font-semibold text-slate-700"
           data-automation-id="Acknowledgements-count"
         >
-          Acknowledgements ({latest.length})
+          {t('acknowledgements.heading', { count: latest.length })}
         </h2>
         <Button
           size="sm"
@@ -72,19 +74,21 @@ export function AcknowledgementsPanel({ formId }: { formId: string }) {
           onClick={() => void handleAcknowledge()}
           data-automation-id="Acknowledgements-button"
         >
-          {alreadyAcknowledged ? 'Acknowledge again' : 'I have read and understood this document'}
+          {alreadyAcknowledged
+            ? t('acknowledgements.acknowledgeAgain')
+            : t('acknowledgements.acknowledge')}
         </Button>
       </div>
       <QueryState
         isPending={listQuery.isPending}
         isError={listQuery.isError}
         onRetry={() => void listQuery.refetch()}
-        loadingLabel="Loading acknowledgements..."
-        errorLabel="Failed to load acknowledgements."
+        loadingLabel={t('acknowledgements.loading')}
+        errorLabel={t('acknowledgements.loadFailed')}
       >
         {latest.length === 0 ? (
           <p className="text-xs text-slate-500" data-automation-id="Acknowledgements-empty">
-            No one has acknowledged this document yet.
+            {t('acknowledgements.empty')}
           </p>
         ) : (
           <ul className="flex flex-col gap-1 text-xs text-slate-600">

@@ -1,6 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc", "unicorn", "import"],
+  "jsPlugins": [
+    {
+      "name": "i18next",
+      "specifier": "eslint-plugin-i18next"
+    }
+  ],
   "options": {
     "typeAware": true
   },
@@ -12,11 +18,26 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/react-in-jsx-scope": "off",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-imports": "error",
-    "no-console": ["error", { "allow": ["warn", "error"] }],
-    "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "@fontsource*/**", "@fontsource*"] }],
+    "no-console": [
+      "error",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css", "@fontsource*/**", "@fontsource*", "@/lib/i18n"]
+      }
+    ],
     "eqeqeq": "error",
     "no-var": "error",
     "prefer-const": "error"
@@ -41,6 +62,39 @@
       "rules": {
         "no-console": "off",
         "no-await-in-loop": "off"
+      }
+    },
+    {
+      "files": ["src/**"],
+      "rules": {
+        "i18next/no-literal-string": [
+          "error",
+          {
+            "mode": "jsx-only",
+            "jsx-attributes": {
+              "include": [
+                "title",
+                "aria-label",
+                "placeholder",
+                "alt",
+                "label",
+                "description",
+                "emptyText",
+                "errorLabel",
+                "confirmText"
+              ]
+            },
+            "words": {
+              "exclude": ["^[^A-Za-z]*$", "^(true|false)$"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**"],
+      "rules": {
+        "i18next/no-literal-string": "off"
       }
     }
   ]

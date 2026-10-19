@@ -6,7 +6,7 @@ One-off dev-machine setup. These steps persist across restores.
 
 1. **Python 3.14** — exactly 3.14 (the project pins `>=3.14,<3.15`). `uv sync` installs the pinned interpreter when needed; the OS Python can stay on its distro version.
 2. **[uv](https://docs.astral.sh/uv/)** — manages the Python environment and dependencies.
-3. **Node.js 22+ and npm** — the React frontend and Playwright E2E tests.
+3. **Node.js at the version in `frontend/.nvmrc`, with its own npm** (`nvm install` from `frontend/`) — the React frontend and Playwright E2E tests.
 4. **PostgreSQL 16+** — install and ensure it is running. Allow password auth over sockets for app
    users (keep peer auth for `postgres`):
    ```

@@ -6,6 +6,7 @@ from typing import ClassVar
 
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 
 class XeroPayRun(models.Model):
@@ -51,8 +52,8 @@ class XeroPayRun(models.Model):
         # The explicit name preserves the table identifier used by data restores.
         db_table = "workflow_xeropayrun"
         ordering: ClassVar[list[str]] = ["-payment_date"]
-        verbose_name = "Xero Pay Run"
-        verbose_name_plural = "Xero Pay Runs"
+        verbose_name = gettext_lazy("Xero Pay Run")
+        verbose_name_plural = gettext_lazy("Xero Pay Runs")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
                 condition=~models.Q(pay_run_status=""), name="pay_run_status_not_blank"
@@ -101,13 +102,13 @@ class XeroPaySlip(models.Model):
         max_digits=8,
         decimal_places=2,
         default=Decimal("0"),
-        help_text="Hours from timesheet_earnings_lines (actual worked hours)",
+        help_text=gettext_lazy("Hours from timesheet_earnings_lines (actual worked hours)"),
     )
     leave_hours = models.DecimalField(
         max_digits=8,
         decimal_places=2,
         default=Decimal("0"),
-        help_text="Hours from leave_earnings_lines (sick, annual, etc.)",
+        help_text=gettext_lazy("Hours from leave_earnings_lines (sick, annual, etc.)"),
     )
 
     raw_json = models.JSONField()
@@ -120,8 +121,8 @@ class XeroPaySlip(models.Model):
         # The explicit name preserves the table identifier used by data restores.
         db_table = "workflow_xeropayslip"
         ordering: ClassVar[list[str]] = ["-pay_run__payment_date", "employee_name"]
-        verbose_name = "Xero Pay Slip"
-        verbose_name_plural = "Xero Pay Slips"
+        verbose_name = gettext_lazy("Xero Pay Slip")
+        verbose_name_plural = gettext_lazy("Xero Pay Slips")
         # One pay slip per employee per pay run
         unique_together: ClassVar[list[list[str]]] = [["pay_run", "xero_employee_id"]]
         constraints: ClassVar[list[models.BaseConstraint]] = [

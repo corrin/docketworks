@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { companiesPeopleListOptions, type CompanyPerson } from '@/api'
 import { PersonSelectionModal } from './PersonSelectionModal'
@@ -37,7 +38,7 @@ interface PersonSelectorProps {
 export function PersonSelector({
   id,
   label,
-  placeholder = 'No person selected',
+  placeholder,
   optional = true,
   companyId,
   companyName,
@@ -45,6 +46,7 @@ export function PersonSelector({
   onSelectPerson,
   autoSelectPrimary = true,
 }: PersonSelectorProps) {
+  const { t } = useTranslation('shared')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const autoSelectedCompanyId = useRef<string | null>(null)
 
@@ -95,7 +97,7 @@ export function PersonSelector({
       <label htmlFor={id} className="mb-1 block text-sm font-medium text-gray-700">
         {label}{' '}
         {optional ? (
-          <span className="text-xs text-gray-500">(Optional)</span>
+          <span className="text-xs text-gray-500">{t('personSelector.optional')}</span>
         ) : (
           <span className="text-red-500">*</span>
         )}
@@ -107,7 +109,7 @@ export function PersonSelector({
             id={id}
             type="text"
             value={selectedPerson?.person_name ?? ''}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t('personSelector.placeholder')}
             readOnly
             data-automation-id="PersonSelector-display"
             className="w-full cursor-pointer rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -130,7 +132,7 @@ export function PersonSelector({
             type="button"
             data-automation-id="PersonSelector-clear-button"
             className="px-2 py-2 text-gray-400 transition-colors hover:text-red-600"
-            title="Clear selection"
+            title={t('personSelector.clear')}
             onClick={() => selectManually(null)}
           >
             <X className="h-4 w-4" />
@@ -138,12 +140,14 @@ export function PersonSelector({
         )}
       </div>
 
-      {!companyId && <p className="mt-1 text-xs text-gray-500">Please select a company first</p>}
+      {!companyId && (
+        <p className="mt-1 text-xs text-gray-500">{t('personSelector.selectCompanyFirst')}</p>
+      )}
       {peopleError && (
         <p className="mt-1 text-xs text-red-700">
-          Could not load people.{' '}
+          {t('personSelector.loadFailed')}{' '}
           <button type="button" className="underline" onClick={() => void peopleQuery.refetch()}>
-            Retry
+            {t('personSelector.retry')}
           </button>
         </p>
       )}

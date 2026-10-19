@@ -10,6 +10,8 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
+from django.utils.translation import gettext
+
 from apps.core.errors import InvalidInputError
 
 
@@ -33,7 +35,7 @@ def require_payroll_week_start(week_start_date: datetime.date) -> datetime.date:
     call the other's. Both sides import this module, so it lives here.
     """
     if week_start_date.weekday() != 0:
-        raise NotAPayrollWeekError("week_start_date must be a Monday")
+        raise NotAPayrollWeekError(gettext("week_start_date must be a Monday"))
     return week_start_date
 
 

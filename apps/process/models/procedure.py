@@ -7,6 +7,7 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class Procedure(models.Model):
@@ -17,31 +18,31 @@ class Procedure(models.Model):
     """
 
     DOCUMENT_TYPES: ClassVar = [
-        ("procedure", "Procedure"),
-        ("reference", "Reference"),
+        ("procedure", gettext_lazy("Procedure")),
+        ("reference", gettext_lazy("Reference")),
     ]
 
     STATUS_CHOICES: ClassVar = [
-        ("draft", "Draft"),
-        ("active", "Active"),
-        ("completed", "Completed"),
-        ("archived", "Archived"),
+        ("draft", gettext_lazy("Draft")),
+        ("active", gettext_lazy("Active")),
+        ("completed", gettext_lazy("Completed")),
+        ("archived", gettext_lazy("Archived")),
     ]
 
     class Category(models.TextChoices):
         """One home per document; a procedure lists in exactly one category."""
 
-        SAFETY = "safety", "Safety"
-        JSA = "jsa", "JSA"
-        TRAINING = "training", "Training"
-        REFERENCE = "reference", "Reference"
+        SAFETY = "safety", gettext_lazy("Safety")
+        JSA = "jsa", gettext_lazy("JSA")
+        TRAINING = "training", gettext_lazy("Training")
+        REFERENCE = "reference", gettext_lazy("Reference")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     document_type = models.CharField(
         max_length=20,
         choices=DOCUMENT_TYPES,
-        help_text="Document type: procedure or reference",
+        help_text=gettext_lazy("Document type: procedure or reference"),
     )
 
     category = models.CharField(max_length=20, choices=Category.choices)
@@ -51,19 +52,19 @@ class Procedure(models.Model):
         max_length=50,
         blank=True,
         null=True,
-        help_text="Document number (e.g. '307' for section 3, doc 7)",
+        help_text=gettext_lazy("Document number (e.g. '307' for section 3, doc 7)"),
     )
     site_location = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500,
         blank=True,
         null=True,
-        help_text="Work site location",
+        help_text=gettext_lazy("Work site location"),
     )
 
     tags = models.JSONField(
         default=list,
         blank=True,
-        help_text='Free-text tags, e.g. ["safety", "machinery", "sop"]',
+        help_text=gettext_lazy('Free-text tags, e.g. ["safety", "machinery", "sop"]'),
     )
 
     status = models.CharField(
@@ -78,19 +79,19 @@ class Procedure(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Linked job (required for JSA, null for SWP/SOP)",
+        help_text=gettext_lazy("Linked job (required for JSA, null for SWP/SOP)"),
     )
 
     google_doc_id = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
-        help_text="Google Docs document ID",
+        help_text=gettext_lazy("Google Docs document ID"),
     )
     google_doc_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True,
         null=True,
-        help_text="URL to edit the document in Google Docs",
+        help_text=gettext_lazy("URL to edit the document in Google Docs"),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,8 +99,8 @@ class Procedure(models.Model):
 
     class Meta:
         ordering: ClassVar = ["-created_at"]
-        verbose_name = "Procedure"
-        verbose_name_plural = "Procedures"
+        verbose_name = gettext_lazy("Procedure")
+        verbose_name_plural = gettext_lazy("Procedures")
         constraints: ClassVar = [
             models.CheckConstraint(
                 condition=~models.Q(document_number=""),

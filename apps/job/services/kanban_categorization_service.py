@@ -8,13 +8,16 @@ own fetch path.
 from dataclasses import dataclass
 from typing import ClassVar, TypedDict
 
+from django.utils.functional import Promise
+from django.utils.translation import gettext_lazy
+
 
 @dataclass
 class KanbanColumn:
     """A kanban column — simplified structure without sub-categories."""
 
     column_id: str
-    column_title: str
+    column_title: Promise
     status_key: str  # Direct 1:1 mapping to job status
     color_theme: str
     badge_color_class: str
@@ -34,49 +37,49 @@ class KanbanCategorizationService:
     COLUMN_STRUCTURE: ClassVar[dict[str, KanbanColumn]] = {
         "draft": KanbanColumn(
             column_id="draft",
-            column_title="Draft",
+            column_title=gettext_lazy("Draft"),
             status_key="draft",
             color_theme="yellow",
             badge_color_class="bg-yellow-500",
         ),
         "awaiting_approval": KanbanColumn(
             column_id="awaiting_approval",
-            column_title="Awaiting Approval",
+            column_title=gettext_lazy("Awaiting Approval"),
             status_key="awaiting_approval",
             color_theme="orange",
             badge_color_class="bg-orange-500",
         ),
         "approved": KanbanColumn(
             column_id="approved",
-            column_title="Approved",
+            column_title=gettext_lazy("Approved"),
             status_key="approved",
             color_theme="green",
             badge_color_class="bg-green-500",
         ),
         "in_progress": KanbanColumn(
             column_id="in_progress",
-            column_title="In Progress",
+            column_title=gettext_lazy("In Progress"),
             status_key="in_progress",
             color_theme="blue",
             badge_color_class="bg-blue-500",
         ),
         "unusual": KanbanColumn(
             column_id="unusual",
-            column_title="Unusual",
+            column_title=gettext_lazy("Unusual"),
             status_key="unusual",
             color_theme="purple",
             badge_color_class="bg-purple-500",
         ),
         "recently_completed": KanbanColumn(
             column_id="recently_completed",
-            column_title="Recently Completed",
+            column_title=gettext_lazy("Recently Completed"),
             status_key="recently_completed",
             color_theme="emerald",
             badge_color_class="bg-emerald-500",
         ),
         "archived": KanbanColumn(
             column_id="archived",
-            column_title="Archived",
+            column_title=gettext_lazy("Archived"),
             status_key="archived",
             color_theme="gray",
             badge_color_class="bg-gray-500",
@@ -128,4 +131,7 @@ class KanbanCategorizationService:
     def get_badge_info(cls, status: str) -> BadgeInfo:
         """Return badge display information (label + colour class) for a status."""
         column_info = cls.get_column_info_for_status(status)
-        return {"label": column_info.column_title, "color_class": column_info.badge_color_class}
+        return {
+            "label": str(column_info.column_title),
+            "color_class": column_info.badge_color_class,
+        }

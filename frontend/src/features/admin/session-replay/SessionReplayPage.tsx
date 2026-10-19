@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { eventWithTime } from '@rrweb/types'
 import rrwebPlayer from 'rrweb-player'
+import { Trans, useTranslation } from 'react-i18next'
 import 'rrweb-player/dist/style.css'
 
 import {
@@ -50,6 +51,7 @@ type Playable =
   | { readonly status: 'unplayable'; readonly reason: string }
 
 export function SessionReplayPage() {
+  const { t } = useTranslation('admin')
   const [selected, setSelected] = useState<RecordingOut | null>(null)
   // Opus: the recording being played is held whole, not looked up by id in the
   // loaded rows. The list is an infinite query behind a server-side filter, so
@@ -105,10 +107,10 @@ export function SessionReplayPage() {
       // player pane. The message is the whole handling.
       return {
         status: 'unplayable',
-        reason: error instanceof Error ? error.message : 'This recording cannot be replayed.',
+        reason: error instanceof Error ? error.message : t('sessionReplay.cannotReplay'),
       }
     }
-  }, [events.data])
+  }, [events.data, t])
 
   // Opus: the viewer is itself being recorded. Without this flush its own
   // events sit in the buffer, so its recording shows zero events and the
@@ -154,7 +156,7 @@ export function SessionReplayPage() {
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Session Replays</h1>
+        <h1 className="text-xl font-semibold">{t('sessionReplay.title')}</h1>
         <Button
           variant="outline"
           size="sm"
@@ -171,7 +173,7 @@ export function SessionReplayPage() {
           }}
           data-automation-id={`${ID}-refresh`}
         >
-          Refresh
+          {t('sessionReplay.refresh')}
         </Button>
       </div>
 
@@ -182,17 +184,17 @@ export function SessionReplayPage() {
           // refetch keeps the keepPreviousData rows on screen.
           isError={recordings.isError && recordings.data === undefined}
           onRetry={() => void recordings.refetch()}
-          loadingLabel="Loading session replays..."
-          errorLabel="Failed to load session replays."
+          loadingLabel={t('sessionReplay.loading')}
+          errorLabel={t('sessionReplay.loadFailed')}
           rows={rows}
-          emptyLabel="No recordings found."
+          emptyLabel={t('sessionReplay.empty')}
           automationId={`${ID}-recordings`}
           wrapperClassName="mt-0 max-h-[calc(100vh-12rem)] overflow-y-auto rounded-md border"
           head={
             <tr className="bg-muted">
-              <th className={HEADER_CELL}>Started</th>
-              <th className={HEADER_CELL}>User</th>
-              <th className={`${HEADER_CELL} text-right`}>Events</th>
+              <th className={HEADER_CELL}>{t('sessionReplay.columns.started')}</th>
+              <th className={HEADER_CELL}>{t('sessionReplay.columns.user')}</th>
+              <th className={`${HEADER_CELL} text-right`}>{t('sessionReplay.columns.events')}</th>
             </tr>
           }
           renderRow={(recording) => (
@@ -226,9 +228,9 @@ export function SessionReplayPage() {
                 {!recording.payload_available && (
                   <span
                     className="ml-2 rounded bg-muted px-1 text-xs text-muted-foreground"
-                    title="Recorded on another machine. The rows came in with a database restore; the events themselves arrive only with scripts/ops/pull_prod_files.sh."
+                    title={t('sessionReplay.noDataTitle')}
                   >
-                    no data
+                    {t('sessionReplay.noData')}
                   </span>
                 )}
               </td>
@@ -239,7 +241,7 @@ export function SessionReplayPage() {
             lastPage !== undefined && (
               <LoadMoreSentinel
                 automationId={`${ID}-load-more`}
-                noun="recordings"
+                noun={t('sessionReplay.noun')}
                 shown={rows.length}
                 total={lastPage.count}
                 hasNextPage={recordings.hasNextPage}
@@ -254,15 +256,19 @@ export function SessionReplayPage() {
         <div className="flex min-h-[32rem] flex-col overflow-hidden rounded-md border">
           {selected === null ? (
             <div className="p-6 text-sm text-muted-foreground" data-automation-id={`${ID}-empty`}>
-              Select a recording to see its details.
+              {t('sessionReplay.selectPrompt')}
             </div>
           ) : (
             <>
               <div className="space-y-1 border-b p-3 text-sm">
                 <div className="font-medium">{selected.latest_path}</div>
                 <div className="text-muted-foreground">
-                  {selected.user_email} · {selected.event_count} events ·{' '}
-                  {formatBytes(selected.compressed_bytes)} · {formatSpan(selected)}
+                  {t('sessionReplay.summary', {
+                    email: selected.user_email,
+                    events: selected.event_count,
+                    size: formatBytes(selected.compressed_bytes),
+                    span: formatSpan(selected),
+                  })}
                 </div>
               </div>
               <ReplayPane
@@ -299,16 +305,13 @@ function ReplayPane({
   onPlay: () => void
   hostRef: React.RefObject<HTMLDivElement | null>
 }) {
+  const { t } = useTranslation('admin')
   if (!selected.payload_available) {
     return (
       <div className="p-6 text-sm text-muted-foreground" data-automation-id={`${ID}-no-payload`}>
-        <p className="mb-2 font-medium text-foreground">
-          This recording&rsquo;s events are not on this machine.
-        </p>
+        <p className="mb-2 font-medium text-foreground">{t('sessionReplay.noPayloadTitle')}</p>
         <p>
-          Recording and chunk rows travel inside a database restore; the events themselves live on
-          the machine that captured them and arrive only with{' '}
-          <code>scripts/ops/pull_prod_files.sh</code>.
+          <Trans t={t} i18nKey="sessionReplay.noPayloadBody" components={{ code: <code /> }} />
         </p>
       </div>
     )
@@ -318,11 +321,11 @@ function ReplayPane({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-sm">
         <Button data-automation-id={`${ID}-play`} onClick={onPlay}>
-          Load replay ({formatBytes(selected.compressed_bytes)})
+          {t('sessionReplay.loadReplay', { size: formatBytes(selected.compressed_bytes) })}
         </Button>
         {/* The size is on the button because loading is the expensive act on
             this page and the admin is the one choosing to pay for it. */}
-        <p className="text-muted-foreground">Nothing is downloaded until you load it.</p>
+        <p className="text-muted-foreground">{t('sessionReplay.loadHint')}</p>
       </div>
     )
   }
@@ -333,7 +336,7 @@ function ReplayPane({
         className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground"
         data-automation-id={`${ID}-player-loading`}
       >
-        Loading replay…
+        {t('sessionReplay.loadingReplay')}
       </div>
     )
   }
@@ -341,7 +344,7 @@ function ReplayPane({
   if (isError) {
     return (
       <div className="p-6 text-sm text-red-700" data-automation-id={`${ID}-player-error`}>
-        Could not load this recording&rsquo;s events.
+        {t('sessionReplay.eventsFailed')}
       </div>
     )
   }

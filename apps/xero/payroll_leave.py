@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID
 
+from django.utils.translation import gettext
 from xero_python.payrollnz import EmployeeLeave, LeavePeriod, PayrollNzApi
 
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -257,25 +258,32 @@ def _draft_pay_run_summary(tenant_id: str) -> str:
         )
     )
     if not drafts:
-        return (
-            "the draft pay run (it has not yet synced to Docketworks — "
-            "look for it under Payroll then Pay runs)"
+        return gettext(
+            "the draft pay run (it hasn't come across to DocketWorks yet — "
+            "look for it in Xero under Payroll then Pay runs)"
         )
-    return " and ".join(
-        f"the draft pay run for {draft.period_start_date} to {draft.period_end_date}"
+    return gettext(" and ").join(
+        gettext("the draft pay run for %(start)s to %(end)s")
+        % {"start": draft.period_start_date, "end": draft.period_end_date}
         for draft in drafts
     )
 
 
 def _draft_block_message(action: str, leave_id: str, start: date, end: date, tenant_id: str) -> str:
     """Tell the operator exactly which draft pay run to delete, and where."""
-    return (
-        f"Xero is blocking a payroll leave change: leave request {leave_id} "
-        f"({start} to {end}) needs to be {action} to match the timesheet, but Xero "
+    return gettext(
+        "Xero is blocking a payroll leave change: leave request %(leave_id)s "
+        "(%(start)s to %(end)s) needs to be %(action)s to match the timesheet, but Xero "
         "locks leave while the employee is in a draft pay run, and draft pay runs "
         "cannot be deleted through Xero's API. In Xero go to Payroll then Pay runs, "
-        f"delete {_draft_pay_run_summary(tenant_id)}, then post to Xero again."
-    )
+        "delete %(draft_pay_runs)s, then post to Xero again."
+    ) % {
+        "leave_id": leave_id,
+        "start": start,
+        "end": end,
+        "action": action,
+        "draft_pay_runs": _draft_pay_run_summary(tenant_id),
+    }
 
 
 def _shared_days(start_a: date, end_a: date, start_b: date, end_b: date) -> int:
@@ -434,14 +442,27 @@ def _refuse_leave_under_spanning_applications(
             if _shared_days(spec["start_date"], spec["end_date"], dated.start, dated.end) <= 0:
                 continue
             raise SpanningLeaveOverlapError(
-                f"{staff_name} has {spec['total_units']}h of {spec['description']} recorded for "
-                f"{spec['start_date']} to {spec['end_date']}, but Xero already holds leave "
-                f"request {dated.leave.leave_id} ({dated.leave.description!r}, {dated.start} to "
-                f"{dated.end}) covering those days and reaching outside the payroll week. "
-                "Posting would pay both. In Xero, go to Payroll then Leave, and either split "
-                "that request at the week boundary and remove this week's part, or delete "
-                "it and let the timesheet post it; then post to Xero again. Nothing was "
-                "posted for this week."
+                gettext(
+                    "%(staff_name)s has %(units)sh of %(description)s recorded for "
+                    "%(start)s to %(end)s, but Xero already holds leave "
+                    "request %(leave_id)s (%(xero_description)s, %(xero_start)s to "
+                    "%(xero_end)s) covering those days and reaching outside the payroll week. "
+                    "Posting would pay both. In Xero, go to Payroll then Leave, and either split "
+                    "that request at the week boundary and remove this week's part, or delete "
+                    "it and let the timesheet post it; then post to Xero again. Nothing was "
+                    "posted for this week."
+                )
+                % {
+                    "staff_name": staff_name,
+                    "units": spec["total_units"],
+                    "description": spec["description"],
+                    "start": spec["start_date"],
+                    "end": spec["end_date"],
+                    "leave_id": dated.leave.leave_id,
+                    "xero_description": repr(dated.leave.description),
+                    "xero_start": dated.start,
+                    "xero_end": dated.end,
+                }
             )
 
 
@@ -480,7 +501,11 @@ def _update_leave(
         if _is_draft_pay_run_leave_block(exc):
             raise DraftPayRunBlocksLeaveError(
                 _draft_block_message(
-                    "replaced", str(leave.leave_id), leave_start, leave_end, session.tenant_id
+                    gettext("replaced"),
+                    str(leave.leave_id),
+                    leave_start,
+                    leave_end,
+                    session.tenant_id,
                 )
             ) from exc
         persist_app_error(
@@ -519,7 +544,11 @@ def _delete_leave(
         if _is_draft_pay_run_leave_block(exc):
             raise DraftPayRunBlocksLeaveError(
                 _draft_block_message(
-                    "removed", str(leave.leave_id), leave_start, leave_end, session.tenant_id
+                    gettext("removed"),
+                    str(leave.leave_id),
+                    leave_start,
+                    leave_end,
+                    session.tenant_id,
                 )
             ) from exc
         persist_app_error(

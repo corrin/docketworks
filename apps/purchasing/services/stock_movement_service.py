@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypedDict
 from django.db import connection, transaction
 from django.db.models import F, QuerySet, Sum
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
@@ -58,21 +59,25 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
         StockMovementKind.JOB_OPENING,
         StockMovementKind.DELIVERY_OPENING,
     ):
-        raise InvalidInputError("Opening observations belong to the inventory cutover migration.")
+        raise InvalidInputError(
+            gettext("Opening observations belong to the inventory cutover migration.")
+        )
     locked = Stock.objects.select_for_update().get(pk=stock.pk)
     if change != change.quantize(Decimal("0.001")):
-        raise InvalidInputError("Stock quantities support at most three decimal places.")
+        raise InvalidInputError(gettext("Stock quantities support at most three decimal places."))
     if not context.reason.strip():
-        raise InvalidInputError("A stock movement requires a reason.")
+        raise InvalidInputError(gettext("A stock movement requires a reason."))
     if context.kind in ("issue", "return", "stocktake") and context.counterpart_job is None:
-        raise InvalidInputError("This stock movement requires a counterpart job.")
+        raise InvalidInputError(gettext("Pick the job this stock is going to or coming back from."))
     if context.kind in ("issue", "return", "stocktake"):
         cost = context.cost_line
         if cost is None or cost.quantity != -change:
-            raise InvalidInputError("The movement requires its matching job cost quantity.")
+            raise InvalidInputError(
+                gettext("The movement requires its matching job cost quantity.")
+            )
         if cost.cost_set.job != context.counterpart_job or cost.cost_set.kind != "actual":
             raise InvalidInputError(
-                "The movement cost must belong to its counterpart job's actuals."
+                gettext("The movement cost must belong to its counterpart job's actuals.")
             )
     movement = StockMovement.objects.create(
         stock=locked,
@@ -232,7 +237,7 @@ def delivery_quantity(movement: StockMovement) -> Decimal:
     if movement.kind == "delivery":
         return movement.quantity_change
     if movement.kind != "delivery_opening" or movement.opening_quantity is None:
-        raise InvalidInputError("This movement is not receipt evidence.")
+        raise InvalidInputError(gettext("This movement is not receipt evidence."))
     return movement.opening_quantity
 
 
@@ -244,16 +249,16 @@ def is_returnable_issue(movement: StockMovement) -> bool:
 def returnable_issue_cost(movement: StockMovement) -> CostLine:
     """Validate the immutable cost evidence at the return command boundary."""
     if not is_returnable_issue(movement):
-        raise InvalidInputError("Only a job issue can be returned through this action.")
+        raise InvalidInputError(gettext("Only a job issue can be returned through this action."))
     if movement.cost_line is None or movement.counterpart_job is None:
-        raise InvalidInputError("The issued material has incomplete movement evidence.")
+        raise InvalidInputError(gettext("The issued material has incomplete movement evidence."))
     cost = movement.cost_line
     if cost.quantity <= 0:
-        raise InvalidInputError("A return requires a positive movement job quantity.")
+        raise InvalidInputError(gettext("A return requires a positive movement job quantity."))
     if movement.kind == "issue" and movement.quantity_change != -cost.quantity:
-        raise InvalidInputError("The issue quantity does not match its movement job cost.")
+        raise InvalidInputError(gettext("The issue quantity does not match its movement job cost."))
     if movement.kind == "job_opening" and movement.quantity_change != 0:
-        raise InvalidInputError("A job opening must not change the workshop balance.")
+        raise InvalidInputError(gettext("A job opening must not change the workshop balance."))
     return cost
 
 

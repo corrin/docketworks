@@ -9,6 +9,8 @@ along, which a mailto: link could never do.
 import logging
 from dataclasses import dataclass
 
+from django.utils.translation import gettext
+
 from apps.core.models import CompanyDefaults
 from apps.purchasing.models import PurchaseOrder
 
@@ -40,9 +42,11 @@ def create_purchase_order_email(
     """
     supplier = purchase_order.supplier
     if not supplier:
-        raise ValueError("Purchase order must have a supplier assigned")
+        raise ValueError(gettext("Purchase order must have a supplier assigned"))
     if not supplier.email:
-        raise ValueError(f"Supplier '{supplier.name}' has no email address configured")
+        raise ValueError(
+            gettext("Supplier '%(name)s' has no email address configured") % {"name": supplier.name}
+        )
 
     company = CompanyDefaults.get_solo()
     recipient = recipient_email or supplier.email

@@ -266,11 +266,13 @@ FENCE_EOF
     wait_for_build_id || { echo "ERROR: $INSTANCE did not come up on the copy." >&2; exit 1; }
 
     # run_e2e.sh's order: the shape report, the fixtures a production
-    # database never held, the fake seeded from the copy, the reset that
-    # clears any residue, then the suite.
+    # database never held, the fake seeded from the copy, the workshop login
+    # made a payroll employee in that fake (no seed runs here to do it, as one
+    # does on a dev restore), the reset that clears any residue, then the suite.
     in_window python scripts/checks/data_shape_gap.py
     in_window python manage.py e2e_ensure_fixtures
     in_window python manage.py fake_xero_seed --replace
+    in_window python manage.py e2e_ensure_fixtures --payroll
     in_window npm --prefix frontend run test:e2e:reset -- --confirm
     rm -rf "$E2E_DIR/test-results" "$E2E_DIR/playwright-report"
     echo "E2E: running the suite against https://$FQDN on a copy of $DB_NAME with the fake Xero..."

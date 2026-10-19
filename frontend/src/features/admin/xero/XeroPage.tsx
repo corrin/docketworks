@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -18,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatDateTime } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 /**
  * The Xero connection page: status, connect/reconnect via the OAuth flow,
@@ -36,6 +38,37 @@ const AUTHENTICATE_URL = '/api/xero/authenticate/?next=/admin/xero'
 
 /** Older log lines beyond this are dropped; the run's tail is what matters. */
 const LOG_LIMIT = 200
+
+/** Every `entity` the sync stream and sync-info answer with: apps/xero/sync.py's
+ * ENTITY_CONFIGS keys, pay_items, its two outbound passes, and the worker's own
+ * `sync` events. */
+const XERO_ENTITIES = [
+  'accounts',
+  'contacts',
+  'employees',
+  'invoices',
+  'quotes',
+  'purchase_orders',
+  'bills',
+  'stock',
+  'credit_notes',
+  'pay_runs',
+  'pay_slips',
+  'pay_items',
+  'purchase_orders_local_to_xero',
+  'stock_local_to_xero',
+  'sync',
+] as const
+
+/** An entity key as the reader sees it. Throws on a key the backend does not
+ * send, as callDirectionLabel does: a new key means the wire changed. */
+function xeroEntityLabel(entity: string): string {
+  const known = XERO_ENTITIES.find((candidate) => candidate === entity)
+  if (known === undefined) {
+    throw new Error(`Unknown Xero sync entity: '${entity}'`)
+  }
+  return i18n.t(`admin:xeroPage.entities.${known}`)
+}
 
 type PingState =
   | { kind: 'connected'; readonly: boolean }
@@ -57,7 +90,7 @@ function pingStateFrom(
       return {
         kind: 'refresh-failed',
         errorId,
-        message: apiErrorMessage(error, 'Token refresh failed.'),
+        message: apiErrorMessage(error, i18n.t('admin:xeroPage.tokenRefreshFailed')),
       }
     }
   }
@@ -65,6 +98,7 @@ function pingStateFrom(
 }
 
 export function XeroPage() {
+  const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
   const ping = useQuery({ ...xeroPingRetrieveOptions(), retry: false })
   const pingState = pingStateFrom(ping.data, ping.error)
@@ -94,9 +128,9 @@ export function XeroPage() {
       // sync disabled) that no ended-message follows — matching on the prose
       // left those runs stuck on "Sync running..." forever.
       if (event.sync_status) {
-        if (event.sync_status === 'success') toast.success('Xero sync complete')
-        else if (event.sync_status === 'aborted') toast.warning('Xero sync aborted')
-        else toast.error('Xero sync failed')
+        if (event.sync_status === 'success') toast.success(t('xeroPage.syncComplete'))
+        else if (event.sync_status === 'aborted') toast.warning(t('xeroPage.syncAborted'))
+        else toast.error(t('xeroPage.syncFailed'))
         void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
         void queryClient.invalidateQueries({ queryKey: xeroPingRetrieveQueryKey() })
       }
@@ -111,19 +145,19 @@ export function XeroPage() {
       },
     })
     return () => controller.abort()
-  }, [connected, syncInfo.isSuccess, queryClient])
+  }, [connected, syncInfo.isSuccess, queryClient, t])
 
   const startSync = useMutation({
     ...xeroSyncCreateMutation(),
     onSuccess: () => {
-      toast.success('Xero sync started')
+      toast.success(t('xeroPage.syncStarted'))
       void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
     },
     onError: (error) => {
       if (isApiErrorStatus(error, 409)) {
         // Someone else's run: its progress arrives on the already-open
         // stream, and sync-info is refreshed so the button reads as running.
-        toast.info('A Xero sync is already running')
+        toast.info(t('xeroPage.syncAlreadyRunning'))
         void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
         return
       }
@@ -131,19 +165,19 @@ export function XeroPage() {
         window.location.href = AUTHENTICATE_URL
         return
       }
-      toast.error(apiErrorMessage(error, 'Failed to start the Xero sync.'))
+      toast.error(apiErrorMessage(error, t('xeroPage.startSyncFailed')))
     },
   })
 
   const disconnect = useMutation({
     ...xeroDisconnectCreateMutation(),
     onSuccess: () => {
-      toast.success('Xero disconnected')
+      toast.success(t('xeroPage.disconnected'))
       void queryClient.invalidateQueries({ queryKey: xeroPingRetrieveQueryKey() })
       void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
     },
     onError: (error) => {
-      toast.error(apiErrorMessage(error, 'Failed to disconnect Xero.'))
+      toast.error(apiErrorMessage(error, t('xeroPage.disconnectFailed')))
     },
   })
 
@@ -159,43 +193,47 @@ export function XeroPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6" data-automation-id="XeroPage-root">
-      <h1 className="text-2xl font-semibold">Xero</h1>
+      <h1 className="text-2xl font-semibold">{t('xeroPage.title')}</h1>
 
       <QueryState
         isPending={ping.isPending}
         isError={ping.isError && pingState === null}
         onRetry={() => void ping.refetch()}
-        loadingLabel="Checking the Xero connection..."
-        errorLabel="Failed to check the Xero connection."
+        loadingLabel={t('xeroPage.checkingConnection')}
+        errorLabel={t('xeroPage.checkConnectionFailed')}
       >
         {pingState && (
           <section className="space-y-4 rounded-lg border p-4" data-automation-id="XeroPage-status">
             {pingState.kind === 'connected' && (
               <div className="flex items-center gap-3">
                 <span className="font-medium text-green-700 dark:text-green-400">
-                  Connected to Xero
+                  {t('xeroPage.connected')}
                 </span>
                 {pingState.readonly && (
                   <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                    read-only
+                    {t('xeroPage.readOnly')}
                   </span>
                 )}
               </div>
             )}
             {pingState.kind === 'disconnected' && (
-              <p className="font-medium text-red-700 dark:text-red-400">Not connected to Xero.</p>
+              <p className="font-medium text-red-700 dark:text-red-400">
+                {t('xeroPage.notConnected')}
+              </p>
             )}
             {pingState.kind === 'refresh-failed' && (
               <p className="font-medium text-red-700 dark:text-red-400">
-                Xero token refresh failed: {pingState.message} (error id {pingState.errorId}).
-                Reconnecting replaces the failing token.
+                {t('xeroPage.refreshFailedBanner', {
+                  message: pingState.message,
+                  errorId: pingState.errorId,
+                })}
               </p>
             )}
 
             <div className="flex flex-wrap gap-3">
               {pingState.kind !== 'connected' && (
                 <Button asChild data-automation-id="XeroPage-connect">
-                  <a href={AUTHENTICATE_URL}>Connect to Xero</a>
+                  <a href={AUTHENTICATE_URL}>{t('xeroPage.connect')}</a>
                 </Button>
               )}
               {pingState.kind === 'connected' && (
@@ -205,7 +243,7 @@ export function XeroPage() {
                     disabled={startSync.isPending || syncing}
                     data-automation-id="XeroPage-start-sync"
                   >
-                    {syncing ? 'Sync running...' : 'Start Sync'}
+                    {syncing ? t('xeroPage.syncRunning') : t('xeroPage.startSync')}
                   </Button>
                   <Button
                     variant="outline"
@@ -213,23 +251,19 @@ export function XeroPage() {
                     disabled={startSync.isPending || syncing}
                     data-automation-id="XeroPage-refresh-details"
                   >
-                    Refresh Xero details
+                    {t('xeroPage.refreshDetails')}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
-                      if (
-                        window.confirm(
-                          'Disconnect Xero? Syncing and document pushes stop until someone reconnects.',
-                        )
-                      ) {
+                      if (window.confirm(t('xeroPage.confirmDisconnect'))) {
                         disconnect.mutate({})
                       }
                     }}
                     disabled={disconnect.isPending}
                     data-automation-id="XeroPage-disconnect"
                   >
-                    Disconnect
+                    {t('xeroPage.disconnect')}
                   </Button>
                 </>
               )}
@@ -243,30 +277,29 @@ export function XeroPage() {
           isPending={syncInfo.isPending}
           isError={syncInfo.isError}
           onRetry={() => void syncInfo.refetch()}
-          loadingLabel="Loading sync status..."
-          errorLabel="Failed to load sync status."
+          loadingLabel={t('xeroPage.loadingSyncStatus')}
+          errorLabel={t('xeroPage.syncStatusFailed')}
         >
           {syncInfo.data && (
             <section className="space-y-3 rounded-lg border p-4">
-              <p className="text-sm text-muted-foreground">
-                Refresh Xero details refreshes employee pay and working patterns.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('xeroPage.refreshDetailsHint')}</p>
               <p className="text-sm" data-automation-id="XeroPage-last-detail-refresh">
-                Last successful detail refresh:{' '}
-                {syncInfo.data.last_detail_refresh
-                  ? formatDateTime(syncInfo.data.last_detail_refresh)
-                  : 'never'}
+                {t('xeroPage.lastDetailRefresh', {
+                  when: syncInfo.data.last_detail_refresh
+                    ? formatDateTime(syncInfo.data.last_detail_refresh)
+                    : t('xeroPage.never'),
+                })}
               </p>
-              <h2 className="text-lg font-medium">Last sync per entity</h2>
+              <h2 className="text-lg font-medium">{t('xeroPage.lastSyncPerEntity')}</h2>
               <p className="text-sm text-muted-foreground">
-                Sync window: {syncInfo.data.sync_range}
+                {t('xeroPage.syncWindow', { range: syncInfo.data.sync_range })}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="py-1 pr-4 font-medium">Entity</th>
-                      <th className="py-1 font-medium">Last synced</th>
+                      <th className="py-1 pr-4 font-medium">{t('xeroPage.columns.entity')}</th>
+                      <th className="py-1 font-medium">{t('xeroPage.columns.lastSynced')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -276,8 +309,10 @@ export function XeroPage() {
                         className="border-b last:border-0"
                         data-automation-id={`XeroPage-last-syncs-row-${entity}`}
                       >
-                        <td className="py-1 pr-4">{entity}</td>
-                        <td className="py-1">{at ? new Date(at).toLocaleString() : 'never'}</td>
+                        <td className="py-1 pr-4">{xeroEntityLabel(entity)}</td>
+                        <td className="py-1">
+                          {at ? new Date(at).toLocaleString() : t('xeroPage.never')}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -290,7 +325,7 @@ export function XeroPage() {
 
       {connected && (syncing || log.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4" data-automation-id="XeroPage-progress">
-          <h2 className="text-lg font-medium">Sync progress</h2>
+          <h2 className="text-lg font-medium">{t('xeroPage.syncProgress')}</h2>
           {overallProgress !== null && (
             <div className="h-2 w-full overflow-hidden rounded bg-muted">
               <div
@@ -312,8 +347,8 @@ export function XeroPage() {
                       : 'text-muted-foreground'
                 }
               >
-                [{line.entity}] {line.message}
-                {line.error_id ? ` (error id ${line.error_id})` : ''}
+                [{xeroEntityLabel(line.entity)}] {line.message}
+                {line.error_id ? t('xeroPage.logErrorId', { errorId: line.error_id }) : ''}
               </li>
             ))}
           </ul>

@@ -37,7 +37,7 @@ export const OFFICE_COLUMN_IDS = [
 export type OfficeColumnId = (typeof OFFICE_COLUMN_IDS)[number]
 
 /**
- * Labels and tooltips come from the status-values endpoint at runtime, which
+ * Labels come from the status-values endpoint at runtime, which
  * can only key them by column id. This is the fallback for a column the
  * endpoint does not describe — it never fires against the current backend
  * (get_status_choices is built from the same taxonomy), and exists so a

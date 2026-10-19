@@ -19,6 +19,8 @@
  * loop-by-index fallback path in pickTargetColumn (it fires only when the
  * job is already sitting in the preferred `in_progress` column).
  */
+import { useTranslation } from 'react-i18next'
+
 import type { KanbanJobOut } from '@/api'
 
 import { JobCard } from './JobCard'
@@ -48,6 +50,7 @@ export function KanbanColumn({
   onTapAssign,
   onStatusChange,
 }: KanbanColumnProps) {
+  const { t } = useTranslation('kanban')
   const lastJob: KanbanJobOut | undefined = column.jobs[column.jobs.length - 1]
   const listRef = useColumnDropTarget(column.id, lastJob?.id ?? null, setColumnDragOver)
 
@@ -55,8 +58,10 @@ export function KanbanColumn({
     <div className="w-full shrink-0">
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-200 p-3">
-          <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
-          <span className="text-sm font-bold text-gray-400" title={column.tooltip}>
+          <h3 className="text-sm font-semibold text-gray-900" title={column.title}>
+            {column.label}
+          </h3>
+          <span className="text-sm font-bold text-gray-400" title={t('board.countTitle')}>
             ({column.countDisplay})
           </span>
         </div>
@@ -88,14 +93,15 @@ export function KanbanColumn({
 
           {column.jobs.length === 0 && !column.isLoading && (
             <div className="flex h-32 items-center justify-center text-center text-sm text-gray-500">
-              {isSearchActive ? 'No matching jobs in ' : 'No jobs in '}
-              {column.label.toLowerCase()}
+              {isSearchActive
+                ? t('column.noMatchingJobs', { status: column.label.toLowerCase() })
+                : t('column.noJobs', { status: column.label.toLowerCase() })}
             </div>
           )}
 
           {column.jobs.length === 0 && column.isLoading && (
             <div className="flex h-32 items-center justify-center text-center text-sm text-gray-500">
-              Jobs in {column.label.toLowerCase()} status are still loading, please wait
+              {t('column.stillLoading', { status: column.label.toLowerCase() })}
             </div>
           )}
 

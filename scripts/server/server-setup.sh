@@ -233,13 +233,14 @@ Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 UNATT_EOF
 log "  Configured: security pockets, auto-reboot 04:30 server-local (after the 02:30+45m-jitter backup window)."
 
-# --- Node.js 22 (NodeSource) ---
+# --- Node.js (NodeSource), the major the last sweep tested ---
 
-if command -v node &>/dev/null && node --version | grep -q '^v22'; then
-    log "Node.js 22 already installed, skipping."
+NODE_MAJOR="$(node_major_from_nvmrc "$SCRIPT_DIR/../../frontend/.nvmrc")"
+if command -v node &>/dev/null && node --version | grep -q "^v$NODE_MAJOR\."; then
+    log "Node.js $NODE_MAJOR already installed, skipping."
 else
-    log "Installing Node.js 22 via NodeSource..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    log "Installing Node.js $NODE_MAJOR via NodeSource..."
+    curl -fsSL "https://deb.nodesource.com/setup_$NODE_MAJOR.x" | bash -
     apt install -y nodejs
 fi
 log_version "node" "$(node --version)"

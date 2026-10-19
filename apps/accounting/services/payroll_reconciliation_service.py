@@ -33,7 +33,7 @@ from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import UNPAID_TIME
-from apps.timesheet.services.xero_hours import build_staff_lookup
+from apps.timesheet.services.xero_hours import build_staff_lookup, line_base_pay
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
@@ -611,30 +611,6 @@ def staff_key(staff: Staff) -> str:
     return str(staff.xero_user_id) if staff.xero_user_id else f"staff:{staff.id}"
 
 
-def _line_base_pay(line: CostLine, staff: Staff) -> Decimal:
-    """Return what payroll owes for one line, at the rate Xero was given.
-
-    Reconstructed from the same two inputs Xero holds — the employee's base
-    wage rate, which ``payroll_employee_sync`` sends as their hourly rate, and
-    the line's units and multiplier — rather than by taking the annual leave
-    loading back off ``total_cost``.
-
-    Dividing was the earlier approach and it was wrong: ``unit_cost`` is
-    denormalised at write time and frozen, while the loading is a setting that
-    can change, so every line written under a different loading came out
-    skewed. The restored data carries 1.08 while the column reads 20.00, which
-    put every reconciled employee about 10% out.
-    """
-    multiplier = line.meta.get("wage_rate_multiplier")
-    if multiplier is None:
-        raise ValueError(
-            f"CostLine {line.id} has no wage_rate_multiplier; it is denormalised at "
-            "write time, so a missing one means the line was not written by the "
-            "pricing pipeline."
-        )
-    return line.quantity * Decimal(str(multiplier)) * staff.base_wage_rate
-
-
 def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWeek]:
     """JM CostLine time data for one week, keyed by the Xero employee id."""
     # Unpaid time is never posted, so it is on neither side of the comparison.
@@ -671,7 +647,7 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
         staff_by_key[key] = line.staff
         hours[key] += line.quantity
         cost[key] += line.total_cost
-        base_pay[key] += _line_base_pay(line, line.staff)
+        base_pay[key] += line_base_pay(line, line.staff)
 
     return {
         key: _JMStaffWeek(

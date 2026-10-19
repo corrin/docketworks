@@ -47,6 +47,9 @@ function stubPerson(detail: PersonDetail, links: PersonCompanyLink[]) {
     http.get('*/api/people/p-1/', () => HttpResponse.json(detail)),
     http.get('*/api/people/p-1/contact-methods/', () => HttpResponse.json([])),
     http.get('*/api/people/p-1/company-links/', () => HttpResponse.json(links)),
+    http.get('*/api/job/jobs/status-choices/', () =>
+      HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+    ),
     http.get('*/api/people/p-1/jobs/', () =>
       HttpResponse.json({
         results: [crmJobRow({ job_id: 'job-1', job_number: 101, name: 'Fabricate frame' })],
@@ -134,7 +137,7 @@ describe('PersonDetailPage', () => {
     const name = await screen.findByLabelText('Name')
     await user.clear(name)
     await user.type(name, 'Alexandra Smith')
-    await user.click(screen.getByRole('button', { name: 'Save identity' }))
+    await user.click(screen.getByRole('button', { name: 'Save name and email' }))
 
     await waitFor(() =>
       expect(patchBody).toEqual({ name: 'Alexandra Smith', email: 'alex@example.com' }),

@@ -12,6 +12,7 @@ from typing import Any, ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 from apps.job.enums import MetalType
 from apps.purchasing.models import Stock
@@ -23,10 +24,10 @@ class SupplierCredential(models.Model):
     class CredentialType(models.TextChoices):
         """Supported kinds of supplier credential."""
 
-        USERNAME_PASSWORD = "username_password", "Username and password"
-        API_KEY = "api_key", "API key"
-        API_KEY_HEADER = "api_key_header", "API key header"
-        OAUTH2 = "oauth2", "OAuth 2"
+        USERNAME_PASSWORD = "username_password", gettext_lazy("Username and password")
+        API_KEY = "api_key", gettext_lazy("API key")
+        API_KEY_HEADER = "api_key_header", gettext_lazy("API key header")
+        OAUTH2 = "oauth2", gettext_lazy("OAuth 2")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
@@ -52,8 +53,8 @@ class SupplierCredential(models.Model):
 
     class Meta:
         ordering: ClassVar = ["supplier__name", "label"]
-        verbose_name = "Supplier Credential"
-        verbose_name_plural = "Supplier Credentials"
+        verbose_name = gettext_lazy("Supplier Credential")
+        verbose_name_plural = gettext_lazy("Supplier Credentials")
         constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["supplier", "label"],
@@ -155,8 +156,8 @@ class SupplierScraperConfig(models.Model):
 
     class Meta:
         ordering: ClassVar = ["supplier__name"]
-        verbose_name = "Supplier Scraper Config"
-        verbose_name_plural = "Supplier Scraper Configs"
+        verbose_name = gettext_lazy("Supplier Scraper Config")
+        verbose_name_plural = gettext_lazy("Supplier Scraper Configs")
         constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["scraper_class"],
@@ -193,11 +194,11 @@ class SupplierProduct(models.Model):
         "SupplierPriceList", on_delete=models.CASCADE, related_name="products"
     )
     product_name = models.CharField(max_length=500)
-    item_no = models.CharField(max_length=100, help_text="Supplier's item/SKU number")
+    item_no = models.CharField(max_length=100, help_text=gettext_lazy("Supplier's item/SKU number"))
     description = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     specifications = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     variant_id = models.CharField(
-        max_length=100, help_text="Unique variant identifier from supplier"
+        max_length=100, help_text=gettext_lazy("Unique variant identifier from supplier")
     )
     variant_width = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
@@ -207,18 +208,18 @@ class SupplierProduct(models.Model):
     )
     variant_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_unit = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
-        max_length=50, blank=True, null=True, help_text="e.g., 'per metre', 'each'"
+        max_length=50, blank=True, null=True, help_text=gettext_lazy("e.g., 'per metre', 'each'")
     )
     variant_available_stock = models.IntegerField(blank=True, null=True)
     url = models.URLField(
-        max_length=1000, help_text="Direct URL to this product on supplier's website"
+        max_length=1000, help_text=gettext_lazy("Direct URL to this product on supplier's website")
     )
 
     # GPT: Quoting-chat search excludes withdrawn products. The scraper's
     # --refresh-old path still ignores this flag; its help text overstates that behaviour.
     is_discontinued = models.BooleanField(
         default=False,
-        help_text="Product URL no longer in supplier sitemap; skip future scrapes",
+        help_text=gettext_lazy("Product URL no longer in supplier sitemap; skip future scrapes"),
     )
 
     # Standard audit fields
@@ -232,51 +233,51 @@ class SupplierProduct(models.Model):
         max_length=100,
         blank=True,
         null=True,
-        help_text="Item code parsed for inventory mapping",
+        help_text=gettext_lazy("Item code parsed for inventory mapping"),
     )
     parsed_description = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
-        help_text="Standardized description for inventory",
+        help_text=gettext_lazy("Standardized description for inventory"),
     )
     parsed_metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         choices=MetalType.choices,
         blank=True,
         null=True,
-        help_text="Metal type parsed from product specifications",
+        help_text=gettext_lazy("Metal type parsed from product specifications"),
     )
     parsed_alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
-        help_text="Alloy specification (e.g., 304, 6061)",
+        help_text=gettext_lazy("Alloy specification (e.g., 304, 6061)"),
     )
     parsed_specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
-        help_text="Specific details parsed from product data",
+        help_text=gettext_lazy("Specific details parsed from product data"),
     )
     parsed_dimensions = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
-        help_text="Standardized dimensions format",
+        help_text=gettext_lazy("Standardized dimensions format"),
     )
     parsed_unit_cost = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         blank=True,
         null=True,
-        help_text="Standardized unit cost",
+        help_text=gettext_lazy("Standardized unit cost"),
     )
     parsed_price_unit = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
-        help_text="Standardized price unit (e.g., 'per metre', 'each')",
+        help_text=gettext_lazy("Standardized price unit (e.g., 'per metre', 'each')"),
     )
 
     # Parser metadata
@@ -285,14 +286,14 @@ class SupplierProduct(models.Model):
         max_length=50,
         blank=True,
         null=True,
-        help_text="Version of parser used for this data",
+        help_text=gettext_lazy("Version of parser used for this data"),
     )
     parser_confidence = models.DecimalField(
         max_digits=3,
         decimal_places=2,
         blank=True,
         null=True,
-        help_text="Parser confidence score 0.00-1.00",
+        help_text=gettext_lazy("Parser confidence score 0.00-1.00"),
     )
 
     # Mapping relationship
@@ -301,7 +302,7 @@ class SupplierProduct(models.Model):
         blank=True,
         null=True,
         db_index=True,
-        help_text="SHA-256 hash linking to ProductParsingMapping for this product",
+        help_text=gettext_lazy("SHA-256 hash linking to ProductParsingMapping for this product"),
     )
 
     class Meta:
@@ -369,14 +370,14 @@ class SupplierPriceList(models.Model):
         "company.Company", on_delete=models.PROTECT, related_name="price_lists"
     )
     file_name = models.CharField(
-        max_length=255, help_text="Original filename of the uploaded price list"
+        max_length=255, help_text=gettext_lazy("Original filename of the uploaded price list")
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering: ClassVar = ["-uploaded_at"]
-        verbose_name = "Supplier Price List"
-        verbose_name_plural = "Supplier Price Lists"
+        verbose_name = gettext_lazy("Supplier Price List")
+        verbose_name_plural = gettext_lazy("Supplier Price Lists")
 
     def __str__(self) -> str:
         uploaded = self.uploaded_at.strftime("%Y-%m-%d %H:%M")
@@ -392,9 +393,9 @@ class ScrapeJob(models.Model):
     """
 
     STATUS_CHOICES: ClassVar = [
-        ("running", "Running"),
-        ("completed", "Completed"),
-        ("failed", "Failed"),
+        ("running", gettext_lazy("Running")),
+        ("completed", gettext_lazy("Completed")),
+        ("failed", gettext_lazy("Failed")),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -410,8 +411,8 @@ class ScrapeJob(models.Model):
 
     class Meta:
         ordering: ClassVar = ["-started_at"]
-        verbose_name = "Scrape Job"
-        verbose_name_plural = "Scrape Jobs"
+        verbose_name = gettext_lazy("Scrape Job")
+        verbose_name_plural = gettext_lazy("Scrape Jobs")
         constraints: ClassVar = [
             models.CheckConstraint(
                 condition=~models.Q(error_message=""), name="error_message_not_blank"
@@ -437,17 +438,17 @@ class ProductParsingMapping(models.Model):
         max_length=64,
         unique=True,
         db_index=True,
-        help_text="SHA-256 hash of normalized input data",
+        help_text=gettext_lazy("SHA-256 hash of normalized input data"),
     )
 
     # Original input data for reference
-    input_data = models.JSONField(help_text="Original input data that was parsed")
+    input_data = models.JSONField(help_text=gettext_lazy("Original input data that was parsed"))
 
     derived_key = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
-        help_text="Derived key for this mapping, if applicable",
+        help_text=gettext_lazy("Derived key for this mapping, if applicable"),
     )  # **Format**: `{METAL_TYPE}-{ALLOY}-{FORM}-{DIMENSIONS}-{SEQUENCE}`
 
     # Mapped output fields matching Stock model structure
@@ -481,38 +482,40 @@ class ProductParsingMapping(models.Model):
     )
     parser_confidence = models.DecimalField(max_digits=3, decimal_places=2, blank=True, null=True)
     llm_response = models.JSONField(
-        blank=True, null=True, help_text="Full LLM response for debugging"
+        blank=True, null=True, help_text=gettext_lazy("Full LLM response for debugging")
     )
 
     # Validation fields
     is_validated = models.BooleanField(
-        default=False, help_text="Whether this mapping has been manually validated"
+        default=False, help_text=gettext_lazy("Whether this mapping has been manually validated")
     )
     validated_by = models.ForeignKey(
         "accounts.Staff",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        help_text="Staff member who validated this mapping",
+        help_text=gettext_lazy("Staff member who validated this mapping"),
     )
     validated_at = models.DateTimeField(
-        null=True, blank=True, help_text="When this mapping was validated"
+        null=True, blank=True, help_text=gettext_lazy("When this mapping was validated")
     )
     validation_notes = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
-        blank=True, null=True, help_text="Notes from manual validation"
+        blank=True, null=True, help_text=gettext_lazy("Notes from manual validation")
     )
 
     # Xero integration field
     item_code_is_in_xero = models.BooleanField(
         default=False,
-        help_text="Whether the mapped item code exists in Xero inventory (Stock model)",
+        help_text=gettext_lazy(
+            "Whether the mapped item code exists in Xero inventory (Stock model)"
+        ),
     )
     # Audit fields
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Product Parsing Mapping"
-        verbose_name_plural = "Product Parsing Mappings"
+        verbose_name = gettext_lazy("Product Parsing Mapping")
+        verbose_name_plural = gettext_lazy("Product Parsing Mappings")
         indexes: ClassVar = [
             models.Index(fields=["input_hash"]),
             models.Index(fields=["created_at"]),

@@ -256,6 +256,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-nz"
 TIME_ZONE = "Pacific/Auckland"
 USE_I18N = True
+# Backend messages users read are wrapped in gettext; makemessages lists them
+# here for review (ADR 0069). English only, so the source text is what shows.
+LOCALE_PATHS = [BASE_DIR / "locale"]
 USE_TZ = True
 
 STATIC_URL = "static/"

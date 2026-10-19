@@ -145,7 +145,6 @@ function june(overrides: Partial<KpiCalendarResponse> = {}): KpiCalendarResponse
       kpi_daily_billable_hours_amber: 5,
       kpi_daily_gp_target: 1000,
       kpi_daily_shop_hours_percentage: 20,
-      kpi_daily_gp_green: 500,
       kpi_daily_gp_amber: 250,
     },
     calendar_data: {

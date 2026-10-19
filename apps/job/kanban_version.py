@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from django.utils import timezone
+from django.utils.translation import gettext
 
 _EMPTY_TIMESTAMP = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -55,4 +56,4 @@ class KanbanDatasetVersion:
                 count=int(count_value),
             )
         except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid Kanban version") from exc
+            raise ValueError(gettext("Invalid Kanban version")) from exc

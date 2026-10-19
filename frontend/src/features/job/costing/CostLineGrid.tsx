@@ -9,10 +9,12 @@ import {
   type TableFeatures,
 } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { CostLineOut, CostLineUpdateRequest, JobLabourRateOut, StockItem } from '@/api'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 import {
   derivedUnitRev,
   isDeliveryReceiptLine,
@@ -32,13 +34,8 @@ import { QueryState } from '@/features/shared/QueryState'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
+import { costlineKindLabel } from '../history'
 import { useCostLines } from './useCostLines'
-
-const KIND_LABELS: Record<string, string> = {
-  time: 'Labour',
-  material: 'Material',
-  adjust: 'Adjustment',
-}
 
 function draftIsEmpty(draft: DraftLine): boolean {
   return (
@@ -110,6 +107,7 @@ export function CostLineGrid({
   wageRate,
   readOnly = false,
 }: CostLineGridProps) {
+  const { t } = useTranslation('job')
   const { costSetQuery, patchLine, createLine, deleteLine, consumeStockLine } = useCostLines(
     jobId,
     kind,
@@ -203,8 +201,8 @@ export function CostLineGrid({
       // working grid (and any unsaved drafts) — the write paths toast
       // their own failures.
       isError={costSetQuery.isError && costSetQuery.data === undefined}
-      loadingLabel="Loading cost lines…"
-      errorLabel="Could not load the cost lines."
+      loadingLabel={t('costLineGrid.loading')}
+      errorLabel={t('costLineGrid.loadFailed')}
     >
       <DataTable
         table={table}
@@ -212,6 +210,17 @@ export function CostLineGrid({
         draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
         rowExitHandlers={draftRows.rowExitHandlers}
         tableClassName="smart-costlines-table"
+        columnLayout={{
+          // The quantity lock applies to the Actual set only.
+          quantity: {
+            headerTitle: kind === 'actual' ? t('costLineGrid.titles.quantityActual') : undefined,
+          },
+          unit_cost: { headerTitle: t('costLineGrid.titles.unitCost') },
+          unit_rev: { headerTitle: t('costLineGrid.titles.unitRev') },
+          total_cost: { headerTitle: t('costLineGrid.titles.totalCost') },
+          total_rev: { headerTitle: t('costLineGrid.titles.totalRevenue') },
+          accounting_date: { headerTitle: t('costLineGrid.titles.date') },
+        }}
       />
     </QueryState>
   )
@@ -237,7 +246,7 @@ function KindCell({ row, table }: CellProps) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-        {KIND_LABELS[kind] ?? kind}
+        {costlineKindLabel(kind)}
       </span>
       {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
     </span>
@@ -245,6 +254,7 @@ function KindCell({ row, table }: CellProps) {
 }
 
 function DescCell({ row, table }: CellProps) {
+  const { t } = useTranslation('job')
   const rowIndex = row.index
   const context = cellMeta(table)
   const gridRow = row.original
@@ -281,7 +291,7 @@ function DescCell({ row, table }: CellProps) {
       rows={1}
       value={field.value}
       disabled={rowLocked(context, gridRow) || timesheetLocked || receiptLocked}
-      aria-label={`Description row ${rowIndex}`}
+      aria-label={t('costLineGrid.descriptionRow', { index: rowIndex })}
       className="w-48 resize-y rounded border border-slate-200 px-2 py-1"
       onChange={(event) => field.onChange(event.target.value)}
       onFocus={field.onFocus}
@@ -299,6 +309,7 @@ function NumberCell({
   field: 'quantity' | 'unit_cost' | 'unit_rev'
   automation: string
 }) {
+  const { t } = useTranslation('job')
   const rowIndex = row.index
   const context = cellMeta(table)
   const gridRow = row.original
@@ -351,7 +362,7 @@ function NumberCell({
       value={field.value}
       disabled={rowLocked(context, gridRow) || !editable}
       data-automation-id={`SmartCostLinesTable-${automation}-${rowIndex}`}
-      aria-label={`${automation} row ${rowIndex}`}
+      aria-label={t('costLineGrid.numberRow', { field: automation, index: rowIndex })}
       className="w-24 rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
       onChange={(event) => field.onChange(event.target.value)}
       onFocus={field.onFocus}
@@ -470,6 +481,7 @@ function DateCell({ row }: CellProps) {
 }
 
 function ActionsCell({ row, table }: CellProps) {
+  const { t } = useTranslation('job')
   const rowIndex = row.index
   const context = cellMeta(table)
   const gridRow = row.original
@@ -478,7 +490,7 @@ function ActionsCell({ row, table }: CellProps) {
   if (gridRow.type === 'server' && gridRow.line.managed_by === 'stocktake') {
     return (
       <Link className="text-blue-700 underline" to="/purchasing/stocktakes">
-        Stocktake history
+        {t('costLineGrid.stocktakeHistory')}
       </Link>
     )
   }
@@ -489,7 +501,7 @@ function ActionsCell({ row, table }: CellProps) {
         to="/purchasing/stock"
         search={{ costLineId: gridRow.line.id }}
       >
-        Stock history
+        {t('costLineGrid.stockHistory')}
       </Link>
     )
   }
@@ -499,7 +511,7 @@ function ActionsCell({ row, table }: CellProps) {
       variant="ghost"
       size="sm"
       disabled={rowLocked(context, gridRow) || isEmptyPhantom}
-      aria-label="Delete line"
+      aria-label={t('costLineGrid.deleteLine')}
       data-automation-id={`SmartCostLinesTable-delete-${rowIndex}`}
       onPointerDown={
         gridRow.type === 'draft'
@@ -517,7 +529,7 @@ function ActionsCell({ row, table }: CellProps) {
       }
       onClick={() => {
         if (gridRow.type === 'draft') return
-        if (!window.confirm('Delete this cost line?')) return
+        if (!window.confirm(t('costLineGrid.confirmDelete'))) return
         context.deleteLine(gridRow.line.id)
       }}
     >
@@ -532,36 +544,56 @@ const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 // every cell renderer a new component identity, remounting (and blurring)
 // every input on each grid render. Cells reach live state via table meta.
 const COLUMNS = [
-  columnHelper.display({ id: 'kind', header: 'Type', cell: KindCell }),
-  columnHelper.display({ id: 'item', header: 'Item', cell: ItemCell }),
-  columnHelper.display({ id: 'desc', header: 'Description', cell: DescCell }),
+  columnHelper.display({
+    id: 'kind',
+    header: () => i18n.t('job:costLineGrid.header.type'),
+    cell: KindCell,
+  }),
+  columnHelper.display({
+    id: 'item',
+    header: () => i18n.t('job:costLineGrid.header.item'),
+    cell: ItemCell,
+  }),
+  columnHelper.display({
+    id: 'desc',
+    header: () => i18n.t('job:costLineGrid.header.description'),
+    cell: DescCell,
+  }),
   columnHelper.display({
     id: 'quantity',
-    header: 'Quantity',
+    header: () => i18n.t('job:costLineGrid.header.quantity'),
     cell: (props: CellProps) => <NumberCell {...props} field="quantity" automation="quantity" />,
   }),
   columnHelper.display({
     id: 'unit_cost',
-    header: 'Unit Cost',
+    header: () => i18n.t('job:costLineGrid.header.unitCost'),
     cell: (props: CellProps) => <NumberCell {...props} field="unit_cost" automation="unit-cost" />,
   }),
   columnHelper.display({
     id: 'unit_rev',
-    header: 'Unit Rev',
+    header: () => i18n.t('job:costLineGrid.header.unitRev'),
     cell: (props: CellProps) => <NumberCell {...props} field="unit_rev" automation="unit-rev" />,
   }),
   columnHelper.display({
     id: 'total_cost',
-    header: 'Total Cost',
+    header: () => i18n.t('job:costLineGrid.header.totalCost'),
     cell: (props: CellProps) => <TotalCell {...props} field="total_cost" />,
   }),
   columnHelper.display({
     id: 'total_rev',
-    header: 'Total Revenue',
+    header: () => i18n.t('job:costLineGrid.header.totalRevenue'),
     cell: (props: CellProps) => <TotalCell {...props} field="total_rev" />,
   }),
-  columnHelper.display({ id: 'accounting_date', header: 'Date', cell: DateCell }),
-  columnHelper.display({ id: 'actions', header: 'Actions', cell: ActionsCell }),
+  columnHelper.display({
+    id: 'accounting_date',
+    header: () => i18n.t('job:costLineGrid.header.date'),
+    cell: DateCell,
+  }),
+  columnHelper.display({
+    id: 'actions',
+    header: () => i18n.t('job:costLineGrid.header.actions'),
+    cell: ActionsCell,
+  }),
 ]
 
 // A minimal CostLineOut-shaped value so draft rows can share ItemSelect and

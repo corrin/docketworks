@@ -207,7 +207,7 @@ class TestCreateInvoice:
         result = provider.create_invoice(_invoice_payload())
 
         assert not result.success
-        assert result.error is not None and "no invoices" in result.error
+        assert result.error is not None and "sent back no invoice" in result.error
 
     def test_api_exception_becomes_error_result(self) -> None:
         provider, api = _provider_with_api()
@@ -482,7 +482,7 @@ class TestCreateQuote:
         result = provider.create_quote(_quote_payload())
 
         assert not result.success
-        assert result.error is not None and "no quotes" in result.error
+        assert result.error is not None and "sent back no quote" in result.error
 
     def test_api_exception_becomes_error_result(self) -> None:
         provider, api = _provider_with_api()

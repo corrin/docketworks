@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { CompanySearchResult, PurchaseOrderDetail, SupplierPickupAddressOut } from '@/api'
 import {
   Select,
@@ -14,7 +16,7 @@ import { formatCurrency, formatDate } from '@/lib/format'
 import { poOrderValue } from './lines'
 import { PickupAddressSelector } from './PickupAddressSelector'
 import { PoDocumentActions } from './PoDocumentActions'
-import { PO_STATUS_OPTIONS, toPoStatus } from './status'
+import { PO_STATUS_ORDER, poStatusLabel, poStatusTitle, toPoStatus } from './status'
 import type { PoHeaderPatch } from './usePoLines'
 
 interface PoSummaryCardCreateProps {
@@ -40,46 +42,52 @@ type PoSummaryCardDetailProps = PoDetailProps & { mode: 'detail' }
 type PoSummaryCardProps = PoSummaryCardCreateProps | PoSummaryCardDetailProps
 
 export function PoSummaryCard(props: PoSummaryCardProps) {
+  const { t } = useTranslation('purchasing')
   if (props.mode === 'detail') return <DetailFields {...props} />
   return (
     <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-semibold text-gray-700">Purchase Order Details</h2>
+      <h2 className="text-sm font-semibold text-gray-700">{t('poSummary.detailsHeading')}</h2>
       <CreateFields {...props} />
     </div>
   )
 }
 
 export function PoDetailHeader({ po, patchHeader }: PoDetailProps) {
+  const { t } = useTranslation('purchasing')
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">Purchase Order {po.po_number}</h1>
+          <h1 className="text-xl font-bold text-gray-900">
+            {t('poSummary.title', { number: po.po_number })}
+          </h1>
           <Select
             value={po.status}
             onValueChange={(value) => patchHeader({ status: toPoStatus(value) })}
           >
             <SelectTrigger
-              aria-label="Purchase order status"
+              aria-label={t('poSummary.statusLabel')}
+              title={t('poSummary.statusLabelTitle')}
               data-automation-id="PoSummaryCard-status-trigger"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PO_STATUS_OPTIONS.map((option) => (
+              {PO_STATUS_ORDER.map((status) => (
                 <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  data-automation-id={`PoSummaryCard-status-${option.value}`}
+                  key={status}
+                  value={status}
+                  title={poStatusTitle(status)}
+                  data-automation-id={`PoSummaryCard-status-${status}`}
                 >
-                  {option.label}
+                  {poStatusLabel(status)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Order date: {formatDate(po.order_date)} · Created by:{' '}
+          {t('poSummary.orderDate', { date: formatDate(po.order_date) })}{' '}
           <span data-automation-id="PoSummaryCard-created-by">{po.created_by_name}</span>
         </p>
       </div>
@@ -89,11 +97,12 @@ export function PoDetailHeader({ po, patchHeader }: PoDetailProps) {
 }
 
 export function PoOrderValue({ lines }: Pick<PurchaseOrderDetail, 'lines'>) {
+  const { t } = useTranslation('purchasing')
   const orderValue = poOrderValue(lines)
   return (
-    <div className="text-right">
+    <div className="text-right" title={t('poSummary.totalTitle')}>
       <span className="mr-2 text-sm text-slate-500">
-        {orderValue.unresolvedCount === 0 ? 'Total' : 'Known subtotal'}
+        {orderValue.unresolvedCount === 0 ? t('poSummary.total') : t('poSummary.knownSubtotal')}
       </span>
       <span
         className="font-semibold text-gray-900 tabular-nums"
@@ -102,9 +111,8 @@ export function PoOrderValue({ lines }: Pick<PurchaseOrderDetail, 'lines'>) {
         {formatCurrency(orderValue.knownSubtotal)}
       </span>
       {orderValue.unresolvedCount > 0 && (
-        <p className="text-xs text-amber-700">
-          {orderValue.unresolvedCount} {orderValue.unresolvedCount === 1 ? 'line' : 'lines'}{' '}
-          unpriced
+        <p className="text-xs text-amber-700" title={t('poSummary.unpricedTitle')}>
+          {t('poSummary.unpriced', { count: orderValue.unresolvedCount })}
         </p>
       )}
     </div>
@@ -112,9 +120,10 @@ export function PoOrderValue({ lines }: Pick<PurchaseOrderDetail, 'lines'>) {
 }
 
 function ReferenceLabel() {
+  const { t } = useTranslation('purchasing')
   return (
     <label htmlFor="po-reference" className="mb-1 block text-sm font-medium text-gray-700">
-      Reference
+      {t('poSummary.reference')}
     </label>
   )
 }
@@ -128,11 +137,12 @@ function CreateFields({
   onSelectPickupAddress,
   onResetPickupAddress,
 }: PoSummaryCardCreateProps) {
+  const { t } = useTranslation('purchasing')
   return (
     <div className="space-y-4">
       <CompanyLookup
         id="po-supplier"
-        label="Supplier"
+        label={t('poSummary.supplier')}
         selectedCompany={supplier}
         onSelectCompany={(company) => {
           onSelectSupplier(company)
@@ -147,8 +157,8 @@ function CreateFields({
           onChange={onSelectPickupAddress}
           placeholder={
             pickupAddress === undefined
-              ? "The supplier's primary address, unless chosen here"
-              : 'No pickup address'
+              ? t('poSummary.primaryAddressPlaceholder')
+              : t('poSummary.noPickupAddress')
           }
         />
       )}
@@ -169,6 +179,7 @@ function CreateFields({
 }
 
 function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
+  const { t } = useTranslation('purchasing')
   const referenceField = useAutosaveField(po.reference ?? '', (value) =>
     patchHeader({ reference: orNull(value) }),
   )
@@ -188,8 +199,12 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
             supplier_has_xero_id. Seeding it means fetching the company, which
             is a change to make deliberately rather than as a side effect of
             this card. Tracked in docs/rewrite-status.md. */}
-        <span className="mb-1 block text-sm font-medium text-gray-700">Supplier</span>
-        <p className="py-2 text-sm break-words text-gray-900">{po.supplier || '—'}</p>
+        <span className="mb-1 block text-sm font-medium text-gray-700">
+          {t('poSummary.supplier')}
+        </span>
+        <p className="py-2 text-sm break-words text-gray-900">
+          {po.supplier || t('poSummary.noSupplier')}
+        </p>
       </div>
       <div>
         <ReferenceLabel />
@@ -209,8 +224,9 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
         <label
           htmlFor="po-expected-delivery"
           className="mb-1 block text-sm font-medium text-gray-700"
+          title={t('poSummary.expectedDeliveryTitle')}
         >
-          Expected Delivery
+          {t('poSummary.expectedDelivery')}
         </label>
         <input
           id="po-expected-delivery"

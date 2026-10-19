@@ -24,6 +24,7 @@ from uuid import UUID
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
@@ -116,20 +117,29 @@ def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
     if value is None:
         return None
     if not isinstance(value, str | int | float | Decimal):
-        raise ValidationError(f"{key} must be a number, stored value is {value!r}.")
+        raise ValidationError(
+            gettext("%(key)s must be a number, stored value is %(value)s.")
+            % {"key": key, "value": repr(value)}
+        )
     try:
         # str() first: Decimal(0.1) captures the binary error, Decimal("0.1")
         # is the number the operator typed.
         rate = Decimal(str(value))
     except InvalidOperation as exc:
-        raise ValidationError(f"{key} must be a number, stored value is {value!r}.") from exc
+        raise ValidationError(
+            gettext("%(key)s must be a number, stored value is %(value)s.")
+            % {"key": key, "value": repr(value)}
+        ) from exc
     # Decimal parses "NaN" and "Infinity" happily, so surviving the parse is not
     # proof of a usable number. Infinity then raises InvalidOperation inside
     # quantize() as an uncaught 500, and NaN is worse: it returns quietly and
     # poisons every multiplication after it, pricing the line at NaN. Same
     # defect as _positive_int's non-finite floats in apps/crm.
     if not rate.is_finite():
-        raise ValidationError(f"{key} must be a finite number, stored value is {value!r}.")
+        raise ValidationError(
+            gettext("%(key)s must be a finite number, stored value is %(value)s.")
+            % {"key": key, "value": repr(value)}
+        )
     return rate
 
 
@@ -159,7 +169,10 @@ def resolve_xero_pay_item(wage_rate_multiplier: Decimal) -> PayItem:
     normalized = normalize_multiplier(wage_rate_multiplier)
     pay_item = _pay_item_catalogue().get_by_multiplier(normalized)
     if pay_item is None:
-        raise ValidationError(f"No Xero pay item found for wage_rate_multiplier={normalized}.")
+        raise ValidationError(
+            gettext("No Xero pay item found for wage_rate_multiplier=%(multiplier)s.")
+            % {"multiplier": normalized}
+        )
     return pay_item
 
 
@@ -207,9 +220,12 @@ def leave_wage_rate_multiplier(pay_item: PayItem) -> Decimal:
     leave_type = LeaveType.for_pay_item(pay_item.id)
     if leave_type is None:
         raise ValidationError(
-            f"Xero leave type '{pay_item.name}' is not mapped to a Docketworks leave "
-            "category, so whether it is paid is unknown. Map it under "
-            "Timesheets -> Leave settings before booking time against it."
+            gettext(
+                "Xero leave type '%(name)s' is not mapped to a DocketWorks leave "
+                "category, so whether it is paid is unknown. Map it under "
+                "Timesheets -> Leave settings before booking time against it."
+            )
+            % {"name": pay_item.name}
         )
     return DEFAULT_MULTIPLIER if leave_type.is_paid else ZERO_MULTIPLIER
 
@@ -237,7 +253,8 @@ def resolve_xero_pay_item_for_job(*, job: Job, wage_rate_multiplier: Decimal) ->
             raise ValidationError(f"Leave job '{job.name}' lost its pay item mid-resolution.")
         if not job_pay_item.xero_id:
             raise ValidationError(
-                f"Leave job '{job.name}' has Xero pay item '{job_pay_item.name}' with no xero_id."
+                gettext("Leave job '%(job)s' has Xero pay item '%(pay_item)s' with no xero_id.")
+                % {"job": job.name, "pay_item": job_pay_item.name}
             )
         return job_pay_item
     return resolve_xero_pay_item(wage_rate_multiplier)
@@ -352,8 +369,11 @@ def resolve_labour_subtype(
     default = staff.default_labour_subtype
     if default is None:
         raise ValidationError(
-            "labour_subtype is required for time entries and staff "
-            f"{staff.id} has no default_labour_subtype."
+            gettext(
+                "labour_subtype is required for time entries and staff "
+                "%(staff_id)s has no default_labour_subtype."
+            )
+            % {"staff_id": staff.id}
         )
     return default
 
@@ -364,7 +384,8 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
         rate = JobLabourRate.objects.get(job=job, labour_subtype=labour_subtype)
     except JobLabourRate.DoesNotExist as exc:
         raise ValidationError(
-            f"Job {job.id} has no labour rate for subtype {labour_subtype.name}."
+            gettext("Job %(job_id)s has no labour rate for subtype %(subtype)s.")
+            % {"job_id": job.id, "subtype": labour_subtype.name}
         ) from exc
     return rate.charge_out_rate
 
@@ -390,15 +411,20 @@ def staff_wage_rate(
     if staff.pay_basis == "salary" and override is None:
         if salary_term is None:
             raise ValidationError(
-                f"Salaried time for {staff.get_display_full_name()} cannot be costed "
-                "without their Xero payroll terms."
+                gettext(
+                    "Salaried time for %(staff)s cannot be costed without their Xero payroll terms."
+                )
+                % {"staff": staff.get_display_full_name()}
             )
         return salary_cost_rate(salary_term)
     wage_rate = override if override is not None else staff.wage_rate
     if not wage_rate:
         raise ValidationError(
-            f"Wage rate is not configured for staff {staff.get_display_full_name()} "
-            f"({staff.id}); set their base wage rate before booking time."
+            gettext(
+                "Wage rate is not configured for staff %(staff)s "
+                "(%(staff_id)s); set their base wage rate before booking time."
+            )
+            % {"staff": staff.get_display_full_name(), "staff_id": staff.id}
         )
     return wage_rate
 
@@ -422,7 +448,7 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
     raw_multiplier = rate_from_meta(meta, "wage_rate_multiplier")
     if raw_multiplier is None:
         raise ValidationError(
-            "Rate multiplier must be provided when creating a new timesheet entry."
+            gettext("Rate multiplier must be provided when creating a new timesheet entry.")
         )
 
     salary_term: StaffPayrollTerm | None = None
@@ -431,7 +457,9 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         try:
             target_date = date.fromisoformat(str(raw_date))
         except (TypeError, ValueError) as exc:
-            raise ValidationError("Timesheet metadata must contain an ISO work date.") from exc
+            raise ValidationError(
+                gettext("Timesheet metadata must contain an ISO work date.")
+            ) from exc
         salary_term = salary_term_on(cast("Staff", staff), target_date)
 
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
@@ -456,14 +484,19 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         wage_rate_multiplier = DEFAULT_MULTIPLIER
         bill_rate_multiplier = ZERO_MULTIPLIER
     elif not pay_item.xero_id:
-        raise ValidationError(f"Xero pay item '{pay_item.name}' has no xero_id.")
+        raise ValidationError(
+            gettext("Xero pay item '%(name)s' has no xero_id.") % {"name": pay_item.name}
+        )
     elif is_leave_pay_item(pay_item):
         wage_rate_multiplier = leave_wage_rate_multiplier(pay_item)
         bill_rate_multiplier = ZERO_MULTIPLIER
     else:
         if pay_item_override is not None:
             if pay_item.multiplier is None:
-                raise ValidationError(f"Xero earnings rate '{pay_item.name}' has no multiplier.")
+                raise ValidationError(
+                    gettext("Xero earnings rate '%(name)s' has no multiplier.")
+                    % {"name": pay_item.name}
+                )
             wage_rate_multiplier = normalize_multiplier(pay_item.multiplier)
         bill_rate_multiplier = (
             ZERO_MULTIPLIER

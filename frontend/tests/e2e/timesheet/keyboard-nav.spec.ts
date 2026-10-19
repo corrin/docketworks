@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
-import { getTimesheetJobs, getTimesheetStaff, type TimesheetJob } from '../fixtures/api'
+import { getTimesheetJobs, getWorkshopTimesheetStaff, type TimesheetJob } from '../fixtures/api'
 import { getLatestWeekdayDate, waitForEntryGrid } from './support'
 
 /**
@@ -112,9 +112,7 @@ test.describe.serial('keyboard Tab entry flow', () => {
     authenticatedPage: page,
   }) => {
     const date = getLatestWeekdayDate()
-    const staffList = await getTimesheetStaff(page, date)
-    expect(staffList.length).toBeGreaterThan(0)
-    const staff = staffList[0]!
+    const staff = await getWorkshopTimesheetStaff(page, date)
     const staffWageRate = Number(staff.wageRate)
     expect(Number.isFinite(staffWageRate)).toBe(true)
 

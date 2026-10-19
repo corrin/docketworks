@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -28,6 +29,7 @@ import { JobPicker } from '@/features/shared/JobPicker'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 import {
   adjustEnd,
   billingChangeFields,
@@ -114,6 +116,7 @@ export function WorkshopTimesheetEntryDrawer({
   onDelete,
   onClose,
 }: WorkshopTimesheetEntryDrawerProps) {
+  const { t } = useTranslation('timesheet')
   const open = state.mode !== 'closed'
   const entry = state.mode === 'edit' ? state.entry : null
   const initialStart = state.mode === 'create' ? state.start : null
@@ -134,8 +137,12 @@ export function WorkshopTimesheetEntryDrawer({
             <DrawerTitle>{drawerTitle(entry, locked)}</DrawerTitle>
             <DrawerDescription>
               {entry === null
-                ? `Book your own time for ${formatDateLong(date)}.`
-                : `#${entry.job_number} ${entry.job_name} on ${formatDateLong(date)}`}
+                ? t('entryDrawer.bookOwnTime', { date: formatDateLong(date) })
+                : t('entryDrawer.entryOn', {
+                    number: entry.job_number,
+                    name: entry.job_name,
+                    date: formatDateLong(date),
+                  })}
             </DrawerDescription>
           </DrawerHeader>
           <WorkshopEntryForm
@@ -160,9 +167,9 @@ export function WorkshopTimesheetEntryDrawer({
 }
 
 function drawerTitle(entry: WorkshopTimesheetEntryOut | null, locked: boolean): string {
-  if (entry === null) return 'Add entry'
-  if (locked) return 'Approved entry'
-  return 'Edit entry'
+  if (entry === null) return i18n.t('timesheet:entryDrawer.addTitle')
+  if (locked) return i18n.t('timesheet:entryDrawer.approvedTitle')
+  return i18n.t('timesheet:entryDrawer.editTitle')
 }
 
 /**
@@ -193,6 +200,7 @@ function WorkshopEntryForm({
 }) {
   // A new entry opens on the job last booked and starts where the day is up
   // to (the tapped slot, else after the last entry): the hours are his to say.
+  const { t } = useTranslation('timesheet')
   const [jobId, setJobId] = useState<string | null>(
     () => entry?.job_id ?? lastUsedJobId(dayEntries),
   )
@@ -297,7 +305,7 @@ function WorkshopEntryForm({
         })
       }
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'The times could not be worked out.'))
+      toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
       return
     } finally {
       inFlightRef.current = false
@@ -331,30 +339,36 @@ function WorkshopEntryForm({
           className="mx-4 mb-2 rounded bg-slate-100 p-2 text-sm text-slate-700"
           data-automation-id="WorkshopTimesheetEntryDrawer-locked"
         >
-          The office has approved this entry. Ask the office to change it.
+          {t('entryDrawer.locked')}
         </p>
       )}
       {/* A disabled fieldset disables every control inside it, so an approved
           entry reads exactly as it was saved and nothing can be typed. */}
       <fieldset disabled={locked} className="space-y-4 px-4 pb-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Job</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            {t('entryDrawer.job')}
+          </label>
           <div className="rounded border border-slate-200">
             <JobPicker
               triggerClassName={TOUCH_TARGET_CLASS}
               automationIdPrefix="WorkshopTimesheetEntryDrawer-job-picker"
-              ariaLabel="Job"
+              ariaLabel={t('entryDrawer.job')}
               jobs={jobs}
               selected={selected}
               disabled={saving || locked}
               loading={jobsQuery.isPending}
-              placeholder="Select a job"
+              placeholder={t('entryDrawer.selectJob')}
               triggerLabel={(job) => {
-                if (job) return `#${job.job_number} ${job.name}`
+                if (job)
+                  return t('entryDrawer.jobLabel', { number: job.job_number, name: job.name })
                 // A bound job the list no longer offers (archived since)
                 // must still show what the entry holds.
                 if (entry !== null && jobId === entry.job_id) {
-                  return `#${entry.job_number} ${entry.job_name}`
+                  return t('entryDrawer.jobLabel', {
+                    number: entry.job_number,
+                    name: entry.job_name,
+                  })
                 }
                 return ''
               }}
@@ -374,7 +388,7 @@ function WorkshopEntryForm({
             className="mb-1 block text-sm font-medium text-gray-700"
             htmlFor="workshop-entry-hours"
           >
-            Hours
+            {t('entryDrawer.hours')}
           </label>
           <input
             id="workshop-entry-hours"
@@ -383,7 +397,9 @@ function WorkshopEntryForm({
             min={0.25}
             step={0.25}
             value={shownHours ?? ''}
-            placeholder={workingOut === 'finish' ? 'Working out…' : 'How long?'}
+            placeholder={
+              workingOut === 'finish' ? t('entryDrawer.workingOut') : t('entryDrawer.howLong')
+            }
             className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
             data-automation-id="WorkshopTimesheetEntryDrawer-hours"
             onChange={(event) => {
@@ -399,7 +415,11 @@ function WorkshopEntryForm({
               className="mb-1 block text-sm font-medium text-gray-700"
               htmlFor="workshop-entry-start"
             >
-              Start <span className="font-normal text-gray-500">(optional)</span>
+              <Trans
+                t={t}
+                i18nKey="entryDrawer.startOptional"
+                components={{ optional: <span className="font-normal text-gray-500" /> }}
+              />
             </label>
             <input
               id="workshop-entry-start"
@@ -419,13 +439,17 @@ function WorkshopEntryForm({
               className="mb-1 block text-sm font-medium text-gray-700"
               htmlFor="workshop-entry-end"
             >
-              Finish <span className="font-normal text-gray-500">(optional)</span>
+              <Trans
+                t={t}
+                i18nKey="entryDrawer.finishOptional"
+                components={{ optional: <span className="font-normal text-gray-500" /> }}
+              />
             </label>
             <input
               id="workshop-entry-end"
               type="time"
               value={shownEnd}
-              placeholder={workingOut === 'hours' ? 'Working out…' : ''}
+              placeholder={workingOut === 'hours' ? t('entryDrawer.workingOut') : ''}
               className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
               data-automation-id="WorkshopTimesheetEntryDrawer-end-time"
               onChange={(event) => {
@@ -441,13 +465,17 @@ function WorkshopEntryForm({
           data-automation-id="WorkshopTimesheetEntryDrawer-duration"
         >
           {placement !== null && placement.finish === null
-            ? `${formatHoursDisplay(placement.hours)} from ${start} runs past midnight: it saves without times.`
+            ? t('entryDrawer.pastMidnight', { hours: formatHoursDisplay(placement.hours), start })
             : placementWords(start, shownHours, shownEnd, workingOut)}
         </p>
 
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Adjust times">
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label={t('entryDrawer.adjustTimes')}
+        >
           <TimeChip id="now" onClick={() => setTimes(slotFromNow(new Date()))}>
-            Now
+            {t('entryDrawer.now')}
           </TimeChip>
           {[-5, 5, 15, 30].map((minutes) => (
             <TimeChip
@@ -456,7 +484,9 @@ function WorkshopEntryForm({
               disabled={start === '' || shownEnd === ''}
               onClick={() => setTimes(adjustEnd({ start, end: shownEnd }, minutes))}
             >
-              {minutes < 0 ? `${minutes}m` : `+${minutes}m`}
+              {minutes < 0
+                ? t('entryDrawer.minutesLess', { minutes })
+                : t('entryDrawer.minutesMore', { minutes })}
             </TimeChip>
           ))}
           <TimeChip
@@ -466,10 +496,10 @@ function WorkshopEntryForm({
               if (gap !== null) setTimes(gap)
             }}
           >
-            Fill gap
+            {t('entryDrawer.fillGap')}
           </TimeChip>
           <TimeChip id="reset" onClick={() => setTimes(slotFrom(dayStart))}>
-            Reset
+            {t('entryDrawer.reset')}
           </TimeChip>
         </div>
 
@@ -479,7 +509,7 @@ function WorkshopEntryForm({
               className="mb-1 block text-sm font-medium text-gray-700"
               htmlFor="workshop-entry-rate"
             >
-              Rate
+              {t('entryDrawer.rate')}
             </label>
             <select
               id="workshop-entry-rate"
@@ -496,7 +526,9 @@ function WorkshopEntryForm({
             </select>
           </div>
           <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">Billing</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              {t('entryDrawer.billing')}
+            </span>
             <label className={`${TOUCH_TARGET_CLASS} flex items-center gap-2 text-sm`}>
               <input
                 type="checkbox"
@@ -506,7 +538,7 @@ function WorkshopEntryForm({
                 data-automation-id="WorkshopTimesheetEntryDrawer-billable"
                 onChange={(event) => setBillableChoice(event.target.checked)}
               />
-              Billable
+              {t('entryDrawer.billable')}
             </label>
           </div>
         </div>
@@ -516,14 +548,14 @@ function WorkshopEntryForm({
             className="mb-1 block text-sm font-medium text-gray-700"
             htmlFor="workshop-entry-description"
           >
-            Description
+            {t('entryDrawer.description')}
           </label>
           <textarea
             id="workshop-entry-description"
             value={description}
             rows={3}
             maxLength={255}
-            placeholder="What was done"
+            placeholder={t('entryDrawer.descriptionPlaceholder')}
             className={INPUT_CLASS}
             data-automation-id="WorkshopTimesheetEntryDrawer-description"
             onChange={(event) => setDescription(event.target.value)}
@@ -540,7 +572,7 @@ function WorkshopEntryForm({
               data-automation-id="WorkshopTimesheetEntryDrawer-submit"
               onClick={() => void submit()}
             >
-              {entry === null ? 'Add entry' : 'Save changes'}
+              {entry === null ? t('entryDrawer.add') : t('entryDrawer.save')}
             </Button>
           )}
           <Button
@@ -550,7 +582,7 @@ function WorkshopEntryForm({
             data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
             onClick={onClose}
           >
-            {locked ? 'Close' : 'Cancel'}
+            {locked ? t('entryDrawer.close') : t('entryDrawer.cancel')}
           </Button>
           {entry !== null && !locked && (
             <Button
@@ -560,7 +592,7 @@ function WorkshopEntryForm({
               data-automation-id="WorkshopTimesheetEntryDrawer-delete"
               onClick={() => void remove()}
             >
-              Delete
+              {t('entryDrawer.delete')}
             </Button>
           )}
         </div>
@@ -605,13 +637,13 @@ function placementWords(
   workingOut: WorkingOut,
 ): string {
   if (workingOut === 'hours' && start !== '' && hours !== null && end === '')
-    return 'Working out the finish from the hours and your breaks…'
+    return i18n.t('timesheet:entryDrawer.workingOutFinish')
   if (workingOut === 'finish' && start !== '' && end !== '' && hours === null)
-    return 'Working out the hours from the times and your breaks…'
-  if (hours === null) return 'Say how long it took. The times are optional.'
+    return i18n.t('timesheet:entryDrawer.workingOutHours')
+  if (hours === null) return i18n.t('timesheet:entryDrawer.sayHowLong')
   if (start === '' || end === '')
-    return `${formatHoursDisplay(hours)}, placed after your last entry when you save.`
-  return `${formatHoursDisplay(hours)} from ${start} to ${end}, breaks left out.`
+    return i18n.t('timesheet:entryDrawer.placedAfterLast', { hours: formatHoursDisplay(hours) })
+  return i18n.t('timesheet:entryDrawer.placed', { hours: formatHoursDisplay(hours), start, end })
 }
 
 /** One quick-adjust chip: a single tap moves the times instead of the time

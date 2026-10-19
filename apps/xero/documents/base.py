@@ -11,6 +11,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import NotRequired, TypedDict
 
+from django.utils.translation import gettext
+
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -143,9 +145,12 @@ class XeroDocumentManager(ABC):
     def validate_company(self) -> None:
         """Ensure the company is valid for Xero and already synced."""
         if not self.company.validate_for_xero():
-            raise ValueError("Company data is not valid for Xero")
+            raise ValueError(gettext("Company data is not valid for Xero"))
         if not self.company.xero_contact_id:
             raise ValueError(
-                f"Company {self.company.name} does not have a valid Xero contact ID. "
-                "Sync the company with Xero first."
+                gettext(
+                    "The company %(company)s isn't in Xero yet. Add it in Xero, or "
+                    "update from Xero if it is already there."
+                )
+                % {"company": self.company.name}
             )

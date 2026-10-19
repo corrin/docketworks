@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { formatClock } from '@/lib/format'
@@ -23,6 +24,7 @@ interface AudioPlayerProps {
  * value wins.
  */
 export function AudioPlayer({ src, durationMs, automationId }: AudioPlayerProps) {
+  const { t } = useTranslation('shared')
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [position, setPosition] = useState(0)
@@ -62,15 +64,15 @@ export function AudioPlayer({ src, durationMs, automationId }: AudioPlayerProps)
         type="button"
         variant="outline"
         size="sm"
-        aria-label={playing ? 'Pause' : 'Play'}
+        aria-label={playing ? t('audioPlayer.pause') : t('audioPlayer.play')}
         data-automation-id={`${automationId}-toggle`}
         onClick={() => void toggle()}
       >
-        {playing ? 'Pause' : 'Play'}
+        {playing ? t('audioPlayer.pause') : t('audioPlayer.play')}
       </Button>
       <input
         type="range"
-        aria-label="Seek"
+        aria-label={t('audioPlayer.seek')}
         className="min-w-0 flex-1"
         min={0}
         max={length ?? 0}

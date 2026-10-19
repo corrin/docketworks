@@ -1,0 +1,279 @@
+{
+  "companiesList": {
+    "title": "Companies",
+    "searchPlaceholder": "Search companies...",
+    "searchLabel": "Search companies",
+    "loading": "Loading companies...",
+    "loadFailed": "Failed to load companies.",
+    "empty": "No companies found",
+    "noun": "companies",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices to this company, drafts included, less its credit notes. Voided and deleted invoices don't count."
+    }
+  },
+  "companyDetail": {
+    "back": "Back to Companies",
+    "loading": "Loading company...",
+    "loadFailed": "Failed to load the company.",
+    "tabs": {
+      "contact": "Contact Details",
+      "financial": "Financial Summary",
+      "jobs": "Jobs",
+      "suppliers": "Supplier Aliases"
+    },
+    "address": "Address",
+    "email": "Email",
+    "phone": "Phone",
+    "totalSpend": "Total Spend (excl GST)",
+    "totalSpendTitle": "Invoices to this company, drafts included, less its credit notes. Voided and deleted invoices don't count.",
+    "lastInvoiceDate": "Last Invoice Date",
+    "noInvoices": "No invoices",
+    "aliases": {
+      "addFailed": "Failed to add supplier alias.",
+      "removeFailed": "Failed to remove supplier alias.",
+      "placeholder": "Add a search alias...",
+      "add": "Add",
+      "loading": "Loading aliases...",
+      "loadFailed": "Failed to load supplier aliases.",
+      "retry": "Retry",
+      "empty": "No search aliases yet.",
+      "remove": "Remove alias {{alias}}"
+    },
+    "tabTitles": {
+      "suppliers": "Other names this supplier goes by on paperwork or in Xero. When you search for a supplier on a purchase order, these names find this company too."
+    },
+    "lastInvoiceDateTitle": "The date on the most recent invoice to this company in Xero, on a job or not."
+  },
+  "peopleDirectory": {
+    "title": "People",
+    "intro": "One record per person, linked to every company they work with.",
+    "close": "Close",
+    "addPerson": "Add person",
+    "createHint": "Pick or create the company first; the person is created with that company link.",
+    "company": "Company",
+    "person": "Person",
+    "searchPlaceholder": "Search people...",
+    "searchLabel": "Search people",
+    "showArchived": "Show archived",
+    "refreshFailed": "Refresh failed — showing the last loaded rows.",
+    "retry": "Retry",
+    "loading": "Loading people...",
+    "loadFailed": "Failed to load people.",
+    "empty": "No people found",
+    "columns": {
+      "person": "Person",
+      "phone": "Phone",
+      "companies": "Companies",
+      "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices on jobs where this person is the contact, drafts included. Voided and deleted invoices don't count. Credit notes aren't tied to a job, so they come off the company's total, not this one."
+    },
+    "archived": "Archived",
+    "noun": "people"
+  },
+  "personDetail": {
+    "back": "People",
+    "fallbackTitle": "Person",
+    "archivedBadge": "Archived",
+    "intro": "Edit this person's name, email, phone numbers and the companies they work with.",
+    "archive": "Archive person",
+    "archiveFailed": "Failed to archive person.",
+    "archived": "Person archived",
+    "loading": "Loading person...",
+    "loadFailed": "Failed to load person.",
+    "identity": {
+      "title": "Name and email",
+      "name": "Name",
+      "email": "Email",
+      "save": "Save name and email",
+      "saveFailed": "Could not save this person's name and email.",
+      "saved": "Name and email saved"
+    },
+    "methods": {
+      "title": "Contact methods",
+      "typeLabel": "Method type",
+      "typePhone": "Phone",
+      "typeEmail": "Email",
+      "valueLabel": "Method value",
+      "valuePlaceholder": "Phone or email",
+      "labelLabel": "Method label",
+      "labelPlaceholder": "Label",
+      "primary": "Primary",
+      "update": "Update",
+      "add": "Add",
+      "cancel": "Cancel",
+      "loading": "Loading contact methods...",
+      "loadFailed": "Failed to load contact methods.",
+      "empty": "No contact methods",
+      "columns": {
+        "type": "Type",
+        "value": "Value",
+        "label": "Label",
+        "primary": "Primary",
+        "actions": "Actions"
+      },
+      "yes": "Yes",
+      "edit": "Edit",
+      "remove": "Remove",
+      "saveFailed": "Failed to save contact method.",
+      "saved": "Contact method saved",
+      "confirmRemove": "Remove this contact method?",
+      "removeFailed": "Contact method not removed.",
+      "removed": "Contact method removed"
+    },
+    "links": {
+      "title": "Company links",
+      "intro": "Active and inactive relationships are retained here.",
+      "company": "Company",
+      "position": "Position",
+      "notes": "Notes",
+      "primary": "Primary",
+      "update": "Update",
+      "add": "Add link",
+      "cancel": "Cancel",
+      "active": "Active",
+      "inactive": "Inactive",
+      "primaryBadge": "Primary",
+      "noPosition": "No position",
+      "edit": "Edit",
+      "remove": "Remove",
+      "restore": "Restore",
+      "openCompany": "Company",
+      "saveFailed": "Company link not saved.",
+      "updated": "Company link updated",
+      "linked": "Company linked",
+      "confirmRemove": "Remove this company link?",
+      "removeFailed": "Company link not removed.",
+      "removed": "Company link removed",
+      "restoreFailed": "Company link not restored.",
+      "restored": "Company link restored"
+    },
+    "financial": {
+      "title": "Financial summary",
+      "intro": "Sales invoices on jobs where this person is the contact, across every company those jobs were for.",
+      "totalSpend": "Total Spend (excl GST)",
+      "totalSpendTitle": "Invoices on jobs where this person is the contact, drafts included. Voided and deleted invoices don't count. Credit notes aren't tied to a job, so they come off the company's total, not this one.",
+      "lastInvoiceDate": "Last Invoice Date",
+      "noInvoices": "No invoices"
+    },
+    "jobs": {
+      "title": "Jobs",
+      "intro": "Every job where this person is the contact, with the invoices raised on it."
+    }
+  },
+  "relatedJobs": {
+    "loading": "Loading jobs...",
+    "loadFailed": "Failed to load jobs.",
+    "empty": "No jobs",
+    "columns": {
+      "job": "Job",
+      "company": "Company",
+      "status": "Status",
+      "invoices": "Invoices",
+      "invoiced": "Invoiced (excl. GST)"
+    },
+    "totalInvoiced": "Total invoiced (excl GST)",
+    "jobLabel": "#{{number}} {{name}}",
+    "notInvoiced": "Not invoiced",
+    "columnTitles": {
+      "invoices": "Sales invoices on this job, oldest first. Click an invoice number to open it in Xero. A number you can't click has no Xero link yet."
+    }
+  },
+  "phoneCalls": {
+    "title": "Calls",
+    "intro": "Recent calls from the phone provider, and calls still to be matched to a company or job.",
+    "refresh": "Refresh",
+    "searchPlaceholder": "Search number, company, person, job, or description",
+    "searchLabel": "Search calls",
+    "directionLabel": "Direction",
+    "withRecording": "With recording",
+    "refreshFailed": "Refresh failed — showing the last loaded rows.",
+    "retry": "Retry",
+    "empty": "No calls found",
+    "noun": "calls",
+    "direction": {
+      "all": "All directions",
+      "inbound": "Inbound",
+      "outbound": "Outbound",
+      "internal": "Internal",
+      "unknown": "Unknown"
+    },
+    "queues": {
+      "recent": {
+        "tab": "Recent Calls",
+        "title": "Recent Calls",
+        "description": "Newest calls. DocketWorks fetches new calls from the phone provider about every five minutes."
+      },
+      "unmatched": {
+        "tab": "Unmatched",
+        "title": "Unmatched Calls",
+        "description": "Assign these numbers to companies or people so future and historical calls land in the right CRM history."
+      },
+      "unlinked": {
+        "tab": "Needs Job Link",
+        "title": "Matched Calls Needing Job Link",
+        "description": "These calls already belong to a company but have not been linked to a job."
+      },
+      "all": {
+        "tab": "All Calls",
+        "title": "All Calls",
+        "description": "Look through and search every call fetched from the phone provider."
+      }
+    }
+  },
+  "phoneCallTable": {
+    "durationSeconds": "{{seconds}}s",
+    "durationMinutes": "{{minutes}}m {{seconds}}s",
+    "unlinked": "Phone call unlinked from job",
+    "unlinkFailed": "Failed to unlink phone call",
+    "loading": "Loading calls...",
+    "loadFailed": "Failed to load calls.",
+    "columns": {
+      "dateTime": "Date & Time",
+      "numberCompany": "Number / Company",
+      "ourNumber": "Our Number",
+      "direction": "Direction",
+      "duration": "Duration",
+      "job": "Job",
+      "recording": "Recording"
+    },
+    "attempts": "× {{count}} attempts",
+    "assignNumber": "Assign number",
+    "linkedJob": "Job #{{number}}",
+    "change": "Change",
+    "unlink": "Unlink",
+    "linkJob": "Link job",
+    "assignCompanyFirst": "Assign company first",
+    "noRecording": "No recording"
+  },
+  "assignPanel": {
+    "title": "Assign Call Number",
+    "callFrom": "{{number}} from {{when}}",
+    "cancel": "Cancel",
+    "company": "Company",
+    "person": "Person",
+    "label": "Label",
+    "optional": "(Optional)",
+    "labelPlaceholder": "Mobile, Reception, ...",
+    "primary": "Primary number for this contact",
+    "assigning": "Assigning...",
+    "assign": "Assign",
+    "assigned": "Phone number assigned",
+    "assignFailed": "Failed to assign phone number"
+  },
+  "linkJob": {
+    "title": "Link Phone Call To Job",
+    "description": "Pick one of {{company}}'s jobs. A call can only be linked to a job for {{company}}.",
+    "jobsLoadFailed": "Failed to load {{company}}'s jobs.",
+    "pickerLabel": "Job for this phone call",
+    "pickerPlaceholder": "Select job",
+    "trigger": "#{{number}} - {{name}}",
+    "cancel": "Cancel",
+    "save": "Save",
+    "linked": "Phone call linked to job",
+    "linkFailed": "Failed to link phone call"
+  }
+}

@@ -32,6 +32,7 @@ from uuid import UUID
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -425,7 +426,7 @@ def get_purchase_order_email(
     po = _get_po_or_404(po_id)
     staff = authenticated_staff(request)
     if not staff.office_email:
-        raise HttpError(400, "Your account has no office email to draft from.")
+        raise HttpError(400, gettext("Your account has no office email to draft from."))
     try:
         email = create_purchase_order_email(
             po, recipient_email=payload.recipient_email, message=payload.message
@@ -452,7 +453,7 @@ def get_purchase_order_email(
         "email_body": email.body,
         "draft_id": draft.draft_id,
         "draft_url": draft.web_url,
-        "message": f"Draft created in {staff.office_email}",
+        "message": gettext("Draft created in %(email)s") % {"email": staff.office_email},
     }
 
 
@@ -523,7 +524,11 @@ def get_allocation_details(
     """Return the allocation's quantity, job and whether it can still be reversed."""
     valid_types = (allocation_service.STOCK_ALLOCATION, allocation_service.JOB_ALLOCATION)
     if allocation_type not in valid_types:
-        raise HttpError(400, f"Invalid allocation type: {allocation_type}")
+        raise HttpError(
+            400,
+            gettext("Invalid allocation type: %(allocation_type)s")
+            % {"allocation_type": allocation_type},
+        )
     try:
         return allocation_service.get_allocation_details(
             po_id=po_id,
@@ -769,7 +774,7 @@ def consume_stock(
         raise HttpError(400, str(exc)) from exc
     return {
         "success": True,
-        "message": "Stock consumed successfully",
+        "message": gettext("Stock consumed successfully"),
         "remaining_quantity": stock.quantity,
         "line": job_service.cost_line_data(line),
     }
@@ -919,6 +924,7 @@ def validate_product_mapping(
     )
     return {
         "success": True,
-        "message": f"Mapping validated successfully. Updated {updated} related products.",
+        "message": gettext("Mapping validated successfully. Updated %(updated)s related products.")
+        % {"updated": updated},
         "updated_products_count": updated,
     }

@@ -72,10 +72,10 @@ describe('IntegrationsPage', () => {
 
   it('reports a stored secret without showing it, and disables Save until something changes', async () => {
     await renderPage()
-    expect(mapsStatus()).toHaveTextContent('Configured')
+    expect(mapsStatus()).toHaveTextContent('Saved')
     expect(mapsKey()).toHaveValue('')
     expect(autoId('IntegrationsPage-phone-status-phone_provider_password')).toHaveTextContent(
-      'Not configured',
+      'Not entered',
     )
     expect(save()).toBeDisabled()
     expect(cancel()).toBeDisabled()
@@ -94,7 +94,7 @@ describe('IntegrationsPage', () => {
     await waitFor(() => expect(save()).toBeDisabled())
     // The secret is not echoed back: the box empties and the status reflects the server.
     expect(mapsKey()).toHaveValue('')
-    expect(mapsStatus()).toHaveTextContent('Configured')
+    expect(mapsStatus()).toHaveTextContent('Saved')
   })
 
   it('Clear sends null, and the server answer drives the status', async () => {
@@ -106,7 +106,7 @@ describe('IntegrationsPage', () => {
     await user.click(save())
 
     await waitFor(() => expect(bodies).toEqual([{ google_maps_api_key: null }]))
-    await waitFor(() => expect(mapsStatus()).toHaveTextContent('Not configured'))
+    await waitFor(() => expect(mapsStatus()).toHaveTextContent('Not entered'))
   })
 
   it('an emptied text box is sent as null, never as a blank string', async () => {

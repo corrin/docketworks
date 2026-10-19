@@ -27,6 +27,7 @@ from django.conf import settings
 from django.db.models import Prefetch
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from django.utils.translation import gettext
 from PIL import Image, ImageFile
 from pypdf import PdfWriter
 from reportlab.lib import colors
@@ -822,7 +823,7 @@ def add_logo(pdf: canvas.Canvas, y_position: float) -> float:
     """Draw the square logo centred at the top and return the updated y position."""
     company = CompanyDefaults.get_solo()
     if not company.logo:
-        raise ValueError("No logo uploaded in Company Defaults")
+        raise ValueError(gettext("No logo uploaded in Company Defaults"))
     w, h = _fit_dimensions(company.logo.path, LOGO_BOX, LOGO_BOX)
     logo = ImageReader(company.logo.path)
     x = MARGIN + (CONTENT_WIDTH - w) / 2
@@ -860,7 +861,7 @@ def add_letterhead_banner(
     """Draw the wide letterhead banner and company contact details below it."""
     company = CompanyDefaults.get_solo()
     if not company.logo_wide:
-        raise ValueError("No wide logo uploaded in Company Defaults")
+        raise ValueError(gettext("No wide logo uploaded in Company Defaults"))
     with Image.open(company.logo_wide.path) as img:
         src_w, src_h = img.size
     img_width_pt = CONTENT_WIDTH

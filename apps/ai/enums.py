@@ -1,6 +1,7 @@
 """AI-related enumerations."""
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class AIProviderTypes(models.TextChoices):
@@ -15,5 +16,5 @@ class AIProviderTypes(models.TextChoices):
 class NotebookLmRestriction(models.TextChoices):
     """Who may see a NotebookLM link in the training menu."""
 
-    NONE = "none", "All staff"
-    SUPERUSER = "superuser", "Superusers only"
+    NONE = "none", gettext_lazy("All staff")
+    SUPERUSER = "superuser", gettext_lazy("Superusers only")

@@ -11,6 +11,9 @@ import { RelatedJobsTable } from './RelatedJobsTable'
 describe('RelatedJobsTable', () => {
   it('lists each job with its invoices, links, and the invoiced total', async () => {
     server.use(
+      http.get('*/api/job/jobs/status-choices/', () =>
+        HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+      ),
       http.get('*/api/people/p-1/jobs/', () =>
         HttpResponse.json({
           results: [
@@ -69,6 +72,9 @@ describe('RelatedJobsTable', () => {
     // No Xero link yet: the number is text, not a dead anchor.
     expect(autoId('PersonDetail-jobs-invoice-inv-2').querySelector('a')).toBeNull()
     expect(autoId('PersonDetail-jobs-cell-job-1-invoiced')).toHaveTextContent('$125.50')
+    // The status reads as the job screen names it, not the stored code.
+    expect(autoId('PersonDetail-jobs-row-job-1')).toHaveTextContent('In Progress')
+    expect(autoId('PersonDetail-jobs-row-job-1')).not.toHaveTextContent('in_progress')
     expect(autoId('PersonDetail-jobs-row-job-2')).toHaveTextContent('Not invoiced')
     expect(autoId('PersonDetail-jobs-cell-job-2-invoiced')).toHaveTextContent('$0.00')
     expect(autoId('PersonDetail-jobs-total')).toHaveTextContent('$125.50')
@@ -77,6 +83,9 @@ describe('RelatedJobsTable', () => {
 
   it('omits the company column on the company page', async () => {
     server.use(
+      http.get('*/api/job/jobs/status-choices/', () =>
+        HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+      ),
       http.get('*/api/people/p-1/jobs/', () => HttpResponse.json({ results: [crmJobRow()] })),
     )
     renderWithProviders(

@@ -1,12 +1,14 @@
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { apiErrorId, apiErrorMessage, isAvailabilityError } from '@/api'
 
 import { RecoveryPage } from './RecoveryPage'
 
 export function RootErrorPage({ error, reset }: ErrorComponentProps) {
+  const { t } = useTranslation('shell')
   const router = useRouter()
   const [retrying, setRetrying] = useState(false)
   const unavailable = isAvailabilityError(error)
@@ -24,13 +26,9 @@ export function RootErrorPage({ error, reset }: ErrorComponentProps) {
   return (
     <RecoveryPage
       automationId="RouteError-page"
-      title={unavailable ? 'Connection interrupted' : 'Something went wrong'}
-      message={
-        unavailable
-          ? 'DocketWorks could not reach the server. Your work has not been discarded.'
-          : 'DocketWorks could not finish loading this page.'
-      }
-      detail={unavailable ? null : apiErrorMessage(error, 'Please retry the request.')}
+      title={unavailable ? t('routeError.unavailableTitle') : t('routeError.failedTitle')}
+      message={unavailable ? t('routeError.unavailableMessage') : t('routeError.failedMessage')}
+      detail={unavailable ? null : apiErrorMessage(error, t('routeError.retryFallback'))}
       errorId={apiErrorId(error)}
       retrying={retrying}
       onRetry={retry}

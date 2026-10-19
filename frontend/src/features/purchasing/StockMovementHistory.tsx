@@ -7,6 +7,7 @@ import {
   type UseInfiniteQueryResult,
 } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   apiErrorMessage,
@@ -29,14 +30,15 @@ import { nextPageParam } from '@/features/shared/nextPageParam'
 import { formatDateTime, formatQuantity } from '@/lib/format'
 
 export function CostLineMovementHistory({ costLineId }: { costLineId: string }) {
+  const { t } = useTranslation('purchasing')
   const movement = useQuery(costLineStockMovementRetrieveOptions({ path: { id: costLineId } }))
   return (
     <QueryState
       isPending={movement.isPending}
       isError={movement.isError}
       onRetry={() => void movement.refetch()}
-      loadingLabel="Loading job material…"
-      errorLabel="Unable to load job material history."
+      loadingLabel={t('movements.jobMaterialLoading')}
+      errorLabel={t('movements.jobMaterialLoadFailed')}
     >
       {movement.data && <StockMovementHistory stockId={movement.data.stock_id} />}
     </QueryState>
@@ -66,6 +68,7 @@ function MovementRows({
 }: {
   history: UseInfiniteQueryResult<InfiniteData<StockMovementPage>>
 }) {
+  const { t } = useTranslation('purchasing')
   const rows = history.data?.pages.flatMap((page) => page.results)
   const lastPage = history.data?.pages.at(-1)
   const cache = useQueryClient()
@@ -77,29 +80,29 @@ function MovementRows({
         isError={history.isError}
         onRetry={() => void history.refetch()}
         rows={rows}
-        loadingLabel="Loading movements…"
-        errorLabel="Unable to load stock history."
-        emptyLabel="No movements recorded."
+        loadingLabel={t('movements.loading')}
+        errorLabel={t('movements.loadFailed')}
+        emptyLabel={t('movements.empty')}
         wrapperClassName="max-h-[55vh]"
         head={
           <tr>
-            <th scope="col" className="p-2 text-left">
-              Recorded
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.recorded')}>
+              {t('movements.header.recorded')}
             </th>
             <th scope="col" className="p-2 text-left">
-              Item
+              {t('movements.header.item')}
+            </th>
+            <th scope="col" className="p-2" title={t('movements.titles.beforeAfter')}>
+              {t('movements.header.beforeAfter')}
+            </th>
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.counterpart')}>
+              {t('movements.header.counterpart')}
+            </th>
+            <th scope="col" className="p-2 text-left" title={t('movements.titles.reasonOperator')}>
+              {t('movements.header.reasonOperator')}
             </th>
             <th scope="col" className="p-2">
-              Before → after
-            </th>
-            <th scope="col" className="p-2 text-left">
-              Counterpart
-            </th>
-            <th scope="col" className="p-2 text-left">
-              Reason / operator
-            </th>
-            <th scope="col" className="p-2">
-              Action
+              {t('movements.header.action')}
             </th>
           </tr>
         }
@@ -108,7 +111,7 @@ function MovementRows({
           lastPage !== undefined && (
             <LoadMoreSentinel
               automationId="StockHistory-load-more"
-              noun="movements"
+              noun={t('movements.noun')}
               shown={rows.length}
               total={lastPage.count}
               hasNextPage={history.hasNextPage}
@@ -149,12 +152,13 @@ function MovementRows({
                   variant="outline"
                   size="sm"
                   disabled={reverse.isPending}
+                  title={t('movements.returnIssueTitle')}
                   onClick={() =>
                     reverse.mutate(
                       { path: { id: movement.id } },
                       {
                         onSuccess: () => {
-                          toast.success('Material returned')
+                          toast.success(t('movements.returned'))
                           if (movement.counterpart_job_id !== null) {
                             void invalidateJobViews(cache, movement.counterpart_job_id)
                             void cache.invalidateQueries({
@@ -175,12 +179,12 @@ function MovementRows({
                           })
                         },
                         onError: (error) =>
-                          toast.error(apiErrorMessage(error, 'Unable to return material.')),
+                          toast.error(apiErrorMessage(error, t('movements.returnFailed'))),
                       },
                     )
                   }
                 >
-                  Return issue
+                  {t('movements.returnIssue')}
                 </Button>
               )}
             </td>

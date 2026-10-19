@@ -1,5 +1,6 @@
 import { getPurchaseOrderPdf } from '@/api'
 import { openBlobInNewTab } from '@/features/job/open-blob'
+import { i18n } from '@/lib/i18n'
 
 /**
  * Open the supplier's copy of a purchase order for printing.
@@ -19,7 +20,7 @@ export async function printPurchaseOrder(poId: string): Promise<void> {
           throwOnError: true,
         })
       ).data,
-    'purchase order PDF',
+    i18n.t('purchasing:print.purchaseOrderPdf'),
     { print: true },
   )
 }

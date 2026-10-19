@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   approveCostLineMutation,
@@ -53,6 +54,7 @@ interface CreateEntryCallbacks {
  * move relies on.
  */
 export function useTimesheetEntries(staffId: string, date: string) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const query = { staff_id: staffId, date }
   const queryKey = jobTimesheetEntriesRetrieveQueryKey({ query })
@@ -87,7 +89,7 @@ export function useTimesheetEntries(staffId: string, date: string) {
       lineId,
       costLineDisplay(body),
       () => patchMutation.mutateAsync({ path: { cost_line_id: lineId }, body }),
-      'Failed to save the timesheet entry',
+      t('entries.saveFailed'),
     )
 
   /** Move a saved entry to another job: the picked job is the display, the echo reprices it. */
@@ -96,7 +98,7 @@ export function useTimesheetEntries(staffId: string, date: string) {
       lineId,
       jobIdentity(job),
       () => patchMutation.mutateAsync({ path: { cost_line_id: lineId }, body: { job_id: job.id } }),
-      'Failed to move the timesheet entry',
+      t('entries.moveFailed'),
     )
 
   const createLine = (
@@ -112,14 +114,14 @@ export function useTimesheetEntries(staffId: string, date: string) {
           // supplies them so the row renders before the reconciling refetch.
           .then((created) => enrichWithJob(created, job)),
       callbacks,
-      'Failed to add the timesheet entry',
+      t('entries.addFailed'),
     )
 
   const deleteLine = (lineId: string) =>
     grid.deleteRow(
       lineId,
       () => deleteMutation.mutateAsync({ path: { cost_line_id: lineId } }),
-      'Failed to delete the timesheet entry',
+      t('entries.deleteFailed'),
     )
 
   const approveLine = (lineId: string) =>
@@ -130,7 +132,7 @@ export function useTimesheetEntries(staffId: string, date: string) {
         approveMutation
           .mutateAsync({ path: { cost_line_id: lineId } })
           .then((response) => response.line),
-      'Failed to approve the timesheet entry',
+      t('entries.approveFailed'),
     )
 
   return { entriesQuery, patchLine, moveLine, createLine, deleteLine, approveLine }

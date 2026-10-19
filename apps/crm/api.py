@@ -56,6 +56,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404
 from django.utils.cache import get_conditional_response
+from django.utils.translation import gettext
 from ninja import Query, Router
 from ninja.errors import AuthorizationError
 from ninja.responses import Status
@@ -516,7 +517,7 @@ def download_recording(request: HttpRequest, recording_id: UUID) -> HttpResponse
     # recordings on its own schedule and the row legitimately outlives them
     except FileNotFoundError:
         return JsonResponse(
-            {"status": "error", "message": "Recording file not found on disk"},
+            {"status": "error", "message": gettext("Recording file not found on disk")},
             status=404,
         )
     except Exception as exc:
@@ -582,14 +583,14 @@ def _endpoint_field_errors(
         number = str(provided["number"]).strip()
         provided["number"] = number
         if not normalize_phone(number):
-            return {"number": ["Phone endpoint requires a number."]}
+            return {"number": [gettext("Phone endpoint requires a number.")]}
     elif instance is not None:
         number = instance.number
     else:
-        return {"number": ["Phone endpoint requires a number."]}
+        return {"number": [gettext("Phone endpoint requires a number.")]}
     normalized = normalize_phone(number)
     if normalized is None:
-        return {"number": ["Phone endpoint requires a number."]}
+        return {"number": [gettext("Phone endpoint requires a number.")]}
 
     if "is_active" in provided:
         is_active = bool(provided["is_active"])
@@ -606,11 +607,10 @@ def _endpoint_field_errors(
     if is_active:
         conflict = ContactMethod.conflicting_company(normalized, set())
         if conflict:
-            message = (
-                f"Phone number {normalized} already belongs to "
-                f"{conflict.owner_display_name()} and cannot be an "
-                "active internal phone endpoint."
-            )
+            message = gettext(
+                "Phone number %(number)s already belongs to "
+                "%(owner)s, so it can't be one of our own phone numbers."
+            ) % {"number": normalized, "owner": conflict.owner_display_name()}
             return {"number": [message]}
     return None
 
@@ -637,7 +637,7 @@ def _apply_endpoint_fields(
         else:
             staff = Staff.objects.filter(pk=str(staff_id)).first()
             if staff is None:
-                return {"staff": ["Staff not found."]}
+                return {"staff": [gettext("Staff not found.")]}
             endpoint.staff = staff
     for field_name in _ENDPOINT_PLAIN_FIELDS:
         if field_name in provided:

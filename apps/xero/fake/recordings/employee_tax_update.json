@@ -1,0 +1,76 @@
+{
+  "recorded_at": "2026-10-18T08:00:33+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/payroll.xro/2.0/Employees/c41e2d0e-2606-4598-b199-0aa532058aee/Tax",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "893",
+      "X-MinLimit-Remaining": "53"
+    }
+  },
+  "body": {
+    "id": "0dac3e86-0f77-473f-b69a-0734ac4b8176",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-10-18T08:00:44.3955266",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "employeeTax": {
+      "irdNumber": "053823009",
+      "taxCode": "M",
+      "esctRatePercentage": 17.5,
+      "isEligibleForKiwiSaver": true,
+      "hasSpecialStudentLoanRate": false,
+      "specialStudentLoanRatePercentage": null,
+      "specialTaxRatePercentage": null,
+      "kiwiSaverContributions": "MakeContributions",
+      "kiwiSaverStatus": "ActiveKiwiSaverMember",
+      "kiwiSaverOptOutDate": null,
+      "kiwiSaverContributionHolidayEndDate": null,
+      "kiwiSaverEmployeeContributionRatePercentage": 3.5,
+      "kiwiSaverEmployerContributionRatePercentage": 3.5,
+      "kiwiSaverEmployerSalarySacrificeContributionRatePercentage": 0.0,
+      "hasStudentLoanBalance": false,
+      "studentLoanBalance": null,
+      "studentLoanAsAt": null,
+      "registeredForGST": null
+    }
+  }
+}

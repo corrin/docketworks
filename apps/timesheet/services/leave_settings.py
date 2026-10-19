@@ -6,6 +6,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.models import CompanyDefaults
@@ -117,7 +118,7 @@ def update_leave_types(*, updates: list[LeaveTypeUpdateData], actor: Staff) -> L
     """Apply every changed mapping as one transaction, or none of them."""
     codes = [update.code for update in updates]
     if len(set(codes)) != len(codes):
-        raise ValidationError("Each leave type may be saved once per request.")
+        raise ValidationError(gettext("Each leave type may be saved once per request."))
 
     # LeaveType.job is a OneToOne: assigning Job A to Annual while Sick still
     # holds it fails uniqueness even when the submitted set is a valid swap,
@@ -148,7 +149,10 @@ def _refuse_shared_pay_item(update: LeaveTypeUpdateData) -> None:
         .first()
     )
     if clash is not None:
-        raise ValidationError(f"{clash.display_name} already uses that Xero leave type.")
+        raise ValidationError(
+            gettext("%(leave_type)s already uses that Xero leave type.")
+            % {"leave_type": clash.display_name}
+        )
 
 
 def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> None:
@@ -162,13 +166,16 @@ def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> No
     leave_type = LeaveType.objects.select_for_update().get(code=update.code)
     job = Job.objects.select_for_update().get(id=update.job_id)
     if job.status != "special":
-        raise ValidationError("Leave types must use a special Docketworks job.")
+        raise ValidationError(gettext("Leave types must use a special DocketWorks job."))
     # The batch detach above frees only the codes being saved, so a job still
     # held by an untouched type would surface as an IntegrityError rather than
     # a named refusal.
     clash = LeaveType.objects.filter(job_id=job.id).exclude(code=update.code).first()
     if clash is not None:
-        raise ValidationError(f"{clash.display_name} already uses that Docketworks job.")
+        raise ValidationError(
+            gettext("%(leave_type)s already uses that DocketWorks job.")
+            % {"leave_type": clash.display_name}
+        )
 
     _refuse_shared_pay_item(update)
 
@@ -184,26 +191,37 @@ def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> No
         # inert rather than load-bearing.
         if update.xero_pay_item_id is not None:
             raise ValidationError(
-                f"{leave_type.display_name} is paid by Xero's own calculation and takes no "
-                "Xero payroll item."
+                gettext(
+                    "%(leave_type)s is paid by Xero's own calculation and takes no "
+                    "Xero payroll item."
+                )
+                % {"leave_type": leave_type.display_name}
             )
     else:
         # Refused before assignment: default_xero_pay_item is a NOT NULL
         # column, so a null id would raise RelatedObjectDoesNotExist on the
         # read below instead of producing a nameable refusal.
         if update.xero_pay_item_id is None:
-            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
+            raise ValidationError(
+                gettext("%(leave_type)s requires a Xero leave type.")
+                % {"leave_type": leave_type.display_name}
+            )
         job.default_xero_pay_item_id = update.xero_pay_item_id
         pay_item = job.default_xero_pay_item
         if not pay_item.xero_id:
             raise ValidationError(
-                "The Xero payroll item is not linked to the current organisation."
+                gettext("The Xero payroll item is not linked to the current organisation.")
             )
         tenant_id = CompanyDefaults.get_solo().xero_tenant_id
         if pay_item.xero_tenant_id != tenant_id:
-            raise ValidationError("The Xero payroll item belongs to a different organisation.")
+            raise ValidationError(
+                gettext("The Xero payroll item belongs to a different organisation.")
+            )
         if not pay_item.uses_leave_api:
-            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
+            raise ValidationError(
+                gettext("%(leave_type)s requires a Xero leave type.")
+                % {"leave_type": leave_type.display_name}
+            )
 
     job.save(staff=actor, update_fields=["default_xero_pay_item", "updated_at"])
     leave_type.display_name = clean_name
@@ -216,7 +234,10 @@ def configured_leave_type(code: str) -> LeaveType:
     """Return one booking-ready type or fail with its configuration defect."""
     leave_type = LeaveType.objects.select_related("job__default_xero_pay_item").get(code=code)
     if not leave_type_data(leave_type)["configured"]:
-        raise ValidationError(f"{leave_type.display_name} is not fully configured.")
+        raise ValidationError(
+            gettext("%(leave_type)s is not fully configured.")
+            % {"leave_type": leave_type.display_name}
+        )
     return leave_type
 
 
@@ -245,7 +266,8 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
         # item on a Leave-API row is already unconfigured.
         if pay_item is None or not leave_type_data(row)["configured"]:
             raise ValueError(
-                f"Docketworks leave type {row.display_name} is not linked to a Xero leave type."
+                gettext("DocketWorks leave type %(leave_type)s is not linked to a Xero leave type.")
+                % {"leave_type": row.display_name}
             )
         mappings.append(
             EmployeeLeaveMapping(
@@ -257,6 +279,7 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
         )
     if len(mappings) != len(LEAVE_API_CODES):
         raise ValueError(
-            f"All {len(LEAVE_API_CODES)} Docketworks payroll leave types must be configured."
+            gettext("All %(count)s DocketWorks payroll leave types must be configured.")
+            % {"count": len(LEAVE_API_CODES)}
         )
     return mappings

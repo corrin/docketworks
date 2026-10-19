@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
+import { useTranslation } from 'react-i18next'
 
 import { accountingReportsJobMovementRetrieveOptions } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
@@ -70,6 +71,7 @@ export interface JobMovementReportPageProps {
  * on them.
  */
 export function JobMovementReportPage({ range, onRangeChange }: JobMovementReportPageProps) {
+  const { t } = useTranslation('reports')
   const report = useQuery({
     ...accountingReportsJobMovementRetrieveOptions({
       query: { start_date: range.startDate, end_date: range.endDate },
@@ -84,7 +86,7 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
           className="text-xl font-bold text-gray-900"
           data-automation-id="JobMovementReport-title"
         >
-          Job Movement Report
+          {t('jobMovementPage.title')}
         </h1>
         <div className="flex space-x-2">
           <button
@@ -93,7 +95,7 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
             onClick={() => onRangeChange(thisFortnight())}
           >
-            This Fortnight
+            {t('jobMovementPage.thisFortnight')}
           </button>
           <button
             type="button"
@@ -101,7 +103,7 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
             onClick={() => onRangeChange(lastFortnight())}
           >
-            Last Fortnight
+            {t('jobMovementPage.lastFortnight')}
           </button>
         </div>
       </div>
@@ -110,9 +112,9 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
         isPending={report.isPending}
         isError={report.isError}
         onRetry={() => void report.refetch()}
-        loadingLabel="Loading job movement report..."
+        loadingLabel={t('jobMovementPage.loading')}
         loadingAutomationId="JobMovementReport-loading"
-        errorLabel="Failed to load the job movement report."
+        errorLabel={t('jobMovementPage.loadError')}
       >
         {report.isSuccess && (
           <>
@@ -121,22 +123,29 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
               className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
             >
               <SummaryCard
-                label="Draft Jobs Created"
+                label={t('jobMovementPage.draftJobsCreated')}
+                title={t('jobMovementPage.titles.draftJobsCreated')}
                 valueAutomationId="JobMovementReport-draft-jobs-count"
               >
                 {report.data.metrics.draft_jobs_created.count}
               </SummaryCard>
               <SummaryCard
-                label="Quotes Submitted"
+                label={t('jobMovementPage.quotesSubmitted')}
+                title={t('jobMovementPage.titles.quotesSubmitted')}
                 valueAutomationId="JobMovementReport-quotes-submitted-count"
               >
                 {report.data.metrics.quotes_submitted.count}
               </SummaryCard>
-              <SummaryCard label="Jobs Won" valueAutomationId="JobMovementReport-jobs-won-count">
+              <SummaryCard
+                label={t('jobMovementPage.jobsWon')}
+                title={t('jobMovementPage.titles.jobsWon')}
+                valueAutomationId="JobMovementReport-jobs-won-count"
+              >
                 {report.data.metrics.jobs_won.count}
               </SummaryCard>
               <SummaryCard
-                label="Draft Conversion Rate"
+                label={t('jobMovementPage.draftConversionRate')}
+                title={t('jobMovementPage.titles.draftConversionRate')}
                 valueAutomationId="JobMovementReport-conversion-rate-value"
               >
                 {formatPercentage(report.data.metrics.draft_conversion_rate.rate)}
@@ -147,29 +156,31 @@ export function JobMovementReportPage({ range, onRangeChange }: JobMovementRepor
               data-automation-id="JobMovementReport-additional-metrics"
               className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
             >
-              <h2 className="text-sm font-semibold text-gray-900">Additional Metrics</h2>
+              <h2 className="text-sm font-semibold text-gray-900">
+                {t('jobMovementPage.additionalMetrics')}
+              </h2>
               <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt className="text-gray-500">Quotes Accepted</dt>
+                <div title={t('jobMovementPage.titles.quotesAccepted')}>
+                  <dt className="text-gray-500">{t('jobMovementPage.quotesAccepted')}</dt>
                   <dd className="font-medium text-gray-900">
                     {report.data.metrics.quotes_accepted.count}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-gray-500">Quote Acceptance Rate</dt>
+                <div title={t('jobMovementPage.titles.quoteAcceptanceRate')}>
+                  <dt className="text-gray-500">{t('jobMovementPage.quoteAcceptanceRate')}</dt>
                   <dd className="font-medium text-gray-900">
                     {formatPercentage(report.data.metrics.quote_acceptance_rate.rate)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-gray-500">Through Quotes / Skipped</dt>
+                <div title={t('jobMovementPage.titles.throughQuotesSkipped')}>
+                  <dt className="text-gray-500">{t('jobMovementPage.throughQuotesSkipped')}</dt>
                   <dd className="font-medium text-gray-900">
                     {report.data.metrics.workflow_paths.through_quotes} /{' '}
                     {report.data.metrics.workflow_paths.skip_quotes}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-gray-500">Quote Usage</dt>
+                <div title={t('jobMovementPage.titles.quoteUsage')}>
+                  <dt className="text-gray-500">{t('jobMovementPage.quoteUsage')}</dt>
                   <dd className="font-medium text-gray-900">
                     {formatPercentage(report.data.metrics.workflow_paths.quote_usage_percent)}
                   </dd>

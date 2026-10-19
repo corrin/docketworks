@@ -6,6 +6,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { accountsStaffAllListOptions, apiErrorMessage, jobJobAssignmentCreateMutation } from '@/api'
@@ -40,6 +41,7 @@ export interface StaffAssignment {
 }
 
 export function useStaffAssignment(searchTerm: string): StaffAssignment {
+  const { t } = useTranslation('kanban')
   const queryClient = useQueryClient()
   const staffQuery = useQuery(kanbanStaffQueryOptions())
   const assign = useMutation(jobJobAssignmentCreateMutation())
@@ -50,9 +52,9 @@ export function useStaffAssignment(searchTerm: string): StaffAssignment {
   const staffError = staffQuery.error
   useEffect(() => {
     if (staffError) {
-      toast.error(apiErrorMessage(staffError, 'Failed to load the staff panel'))
+      toast.error(apiErrorMessage(staffError, t('staffAssignment.loadFailed')))
     }
-  }, [staffError])
+  }, [staffError, t])
 
   const assignStaff = useCallback(
     (jobId: string, staffId: string): Promise<boolean> => {
@@ -80,7 +82,7 @@ export function useStaffAssignment(searchTerm: string): StaffAssignment {
           { path: { job_id: jobId }, body: { staff_id: staffId } },
           {
             onError: (error) => {
-              toast.error(apiErrorMessage(error, 'Failed to assign the staff member'))
+              toast.error(apiErrorMessage(error, t('staffAssignment.assignFailed')))
               if (snapshot) restoreSnapshot(queryClient, snapshot)
               resolve(false)
             },
@@ -103,7 +105,7 @@ export function useStaffAssignment(searchTerm: string): StaffAssignment {
         )
       })
     },
-    [assign, queryClient, searchTerm, staffQuery.data],
+    [assign, queryClient, searchTerm, staffQuery.data, t],
   )
 
   // SEAM: unassignment (v1's hover-X on a card avatar) has no ported spec and

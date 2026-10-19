@@ -1074,8 +1074,8 @@ service's docstring says so at the seam.
   (`sales_pipeline_service.py::_working_days_between`). Both feed
   "per-working-day" numbers shown to the same user.
 - **Valid invoices**: WIP counts DRAFT invoices at `total_excl_tax`
-  (`wip_service.py`); the sales forecast excludes DRAFT and uses
-  `total_incl_tax` (`sales_forecast_service.py`); `invoice_calculation`
+  (`wip_service.py`); the sales forecast excludes DRAFT (`sales_forecast_service.py`;
+  it moved to `total_excl_tax` on 2026-10-19, owner: compare like with like); `invoice_calculation`
   derives all-but-VOIDED/DELETED from the enum.
 - **Quote transitions**: job-movement counts EVENTS, so a job re-entering
   `awaiting_approval` counts twice; the sales pipeline counts each JOB once.

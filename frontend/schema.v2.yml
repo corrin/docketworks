@@ -868,7 +868,7 @@ components:
         path it cannot resolve.'
       properties:
         accounting_provider:
-          description: 'Active accounting integration: ''xero'' or ''myob'''
+          description: 'Which accounting system DocketWorks works with: Xero or MYOB.'
           maxLength: 20
           title: Accounting Provider
           type: string
@@ -954,8 +954,8 @@ components:
           title: Daily approved hours target
           type: string
         enable_xero_sync:
-          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
-            sets True after prod IDs are cleared.
+          description: Lets DocketWorks update from and send to Xero. On for a live site. A development
+            copy starts with it off and turns it on once it is linked to its own test Xero organisation.
           title: Enable Xero Sync
           type: boolean
         financial_year_start_month:
@@ -1044,8 +1044,8 @@ components:
           - type: 'null'
           title: ID
         job_delta_soft_fail:
-          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
-            the save. Disable to reject stale updates.
+          description: When on, a job saved from a screen that was out of date is still saved and the
+            mismatch is recorded. When off, that save is refused and the person must reload the job.
           title: Job Delta Soft Fail
           type: boolean
         kpi_daily_billable_hours_amber:
@@ -1057,12 +1057,9 @@ components:
           title: Daily billable hours (green)
           type: string
         kpi_daily_gp_amber:
-          description: Daily gross profit above which the day is amber
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-          type: string
-        kpi_daily_gp_green:
-          description: Daily gross profit above which the day is green
-          title: Daily GP (green)
           type: string
         kpi_daily_gp_target:
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
@@ -1090,14 +1087,14 @@ components:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time a deep Xero sync was performed (looking back 90 days)
+          description: When DocketWorks last did a full update from Xero (looking back 90 days)
           title: Last Xero Deep Sync
         last_xero_sync:
           anyOf:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time Xero data was synchronized
+          description: When DocketWorks last finished updating from Xero
           title: Last Xero Sync
         latitude:
           anyOf:
@@ -1270,8 +1267,8 @@ components:
           title: Workshop Efficiency Factor
           type: string
         xero_automated_day_floor:
-          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
-            aborts when the active Xero app reports remaining daily calls at or below this value.
+          description: How many of Xero's daily request allowance to keep for people working in DocketWorks.
+            Automatic updates from Xero stop when this many or fewer requests are left for the day.
           title: Xero Automated Day Floor
           type: integer
         xero_payroll_calendar_id:
@@ -1279,7 +1276,7 @@ components:
           - format: uuid
             type: string
           - type: 'null'
-          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          description: Filled in by Xero setup from the payroll calendar name above.
           title: Xero Payroll Calendar Id
         xero_payroll_calendar_name:
           description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
@@ -1295,9 +1292,9 @@ components:
           title: Xero Payroll Start Date
         xero_quote_terms:
           description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
-            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
-            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
-            \ the same terms."
+            \ add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to\
+            \ Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the\
+            \ same terms."
           maxLength: 4000
           title: Xero quote terms
           type: string
@@ -1314,14 +1311,16 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          description: Xero's short code for this organisation, used to open documents straight in Xero
+            (e.g. '!8-5Xl').
           title: Xero Shortcode
         xero_tenant_id:
           anyOf:
           - maxLength: 100
             type: string
           - type: 'null'
-          description: The Xero tenant ID to use for this company
+          description: The Xero organisation this DocketWorks is connected to. Filled in when Xero is
+            connected.
           title: Xero Tenant Id
       required:
       - accounting_provider
@@ -1358,7 +1357,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_billable_hours_green
       - kpi_daily_gp_amber
-      - kpi_daily_gp_green
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
       - kpi_job_gp_target_percentage
@@ -1418,7 +1416,7 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: 'Active accounting integration: ''xero'' or ''myob'''
+          description: 'Which accounting system DocketWorks works with: Xero or MYOB.'
           title: Accounting Provider
         address_line1:
           anyOf:
@@ -1512,8 +1510,8 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
-            sets True after prod IDs are cleared.
+          description: Lets DocketWorks update from and send to Xero. On for a live site. A development
+            copy starts with it off and turns it on once it is linked to its own test Xero organisation.
           title: Enable Xero Sync
         financial_year_start_month:
           anyOf:
@@ -1608,8 +1606,8 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
-            the save. Disable to reject stale updates.
+          description: When on, a job saved from a screen that was out of date is still saved and the
+            mismatch is recorded. When off, that save is refused and the person must reload the job.
           title: Job Delta Soft Fail
         kpi_daily_billable_hours_amber:
           anyOf:
@@ -1630,15 +1628,9 @@ components:
           - type: number
           - type: string
           - type: 'null'
-          description: Daily gross profit above which the day is amber
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-        kpi_daily_gp_green:
-          anyOf:
-          - type: number
-          - type: string
-          - type: 'null'
-          description: Daily gross profit above which the day is green
-          title: Daily GP (green)
         kpi_daily_gp_target:
           anyOf:
           - type: number
@@ -1677,14 +1669,14 @@ components:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time a deep Xero sync was performed (looking back 90 days)
+          description: When DocketWorks last did a full update from Xero (looking back 90 days)
           title: Last Xero Deep Sync
         last_xero_sync:
           anyOf:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time Xero data was synchronized
+          description: When DocketWorks last finished updating from Xero
           title: Last Xero Sync
         latitude:
           anyOf:
@@ -1900,15 +1892,15 @@ components:
           anyOf:
           - type: integer
           - type: 'null'
-          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
-            aborts when the active Xero app reports remaining daily calls at or below this value.
+          description: How many of Xero's daily request allowance to keep for people working in DocketWorks.
+            Automatic updates from Xero stop when this many or fewer requests are left for the day.
           title: Xero Automated Day Floor
         xero_payroll_calendar_id:
           anyOf:
           - format: uuid
             type: string
           - type: 'null'
-          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          description: Filled in by Xero setup from the payroll calendar name above.
           title: Xero Payroll Calendar Id
         xero_payroll_calendar_name:
           anyOf:
@@ -1929,9 +1921,9 @@ components:
           - type: string
           - type: 'null'
           description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
-            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
-            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
-            \ the same terms."
+            \ add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to\
+            \ Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the\
+            \ same terms."
           maxLength: 4000
           title: Xero quote terms
         xero_sales_branding_theme_id:
@@ -1947,14 +1939,16 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          description: Xero's short code for this organisation, used to open documents straight in Xero
+            (e.g. '!8-5Xl').
           title: Xero Shortcode
         xero_tenant_id:
           anyOf:
           - maxLength: 100
             type: string
           - type: 'null'
-          description: The Xero tenant ID to use for this company
+          description: The Xero organisation this DocketWorks is connected to. Filled in when Xero is
+            connected.
           title: Xero Tenant Id
       title: CompanyDefaultsPatchIn
       type: object
@@ -6769,9 +6763,6 @@ components:
         kpi_daily_gp_amber:
           title: Kpi Daily Gp Amber
           type: number
-        kpi_daily_gp_green:
-          title: Kpi Daily Gp Green
-          type: number
         kpi_daily_gp_target:
           title: Kpi Daily Gp Target
           type: number
@@ -6783,7 +6774,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
-      - kpi_daily_gp_green
       - kpi_daily_gp_amber
       title: KPIThresholdsOut
       type: object

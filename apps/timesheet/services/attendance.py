@@ -16,6 +16,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext, gettext_noop
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
@@ -127,7 +128,7 @@ def _required_break_job_id() -> UUID:
         # Refused, not skipped: a day made without its breaks would pay half
         # an hour short with nothing to show for it. In words a worker can
         # pass on; the fix is the office's (``create_shop_jobs``).
-        raise BreaksNotSetUpError("Breaks are not set up. Tell the office.")
+        raise BreaksNotSetUpError(gettext("Breaks are not set up. Tell the office."))
     return job_id
 
 
@@ -218,8 +219,10 @@ def duration_words(hours: Decimal) -> str:
     minutes = int((hours * 60).to_integral_value(ROUND_HALF_UP))
     whole, rest = divmod(minutes, 60)
     if whole == 0:
-        return f"{rest}m"
-    return f"{whole}h" if rest == 0 else f"{whole}h {rest}m"
+        return gettext("%(minutes)sm") % {"minutes": rest}
+    if rest == 0:
+        return gettext("%(hours)sh") % {"hours": whole}
+    return gettext("%(hours)sh %(minutes)sm") % {"hours": whole, "minutes": rest}
 
 
 def _minutes(moment: time) -> int:
@@ -417,7 +420,7 @@ def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
     """Return the hours worked between two times: the span less the breaks inside it."""
     first, last = _minutes(start), _minutes(finish)
     if last <= first:
-        raise InvalidInputError("The finish has to be after the start.")
+        raise InvalidInputError(gettext("The finish has to be after the start."))
     minutes = last - first - _minutes_inside(first, last, breaks)
     return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
 
@@ -463,12 +466,12 @@ def calendar_bounds(
 #: The words for a start or finish the office should know about. A time
 #: tapped at the workshop needs none, and neither does one the office set.
 _CLOCK_IN_CAUTIONS: dict[str, str] = {
-    ClockHow.NOT_CLOCKED: "Did not clock in",
-    ClockHow.CLOCKED_REMOTELY: "Clocked in away from the workshop",
+    ClockHow.NOT_CLOCKED: gettext_noop("Did not clock in"),
+    ClockHow.CLOCKED_REMOTELY: gettext_noop("Clocked in away from the workshop"),
 }
 _CLOCK_OUT_CAUTIONS: dict[str, str] = {
-    ClockHow.NOT_CLOCKED: "Did not clock out",
-    ClockHow.CLOCKED_REMOTELY: "Clocked out away from the workshop",
+    ClockHow.NOT_CLOCKED: gettext_noop("Did not clock out"),
+    ClockHow.CLOCKED_REMOTELY: gettext_noop("Clocked out away from the workshop"),
 }
 
 
@@ -476,9 +479,9 @@ def clock_cautions(row: AttendanceDay) -> list[str]:
     """Say, in the office's words, what was not clocked on the day."""
     cautions = []
     if row.clock_in_how in _CLOCK_IN_CAUTIONS:
-        cautions.append(_CLOCK_IN_CAUTIONS[row.clock_in_how])
+        cautions.append(gettext(_CLOCK_IN_CAUTIONS[row.clock_in_how]))
     if row.clock_out_how is not None and row.clock_out_how in _CLOCK_OUT_CAUTIONS:
-        cautions.append(_CLOCK_OUT_CAUTIONS[row.clock_out_how])
+        cautions.append(gettext(_CLOCK_OUT_CAUTIONS[row.clock_out_how]))
     return cautions
 
 
@@ -623,9 +626,11 @@ def clock_in(worker: Staff, now: datetime, location: EntryLocation | None = None
     )
     if not created:
         if row.clock_out is None:
-            raise ClockingRefusedError("You are already clocked in.")
+            raise ClockingRefusedError(gettext("You are already clocked in."))
         raise ClockingRefusedError(
-            "You have already clocked in and out today. Change the times, or clock back in."
+            gettext(
+                "You have already clocked in and out today. Change the times, or clock back in."
+            )
         )
     _record(worker, row, "clocked_in", None, location=location)
     generate_default_breaks(row, worker, location)
@@ -639,13 +644,15 @@ def clock_out(
     """Finish the worker's day at ``now``. Only today's open day is stamped."""
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=now.date()).first()
     if row is None:
-        raise ClockingRefusedError("You are not clocked in today.")
+        raise ClockingRefusedError(gettext("You are not clocked in today."))
     if row.clock_out is not None:
-        raise ClockingRefusedError("You have already clocked out today.")
+        raise ClockingRefusedError(gettext("You have already clocked out today."))
     finish = _to_the_minute(now)
     if finish == row.clock_in:
         # Its own words: the midnight wording below would make no sense here.
-        raise ClockingRefusedError("You clocked in a moment ago. Wait a minute to clock out.")
+        raise ClockingRefusedError(
+            gettext("You clocked in a moment ago. Wait a minute to clock out.")
+        )
     _require_finish_after_start(row.clock_in, finish)
     before = _snapshot(row)
     row.clock_out = finish
@@ -660,8 +667,11 @@ def _require_finish_after_start(start: time, finish: time) -> None:
     """Refuse a finish that is not later the same day; a shift past midnight is one."""
     if finish <= start:
         raise InvalidInputError(
-            f"A finish time has to be later than the start time ({start:%H:%M}). "
-            "If you worked past midnight, ask the office to put it right."
+            gettext(
+                "A finish time has to be later than the start time (%(start)s). "
+                "If you worked past midnight, ask the office to put it right."
+            )
+            % {"start": f"{start:%H:%M}"}
         )
 
 
@@ -691,7 +701,7 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     correcting the finish does not disown a start he did tap.
     """
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff change another person's clock times.")
+        raise AccessDeniedError(gettext("Only office staff change another person's clock times."))
     if finish is not None:
         _require_finish_after_start(start, finish)
     start = start.replace(second=0, microsecond=0)
@@ -729,10 +739,10 @@ def use_standard_hours(
     put on the day as for any day with both times.
     """
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff set another person's hours.")
+        raise AccessDeniedError(gettext("Only office staff set another person's hours."))
     standard = standard_day(day)
     if standard is None:
-        raise InvalidInputError("There are no standard hours on a weekend. Set the times.")
+        raise InvalidInputError(gettext("There are no standard hours on a weekend. Set the times."))
     by_hand = _by_hand(owner, actor)
     row, created = AttendanceDay.objects.get_or_create(
         staff=owner,
@@ -745,7 +755,7 @@ def use_standard_hours(
         },
     )
     if not created:
-        raise ConflictError("This day already has clock times. Change them instead.")
+        raise ConflictError(gettext("This day already has clock times. Change them instead."))
     _record(actor, row, "standard_hours_used", None, location=location)
     generate_default_breaks(row, actor, location)
     drop_breaks_after_finish(row, actor, location)
@@ -894,7 +904,7 @@ UNPAID = Decimal("0.0")
 
 def _require_break_times(start: time, end: time) -> None:
     if end <= start:
-        raise InvalidInputError("A break finishes after it starts.")
+        raise InvalidInputError(gettext("A break finishes after it starts."))
 
 
 @transaction.atomic
@@ -910,10 +920,10 @@ def add_break(  # noqa: PLR0913 -- a break is its day, its two times, its kind a
 ) -> None:
     """Add a break to a day that has clock times: his own, or anyone's for office staff."""
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff change another person's breaks.")
+        raise AccessDeniedError(gettext("Only office staff change another person's breaks."))
     _require_break_times(start, end)
     if not AttendanceDay.objects.filter(staff=owner, date=day).exists():
-        raise ConflictError("Set the day's clock times before adding a break.")
+        raise ConflictError(gettext("Set the day's clock times before adding a break."))
     _create_break(
         owner,
         day,

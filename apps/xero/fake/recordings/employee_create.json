@@ -1,0 +1,83 @@
+{
+  "recorded_at": "2026-10-18T08:00:33+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/payroll.xro/2.0/Employees",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "897",
+      "X-MinLimit-Remaining": "57"
+    }
+  },
+  "body": {
+    "id": "5f40e755-7ee1-43fe-9fa9-571ff5512c17",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-10-18T08:00:35.631772",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "employee": {
+      "employeeID": "c41e2d0e-2606-4598-b199-0aa532058aee",
+      "firstName": "firstName-scrubbed",
+      "lastName": "lastName-scrubbed",
+      "otherGivenNames": null,
+      "dateOfBirth": "1990-01-01T00:00:00",
+      "gender": null,
+      "email": "email-scrubbed",
+      "phoneNumber": null,
+      "startDate": null,
+      "address": {
+        "addressLine1": "addressLine1-scrubbed",
+        "addressLine2": null,
+        "city": "city-scrubbed",
+        "suburb": null,
+        "countryName": "NEW ZEALAND",
+        "postCode": "postCode-scrubbed"
+      },
+      "payrollCalendarID": null,
+      "updatedDateUTC": "2026-10-18T08:00:35",
+      "createdDateUTC": "2026-10-18T08:00:35",
+      "engagementType": null,
+      "fixedTermEndDate": null,
+      "endDate": null,
+      "employmentType": "Employee",
+      "jobTitle": "Recording c7d97d1b"
+    }
+  }
+}

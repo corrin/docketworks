@@ -13,6 +13,7 @@ from uuid import UUID
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Prefetch, QuerySet
+from django.utils.translation import gettext
 
 from apps.company.models import (
     PRIMARY_PHONE_ORDERING,
@@ -60,7 +61,7 @@ def set_primary_phone(owner: Company | Person, raw_value: str) -> None:
     old_number = old_primary.normalized_value if old_primary else ""
     normalized_value = ContactMethod.normalize_phone(value)
     if not normalized_value:
-        raise DjangoValidationError("Phone number must contain at least one digit")
+        raise DjangoValidationError(gettext("Phone number must contain at least one digit"))
 
     same_number = phone_methods.filter(normalized_value=normalized_value).first()
 
@@ -238,7 +239,9 @@ def _resolve_owner(
         if company_id is not None:
             company = Company.objects.filter(id=company_id).first()
             if company is None:
-                raise DjangoValidationError(f"Company {company_id} does not exist")
+                raise DjangoValidationError(
+                    gettext("Company %(company_id)s does not exist") % {"company_id": company_id}
+                )
     else:
         company = instance.company if instance is not None else None
 
@@ -248,13 +251,15 @@ def _resolve_owner(
         if person_id is not None:
             person = Person.objects.filter(id=person_id).first()
             if person is None:
-                raise DjangoValidationError(f"Person {person_id} does not exist")
+                raise DjangoValidationError(
+                    gettext("Person %(person_id)s does not exist") % {"person_id": person_id}
+                )
     else:
         person = instance.person if instance is not None else None
 
     owner_count = sum(1 for owner in (company, person) if owner)
     if owner_count != 1:
-        raise DjangoValidationError("Exactly one of company or person is required")
+        raise DjangoValidationError(gettext("Exactly one of company or person is required"))
     return company, person
 
 

@@ -13,11 +13,13 @@
  */
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { normaliseKanbanQuery } from '@/features/kanban'
 import { SEARCH_DEBOUNCE_MS } from '@/features/shared/useDebouncedValue'
 
 export function KanbanSearchInput() {
+  const { t } = useTranslation('shell')
   const navigate = useNavigate()
   const onKanban = useRouterState({ select: (state) => state.location.pathname === '/kanban' })
   // The PARSED search, not location.searchStr: navigate() writes through
@@ -55,7 +57,7 @@ export function KanbanSearchInput() {
   return (
     <input
       type="search"
-      placeholder="Search jobs..."
+      placeholder={t('kanbanSearch.placeholder')}
       value={value}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {

@@ -12,6 +12,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import ConflictError, InvalidInputError
@@ -71,7 +72,9 @@ def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list
     lines: list[LaidLine] = []
     for row in rows:
         if row["hours"] <= 0 or row["hours"] % QUARTER_HOUR != 0:
-            raise InvalidInputError("Hours are entered in quarter hours, a quarter or more.")
+            raise InvalidInputError(
+                gettext("Hours are entered in quarter hours, a quarter or more.")
+            )
         # A row that would begin inside a break begins when the break ends.
         begins = None if cursor is None else attendance.start_after_breaks(cursor, breaks)
         ends = (
@@ -110,7 +113,7 @@ def submit_day(
     """
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=day).first()
     if row is None or row.clock_out is None:
-        raise ConflictError("Clock out before you send the day.")
+        raise ConflictError(gettext("Clock out before you send the day."))
     entries, break_lines = attendance.split_breaks(day_time_lines(worker, day))
     begins = default_entry_start(day, row, entries, break_lines)
     breaks = attendance.break_windows(day, row, break_lines)

@@ -107,10 +107,16 @@ class TestWeekShape:
 
 
 class TestWeeklyCosts:
-    def test_cash_and_loaded_costs_use_the_labour_cost_loading(
+    def test_cost_is_the_lines_as_priced_and_base_is_the_cash_wage(
         self, job: Job, worker: Staff
     ) -> None:
-        """Regression risk: weekly_cost carries the labour loading; base cost does not."""
+        """Regression risk: a time line is priced at the loaded wage, so the week's cost
+        is its lines as priced. Loading them again counted paid leave twice.
+
+        The lines were priced under a 23% loading; the setting now reads 20%. Cost
+        keeps the 23% the lines carry (5 x 8 x 49.20) and is not loaded again; the
+        cash wage is the hours at the worker's 40.00 base (5 x 8 x 40.00).
+        """
         defaults = CompanyDefaults.get_solo()
         defaults.labour_cost_loading = Decimal("20.00")
         defaults.save(update_fields=["labour_cost_loading"])
@@ -120,7 +126,7 @@ class TestWeeklyCosts:
                 worker,
                 accounting_date=WEEK_START + timedelta(days=offset),
                 hours="8.000",
-                unit_cost="38.00",
+                unit_cost="49.20",
                 unit_rev="0.00",
                 is_billable=False,
             )
@@ -128,8 +134,8 @@ class TestWeeklyCosts:
         overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
         [row] = overview["staff_data"]
 
-        assert row["weekly_base_cost"] == 1520.00  # 5 * 8 * 38
-        assert row["weekly_cost"] == 1824.00  # + 20%
+        assert row["weekly_cost"] == Decimal("1968.00")
+        assert row["weekly_base_cost"] == Decimal("1600.00")
 
     def test_weekly_overview_reports_held_back_hours(self, job: Job, worker: Staff) -> None:
         """Unapproved time is not paid; the office sees how much before posting."""
@@ -142,25 +148,6 @@ class TestWeeklyCosts:
         assert row["total_hours"] == Decimal("10.500")
         assert row["total_approved_hours"] == Decimal("8.000")
         assert row["total_unapproved_hours"] == Decimal("2.500")
-
-    def test_loading_is_applied_to_the_rounded_base_cost(self, job: Job, worker: Staff) -> None:
-        """v1 rounds the base to cents FIRST, so base * loading reconciles for operators.
-
-        Worked example: a base of 100.005 rounds to 100.00 and loads to 120.00.
-        Loading the unrounded sum instead yields 120.01, which does not reconcile
-        against the 100.00 shown beside it.
-        """
-        defaults = CompanyDefaults.get_solo()
-        defaults.labour_cost_loading = Decimal("20.00")
-        defaults.save(update_fields=["labour_cost_loading"])
-        make_time_line(job, worker, accounting_date=WEEK_START, hours="1.000", unit_cost="100.00")
-        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.001", unit_cost="5.00")
-
-        [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
-        [monday, *_] = row["weekly_hours"]
-
-        assert monday["daily_base_cost"] == 100.00
-        assert monday["daily_cost"] == 120.00
 
 
 class TestPayrollColumns:

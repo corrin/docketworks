@@ -1,6 +1,7 @@
 """Resolve the authenticated staff member once at the API boundary."""
 
 from django.http import HttpRequest
+from django.utils.translation import gettext
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
@@ -12,5 +13,5 @@ def authenticated_staff(request: HttpRequest) -> Staff:
     # probing request.auth duplicated the same principal with a fallback.
     user = request.user
     if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
+        raise HttpError(401, gettext("Authentication credentials were not provided."))
     return user

@@ -12,6 +12,7 @@ from django.db import models
 from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.timezone import now as timezone_now
+from django.utils.translation import gettext, gettext_lazy
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import CompanyDefaults, loaded_wage_rate
@@ -55,7 +56,7 @@ class StaffManager(BaseUserManager["Staff"]):
     ) -> Staff:
         """Create and save a Staff user with a normalised office email."""
         if not office_email and not extra_fields.get("payroll_email"):
-            raise ValueError("A staff member needs at least one email address.")
+            raise ValueError(gettext("A staff member needs at least one email address."))
 
         if office_email is not None:
             office_email = self.normalize_email(office_email)
@@ -122,7 +123,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_digits=10,
         decimal_places=2,
         default=0,
-        help_text="Actual hourly pay rate. wage_rate is auto-computed with labour cost loading.",
+        help_text=gettext_lazy(
+            "Actual hourly pay rate. wage_rate is auto-computed with labour cost loading."
+        ),
     )
     wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     xero_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -142,19 +145,21 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=64,
         null=True,
         blank=True,
-        help_text=("SHA-256 of the last applied Xero employee fields and payroll-term history"),
+        help_text=gettext_lazy(
+            "SHA-256 of the last applied Xero employee fields and payroll-term history"
+        ),
     )
     employment_start_date = models.DateField(default=timezone.localdate)
     pay_basis = models.CharField(  # noqa: DJ001 -- NULL means not classified by payroll
         max_length=10,
-        choices=(("hourly", "Hourly"), ("salary", "Salary")),
+        choices=(("hourly", gettext_lazy("Hourly")), ("salary", gettext_lazy("Salary"))),
         null=True,
         blank=True,
     )
     date_left = models.DateField(
         null=True,
         blank=True,
-        help_text="Date staff member left employment (null for current employees)",
+        help_text=gettext_lazy("Date staff member left employment (null for current employees)"),
     )
     is_office_staff = models.BooleanField(default=False)
     is_workshop_staff = models.BooleanField(default=True)
@@ -164,7 +169,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         related_name="default_for_staff",
         null=True,
         blank=True,
-        help_text=(
+        help_text=gettext_lazy(
             "Labour subtype preselected on new timesheet entries. "
             "Auto-set from is_workshop_staff when blank."
         ),
@@ -176,43 +181,43 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_digits=4,
         decimal_places=2,
         default=8.00,
-        help_text="Standard hours for Monday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Monday, 0 for non-working day"),
     )
     hours_tue = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=8.00,
-        help_text="Standard hours for Tuesday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Tuesday, 0 for non-working day"),
     )
     hours_wed = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=8.00,
-        help_text="Standard hours for Wednesday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Wednesday, 0 for non-working day"),
     )
     hours_thu = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=8.00,
-        help_text="Standard hours for Thursday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Thursday, 0 for non-working day"),
     )
     hours_fri = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=8.00,
-        help_text="Standard hours for Friday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Friday, 0 for non-working day"),
     )
     hours_sat = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=0.00,
-        help_text="Standard hours for Saturday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Saturday, 0 for non-working day"),
     )
     hours_sun = models.DecimalField(
         max_digits=4,
         decimal_places=2,
         default=0.00,
-        help_text="Standard hours for Sunday, 0 for non-working day",
+        help_text=gettext_lazy("Standard hours for Sunday, 0 for non-working day"),
     )
 
     history: HistoricalRecords = HistoricalRecords()
@@ -227,8 +232,8 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         ordering: ClassVar[list[str]] = ["last_name", "first_name"]
-        verbose_name = "Staff Member"
-        verbose_name_plural = "Staff Members"
+        verbose_name = gettext_lazy("Staff Member")
+        verbose_name_plural = gettext_lazy("Staff Members")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
                 condition=~models.Q(preferred_name=""), name="preferred_name_not_blank"
@@ -260,7 +265,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
                 condition=models.Q(office_email__isnull=False)
                 | models.Q(payroll_email__isnull=False),
                 name="staff_at_least_one_email",
-                violation_error_message="A staff member needs at least one email address.",
+                violation_error_message=gettext_lazy(
+                    "A staff member needs at least one email address."
+                ),
             ),
             # Fable: the database's answer to the race clean() cannot close —
             # two concurrent writes of case-variant emails both pass the
@@ -288,7 +295,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
                 .exists()
             )
             if payroll_collision:
-                raise ValidationError("A staff member with this payroll email already exists.")
+                raise ValidationError(
+                    gettext("A staff member with this payroll email already exists.")
+                )
         if self.office_email is None:
             # Fable: normalize_email coerces None to "" (email or "") — running
             # it on an unset address would launder NULL into the blank string
@@ -301,7 +310,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             .exists()
         )
         if collision:
-            raise ValidationError("A staff member with this office email already exists.")
+            raise ValidationError(gettext("A staff member with this office email already exists."))
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the row, refreshing updated_at and the computed wage_rate."""
@@ -436,7 +445,8 @@ class StaffPayrollTerm(models.Model):
     staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="payroll_terms")
     effective_from = models.DateField()
     pay_basis = models.CharField(
-        max_length=10, choices=(("hourly", "Hourly"), ("salary", "Salary"))
+        max_length=10,
+        choices=(("hourly", gettext_lazy("Hourly")), ("salary", gettext_lazy("Salary"))),
     )
     annual_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

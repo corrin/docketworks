@@ -25,6 +25,7 @@ from functools import partial
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpRequest, HttpResponse
+from django.utils.translation import gettext, gettext_lazy
 from ninja import NinjaAPI
 from ninja.errors import AuthenticationError, AuthorizationError, HttpError
 from ninja.errors import ValidationError as RequestValidationError
@@ -46,8 +47,8 @@ from apps.core.schemas import AUTHENTICATION_REQUIRED_DETAIL, auth_error
 auth_logger = logging.getLogger("auth")
 
 NOT_AUTHENTICATED_DETAIL = AUTHENTICATION_REQUIRED_DETAIL
-PERMISSION_DENIED_DETAIL = "You do not have permission to perform this action."
-NOT_FOUND_DETAIL = "Not found."
+PERMISSION_DENIED_DETAIL = gettext_lazy("You do not have permission to perform this action.")
+NOT_FOUND_DETAIL = gettext_lazy("Not found.")
 
 _APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
     (InvalidInputError, 400),
@@ -100,7 +101,7 @@ def _has_authenticated_principal(request: HttpRequest) -> bool:
 def _unexpected_detail(request: HttpRequest, exc: Exception) -> str:
     """Keep staff diagnostics transparent without exposing them publicly."""
     if not _has_authenticated_principal(request):
-        return "Unexpected server error."
+        return gettext("Unexpected server error.")
     return str(exc)
 
 
@@ -108,18 +109,18 @@ def _error_detail(request: HttpRequest, *, status_code: int, detail: str) -> str
     """Mask arbitrary domain exception text before authentication succeeds."""
     if not _has_authenticated_principal(request):
         public_details = {
-            400: "Invalid request.",
-            401: NOT_AUTHENTICATED_DETAIL,
-            403: PERMISSION_DENIED_DETAIL,
-            404: NOT_FOUND_DETAIL,
-            409: "Request conflict.",
-            412: "Precondition failed.",
-            422: "Invalid request.",
+            400: gettext("Invalid request."),
+            401: str(NOT_AUTHENTICATED_DETAIL),
+            403: str(PERMISSION_DENIED_DETAIL),
+            404: str(NOT_FOUND_DETAIL),
+            409: gettext("Request conflict."),
+            412: gettext("Precondition failed."),
+            422: gettext("Invalid request."),
         }
         if status_code >= 500:
-            return "Unexpected server error."
+            return gettext("Unexpected server error.")
         if status_code not in public_details:
-            return "Request could not be completed."
+            return gettext("Request could not be completed.")
         return public_details[status_code]
     return detail
 
@@ -177,7 +178,7 @@ def password_change_required_body() -> dict[str, str | None]:
     two hand-written copies would be one silent drift from a broken gate.
     """
     return {
-        "detail": "Password change required.",
+        "detail": gettext("Password change required."),
         "code": "password_change_required",
         "error_id": None,
     }
@@ -217,7 +218,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         return api.create_response(
             request,
             {
-                "detail": "Precondition failed (ETag mismatch). Reload the job and retry.",
+                "detail": gettext("Precondition failed (ETag mismatch). Reload the job and retry."),
                 "error_id": error_id,
             },
             status=412,
@@ -228,7 +229,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
-            {"detail": NOT_FOUND_DETAIL, "error_id": error_id},
+            {"detail": str(NOT_FOUND_DETAIL), "error_id": error_id},
             status=404,
         )
 
@@ -262,7 +263,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         # ADR 0038: carry custom PermissionDenied details through;
         # fall back to the standard string for ninja's message-less default.
         message = str(exc)
-        detail = message if message and message != "Forbidden" else PERMISSION_DENIED_DETAIL
+        detail = message if message and message != "Forbidden" else str(PERMISSION_DENIED_DETAIL)
         return api.create_response(
             request,
             {"detail": detail, "error_id": error_id},
@@ -274,9 +275,9 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
         if not _has_authenticated_principal(request):
-            detail = PERMISSION_DENIED_DETAIL
+            detail = str(PERMISSION_DENIED_DETAIL)
         else:
-            detail = str(exc) or PERMISSION_DENIED_DETAIL
+            detail = str(exc) or str(PERMISSION_DENIED_DETAIL)
         return api.create_response(
             request,
             {"detail": detail, "error_id": error_id},
@@ -297,5 +298,5 @@ def require_if_match(request: HttpRequest) -> str:
     """Require the version header before a resource mutation reaches its service."""
     value = request.headers.get("If-Match")
     if not value:
-        raise HttpError(428, "Missing If-Match header (precondition required)")
+        raise HttpError(428, gettext("Missing If-Match header (precondition required)"))
     return value

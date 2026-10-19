@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from itertools import batched
 from typing import TYPE_CHECKING
 
+from django.utils.translation import gettext
 from xero_python.accounting import AccountingApi, Address, Contact, Phone
 
 from apps.xero.auth import get_api_client, get_tenant_id
@@ -35,7 +36,10 @@ def contact_from_company(company: Company) -> Contact:
     every non-Name field.
     """
     if not company.name:
-        raise ValueError(f"Company {company.id} is missing a name, which is required for Xero.")
+        raise ValueError(
+            gettext("Company %(company_id)s is missing a name, which is required for Xero.")
+            % {"company_id": company.id}
+        )
 
     # "" -> None is SDK payload shaping (omit the element), not a stored value.
     primary_phone = company.primary_phone_value()
@@ -64,7 +68,9 @@ def contact_from_company(company: Company) -> Contact:
 def create_company_contact_in_xero(company: Company) -> str:
     """Create the company as a Xero contact; returns the new xero_contact_id."""
     if not company.validate_for_xero():
-        raise ValueError(f"Company {company.id} failed Xero validation")
+        raise ValueError(
+            gettext("Company %(company_id)s failed Xero validation") % {"company_id": company.id}
+        )
 
     contact_data = contact_from_company(company)
     accounting_api = AccountingApi(get_api_client())
@@ -74,12 +80,18 @@ def create_company_contact_in_xero(company: Company) -> str:
 
     if not response.contacts:
         raise ValueError(
-            f"Xero API returned empty response when creating contact for company {company.id}"
+            gettext(
+                "Xero API returned empty response when creating contact for company %(company_id)s"
+            )
+            % {"company_id": company.id}
         )
 
     created_contact_id = response.contacts[0].contact_id
     if not created_contact_id:
-        raise ValueError(f"Xero created a contact for company {company.id} without a contact id")
+        raise ValueError(
+            gettext("Xero created a contact for company %(company_id)s without a contact id")
+            % {"company_id": company.id}
+        )
     company.xero_contact_id = created_contact_id
     # The organisation the contact was just created in, stored with its id.
     company.xero_tenant_id = tenant_id
@@ -151,7 +163,9 @@ def archive_contacts_in_xero(contact_ids: Sequence[str]) -> ArchiveOutcome:
 def sync_company_to_xero(company: Company) -> None:
     """Push the company to Xero: update its contact, or create one if unlinked."""
     if not company.validate_for_xero():
-        raise ValueError(f"Company {company.id} failed Xero validation")
+        raise ValueError(
+            gettext("Company %(company_id)s failed Xero validation") % {"company_id": company.id}
+        )
 
     if not company.xero_contact_id:
         create_company_contact_in_xero(company)

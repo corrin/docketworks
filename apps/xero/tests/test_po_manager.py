@@ -202,7 +202,7 @@ class TestValidation:
 
         assert not result["success"]
         assert result["error_type"] == "validation_error"
-        assert "not linked to Xero" in str(result["error"])
+        assert "isn't in Xero yet" in str(result["error"])
         provider.create_purchase_order.assert_not_called()
 
     def test_missing_supplier_fails_construction(self) -> None:

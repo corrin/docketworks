@@ -24,6 +24,7 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, Q, QuerySet, When
 from django.http import HttpRequest
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
 from apps.company.models import Company, ContactMethod, Person, SupplierPickupAddress
@@ -48,7 +49,9 @@ class DuplicateContactError(ConflictError):
 
     def __init__(self, name: str, external_id: str | None) -> None:
         """Carry the duplicate's identity so the endpoint can report it."""
-        super().__init__(f"Company '{name}' already exists in the accounting provider")
+        super().__init__(
+            gettext("Company '%(name)s' already exists in the accounting provider") % {"name": name}
+        )
         self.name = name
         self.external_id = external_id
 
@@ -58,7 +61,12 @@ class ProviderAuthRequiredError(ValueError):
 
     def __init__(self) -> None:
         """Use the fixed message; the endpoint maps this type to 401."""
-        super().__init__("Accounting provider authentication required")
+        super().__init__(
+            gettext(
+                "DocketWorks is not logged in to the accounting system (Xero). Connect to "
+                "Xero, then try again."
+            )
+        )
 
 
 class CompanyPhoneAnnotations(TypedDict):
@@ -428,7 +436,8 @@ class CompanyRestService:
                 },
             )
             raise ValueError(
-                f"Failed to create company in {provider.provider_name}: {result.error}"
+                gettext("Failed to create company in %(provider)s: %(error)s")
+                % {"provider": provider.provider_name, "error": result.error}
             )
 
         logger.info(
@@ -473,7 +482,7 @@ class CompanyRestService:
             # explicit {"name": ""} silently blanked the company. Reject it
             # (ledgered divergence; ultra review 2026-08-02).
             if "name" in data and not data["name"]:
-                raise ValueError("Company name is required")
+                raise ValueError(gettext("Company name is required"))
 
             if company.xero_contact_id and not get_provider().get_valid_token():
                 raise ProviderAuthRequiredError

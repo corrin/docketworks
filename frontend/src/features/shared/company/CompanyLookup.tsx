@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { CheckCircle, Plus, XCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -39,11 +40,12 @@ export function CompanyLookup({
   id,
   label,
   required = false,
-  placeholder = 'Search for a company...',
+  placeholder,
   selectedCompany,
   onSelectCompany,
   mode = 'company',
 }: CompanyLookupProps) {
+  const { t } = useTranslation('shared')
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -100,7 +102,7 @@ export function CompanyLookup({
   const handleCompanyCreated = (company: CompanySearchResult) => {
     setShowCreateModal(false)
     handleSelect(company)
-    toast.success(`Company "${company.name}" created successfully!`)
+    toast.success(t('companyLookup.created', { name: company.name }))
   }
 
   const quickCreateCompany = async (companyName: string) => {
@@ -112,7 +114,7 @@ export function CompanyLookup({
       })
       handleCompanyCreated(requireXeroLinkedCompany(response))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to create company.'))
+      toast.error(apiErrorMessage(error, t('companyLookup.createFailed')))
     }
   }
 
@@ -167,7 +169,7 @@ export function CompanyLookup({
             id={id}
             type="text"
             value={inputValue}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t('companyLookup.placeholder')}
             required={required}
             data-automation-id="CompanyLookup-input"
             autoComplete="off"
@@ -208,7 +210,11 @@ export function CompanyLookup({
                 data-automation-id="CompanyLookup-results"
                 className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
               >
-                <div id={listboxId} role="listbox" aria-label={`${label} search results`}>
+                <div
+                  id={listboxId}
+                  role="listbox"
+                  aria-label={t('companyLookup.resultsAria', { label })}
+                >
                   {suggestions.map((company) => (
                     <div
                       key={company.id}
@@ -246,9 +252,11 @@ export function CompanyLookup({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <Plus className="mr-2 h-4 w-4" />
-                        Add new company &quot;{query}&quot;
+                        {t('companyLookup.addNew', { query })}
                       </div>
-                      <div className="text-xs text-gray-500">or press Ctrl+Enter</div>
+                      <div className="text-xs text-gray-500">
+                        {t('companyLookup.ctrlEnterHint')}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -256,7 +264,9 @@ export function CompanyLookup({
                 {suggestions.length === 0 &&
                   query.length >= MIN_SEARCH_TERM_LENGTH &&
                   !search.isPending && (
-                    <div className="px-4 py-2 text-center text-gray-500">No companies found</div>
+                    <div className="px-4 py-2 text-center text-gray-500">
+                      {t('companyLookup.noResults')}
+                    </div>
                   )}
               </div>
             )}
@@ -269,13 +279,13 @@ export function CompanyLookup({
                 ? 'flex items-center space-x-1 rounded-md border border-green-200 bg-green-100 px-3 py-2 text-xs font-medium text-green-800'
                 : 'flex items-center space-x-1 rounded-md border border-red-200 bg-red-100 px-3 py-2 text-xs font-medium text-red-800'
             }
-            title={xeroValid ? 'Company has Xero ID' : 'Company missing Xero ID'}
+            title={xeroValid ? t('companyLookup.xeroValid') : t('companyLookup.xeroMissing')}
             data-automation-id={
               xeroValid ? 'CompanyLookup-xero-valid' : 'CompanyLookup-xero-invalid'
             }
           >
             {xeroValid ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-            <span>Xero</span>
+            <span>{t('companyLookup.xeroBadge')}</span>
           </div>
         </div>
       </div>

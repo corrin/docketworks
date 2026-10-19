@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
@@ -129,7 +130,7 @@ class LeaveBalanceData(TypedDict):
 
 def _dates(start_date: date, end_date: date) -> list[date]:
     if end_date < start_date:
-        raise ValidationError("End date must be on or after start date.")
+        raise ValidationError(gettext("End date must be on or after start date."))
     return [
         start_date + timedelta(days=offset) for offset in range((end_date - start_date).days + 1)
     ]
@@ -160,11 +161,11 @@ def preview_leave(
         rostered = scheduled_hours(staff, target_date, weekend_enabled=True)
         reason: str | None = None
         if not staff.is_active_on(target_date):
-            reason = "Outside employment dates"
+            reason = gettext("Outside employment dates")
         elif rostered <= 0:
-            reason = "Not a scheduled working day"
+            reason = gettext("Not a scheduled working day")
         elif target_date in conflicting_dates:
-            reason = "Timesheet entry already exists"
+            reason = gettext("Timesheet entry already exists")
         rows.append(
             {
                 "date": target_date,
@@ -189,26 +190,32 @@ def _validated_days(
 ) -> tuple[list[RequestedDay], list[PreviewDay]]:
     by_date = {row["date"]: row for row in preview["days"]}
     if len({row["date"] for row in requested_days}) != len(requested_days):
-        raise ValidationError("Each leave date may be supplied only once.")
+        raise ValidationError(gettext("Each leave date may be supplied only once."))
 
     valid: list[RequestedDay] = []
     skipped: list[PreviewDay] = []
     for requested in requested_days:
         proposal = by_date.get(requested["date"])
         if proposal is None:
-            raise ValidationError(f"{requested['date']} is outside the requested date range.")
+            raise ValidationError(
+                gettext("%(date)s is outside the requested date range.")
+                % {"date": requested["date"]}
+            )
         if not proposal["available"]:
             skipped.append(proposal)
             continue
         hours = requested["hours"]
         if hours <= 0 or hours > proposal["scheduled_hours"]:
             raise ValidationError(
-                f"Hours for {requested['date']} must be greater than zero and no more than "
-                f"the scheduled {proposal['scheduled_hours']} hours."
+                gettext(
+                    "Hours for %(date)s must be greater than zero and no more than "
+                    "the scheduled %(scheduled_hours)s hours."
+                )
+                % {"date": requested["date"], "scheduled_hours": proposal["scheduled_hours"]}
             )
         valid.append({"date": requested["date"], "hours": hours})
     if not valid:
-        raise ValidationError("No available leave days remain to save.")
+        raise ValidationError(gettext("No available leave days remain to save."))
     return valid, skipped
 
 
@@ -251,7 +258,10 @@ def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staf
     leave_type = request.leave_type
     job = leave_type.job
     if job is None:
-        raise ValidationError(f"{leave_type.display_name} is not fully configured.")
+        raise ValidationError(
+            gettext("%(leave_type)s is not fully configured.")
+            % {"leave_type": leave_type.display_name}
+        )
     # Opus: A category Xero pays from its own calculation names NO pay item. The
     # job still carries one as a dropdown default — the column is NOT NULL — and
     # copying it here is what put public-holiday hours on the Timesheets API on
@@ -262,7 +272,10 @@ def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staf
         pay_item_id = None
     else:
         if job.default_xero_pay_item is None:
-            raise ValidationError(f"{leave_type.display_name} is not fully configured.")
+            raise ValidationError(
+                gettext("%(leave_type)s is not fully configured.")
+                % {"leave_type": leave_type.display_name}
+            )
         pay_item_id = job.default_xero_pay_item.id
     # Fable: The multiplier comes from the category's own paid/unpaid rule, the
     # same LeaveType.is_paid the timesheet grid's leave_wage_rate_multiplier
@@ -430,20 +443,30 @@ def list_leave_requests(*, scope: Literal["current", "history"], search: str) ->
 def get_leave_balance(*, staff: Staff, leave_type_code: str) -> LeaveBalanceData:
     """Read the selected mapped balance live from the configured provider."""
     if not staff.xero_user_id:
-        raise ValidationError(f"{staff.get_display_full_name()} is not linked to payroll.")
+        raise ValidationError(
+            gettext("%(staff)s is not linked to payroll.")
+            % {"staff": staff.get_display_full_name()}
+        )
     leave_type = configured_leave_type(leave_type_code)
     job = leave_type.job
     if job is None or job.default_xero_pay_item is None:
-        raise ValidationError(f"{leave_type.display_name} is not fully configured.")
+        raise ValidationError(
+            gettext("%(leave_type)s is not fully configured.")
+            % {"leave_type": leave_type.display_name}
+        )
     pay_item = job.default_xero_pay_item
     if not pay_item.uses_leave_api:
-        raise ValidationError(f"{leave_type.display_name} does not have a leave balance.")
+        raise ValidationError(
+            gettext("%(leave_type)s does not have a leave balance.")
+            % {"leave_type": leave_type.display_name}
+        )
     balances = get_provider().get_payroll_leave_balances(str(staff.xero_user_id))
     for balance in balances:
         if balance.leave_type_external_id == pay_item.xero_id:
             return {"balance": balance.balance, "unit": balance.unit, "name": balance.name}
     raise ValidationError(
-        f"Xero returned no {leave_type.display_name} balance for {staff.get_display_full_name()}."
+        gettext("Xero returned no %(leave_type)s balance for %(staff)s.")
+        % {"leave_type": leave_type.display_name, "staff": staff.get_display_full_name()}
     )
 
 
@@ -497,5 +520,5 @@ def create_office_closure(
         requests.append(result["request"])
         skipped.extend(result["skipped_days"])
     if not requests:
-        raise ValidationError("No available office-closure days remain to save.")
+        raise ValidationError(gettext("No available office-closure days remain to save."))
     return {"batch_id": str(batch_id), "requests": requests, "skipped_days": skipped}

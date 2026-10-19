@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Pencil, Trash2 } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -121,6 +122,7 @@ export function PickupAddressModal({
   onUpdated,
   onDeleted,
 }: PickupAddressModalProps) {
+  const { t } = useTranslation('purchasing')
   const queryClient = useQueryClient()
   const listQuery = useQuery({
     ...companiesPickupAddressesListOptions({ query: { supplier_id: supplier.id } }),
@@ -187,11 +189,11 @@ export function PickupAddressModal({
         {
           onSuccess: (updated) => {
             void invalidate()
-            toast.success('Address updated')
+            toast.success(t('pickupModal.updated'))
             onUpdated(updated)
             close()
           },
-          onError: (error) => toast.error(apiErrorMessage(error, 'Failed to update the address.')),
+          onError: (error) => toast.error(apiErrorMessage(error, t('pickupModal.updateFailed'))),
         },
       )
       return
@@ -201,11 +203,11 @@ export function PickupAddressModal({
       {
         onSuccess: (created) => {
           void invalidate()
-          toast.success('Address created')
+          toast.success(t('pickupModal.created'))
           onSelect(created)
           close()
         },
-        onError: (error) => toast.error(apiErrorMessage(error, 'Failed to create the address.')),
+        onError: (error) => toast.error(apiErrorMessage(error, t('pickupModal.createFailed'))),
       },
     )
   }
@@ -216,12 +218,12 @@ export function PickupAddressModal({
       {
         onSuccess: () => {
           void invalidate()
-          toast.success('Address deleted')
+          toast.success(t('pickupModal.deleted'))
           setDeleteTarget(null)
           if (editing?.id === address.id) setEditing(null)
           onDeleted(address.id)
         },
-        onError: (error) => toast.error(apiErrorMessage(error, 'Failed to delete the address.')),
+        onError: (error) => toast.error(apiErrorMessage(error, t('pickupModal.deleteFailed'))),
       },
     )
   }
@@ -245,6 +247,16 @@ export function PickupAddressModal({
     </label>
   )
 
+  const suburbField = textField('suburb', t('pickupModal.suburb'), ids.suburb, 'suburb')
+  const cityField = textField('city', t('pickupModal.city'), ids.city, 'city')
+  const stateField = textField('state', t('pickupModal.state'), ids.state, 'state')
+  const postalCodeField = textField(
+    'postal_code',
+    t('pickupModal.postalCode'),
+    ids.postalCode,
+    'postal-code',
+  )
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent
@@ -252,10 +264,8 @@ export function PickupAddressModal({
         data-automation-id={`${ID}-container`}
       >
         <DialogHeader>
-          <DialogTitle>Pickup address for {supplier.name}</DialogTitle>
-          <DialogDescription>
-            Choose where this order is collected from, or add an address.
-          </DialogDescription>
+          <DialogTitle>{t('pickupModal.title', { supplier: supplier.name })}</DialogTitle>
+          <DialogDescription>{t('pickupModal.description')}</DialogDescription>
         </DialogHeader>
 
         {/* A nested dialog, not an overlay div: the primitive traps focus and
@@ -269,10 +279,14 @@ export function PickupAddressModal({
               <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
-              <DialogTitle className="text-center">Delete Address?</DialogTitle>
+              <DialogTitle className="text-center">{t('pickupModal.confirmTitle')}</DialogTitle>
               <DialogDescription className="text-center">
-                <strong>{deleteTarget?.name}</strong> will no longer be offered for this supplier's
-                orders.
+                <Trans
+                  t={t}
+                  i18nKey="pickupModal.confirmBody"
+                  values={{ name: deleteTarget?.name }}
+                  components={{ strong: <strong /> }}
+                />
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-center gap-3">
@@ -282,7 +296,7 @@ export function PickupAddressModal({
                 onClick={() => setDeleteTarget(null)}
                 data-automation-id={`${ID}-cancel-delete`}
               >
-                Cancel
+                {t('pickupModal.cancel')}
               </Button>
               <Button
                 type="button"
@@ -291,7 +305,7 @@ export function PickupAddressModal({
                 onClick={() => deleteTarget && remove(deleteTarget)}
                 data-automation-id={`${ID}-confirm-delete`}
               >
-                Delete
+                {t('pickupModal.delete')}
               </Button>
             </div>
           </DialogContent>
@@ -302,11 +316,11 @@ export function PickupAddressModal({
             isPending={listQuery.isPending}
             isError={listQuery.isError}
             onRetry={() => void listQuery.refetch()}
-            loadingLabel="pickup addresses"
-            errorLabel="pickup addresses"
+            loadingLabel={t('pickupModal.listLabel')}
+            errorLabel={t('pickupModal.listLabel')}
           >
             {listQuery.data && listQuery.data.length === 0 ? (
-              <p className="text-sm text-slate-500">No pickup addresses yet for this supplier.</p>
+              <p className="text-sm text-slate-500">{t('pickupModal.empty')}</p>
             ) : (
               <ul className="flex flex-col gap-2" data-automation-id={`${ID}-list`}>
                 {(listQuery.data ?? []).map((address) => (
@@ -320,7 +334,7 @@ export function PickupAddressModal({
                         {address.name}
                         {address.is_primary && (
                           <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600">
-                            Primary
+                            {t('pickupModal.primary')}
                           </span>
                         )}
                       </div>
@@ -334,14 +348,16 @@ export function PickupAddressModal({
                         onClick={() => onSelect(address)}
                         data-automation-id={`${ID}-select-${address.id}`}
                       >
-                        {address.id === selectedId ? 'Selected' : 'Select'}
+                        {address.id === selectedId
+                          ? t('pickupModal.selected')
+                          : t('pickupModal.select')}
                       </Button>
                       <Button
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        title="Edit address"
-                        aria-label={`Edit ${address.name}`}
+                        title={t('pickupModal.editTitle')}
+                        aria-label={t('pickupModal.editLabel', { name: address.name })}
                         onClick={() => {
                           setEditing(address)
                           setForm(formFrom(address))
@@ -354,8 +370,8 @@ export function PickupAddressModal({
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        title="Delete address"
-                        aria-label={`Delete ${address.name}`}
+                        title={t('pickupModal.deleteTitle')}
+                        aria-label={t('pickupModal.deleteLabel', { name: address.name })}
                         onClick={() => setDeleteTarget(address)}
                         data-automation-id={`${ID}-delete-${address.id}`}
                       >
@@ -377,22 +393,24 @@ export function PickupAddressModal({
             data-automation-id={`${ID}-form`}
           >
             <h3 className="text-sm font-semibold">
-              {editing ? `Edit ${editing.name}` : 'Add an address'}
+              {editing
+                ? t('pickupModal.editHeading', { name: editing.name })
+                : t('pickupModal.addHeading')}
             </h3>
             <label htmlFor={ids.name} className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Name</span>
+              <span className="text-slate-700">{t('pickupModal.name')}</span>
               <input
                 id={ids.name}
                 type="text"
                 className={INPUT_CLASS}
                 value={form.name}
-                placeholder="e.g. Main yard"
+                placeholder={t('pickupModal.namePlaceholder')}
                 onChange={(event) => setField('name', event.target.value)}
                 data-automation-id={`${ID}-name-input`}
               />
             </label>
             <label htmlFor={ids.street} className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Street</span>
+              <span className="text-slate-700">{t('pickupModal.street')}</span>
               <AddressAutocompleteInput
                 id={ids.street}
                 value={form.street}
@@ -411,13 +429,13 @@ export function PickupAddressModal({
               />
             </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {textField('suburb', 'Suburb', ids.suburb, 'suburb')}
-              {textField('city', 'City', ids.city, 'city')}
-              {textField('state', 'State or region', ids.state, 'state')}
-              {textField('postal_code', 'Postal code', ids.postalCode, 'postal-code')}
+              {suburbField}
+              {cityField}
+              {stateField}
+              {postalCodeField}
             </div>
             <label htmlFor={ids.notes} className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Notes for the driver</span>
+              <span className="text-slate-700">{t('pickupModal.notes')}</span>
               <textarea
                 id={ids.notes}
                 className={`${INPUT_CLASS} min-h-16`}
@@ -434,16 +452,20 @@ export function PickupAddressModal({
                 onChange={(event) => setField('is_primary', event.target.checked)}
                 data-automation-id={`${ID}-primary-input`}
               />
-              Primary pickup address for this supplier
+              {t('pickupModal.isPrimary')}
             </label>
             <div className="flex justify-end gap-2">
               {editing && (
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel edit
+                  {t('pickupModal.cancelEdit')}
                 </Button>
               )}
               <Button type="submit" disabled={!canSubmit} data-automation-id={`${ID}-submit`}>
-                {saving ? 'Saving…' : editing ? 'Save changes' : 'Add address'}
+                {saving
+                  ? t('pickupModal.saving')
+                  : editing
+                    ? t('pickupModal.saveChanges')
+                    : t('pickupModal.addAddress')}
               </Button>
             </div>
           </form>

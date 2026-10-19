@@ -8,6 +8,7 @@ from chatkit.store import NotFoundError, Store
 from chatkit.types import Attachment, Page, ThreadItem, ThreadMetadata
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext
 from pydantic import TypeAdapter
 
 from apps.job.models import JobQuoteChat, JobQuoteChatThread
@@ -31,7 +32,7 @@ class JobChatStore(Store[ChatContext]):
         try:
             row = await JobQuoteChatThread.objects.aget(id=thread_id, job_id=context.job_id)
         except JobQuoteChatThread.DoesNotExist as exc:
-            raise NotFoundError("Conversation not found in this job") from exc
+            raise NotFoundError(gettext("Conversation not found in this job")) from exc
         return ThreadMetadata.model_validate(row.payload)
 
     async def save_thread(self, thread: ThreadMetadata, context: ChatContext) -> None:
@@ -112,7 +113,7 @@ class JobChatStore(Store[ChatContext]):
         try:
             row = await JobQuoteChat.objects.aget(thread_id=thread_id, message_id=item_id)
         except JobQuoteChat.DoesNotExist as exc:
-            raise NotFoundError("Message not found in this conversation") from exc
+            raise NotFoundError(gettext("Message not found in this conversation")) from exc
         return ITEM_ADAPTER.validate_python(row.payload)
 
     async def delete_thread(self, thread_id: str, context: ChatContext) -> None:
@@ -131,11 +132,17 @@ class JobChatStore(Store[ChatContext]):
 
     async def load_attachment(self, attachment_id: str, context: ChatContext) -> Attachment:
         """Reject attachment references as well as uploads."""
-        raise NotFoundError(f"Attachment {attachment_id} not found in job {context.job_id}")
+        raise NotFoundError(
+            gettext("Attachment %(attachment_id)s not found in job %(job_id)s")
+            % {"attachment_id": attachment_id, "job_id": context.job_id}
+        )
 
     async def delete_attachment(self, attachment_id: str, context: ChatContext) -> None:
         """Refuse attachment operations consistently."""
-        raise NotFoundError(f"Attachment {attachment_id} not found in job {context.job_id}")
+        raise NotFoundError(
+            gettext("Attachment %(attachment_id)s not found in job %(job_id)s")
+            % {"attachment_id": attachment_id, "job_id": context.job_id}
+        )
 
 
 def storage_timestamp(value: datetime) -> datetime:

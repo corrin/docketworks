@@ -22,6 +22,7 @@ from django.db.models import Count, IntegerField, Q
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
@@ -327,8 +328,15 @@ def validate_ordered_quantity(line: PurchaseOrderLine, quantity: Decimal) -> Non
     """Amend the order without contradicting its net supplier receipts."""
     if quantity < line.received_quantity:
         raise InvalidInputError(
-            f"{line.description}: ordered quantity {quantity} cannot be below "
-            f"net received quantity {line.received_quantity}. Reverse the receipt first."
+            gettext(
+                "%(description)s: ordered quantity %(quantity)s cannot be below "
+                "net received quantity %(received)s. Reverse the receipt first."
+            )
+            % {
+                "description": line.description,
+                "quantity": quantity,
+                "received": line.received_quantity,
+            }
         )
 
 
@@ -342,8 +350,8 @@ def _require_a_real_date(label: str, value: date | None) -> None:
     """Refuse an order or delivery date whose year can only be a typing slip."""
     if value is not None and value.year < _EARLIEST_ORDER_YEAR:
         raise InvalidInputError(
-            f"{label} {value.isoformat()} is in the year {value.year}. "
-            "Enter the year with four digits."
+            gettext("%(label)s %(date)s is in the year %(year)s. Enter the year with four digits.")
+            % {"label": label, "date": value.isoformat(), "year": value.year}
         )
 
 
@@ -359,8 +367,11 @@ def _require_a_stock_item_code(line_data: PurchaseOrderLineWriteData) -> None:
     item_code = line_data.get("item_code")
     if item_code is not None and not Stock.objects.filter(item_code=item_code).exists():
         raise InvalidInputError(
-            f"Item code '{item_code}' is not a stock item. Pick a stock item, or leave the "
-            "code off and describe the line."
+            gettext(
+                "Item code '%(item_code)s' is not a stock item. Pick a stock item, or leave the "
+                "code off and describe the line."
+            )
+            % {"item_code": item_code}
         )
 
 
@@ -402,7 +413,10 @@ def _write_lines(po: PurchaseOrder, lines: list[PurchaseOrderLineWriteData]) -> 
             logger.info("Created new line %s for PO %s", new_line.id, po.id)
             continue
         if line_id not in existing:
-            raise DjangoValidationError(f"Line ID {line_id} not found on PO {po.po_number}")
+            raise DjangoValidationError(
+                gettext("Line ID %(line_id)s not found on PO %(po_number)s")
+                % {"line_id": line_id, "po_number": po.po_number}
+            )
         line = existing[line_id]
         _apply_line_fields(line, line_data)
         line.save()
@@ -412,7 +426,9 @@ def _resolve_supplier(supplier_id: UUID) -> Company:
     """Resolve the PO's supplier. ``Supplier`` is a proxy of ``Company``."""
     supplier = Supplier.objects.filter(id=supplier_id).first()
     if supplier is None:
-        raise DjangoValidationError(f"Supplier {supplier_id} not found")
+        raise DjangoValidationError(
+            gettext("Supplier %(supplier_id)s not found") % {"supplier_id": supplier_id}
+        )
     return supplier
 
 
@@ -429,7 +445,8 @@ def _resolve_pickup_address(pickup_address_id: UUID, supplier: Company) -> Suppl
     ).first()
     if address is None:
         raise DjangoValidationError(
-            f"Pickup address {pickup_address_id} does not belong to supplier {supplier.name}"
+            gettext("Pickup address %(address_id)s does not belong to supplier %(supplier)s")
+            % {"address_id": pickup_address_id, "supplier": supplier.name}
         )
     return address
 
@@ -442,8 +459,8 @@ def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -
     created by the inbound sync instead, and is never pushed back.
     """
     # The order date is written here only; no edit changes it afterwards.
-    _require_a_real_date("Order date", data.get("order_date"))
-    _require_a_real_date("Expected delivery", data.get("expected_delivery"))
+    _require_a_real_date(gettext("Order date"), data.get("order_date"))
+    _require_a_real_date(gettext("Expected delivery"), data.get("expected_delivery"))
     supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
@@ -479,7 +496,7 @@ def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateDat
     if "reference" in data:
         po.reference = data["reference"]
     if "expected_delivery" in data:
-        _require_a_real_date("Expected delivery", data["expected_delivery"])
+        _require_a_real_date(gettext("Expected delivery"), data["expected_delivery"])
         po.expected_delivery = data["expected_delivery"]
     if "status" not in data:
         return
@@ -506,7 +523,7 @@ def _apply_supplier_and_pickup(po: PurchaseOrder, data: PurchaseOrderUpdateData)
     if pickup_address_id is None:
         po.pickup_address = None
     elif po.supplier is None:
-        raise DjangoValidationError("A pickup address needs a supplier")
+        raise DjangoValidationError(gettext("A pickup address needs a supplier"))
     else:
         po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
 
@@ -543,8 +560,11 @@ def update_purchase_order(
                 .exists()
             ):
                 raise DjangoValidationError(
-                    "This line preserves inventory provenance and cannot be deleted. "
-                    "See its allocations."
+                    gettext(
+                        "This purchase order line can't be deleted: goods received on it are "
+                        "recorded on jobs or in stock, and DocketWorks keeps that record. See "
+                        "where the received goods went."
+                    )
                 )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 

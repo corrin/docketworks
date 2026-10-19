@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
@@ -23,6 +24,7 @@ interface KpiMonthNavProps {
  * YYYY-MM compares as a string, which is how the bounds are checked.
  */
 export function KpiMonthNav({ month, onMonthChange }: KpiMonthNavProps) {
+  const { t } = useTranslation('reports')
   const thisMonth = localIsoMonth()
   return (
     <div
@@ -32,7 +34,7 @@ export function KpiMonthNav({ month, onMonthChange }: KpiMonthNavProps) {
       <Button
         variant="outline"
         size="sm"
-        aria-label="Previous month"
+        aria-label={t('monthNav.previous')}
         disabled={month <= FIRST_MONTH}
         data-automation-id="KpiCalendarReport-prev"
         onClick={() => onMonthChange(shiftMonth(month, -1))}
@@ -44,7 +46,7 @@ export function KpiMonthNav({ month, onMonthChange }: KpiMonthNavProps) {
         value={month}
         min={FIRST_MONTH}
         max={thisMonth}
-        aria-label="Month"
+        aria-label={t('monthNav.month')}
         className={`${INPUT_CLASS} w-auto`}
         data-automation-id="KpiCalendarReport-month-input"
         onChange={(event) => {
@@ -57,7 +59,7 @@ export function KpiMonthNav({ month, onMonthChange }: KpiMonthNavProps) {
       <Button
         variant="outline"
         size="sm"
-        aria-label="Next month"
+        aria-label={t('monthNav.next')}
         disabled={month >= thisMonth}
         data-automation-id="KpiCalendarReport-next"
         onClick={() => onMonthChange(shiftMonth(month, 1))}
@@ -71,7 +73,7 @@ export function KpiMonthNav({ month, onMonthChange }: KpiMonthNavProps) {
         data-automation-id="KpiCalendarReport-this-month"
         onClick={() => onMonthChange(thisMonth)}
       >
-        This month
+        {t('monthNav.thisMonth')}
       </Button>
       <span
         className="text-sm font-medium text-slate-700"

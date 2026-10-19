@@ -8,6 +8,7 @@ when it does not fit.
 import logging
 from io import BytesIO
 
+from django.utils.translation import gettext
 from PIL import Image, ImageFile
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -55,7 +56,7 @@ class PurchaseOrderPDFGenerator:
         """Draw the wide logo across the content width as a letterhead."""
         company = CompanyDefaults.get_solo()
         if not company.logo_wide:
-            raise ValueError("No wide logo uploaded in Company Defaults")
+            raise ValueError(gettext("No wide logo uploaded in Company Defaults"))
         with Image.open(company.logo_wide.path) as img:
             src_w, src_h = img.size
         img_height_pt = src_h * (CONTENT_WIDTH / src_w)

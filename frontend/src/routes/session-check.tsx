@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   type LoginSearch,
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/session-check')({
 })
 
 function SessionCheckPage() {
+  const { t } = useTranslation('shell')
   const search = Route.useSearch()
   const { queryClient } = Route.useRouteContext()
   const router = useRouter()
@@ -40,8 +42,8 @@ function SessionCheckPage() {
   return (
     <RecoveryPage
       automationId="SessionCheck-page"
-      title="Connection interrupted"
-      message="DocketWorks could not reach the server. Check your connection, then try again."
+      title={t('sessionCheck.title')}
+      message={t('sessionCheck.message')}
       retrying={retrying}
       onRetry={retry}
     />

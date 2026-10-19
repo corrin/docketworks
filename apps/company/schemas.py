@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email as django_validate_email
+from django.utils.translation import gettext
 from ninja import Schema
 from pydantic import field_validator
 
@@ -33,14 +34,14 @@ def clean_optional_email(value: str | None) -> str | None:
     try:
         django_validate_email(value)
     except DjangoValidationError as exc:
-        raise ValueError("Enter a valid email address.") from exc
+        raise ValueError(gettext("Enter a valid email address.")) from exc
     return value
 
 
 def _require_phone_digits(value: str | None) -> str | None:
     """Reject phone values that normalize to no digits."""
     if value and not ContactMethod.normalize_phone(value):
-        raise ValueError("Phone number must contain at least one digit")
+        raise ValueError(gettext("Phone number must contain at least one digit"))
     return value
 
 
@@ -311,7 +312,7 @@ class PhoneOwnershipRequest(Schema):
     @classmethod
     def _phone(cls, value: str) -> str:
         if not ContactMethod.normalize_phone(value):
-            raise ValueError("Phone number must contain at least one digit")
+            raise ValueError(gettext("Phone number must contain at least one digit"))
         return value
 
 
@@ -344,9 +345,9 @@ class SupplierSearchAliasCreateRequest(Schema):
     def _alias(cls, value: str) -> str:
         alias = value.strip()
         if not alias:
-            raise ValueError("Alias is required")
+            raise ValueError(gettext("Alias is required"))
         if len(alias) > 255:
-            raise ValueError("Alias must be at most 255 characters")
+            raise ValueError(gettext("Alias must be at most 255 characters"))
         return alias
 
 

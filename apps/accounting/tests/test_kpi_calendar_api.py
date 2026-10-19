@@ -41,7 +41,6 @@ def thresholds() -> CompanyDefaults:
     defaults.kpi_daily_billable_hours_green = Decimal("8")
     defaults.kpi_daily_billable_hours_amber = Decimal("5")
     defaults.kpi_daily_gp_target = Decimal("1000.00")
-    defaults.kpi_daily_gp_green = Decimal("500.00")
     defaults.kpi_daily_gp_amber = Decimal("250.00")
     defaults.save()
     return defaults
@@ -59,6 +58,21 @@ class TestKPICalendar:
     def test_out_of_range_month_is_rejected(self, authenticated_client: Client) -> None:
         assert authenticated_client.get(URL, {"year": "2026", "month": "13"}).status_code == 422
         assert authenticated_client.get(URL, {"year": "1999", "month": "6"}).status_code == 422
+
+    def test_profit_ladder_turns_red_below_the_amber_setting(
+        self, authenticated_client: Client
+    ) -> None:
+        """Owner's ladder: green from the target, amber from the amber setting, red below."""
+        job = make_job(make_company("Ladder Co"), make_staff("ladder@example.com"))
+        add_material_line(job, on=date(2026, 6, 10), rev="1300.00", cost="300.00")
+        add_material_line(job, on=date(2026, 6, 11), rev="400.00", cost="100.00")
+        add_material_line(job, on=date(2026, 6, 12), rev="300.00", cost="100.00")
+
+        days = authenticated_client.get(URL, JUNE).json()["calendar_data"]
+
+        assert days["2026-06-10"]["color_gp"] == "green"  # $1,000: covers the target
+        assert days["2026-06-11"]["color_gp"] == "amber"  # $300: at least the $250 amber
+        assert days["2026-06-12"]["color_gp"] == "red"  # $200: under the amber line
 
     def test_day_metrics_and_colors(self, authenticated_client: Client) -> None:
         worker = make_staff("kpi@example.com")

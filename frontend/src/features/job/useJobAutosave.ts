@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, type JobDetail } from '@/api'
@@ -26,6 +27,7 @@ const AUTOSAVE_DEBOUNCE_MS = 1000
  * still holds.
  */
 export function useJobAutosave(jobId: string, serverJob: JobDetail) {
+  const { t } = useTranslation('job')
   const baselineRef = useRef<JobFieldValues>(snapshotJob(serverJob))
   const { save } = useJobFieldSave(jobId, {
     onSaved: (changes) => {
@@ -65,10 +67,10 @@ export function useJobAutosave(jobId: string, serverJob: JobDetail) {
         // swallowed error here would let edits vanish with zero feedback —
         // concurrency failures already toast via the interceptor.
         if (!isConcurrencyError(error)) {
-          toast.error(apiErrorMessage(error, 'Failed to save the job.'))
+          toast.error(apiErrorMessage(error, t('autosave.saveFailed')))
         }
       })
-  }, [save])
+  }, [save, t])
 
   const queueChange = useCallback(
     (field: JobEditableField, value: unknown) => {

@@ -35,6 +35,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
+from django.utils.translation import gettext_lazy
 from ninja import Schema
 from pydantic import (
     ConfigDict,
@@ -235,8 +236,8 @@ class AuditEventOut(ResponseSchema):
 
 AuthErrorCode = Literal["authentication_required", "invalid_credentials"]
 
-AUTHENTICATION_REQUIRED_DETAIL = "Authentication required."
-INVALID_CREDENTIALS_DETAIL = "Invalid e-mail or password."
+AUTHENTICATION_REQUIRED_DETAIL = gettext_lazy("Authentication required.")
+INVALID_CREDENTIALS_DETAIL = gettext_lazy("Invalid e-mail or password.")
 
 
 class AuthErrorOut(ResponseSchema):
@@ -256,7 +257,7 @@ def auth_error(code: AuthErrorCode) -> AuthErrorOut:
         if code == "authentication_required"
         else INVALID_CREDENTIALS_DETAIL
     )
-    return AuthErrorOut(detail=detail, code=code)
+    return AuthErrorOut(detail=str(detail), code=code)
 
 
 def omittable(default: Any) -> Any:

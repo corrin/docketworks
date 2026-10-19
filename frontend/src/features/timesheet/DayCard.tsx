@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { AttendanceOut, FillOut, PendingDayOut, StandardDayOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { formatDateLong } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { clockWords, fillWords, standardHoursWords } from './myTime'
 
@@ -36,6 +38,7 @@ export function ClockTimesForm({
   onSave,
   onCancel,
 }: ClockTimesFormProps) {
+  const { t } = useTranslation('timesheet')
   const [start, setStart] = useState(initialStart)
   const [finish, setFinish] = useState(initialFinish)
 
@@ -51,7 +54,7 @@ export function ClockTimesForm({
       }}
     >
       <label className="text-sm font-medium text-gray-700">
-        Started
+        {t('clockTimesForm.started')}
         <input
           type="time"
           required
@@ -62,7 +65,7 @@ export function ClockTimesForm({
         />
       </label>
       <label className="text-sm font-medium text-gray-700">
-        Finished
+        {t('clockTimesForm.finished')}
         <input
           type="time"
           required={finishRequired}
@@ -78,7 +81,7 @@ export function ClockTimesForm({
         disabled={saving || start === ''}
         data-automation-id={`${automationId}-times-save`}
       >
-        Save times
+        {t('clockTimesForm.save')}
       </Button>
       <Button
         type="button"
@@ -87,7 +90,7 @@ export function ClockTimesForm({
         disabled={saving}
         onClick={onCancel}
       >
-        Cancel
+        {t('clockTimesForm.cancel')}
       </Button>
     </form>
   )
@@ -122,7 +125,7 @@ interface DayCardProps {
 function noFillWords(day: AttendanceOut, standard: StandardDayOut | null): string {
   // Nobody clocked: the standard day is what it falls back to.
   if (day.state === 'not_clocked_in') return standardHoursWords(standard)
-  return 'Clock out to see what is left to fill.'
+  return i18n.t('timesheet:dayCard.clockOutToSee')
 }
 
 /**
@@ -146,6 +149,7 @@ export function DayCard({
   onUseStandardHours,
   onAddBreak,
 }: DayCardProps) {
+  const { t } = useTranslation('timesheet')
   const [editingTimes, setEditingTimes] = useState(false)
   const clockIn = day.clock_in
 
@@ -160,14 +164,16 @@ export function DayCard({
           data-automation-id="DayCard-pending"
         >
           {formatDateLong(pending.date)}{' '}
-          {pending.state === 'at_work' ? 'is still clocked in.' : 'has not been sent.'}{' '}
+          {pending.state === 'at_work'
+            ? t('dayCard.pendingStillClockedIn')
+            : t('dayCard.pendingNotSent')}{' '}
           <button
             type="button"
             className="font-medium underline underline-offset-2"
             data-automation-id="DayCard-pending-open"
             onClick={() => onOpenDay(pending.date)}
           >
-            {pending.state === 'at_work' ? 'Set the finish time' : 'Finish it'}
+            {pending.state === 'at_work' ? t('dayCard.setFinishTime') : t('dayCard.finishIt')}
           </button>
         </p>
       )}
@@ -185,7 +191,7 @@ export function DayCard({
       )}
       {missedClockOutFinish !== null && clockIn !== null && !editingTimes && (
         <p className="rounded bg-amber-50 p-2 text-sm text-amber-900">
-          No clock out.{' '}
+          {t('dayCard.noClockOut')}{' '}
           <button
             type="button"
             className="font-medium underline underline-offset-2"
@@ -193,7 +199,7 @@ export function DayCard({
             data-automation-id="DayCard-use-standard-finish"
             onClick={() => void onSetTimes(clockIn, missedClockOutFinish)}
           >
-            Use {missedClockOutFinish.slice(0, 5)}?
+            {t('dayCard.useFinish', { time: missedClockOutFinish.slice(0, 5) })}
           </button>
         </p>
       )}
@@ -220,7 +226,7 @@ export function DayCard({
               data-automation-id="DayCard-clock-in"
               onClick={() => void onClock('in')}
             >
-              Clock in
+              {t('dayCard.clockIn')}
             </Button>
           )}
           {isToday && day.state === 'at_work' && (
@@ -230,7 +236,7 @@ export function DayCard({
               data-automation-id="DayCard-clock-out"
               onClick={() => void onClock('out')}
             >
-              Clock out
+              {t('dayCard.clockOut')}
             </Button>
           )}
           {/* Clocked out, or never clocked on a day with standard hours: on the
@@ -244,7 +250,7 @@ export function DayCard({
               data-automation-id="DayCard-fill-and-send"
               onClick={day.state === 'clocked_out' ? onFill : onUseStandardHours}
             >
-              Fill and send
+              {t('dayCard.fillAndSend')}
             </Button>
           )}
           {/* Reopening is its own control: a stray tap on Clock in never does it. */}
@@ -256,7 +262,7 @@ export function DayCard({
               data-automation-id="DayCard-clock-back-in"
               onClick={() => void onSetTimes(clockIn, null)}
             >
-              Clock back in
+              {t('dayCard.clockBackIn')}
             </Button>
           )}
           <Button
@@ -266,7 +272,7 @@ export function DayCard({
             data-automation-id="DayCard-change-times"
             onClick={() => setEditingTimes(true)}
           >
-            {day.state === 'not_clocked_in' ? 'Set times' : 'Change times'}
+            {day.state === 'not_clocked_in' ? t('dayCard.setTimes') : t('dayCard.changeTimes')}
           </Button>
           {/* A break belongs to a day that has clock times. */}
           {day.state !== 'not_clocked_in' && (
@@ -277,7 +283,7 @@ export function DayCard({
               data-automation-id="DayCard-add-break"
               onClick={onAddBreak}
             >
-              Add a break
+              {t('dayCard.addBreak')}
             </Button>
           )}
         </div>

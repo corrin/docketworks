@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 
 import { apiErrorMessage } from '@/api'
+import { i18n } from '@/lib/i18n'
 import { revokeObjectUrlLater, saveObjectUrl } from '@/lib/download'
 
 interface OpenBlobOptions {
@@ -24,11 +25,11 @@ export async function openBlobInNewTab(
   try {
     data = await fetchBlob()
   } catch (error) {
-    toast.error(apiErrorMessage(error, `Failed to fetch the ${label}.`))
+    toast.error(apiErrorMessage(error, i18n.t('job:openBlob.fetchFailed', { label })))
     return
   }
   if (!(data instanceof Blob)) {
-    toast.error(`The ${label} response was not a document.`)
+    toast.error(i18n.t('job:openBlob.notADocument', { label }))
     return
   }
 
@@ -45,9 +46,9 @@ export async function openBlobInNewTab(
   revokeObjectUrlLater(url)
   if (!win) {
     if (options.downloadName === undefined) {
-      toast.error('Failed to open print window — check the popup blocker.')
+      toast.error(i18n.t('job:openBlob.printBlocked'))
     } else {
-      toast.error('Failed to open the attachment — check the popup blocker.')
+      toast.error(i18n.t('job:openBlob.attachmentBlocked'))
     }
     return
   }

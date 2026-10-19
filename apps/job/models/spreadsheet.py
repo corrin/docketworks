@@ -4,6 +4,7 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class QuoteSpreadsheet(models.Model):
@@ -44,7 +45,7 @@ class QuoteSpreadsheet(models.Model):
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    sheet_id = models.CharField(max_length=100, help_text="Google Drive file ID")
+    sheet_id = models.CharField(max_length=100, help_text=gettext_lazy("Google Drive file ID"))
     sheet_url = models.URLField(max_length=500, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     tab = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=100, blank=True, null=True, default="Primary Details"
@@ -58,8 +59,8 @@ class QuoteSpreadsheet(models.Model):
     )
 
     class Meta:
-        verbose_name = "Quote Spreadsheet"
-        verbose_name_plural = "Quote Spreadsheets"
+        verbose_name = gettext_lazy("Quote Spreadsheet")
+        verbose_name_plural = gettext_lazy("Quote Spreadsheets")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(condition=~models.Q(sheet_url=""), name="sheet_url_not_blank"),
             models.CheckConstraint(condition=~models.Q(tab=""), name="tab_not_blank"),

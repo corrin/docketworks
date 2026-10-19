@@ -20,6 +20,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -234,7 +235,8 @@ def companies_create_create(
         {
             "success": True,
             "company": CompanyRestService._format_company_summary(annotated_with_phone(annotated)),
-            "message": f'Company "{annotated.name}" created successfully',
+            "message": gettext('Company "%(name)s" created successfully')
+            % {"name": annotated.name},
         },
     )
 
@@ -286,7 +288,7 @@ def _update_company(company_id: UUID, payload: CompanyUpdateRequest) -> dict[str
     return {
         "success": True,
         "company": CompanyRestService._format_company_detail(updated),
-        "message": f'Company "{updated.name}" updated successfully',
+        "message": gettext('Company "%(name)s" updated successfully') % {"name": updated.name},
     }
 
 
@@ -485,13 +487,19 @@ def companies_addresses_validate_create(
     """
     address = payload.address.strip()
     if not address:
-        raise HttpError(400, "Address is required")
+        raise HttpError(400, gettext("Address is required"))
 
     try:
         places = search_places(address)
     except GeocodingNotConfiguredError as exc:
         logger.warning("Google Maps API key not set on IntegrationSettings")
-        raise HttpError(503, "Address validation service not configured") from exc
+        raise HttpError(
+            503,
+            gettext(
+                "Address checking isn't set up: the Google Maps key is missing. Ask an "
+                "administrator to enter it under Admin > Integrations."
+            ),
+        ) from exc
     except GeocodingError as exc:
         persist_app_error(exc)
         logger.exception("Address lookup failed")
@@ -681,7 +689,10 @@ def _apply_pickup_address_write(
     if "company" in supplied and payload.company is not None:
         company = Company.objects.filter(id=payload.company).first()
         if company is None:
-            raise HttpError(400, f"Company {payload.company} does not exist")
+            raise HttpError(
+                400,
+                gettext("Company %(company)s does not exist") % {"company": payload.company},
+            )
         address.company = company
     for field in (
         "name",

@@ -1,10 +1,12 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiMonthlyTotalsOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { formatHoursDisplay } from '@/lib/format'
 
 import {
-  GRADE_WORDING,
+  gradeWording,
   hoursText,
   kpiInkClass,
   monthColor,
@@ -32,6 +34,7 @@ function BreakdownButton({
   dialog: KpiCardDialog
   onOpen: (d: KpiCardDialog) => void
 }) {
+  const { t } = useTranslation('reports')
   return (
     <Button
       variant="ghost"
@@ -39,13 +42,17 @@ function BreakdownButton({
       data-automation-id={`KpiCalendarReport-card-${dialog}-breakdown`}
       onClick={() => onOpen(dialog)}
     >
-      Breakdown
+      {t('summaryCards.breakdown')}
     </Button>
   )
 }
 
-function SubLine({ children }: { children: string }) {
-  return <div className="text-sm font-normal text-gray-500">{children}</div>
+function SubLine({ children, title }: { children: string; title?: string }) {
+  return (
+    <div className="text-sm font-normal text-gray-500" title={title}>
+      {children}
+    </div>
+  )
 }
 
 /**
@@ -55,6 +62,7 @@ function SubLine({ children }: { children: string }) {
  * carried money.
  */
 export function KpiSummaryCards({ totals, target, money, onOpen }: KpiSummaryCardsProps) {
+  const { t } = useTranslation('reports')
   const grade = monthColor(totals, target)
   return (
     <div
@@ -62,49 +70,64 @@ export function KpiSummaryCards({ totals, target, money, onOpen }: KpiSummaryCar
       className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
     >
       <SummaryCard
-        label="Labour"
+        label={t('summaryCards.labour')}
         valueAutomationId="KpiCalendarReport-card-labour-value"
         action={<BreakdownButton dialog="labour" onOpen={onOpen} />}
       >
-        {formatHoursDisplay(totals.billable_hours)} billed
-        <SubLine>{`${formatHoursDisplay(totals.total_hours)} total`}</SubLine>
-        <SubLine>{`${hoursText(totals.avg_active_day_billable_hours)} billed per active day`}</SubLine>
+        {t('summaryCards.billed', { hours: formatHoursDisplay(totals.billable_hours) })}
+        <SubLine>
+          {t('summaryCards.totalHours', { hours: formatHoursDisplay(totals.total_hours) })}
+        </SubLine>
+        <SubLine title={t('summaryCards.titles.billedPerActiveDay')}>
+          {t('summaryCards.billedPerActiveDay', {
+            hours: hoursText(totals.avg_active_day_billable_hours),
+          })}
+        </SubLine>
         <div
           className={`text-sm font-medium ${kpiInkClass(grade)}`}
           data-automation-id="KpiCalendarReport-card-labour-grade"
         >
-          {GRADE_WORDING[grade]}
+          {gradeWording(grade)}
         </div>
       </SummaryCard>
       <SummaryCard
-        label="Materials"
+        label={t('summaryCards.materials')}
+        title={t('summaryCards.titles.materials')}
         valueAutomationId="KpiCalendarReport-card-material-value"
         action={<BreakdownButton dialog="material" onOpen={onOpen} />}
       >
         {money(totals.material_profit)}
-        <SubLine>{`${money(totals.material_revenue)} revenue`}</SubLine>
-        <SubLine>{`${money(totals.material_cost)} cost`}</SubLine>
-        <SubLine>{`${ratioText(totals.material_margin)} margin`}</SubLine>
+        <SubLine>{t('summaryCards.revenue', { amount: money(totals.material_revenue) })}</SubLine>
+        <SubLine>{t('summaryCards.cost', { amount: money(totals.material_cost) })}</SubLine>
+        <SubLine title={t('summaryCards.titles.margin')}>
+          {t('summaryCards.margin', { ratio: ratioText(totals.material_margin) })}
+        </SubLine>
       </SummaryCard>
       <SummaryCard
-        label="Adjustments"
+        label={t('summaryCards.adjustments')}
+        title={t('summaryCards.titles.adjustments')}
         valueAutomationId="KpiCalendarReport-card-adjustment-value"
         action={<BreakdownButton dialog="adjustment" onOpen={onOpen} />}
       >
         {money(totals.adjustment_profit)}
-        <SubLine>{`${money(totals.adjustment_revenue)} revenue`}</SubLine>
-        <SubLine>{`${money(totals.adjustment_cost)} cost`}</SubLine>
-        <SubLine>{`${ratioText(totals.adjustment_margin)} margin`}</SubLine>
+        <SubLine>{t('summaryCards.revenue', { amount: money(totals.adjustment_revenue) })}</SubLine>
+        <SubLine>{t('summaryCards.cost', { amount: money(totals.adjustment_cost) })}</SubLine>
+        <SubLine title={t('summaryCards.titles.margin')}>
+          {t('summaryCards.margin', { ratio: ratioText(totals.adjustment_margin) })}
+        </SubLine>
       </SummaryCard>
       <SummaryCard
-        label="Net profit"
+        label={t('summaryCards.netProfit')}
+        title={t('summaryCards.titles.netProfit')}
         valueAutomationId="KpiCalendarReport-card-profit-value"
         action={<BreakdownButton dialog="profit" onOpen={onOpen} />}
       >
         <span className={signClass(totals.net_profit)}>{money(totals.net_profit)}</span>
-        <SubLine>{`${money(totals.total_revenue)} revenue`}</SubLine>
-        <SubLine>{`${money(totals.gross_profit)} gross profit`}</SubLine>
-        <SubLine>{`${ratioText(totals.net_margin)} net margin`}</SubLine>
+        <SubLine>{t('summaryCards.revenue', { amount: money(totals.total_revenue) })}</SubLine>
+        <SubLine>{t('summaryCards.grossProfit', { amount: money(totals.gross_profit) })}</SubLine>
+        <SubLine title={t('summaryCards.titles.netMargin')}>
+          {t('summaryCards.netMargin', { ratio: ratioText(totals.net_margin) })}
+        </SubLine>
       </SummaryCard>
     </div>
   )

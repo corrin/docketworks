@@ -4,6 +4,7 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 from apps.operations.models.scheduler_run import SchedulerRun
 
@@ -13,19 +14,19 @@ class UnscheduledReason(models.TextChoices):
 
     MISSING_ESTIMATE_OR_QUOTE_HOURS = (
         "missing_estimate_or_quote_hours",
-        "Missing estimate or quote hours",
+        gettext_lazy("Missing estimate or quote hours"),
     )
     MIN_PEOPLE_EXCEEDS_STAFF = (
         "min_people_exceeds_staff",
-        "min_people exceeds available workshop staff",
+        gettext_lazy("min_people exceeds available workshop staff"),
     )
     INVALID_STAFFING_CONSTRAINTS = (
         "invalid_staffing_constraints",
-        "Invalid staffing constraints (max_people < min_people)",
+        gettext_lazy("Invalid staffing constraints (max_people < min_people)"),
     )
     NOT_REACHED_IN_HORIZON = (
         "not_reached_in_horizon",
-        "Higher-priority jobs consumed all capacity within the schedule horizon",
+        gettext_lazy("Higher-priority jobs consumed all capacity within the schedule horizon"),
     )
 
 
@@ -50,7 +51,7 @@ class JobProjection(models.Model):
     anticipated_start_date = models.DateField(null=True, blank=True)
     anticipated_end_date = models.DateField(null=True, blank=True)
     remaining_hours = models.FloatField(
-        help_text="Remaining hours at the time of this scheduler run",
+        help_text=gettext_lazy("Remaining hours at the time of this scheduler run"),
     )
     is_late = models.BooleanField(default=False)
     # Unscheduled fields (populated when the job cannot be scheduled)

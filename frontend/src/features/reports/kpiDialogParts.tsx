@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { KpiDayDataOut } from '@/api'
 import {
@@ -57,10 +58,21 @@ export function KpiDialog({
   )
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+/** `hint` is the heading's tooltip: what the section counts (ADR 0068). */
+export function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint?: string
+  children: ReactNode
+}) {
   return (
     <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <h3 className="mb-3 text-lg font-semibold text-gray-900">{title}</h3>
+      <h3 className="mb-3 text-lg font-semibold text-gray-900" title={hint}>
+        {title}
+      </h3>
       {children}
     </section>
   )
@@ -77,11 +89,13 @@ interface StatProps {
   note?: string
   automationId?: string
   className?: string
+  /** The tile's tooltip: what the figure counts (ADR 0068). */
+  title?: string
 }
 
-export function Stat({ label, value, note, automationId, className }: StatProps) {
+export function Stat({ label, value, note, automationId, className, title }: StatProps) {
   return (
-    <div>
+    <div title={title}>
       <div
         className={`text-2xl font-semibold text-gray-900 ${className ?? ''}`}
         data-automation-id={automationId}
@@ -103,11 +117,14 @@ interface RowProps {
   indent?: boolean
   automationId?: string
   className?: string
+  /** The line's tooltip: what the figure counts (ADR 0068). */
+  title?: string
 }
 
-export function Row({ label, value, strong, indent, automationId, className }: RowProps) {
+export function Row({ label, value, strong, indent, automationId, className, title }: RowProps) {
   return (
     <div
+      title={title}
       className={`flex items-center justify-between text-sm ${strong ? 'border-t border-gray-300 pt-2 font-semibold' : ''} ${indent ? 'pl-4 text-gray-600' : ''}`}
     >
       <span>{label}</span>
@@ -138,12 +155,13 @@ export function DailyTable({
   columns: readonly DailyColumn[]
   automationId: string
 }) {
+  const { t } = useTranslation('reports')
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm" data-automation-id={automationId}>
         <thead>
           <tr className="border-b border-gray-300 text-xs text-gray-600">
-            <th className="px-3 py-2 text-left font-semibold">Date</th>
+            <th className="px-3 py-2 text-left font-semibold">{t('dailyTable.date')}</th>
             {columns.map((column) => (
               <th key={column.header} className="px-3 py-2 text-right font-semibold">
                 {column.header}
@@ -159,7 +177,9 @@ export function DailyTable({
             >
               <td className="px-3 py-1.5">
                 {formatDate(day.date)}
-                {day.holiday && <span className="ml-1 text-xs text-gray-500">(Holiday)</span>}
+                {day.holiday && (
+                  <span className="ml-1 text-xs text-gray-500">{t('dailyTable.holiday')}</span>
+                )}
               </td>
               {columns.map((column) => (
                 <td key={column.header} className="px-3 py-1.5 text-right">
@@ -171,7 +191,7 @@ export function DailyTable({
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-            <td className="px-3 py-2">Total</td>
+            <td className="px-3 py-2">{t('dailyTable.total')}</td>
             {columns.map((column) => (
               <td key={column.header} className="px-3 py-2 text-right">
                 {column.total}

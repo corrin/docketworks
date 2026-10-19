@@ -33,6 +33,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.translation import gettext, gettext_noop
 from ninja import File, Query, Router
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -199,7 +200,7 @@ def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
         conf.refresh_name in request.COOKIES,
     )
     clear_auth_cookies(response)
-    return LogoutResponse(success=True, message="Successfully logged out")
+    return LogoutResponse(success=True, message=gettext("Successfully logged out"))
 
 
 @router.get(
@@ -244,14 +245,17 @@ def accounts_me_password_create(
         # ADR 0038: transparent after authentication — a wrong current
         # password here is the caller's error to fix, not an authentication
         # event, so it is a 400 with the real reason rather than a 401.
-        return Status(400, PasswordErrorOut(detail="Current password is incorrect."))
+        return Status(400, PasswordErrorOut(detail=gettext("Current password is incorrect.")))
     if payload.new_password == payload.current_password:
         # A forced change satisfied by re-entering the admin-issued temp
         # password would leave the account on a credential someone else
         # knows — the exact state the password_needs_reset gate exists to
         # end.
         return Status(
-            400, PasswordErrorOut(detail="The new password must be different from the current one.")
+            400,
+            PasswordErrorOut(
+                detail=gettext("The new password must be different from the current one.")
+            ),
         )
     try:
         _set_staff_password(user, payload.new_password)
@@ -273,7 +277,7 @@ def accounts_me_password_create(
     return Status(200, PasswordChangeResponse())
 
 
-INVALID_RESET_LINK_DETAIL = "This reset link is invalid or has expired."
+INVALID_RESET_LINK_DETAIL = gettext_noop("This reset link is invalid or has expired.")
 
 
 def _stored_email_matching(staff: Staff, normalized: str) -> str:
@@ -353,12 +357,12 @@ def accounts_password_reset_confirm_create(
     # covers UnicodeDecodeError: valid base64 decoding to invalid UTF-8).
     except ValueError, DjangoValidationError, Staff.DoesNotExist:
         logger.info("PASSWORD RESET CONFIRM REFUSED - undecodable or unknown uid")
-        return Status(400, PasswordErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+        return Status(400, PasswordErrorOut(detail=gettext(INVALID_RESET_LINK_DETAIL)))
     if not staff.is_currently_active or not default_token_generator.check_token(
         staff, payload.token
     ):
         logger.info("PASSWORD RESET CONFIRM REFUSED - pk=%s", staff.pk)
-        return Status(400, PasswordErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+        return Status(400, PasswordErrorOut(detail=gettext(INVALID_RESET_LINK_DETAIL)))
     try:
         _set_staff_password(staff, payload.new_password)
     # deliberate-swallow: the ANONYMOUS confirm cannot raise — the envelope
@@ -514,7 +518,7 @@ def accounts_staff_icon_create(
 ) -> Staff:
     """Save the uploaded icon and delete the file it replaces."""
     staff = get_object_or_404(Staff, pk=staff_id)
-    validate_image_upload(file, label="Profile picture")
+    validate_image_upload(file, label=gettext("Profile picture"))
     # Save the new file before unlinking the old one — a save failure must not
     # leave the row pointing at a deleted file. update_fields is deliberate
     # here (nothing wage-related changes) and must name updated_at, which

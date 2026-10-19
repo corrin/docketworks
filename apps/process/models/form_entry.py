@@ -8,6 +8,7 @@ import uuid
 from typing import TYPE_CHECKING, ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class FormEntry(models.Model):
@@ -32,7 +33,7 @@ class FormEntry(models.Model):
         "Form",
         related_name="entries",
         on_delete=models.CASCADE,
-        help_text="Form definition this entry belongs to",
+        help_text=gettext_lazy("Form definition this entry belongs to"),
     )
 
     job = models.ForeignKey(
@@ -41,11 +42,11 @@ class FormEntry(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Linked job (e.g. incident forms)",
+        help_text=gettext_lazy("Linked job (e.g. incident forms)"),
     )
 
     entry_date = models.DateField(
-        help_text="Date this entry relates to",
+        help_text=gettext_lazy("Date this entry relates to"),
     )
 
     staff = models.ForeignKey(
@@ -54,7 +55,7 @@ class FormEntry(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="form_entries",
-        help_text="Staff member this entry is about (e.g. inductee, trainee)",
+        help_text=gettext_lazy("Staff member this entry is about (e.g. inductee, trainee)"),
     )
 
     entered_by = models.ForeignKey(
@@ -63,7 +64,7 @@ class FormEntry(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="form_entries_created",
-        help_text="Staff member who created this entry",
+        help_text=gettext_lazy("Staff member who created this entry"),
     )
 
     # Fable: SET_NULL, not CASCADE — an action extracted from a meeting stands
@@ -79,13 +80,15 @@ class FormEntry(models.Model):
 
     data = models.JSONField(
         default=dict,
-        help_text="Entry data - schema varies by document type",
+        help_text=gettext_lazy("Entry data - schema varies by document type"),
     )
 
     is_active = models.BooleanField(
         default=True,
         db_index=True,
-        help_text="Soft delete flag - inactive entries are hidden from normal queries",
+        help_text=gettext_lazy(
+            "Soft delete flag - inactive entries are hidden from normal queries"
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -94,8 +97,8 @@ class FormEntry(models.Model):
 
     class Meta:
         ordering: ClassVar = ["-entry_date", "-created_at"]
-        verbose_name = "Form Entry"
-        verbose_name_plural = "Form Entries"
+        verbose_name = gettext_lazy("Form Entry")
+        verbose_name_plural = gettext_lazy("Form Entries")
 
     def __str__(self) -> str:
         return f"Entry {self.entry_date} on {self.form.title}"

@@ -2,6 +2,7 @@ import { ChatKit, useChatKit } from '@openai/chatkit-react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -14,14 +15,15 @@ import {
 import { QueryState } from '@/features/shared/QueryState'
 
 export function JobQuotingChatTab({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('job')
   const config = useQuery(jobQuoteChatConfigRetrieveOptions({ path: { job_id: jobId } }))
   return (
     <div className="min-w-0 p-6" data-automation-id="JobQuotingChatTab-root">
       <QueryState
         isPending={config.isPending}
         isError={config.isError}
-        loadingLabel="Loading quoting chat…"
-        errorLabel={apiErrorMessage(config.error, 'Could not load quoting chat.')}
+        loadingLabel={t('quotingChat.loading')}
+        errorLabel={apiErrorMessage(config.error, t('quotingChat.loadFailed'))}
         onRetry={() => void config.refetch()}
       >
         {config.data &&
@@ -30,10 +32,10 @@ export function JobQuotingChatTab({ jobId }: { jobId: string }) {
               {config.data.configuration_error}{' '}
               {config.data.can_configure ? (
                 <Link className="underline" to="/admin/integrations">
-                  Configure integrations
+                  {t('quotingChat.configureIntegrations')}
                 </Link>
               ) : (
-                'Ask an administrator to configure the integration.'
+                t('quotingChat.askAdministrator')
               )}
             </p>
           ) : config.data.domain_key !== null ? (
@@ -61,19 +63,20 @@ function QuotingChat({
   csrfToken: string
   models: QuotingChatModelOut[]
 }) {
+  const { t } = useTranslation('job')
   const fetch = useMemo(() => quotingChatFetch(jobId, csrfToken), [jobId, csrfToken])
   const { control } = useChatKit({
     api: { url: quotingChatUrl(jobId), domainKey, fetch },
-    frameTitle: 'Quoting assistant',
+    frameTitle: t('quotingChat.assistantTitle'),
     theme: { colorScheme: 'light', typography: { fontFamily: 'Inter, sans-serif', baseSize: 14 } },
-    header: { title: { text: 'Quoting assistant' } },
-    composer: { placeholder: 'Ask about materials, supplier prices or this job…', models },
-    startScreen: { greeting: 'What would you like to quote for this job?' },
+    header: { title: { text: t('quotingChat.assistantTitle') } },
+    composer: { placeholder: t('quotingChat.composerPlaceholder'), models },
+    startScreen: { greeting: t('quotingChat.greeting') },
     threadItemActions: { feedback: false },
     disclaimer: {
-      text: 'Check prices and assumptions. Chat drafts do not change the job’s estimate.',
+      text: t('quotingChat.disclaimer'),
     },
-    onError: ({ error }) => toast.error(apiErrorMessage(error, 'Quoting chat failed.')),
+    onError: ({ error }) => toast.error(apiErrorMessage(error, t('quotingChat.failed'))),
   })
   return <ChatKit control={control} className="block h-[calc(100dvh-15rem)] min-h-[480px] w-full" />
 }

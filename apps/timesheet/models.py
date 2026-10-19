@@ -14,6 +14,8 @@ from typing import ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.utils.functional import Promise
+from django.utils.translation import gettext, gettext_lazy
 
 from apps.core.audit import AuditEvent, JsonScalar
 
@@ -45,11 +47,11 @@ class LeaveType(models.Model):
     """A fixed Docketworks absence category and its configured shop job."""
 
     class Code(models.TextChoices):
-        ANNUAL = "annual_leave", "Annual Leave"
-        SICK = "sick_leave", "Sick Leave"
-        UNPAID = "unpaid_leave", "Unpaid Leave"
-        BEREAVEMENT = "bereavement_leave", "Bereavement Leave"
-        PUBLIC_HOLIDAY = "public_holiday", "Public Holiday"
+        ANNUAL = "annual_leave", gettext_lazy("Annual Leave")
+        SICK = "sick_leave", gettext_lazy("Sick Leave")
+        UNPAID = "unpaid_leave", gettext_lazy("Unpaid Leave")
+        BEREAVEMENT = "bereavement_leave", gettext_lazy("Bereavement Leave")
+        PUBLIC_HOLIDAY = "public_holiday", gettext_lazy("Public Holiday")
 
     code = models.CharField(max_length=32, choices=Code.choices, primary_key=True)
     display_name = models.CharField(max_length=100)
@@ -59,7 +61,7 @@ class LeaveType(models.Model):
         related_name="leave_type_configuration",
         null=True,
         blank=True,
-        help_text=(
+        help_text=gettext_lazy(
             "Special job used for this leave type. Its default Xero pay item is the "
             "single source of the Xero mapping."
         ),
@@ -134,7 +136,9 @@ class LeaveType(models.Model):
         if self.job is None:
             return
         if self.job.status != "special":
-            raise ValidationError({"job": "Leave types must use a special Docketworks job."})
+            raise ValidationError(
+                {"job": gettext("Leave types must use a special DocketWorks job.")}
+            )
         if self.posting_surface is PostingSurface.XERO_COMPUTED:
             # Opus: No pay item requirement either way. Xero pays this day from its
             # own calculation, so no Xero object identifies it; the job's default
@@ -143,17 +147,19 @@ class LeaveType(models.Model):
             return
         pay_item = self.job.default_xero_pay_item
         if pay_item is None:
-            raise ValidationError({"job": "The selected job must have a Xero payroll item."})
+            raise ValidationError(
+                {"job": gettext("The selected job must have a Xero payroll item.")}
+            )
         if not pay_item.uses_leave_api:
-            raise ValidationError({"job": "This leave type requires a Xero leave type."})
+            raise ValidationError({"job": gettext("This leave type requires a Xero leave type.")})
 
 
 class LeaveRequest(models.Model):
     """One administrator-created leave range for one staff member."""
 
     class Source(models.TextChoices):
-        LEAVE = "leave", "Leave"
-        OFFICE_CLOSURE = "office_closure", "Office closure"
+        LEAVE = "leave", gettext_lazy("Leave")
+        OFFICE_CLOSURE = "office_closure", gettext_lazy("Office closure")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     staff = models.ForeignKey(
@@ -196,7 +202,7 @@ class LeaveRequest(models.Model):
     def clean(self) -> None:
         """Reject reversed ranges before the database constraint does."""
         if self.end_date < self.start_date:
-            raise ValidationError({"end_date": "End date must be on or after start date."})
+            raise ValidationError({"end_date": gettext("End date must be on or after start date.")})
 
 
 class LeaveDay(models.Model):
@@ -254,10 +260,10 @@ class ClockHow(models.TextChoices):
     or corrected is told apart: nobody is chased over the office's own entry.
     """
 
-    CLOCKED = "clocked", "Clocked"
-    CLOCKED_REMOTELY = "clocked_remotely", "Clocked away from the workshop"
-    NOT_CLOCKED = "not_clocked", "Not clocked"
-    SET_BY_OFFICE = "set_by_office", "Set by the office"
+    CLOCKED = "clocked", gettext_lazy("Clocked")
+    CLOCKED_REMOTELY = "clocked_remotely", gettext_lazy("Clocked away from the workshop")
+    NOT_CLOCKED = "not_clocked", gettext_lazy("Not clocked")
+    SET_BY_OFFICE = "set_by_office", gettext_lazy("Set by the office")
 
 
 class AttendanceDay(models.Model):
@@ -355,17 +361,17 @@ class TimesheetEvent(AuditEvent):
     # event is true: "trusted" then means "not checked".
     trusted = models.BooleanField()
 
-    EVENT_LABELS: ClassVar[dict[str, str]] = {
-        "entry_created": "Entry created",
-        "entry_updated": "Entry updated",
-        "entry_moved": "Entry moved",
-        "entry_deleted": "Entry deleted",
-        "entry_approved": "Entry approved",
-        "clocked_in": "Clocked in",
-        "clocked_out": "Clocked out",
-        "clock_times_set": "Clock times set",
-        "standard_hours_used": "Standard hours used",
-        "day_sent": "Day sent",
+    EVENT_LABELS: ClassVar[dict[str, Promise]] = {
+        "entry_created": gettext_lazy("Entry created"),
+        "entry_updated": gettext_lazy("Entry updated"),
+        "entry_moved": gettext_lazy("Entry moved"),
+        "entry_deleted": gettext_lazy("Entry deleted"),
+        "entry_approved": gettext_lazy("Entry approved"),
+        "clocked_in": gettext_lazy("Clocked in"),
+        "clocked_out": gettext_lazy("Clocked out"),
+        "clock_times_set": gettext_lazy("Clock times set"),
+        "standard_hours_used": gettext_lazy("Standard hours used"),
+        "day_sent": gettext_lazy("Day sent"),
     }
     FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
         "Job": _moved,

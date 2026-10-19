@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -15,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { INPUT_CLASS } from '@/components/ui/field'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { EntryForm, type EntryFormSubmitBody, type StaffOption } from './EntryForm'
 import { textFor } from './entryValue'
@@ -49,23 +51,24 @@ function groupByForm(rows: EntryOut[], formsById: Map<string, FormOut>): ChildGr
   }
   return [...byForm.entries()].map(([formId, children]) => ({
     formId,
-    title: formsById.get(formId)?.title ?? 'Unknown form',
+    title: formsById.get(formId)?.title ?? i18n.t('process:linkedEntries.unknownForm'),
     children,
   }))
 }
 
-/** A short label for one child row: its first couple of data fields,
-    display-resolved where the server resolved them. Falls back to the
-    entry's id for a schema with no fields to summarise. */
-function summarize(entry: EntryOut): string {
-  const parts = Object.entries(entry.data)
+/** One child row: its date, then its form's first couple of fields as
+    `Label: value`, display-resolved where the server resolved them. Just the
+    date for a form with no fields, or while the form list has not loaded. */
+function childLine(entry: EntryOut, form: FormOut | undefined): string {
+  const date = formatDate(entry.entry_date)
+  const summary = extractFields(form?.form_schema)
     .slice(0, 2)
-    .map(([key, value]) => {
-      const displayed = entry.display_data[key]
-      const text = displayed ?? textFor(value)
-      return `${key}: ${text === '' ? '-' : text}`
+    .map((field) => {
+      const text = entry.display_data[field.key] ?? textFor(entry.data[field.key])
+      return `${field.label}: ${text === '' ? '-' : text}`
     })
-  return parts.length > 0 ? parts.join(', ') : entry.id
+    .join(', ')
+  return summary === '' ? date : `${date} — ${summary}`
 }
 
 /**
@@ -115,6 +118,7 @@ function LinkedEntriesBody({
   currentStaffId: string
   onChanged: () => void
 }) {
+  const { t } = useTranslation('process')
   const queryClient = useQueryClient()
   const childrenQuery = useQuery(
     processEntriesListOptions({ query: { parent: entry.id, page_size: 100 } }),
@@ -151,10 +155,10 @@ function LinkedEntriesBody({
       })
       await queryClient.invalidateQueries({ queryKey: processEntriesListQueryKey() })
       onChanged()
-      toast.success('Linked entry saved')
+      toast.success(t('linkedEntries.saved'))
       setAddingFormId('')
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not save the linked entry.'))
+      toast.error(apiErrorMessage(error, t('linkedEntries.saveFailed')))
     }
   }
 
@@ -164,18 +168,18 @@ function LinkedEntriesBody({
       data-automation-id="LinkedEntriesDialog-content"
     >
       <DialogHeader>
-        <DialogTitle>Linked entries</DialogTitle>
+        <DialogTitle>{t('linkedEntries.title')}</DialogTitle>
       </DialogHeader>
       <QueryState
         isPending={childrenQuery.isPending}
         isError={childrenQuery.isError}
         onRetry={() => void childrenQuery.refetch()}
-        loadingLabel="Loading linked entries..."
-        errorLabel="Failed to load linked entries."
+        loadingLabel={t('linkedEntries.loading')}
+        errorLabel={t('linkedEntries.loadFailed')}
       >
         {groups.length === 0 ? (
           <p className="text-sm text-slate-500" data-automation-id="LinkedEntriesDialog-empty">
-            No linked entries yet.
+            {t('linkedEntries.empty')}
           </p>
         ) : (
           <div className="flex flex-col gap-4" data-automation-id="LinkedEntriesDialog-groups">
@@ -185,7 +189,7 @@ function LinkedEntriesBody({
                 <ul className="mt-1 flex flex-col gap-1 text-sm text-slate-600">
                   {group.children.map((child) => (
                     <li key={child.id} data-automation-id={`LinkedEntriesDialog-child-${child.id}`}>
-                      {formatDate(child.entry_date)} — {summarize(child)}
+                      {childLine(child, formsById.get(group.formId))}
                     </li>
                   ))}
                 </ul>
@@ -197,12 +201,12 @@ function LinkedEntriesBody({
 
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4">
         <label className="flex flex-col gap-1 text-sm font-medium">
-          <span className="text-slate-700">Add a linked entry</span>
+          <span className="text-slate-700">{t('linkedEntries.addLabel')}</span>
           {formsError && (
             <p className="text-xs text-red-700">
-              Could not load forms.{' '}
+              {t('linkedEntries.formsFailed')}{' '}
               <button type="button" className="underline" onClick={() => void formsQuery.refetch()}>
-                Retry
+                {t('linkedEntries.retry')}
               </button>
             </p>
           )}
@@ -213,7 +217,11 @@ function LinkedEntriesBody({
             disabled={formsQuery.isPending}
             data-automation-id="LinkedEntriesDialog-add-form"
           >
-            <option value="">{formsQuery.isPending ? 'Loading…' : 'Choose a form…'}</option>
+            <option value="">
+              {formsQuery.isPending
+                ? t('linkedEntries.loadingOption')
+                : t('linkedEntries.chooseForm')}
+            </option>
             {(formsQuery.data ?? []).map((form) => (
               <option key={form.id} value={form.id}>
                 {form.title}
@@ -223,9 +231,7 @@ function LinkedEntriesBody({
         </label>
         {addingForm !== null &&
           (extractFields(addingForm.form_schema).length === 0 ? (
-            <p className="text-sm text-slate-600">
-              This document has no form schema defined. Entries cannot be added.
-            </p>
+            <p className="text-sm text-slate-600">{t('linkedEntries.noSchema')}</p>
           ) : (
             <EntryForm
               schema={extractFields(addingForm.form_schema)}

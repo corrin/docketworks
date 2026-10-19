@@ -81,6 +81,16 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
         payroll.get_working_pattern,
     ),
     _route("GET", f"{_PAYROLL}/PaySlips", payroll.list_pay_slips),
+    _route("POST", f"{_PAYROLL}/Employees", payroll.create_employee),
+    _route("PUT", f"{_PAYROLL}/Employees/{_ID}", payroll.update_employee),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/Employment", payroll.create_employment),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/SalaryAndWages", payroll.create_salary_and_wage),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/Working-Patterns", payroll.create_working_pattern),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/Tax", payroll.update_employee_tax),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/PaymentMethods", payroll.create_payment_method),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/LeaveSetup", payroll.create_leave_setup),
+    _route("GET", f"{_PAYROLL}/Employees/{_ID}/LeaveTypes", payroll.list_employee_leave_types),
+    _route("POST", f"{_PAYROLL}/Employees/{_ID}/LeaveTypes", payroll.create_employee_leave_type),
     _route("POST", f"{_IDENTITY}/connect/token", identity.answer_refresh),
 )
 

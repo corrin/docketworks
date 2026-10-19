@@ -36,6 +36,7 @@ from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.translation import gettext
 from ninja import Field, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -106,15 +107,13 @@ self_service_auth = CookieJWTAuth()
 # Approving time is any office staff member's job, superuser or not (KAN-376).
 office_auth = OfficeStaffCookieJWTAuth()
 
-DATE_FORMAT_ERROR = "Invalid date format. Use YYYY-MM-DD"
-
 
 def _parse_date(raw: str) -> date:
     """Parse a YYYY-MM-DD path/query value, 400 on anything else."""
     try:
         return datetime.strptime(raw, "%Y-%m-%d").date()  # noqa: DTZ007 -- date-only value
     except ValueError as exc:
-        raise HttpError(400, DATE_FORMAT_ERROR) from exc
+        raise HttpError(400, gettext("Invalid date format. Use YYYY-MM-DD")) from exc
 
 
 def _validation_message(exc: DjangoValidationError) -> str:
@@ -154,7 +153,7 @@ def get_staff_daily_timesheet_detail_by_date(
     """One staff member's row from the daily summary; 404 when they are absent."""
     detail = daily_timesheet_service.get_staff_daily_detail(staff_id, _parse_date(target_date))
     if detail is None:
-        raise HttpError(404, "Staff member not found")
+        raise HttpError(404, gettext("Staff member not found"))
     return detail
 
 
@@ -226,7 +225,9 @@ def job_timesheet_entries_retrieve(
     try:
         staff = Staff.objects.get(id=staff_id)
     except Staff.DoesNotExist as exc:
-        raise HttpError(404, f"Staff member {staff_id} not found") from exc
+        raise HttpError(
+            404, gettext("Staff member %(staff_id)s not found") % {"staff_id": staff_id}
+        ) from exc
     return workshop_timesheet_service.management_day_data(staff, entry_date)
 
 
@@ -249,7 +250,9 @@ def job_timesheet_entries_history_retrieve(
     """
     entry_date = _parse_date(date)
     if not Staff.objects.filter(id=staff_id).exists():
-        raise HttpError(404, f"Staff member {staff_id} not found")
+        raise HttpError(
+            404, gettext("Staff member %(staff_id)s not found") % {"staff_id": staff_id}
+        )
     return list(
         TimesheetEvent.objects.filter(
             worker_id=staff_id, accounting_date=entry_date
@@ -402,7 +405,7 @@ def _entry_owner(request: HttpRequest, staff_id: UUID | None) -> Staff:
     try:
         return workshop_timesheet_service.entry_owner(authenticated_staff(request), staff_id)
     except Staff.DoesNotExist as exc:
-        raise HttpError(404, "Staff member not found.") from exc
+        raise HttpError(404, gettext("Staff member not found.")) from exc
 
 
 def _location(location: EntryLocationIn | None) -> EntryLocation | None:
@@ -417,9 +420,9 @@ def _query_location(latitude: float | None, longitude: float | None) -> EntryLoc
     if latitude is None and longitude is None:
         return None
     if latitude is None or longitude is None:
-        raise HttpError(400, "Send both latitude and longitude, or neither.")
+        raise HttpError(400, gettext("Send both latitude and longitude, or neither."))
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-        raise HttpError(400, "That is not a position on Earth.")
+        raise HttpError(400, gettext("That is not a position on Earth."))
     return {"latitude": latitude, "longitude": longitude}
 
 
@@ -463,7 +466,7 @@ def job_workshop_timesheets_create(
             _location(payload.location),
         )
     except Job.DoesNotExist as exc:
-        raise HttpError(404, "Job not found.") from exc
+        raise HttpError(404, gettext("Job not found.")) from exc
     except DjangoValidationError as exc:
         # Unpriceable entry (no wage rate, no pay item, no labour rate): the
         # caller's data is wrong, so 400 with the specific cause (ADR 0038).
@@ -512,15 +515,15 @@ def job_workshop_timesheets_partial_update(
     """Update one of the authenticated staff member's own entries."""
     data = _update_payload(payload)
     if len(data) <= 1:
-        raise HttpError(400, "At least one field besides entry_id must be provided.")
+        raise HttpError(400, gettext("At least one field besides entry_id must be provided."))
     try:
         return workshop_timesheet_service.update_entry(
             authenticated_staff(request), data, _location(payload.location)
         )
     except CostLine.DoesNotExist as exc:
-        raise HttpError(404, "Timesheet entry not found.") from exc
+        raise HttpError(404, gettext("Timesheet entry not found.")) from exc
     except Job.DoesNotExist as exc:
-        raise HttpError(404, "Job not found.") from exc
+        raise HttpError(404, gettext("Job not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
@@ -551,7 +554,7 @@ def job_workshop_timesheets_destroy(
             authenticated_staff(request), entry_id, _query_location(latitude, longitude)
         )
     except CostLine.DoesNotExist as exc:
-        raise HttpError(404, "Timesheet entry not found.") from exc
+        raise HttpError(404, gettext("Timesheet entry not found.")) from exc
     except ValueError as exc:
         # A leave-managed line: the leave workflow owns it (ADR 0038).
         raise HttpError(400, str(exc)) from exc
@@ -648,7 +651,7 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
     owner = _entry_owner(request, staff_id)
     day = _parse_date(date)
     if (hours is None) == (finish is None):
-        raise HttpError(400, "Give the hours or the finish, one of them.")
+        raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     breaks = workshop_timesheet_service.day_break_windows(owner, day)
     if hours is not None:
         return {
@@ -657,7 +660,7 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
             "hours": float(hours),
         }
     if finish is None:  # narrowed for the type checker; refused above
-        raise HttpError(400, "Give the hours or the finish, one of them.")
+        raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     return {
         "start": start,
         "finish": finish,
@@ -712,7 +715,7 @@ def timesheets_my_day_breaks_update(
             _location(payload.location),
         )
     except attendance.BreakNotFoundError as exc:
-        raise HttpError(404, "Break not found.") from exc
+        raise HttpError(404, gettext("Break not found.")) from exc
     return Status(204, None)
 
 
@@ -740,7 +743,7 @@ def timesheets_my_day_breaks_delete(
             break_id, authenticated_staff(request), _query_location(latitude, longitude)
         )
     except attendance.BreakNotFoundError as exc:
-        raise HttpError(404, "Break not found.") from exc
+        raise HttpError(404, gettext("Break not found.")) from exc
     return Status(204, None)
 
 
@@ -774,7 +777,7 @@ def timesheets_my_day_submit(
             timezone.now(),
         )
     except Job.DoesNotExist as exc:
-        raise HttpError(404, "Job not found.") from exc
+        raise HttpError(404, gettext("Job not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
@@ -832,7 +835,7 @@ def timesheets_approvals_approve_day(
 def timesheets_approvals_sweep(request: HttpRequest, payload: SweepIn) -> approval.SweepData:
     """Sweep one person's days, or everyone's when no person is given (KAN-380)."""
     if payload.end_date < payload.start_date:
-        raise HttpError(400, "The end date is before the start date.")
+        raise HttpError(400, gettext("The end date is before the start date."))
     days = [
         payload.start_date + timedelta(days=offset)
         for offset in range((payload.end_date - payload.start_date).days + 1)

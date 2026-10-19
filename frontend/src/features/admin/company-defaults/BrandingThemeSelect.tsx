@@ -1,15 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { isApiErrorStatus, xeroBrandingThemesListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
 import { fieldAutomationId } from './fieldAutomationId'
 import type { SettingsFieldControlProps } from './SettingsFieldInput'
-
-const NOT_CONNECTED_MESSAGE = 'Xero is not connected.'
-const LOAD_FAILED_MESSAGE = 'Could not load branding themes from Xero.'
-const EMPTY_MESSAGE = 'No branding themes are available in the connected Xero organisation.'
-const SETUP_INCOMPLETE_LABEL = 'Xero setup incomplete — select a branding theme'
 
 const DISABLED_SELECT_CLASS = `${INPUT_CLASS} bg-slate-100 text-slate-500`
 
@@ -25,6 +21,7 @@ export function BrandingThemeSelect({
   onChange,
   section,
 }: SettingsFieldControlProps) {
+  const { t } = useTranslation('admin')
   const automationId = fieldAutomationId(section, field.key)
   // Opus: The endpoint's 401 means "Xero is not connected", a state to render, not
   // recover from by retrying — retry:false keeps that render immediate.
@@ -40,15 +37,15 @@ export function BrandingThemeSelect({
         aria-label={field.label}
         data-automation-id={automationId}
       >
-        <option value="">Loading Xero branding themes…</option>
+        <option value="">{t('brandingTheme.loading')}</option>
       </select>
     )
   }
 
   if (themesQuery.isError) {
     const message = isApiErrorStatus(themesQuery.error, 401)
-      ? NOT_CONNECTED_MESSAGE
-      : LOAD_FAILED_MESSAGE
+      ? t('brandingTheme.notConnected')
+      : t('brandingTheme.loadFailed')
     return (
       <div className="flex flex-col gap-1">
         <select
@@ -78,10 +75,10 @@ export function BrandingThemeSelect({
           aria-label={field.label}
           data-automation-id={automationId}
         >
-          <option value="">{EMPTY_MESSAGE}</option>
+          <option value="">{t('brandingTheme.empty')}</option>
         </select>
         <p className="text-xs text-amber-700" data-automation-id={`${automationId}-empty`}>
-          {EMPTY_MESSAGE}
+          {t('brandingTheme.empty')}
         </p>
       </div>
     )
@@ -107,14 +104,16 @@ export function BrandingThemeSelect({
     >
       {selected === '' && (
         <option value="" disabled>
-          {SETUP_INCOMPLETE_LABEL}
+          {t('brandingTheme.setupIncomplete')}
         </option>
       )}
-      {isUnavailable && <option value={selected}>Unavailable theme ({selected})</option>}
+      {isUnavailable && (
+        <option value={selected}>{t('brandingTheme.unavailable', { id: selected })}</option>
+      )}
       {themes.map((theme) => (
         <option key={theme.external_id} value={theme.external_id}>
           {theme.name}
-          {theme.is_default ? ' (Xero default)' : ''}
+          {theme.is_default ? t('brandingTheme.xeroDefault') : ''}
         </option>
       ))}
     </select>

@@ -10,6 +10,8 @@ from datetime import date
 from decimal import Decimal
 from typing import TypedDict
 
+from django.utils.translation import gettext
+
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
@@ -166,14 +168,16 @@ def _staff_alerts(
     """Operator-facing warnings about a staff member's day."""
     alerts: list[str] = []
     if actual_hours == 0 and scheduled_hours > 0:
-        alerts.append("No timesheet entries")
+        alerts.append(gettext("No timesheet entries"))
     if 0 < actual_hours < scheduled_hours * LOW_HOURS_THRESHOLD:
-        alerts.append("Low hours recorded")
+        alerts.append(gettext("Low hours recorded"))
     if actual_hours > scheduled_hours * OVERTIME_THRESHOLD:
-        alerts.append("Overtime recorded")
+        alerts.append(gettext("Overtime recorded"))
     missing_job_entries = [line for line in cost_lines if not (line.cost_set and line.cost_set.job)]
     if missing_job_entries:
-        alerts.append(f"{len(missing_job_entries)} entries missing job info")
+        alerts.append(
+            gettext("%(count)s entries missing job info") % {"count": len(missing_job_entries)}
+        )
     return alerts
 
 

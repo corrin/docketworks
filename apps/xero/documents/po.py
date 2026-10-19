@@ -13,6 +13,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext
 from pydantic import BaseModel, TypeAdapter
 
 from apps.accounting.types import DocumentLineItem, DocumentResult, POPayload
@@ -73,7 +74,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
     def __init__(self, purchase_order: PurchaseOrder, staff: Staff) -> None:
         """Bind to a local PO; its supplier is the document's company."""
         if purchase_order.supplier is None:
-            raise ValueError("Purchase order must have a supplier assigned")
+            raise ValueError(gettext("Purchase order must have a supplier assigned"))
         super().__init__(company=purchase_order.supplier, staff=staff, job=None)
         self.purchase_order = purchase_order
 
@@ -128,14 +129,18 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         """Raise ValueError with the user-facing reason when the PO cannot sync."""
         if not self.company.xero_contact_id:
             raise ValueError(
-                f"Supplier '{self.company.name}' is not linked to Xero. "
-                "Please ensure the supplier has a valid Xero contact ID configured. "
-                "You may need to sync the supplier with Xero first."
+                gettext(
+                    "The supplier '%(supplier)s' isn't in Xero yet. Add them in Xero, or "
+                    "update from Xero if they are already there."
+                )
+                % {"supplier": self.company.name}
             )
         if not self.can_sync_to_xero():
             raise ValueError(
-                "Purchase order is not ready for sync. Please ensure all required "
-                "fields are completed (supplier, lines with descriptions and costs)."
+                gettext(
+                    "This purchase order can't be sent to Xero yet: it needs a supplier, "
+                    "and every line needs a description and a cost."
+                )
             )
 
     def get_line_items(self) -> list[DocumentLineItem]:
@@ -190,7 +195,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             .get(pk=self.purchase_order.pk)
         )
         if po.supplier is None:
-            raise ValueError("Purchase order must have a supplier assigned")
+            raise ValueError(gettext("Purchase order must have a supplier assigned"))
         self.purchase_order = po
         self.company = po.supplier
         self.validate_for_xero_sync()
@@ -305,7 +310,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         if not xero_id:
             return {
                 "success": False,
-                "error": "Purchase Order not found in Xero (no Xero ID).",
+                "error": gettext("Purchase Order not found in Xero (no Xero ID)."),
                 "status": 404,
             }
 
@@ -331,10 +336,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             self.purchase_order.status = "deleted"
             self.purchase_order.save(update_fields=["xero_id", "xero_tenant_id", "status"])
 
-            return {  # noqa: TRY300 -- returns a value built across the try body
+            return {
                 "success": True,
                 "xero_id": xero_id,
-                "message": "Purchase Order deleted.",
+                "message": gettext("Purchase Order deleted."),
             }
         except Exception as exc:
             logger.exception("Unexpected error deleting PO %s", self.purchase_order.id)

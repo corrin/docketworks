@@ -42,6 +42,7 @@ from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.translation import gettext
 from ninja import File as NinjaFile
 from ninja import Form, Router, UploadedFile
 from ninja.errors import HttpError
@@ -213,7 +214,7 @@ def job_jobs_create(
             "success": True,
             "job_id": str(job.id),
             "job_number": job.job_number,
-            "message": "Job created successfully",
+            "message": gettext("Job created successfully"),
         },
     )
 
@@ -228,7 +229,7 @@ def job_jobs_create(
 )
 def job_jobs_status_choices_retrieve(request: HttpRequest) -> dict[str, dict[str, str]]:
     """Return the status choices available for jobs."""
-    return {"statuses": dict(Job.JOB_STATUS_CHOICES)}
+    return {"statuses": {key: str(label) for key, label in Job.JOB_STATUS_CHOICES}}
 
 
 @router.get(
@@ -482,7 +483,10 @@ def job_rest_jobs_events_create(
     # Debounce check - prevent rapid requests
     if _check_request_debounce(request, f"add_event:{job_id}", debounce_seconds=2):
         logger.warning("Request debounced for user %s on job %s", user.office_email, job_id)
-        raise HttpError(429, "Request too frequent. Please wait before adding another event.")
+        raise HttpError(
+            429,
+            gettext("You added one moments ago. Wait a few seconds before adding another note."),
+        )
 
     # Additional duplicate check via cache
     description = payload.description.strip()
@@ -493,7 +497,9 @@ def job_rest_jobs_events_create(
             user.office_email,
             job_id,
         )
-        raise HttpError(409, "Duplicate event detected. An identical event was recently created.")
+        raise HttpError(
+            409, gettext("That note was just added. It hasn't been added a second time.")
+        )
 
     try:
         result = job_service.add_job_event(job_id, description, user, if_match)
@@ -637,7 +643,7 @@ def job_rest_job_delta_rejections_list(
 ) -> job_service.DeltaRejectionListData:
     """List delta rejections for one job."""
     if not Job.objects.filter(id=job_id).exists():
-        raise HttpError(400, f"Job with id {job_id} not found")
+        raise HttpError(400, gettext("Job with id %(job_id)s not found") % {"job_id": job_id})
     return job_service.list_job_delta_rejections(job_id=job_id, limit=limit, offset=offset)
 
 
@@ -725,7 +731,7 @@ def job_jobs_cost_sets_quote_revise_retrieve(
     job = _get_job_or_404(job_id)
     revisions = job_service.list_quote_revisions(job)
     if revisions is None:
-        raise HttpError(404, "No quote found for this job.")
+        raise HttpError(404, gettext("No quote found for this job."))
     return revisions
 
 
@@ -743,7 +749,7 @@ def job_jobs_cost_sets_quote_revise_create(
     """Archive the current quote cost lines and start a fresh quote revision."""
     job = _get_job_or_404(job_id)
     if job.get_latest("quote") is None:
-        raise HttpError(404, "No quote found for this job. Cannot create revision.")
+        raise HttpError(404, gettext("No quote found for this job. Cannot create revision."))
     try:
         return job_service.create_quote_revision(job, payload.reason, authenticated_staff(request))
     except ValueError as exc:
@@ -791,12 +797,14 @@ def job_jobs_cost_sets_retrieve(
     # when the job is also unknown (adversarial review 2026-08-02).
     if kind not in job_service.COST_SET_KINDS:
         raise HttpError(
-            400, f"Invalid kind. Must be one of: {', '.join(job_service.COST_SET_KINDS)}"
+            400,
+            gettext("Invalid kind. Must be one of: %(kinds)s")
+            % {"kinds": ", ".join(job_service.COST_SET_KINDS)},
         )
     job = _get_job_or_404(job_id)
     cost_set = job_service.get_latest_cost_set(job, kind)
     if cost_set is None:
-        raise HttpError(404, f"No {kind} cost set found for this job")
+        raise HttpError(404, gettext("This job has no %(kind)s costs and revenue") % {"kind": kind})
     return job_service.cost_set_data(cost_set)
 
 
@@ -805,7 +813,10 @@ def _create_cost_line(
 ) -> job_service.CostLineData:
     staff = authenticated_staff(request)
     if kind != "actual" and not staff.is_office_staff:
-        raise HttpError(403, "Only office staff can manage non-actual cost sets")
+        raise HttpError(
+            403,
+            gettext("Only office staff can change the costs and revenue in the estimate or quote"),
+        )
     job = _get_job_or_404(job_id)
     data: CostLineWriteData = {
         "kind": payload.kind,
@@ -922,7 +933,7 @@ def job_cost_lines_partial_update(
     line = get_object_or_404(CostLine, id=cost_line_id)
     staff = authenticated_staff(request)
     if line.cost_set.kind != "actual" and not staff.is_office_staff:
-        raise HttpError(403, "Only office staff can modify non-actual cost lines")
+        raise HttpError(403, gettext("Only office staff can modify non-actual cost lines"))
     try:
         updated = job_service.update_cost_line(line, _costline_patch_data(payload), staff)
     except ValueError as exc:
@@ -945,7 +956,7 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     line = get_object_or_404(CostLine, id=cost_line_id)
     staff = authenticated_staff(request)
     if line.cost_set.kind != "actual" and not staff.is_office_staff:
-        raise HttpError(403, "Only office staff can delete non-actual cost lines")
+        raise HttpError(403, gettext("Only office staff can delete non-actual cost lines"))
     try:
         job_service.delete_cost_line(line, staff)
     except ValueError as exc:
@@ -981,19 +992,19 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
     )
     job_service.refuse_workflow_managed(line, "approve")
     if line.approved:
-        raise HttpError(400, "Line is already approved")
+        raise HttpError(400, gettext("Line is already approved"))
 
     if line.kind != "material":
         approve_line(line, authenticated_staff(request))
         return {
             "success": True,
-            "message": "Line approved successfully",
+            "message": gettext("Line approved successfully"),
             "line": job_service.cost_line_data(line),
         }
 
     stock_id = line.ext_refs.get("stock_id")
     if not stock_id:
-        raise HttpError(400, "Line is missing item code")
+        raise HttpError(400, gettext("Line is missing item code"))
     stock = get_object_or_404(Stock, id=stock_id)
     try:
         approved = consume_stock(
@@ -1007,7 +1018,7 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
         raise HttpError(400, str(exc)) from exc
     return {
         "success": True,
-        "message": "Line approved successfully",
+        "message": gettext("Line approved successfully"),
         "remaining_quantity": stock.quantity,
         "line": job_service.cost_line_data(approved),
     }
@@ -1072,7 +1083,9 @@ def _job_for_finish(job_id: UUID) -> Job:
     try:
         return get_job_for_invoice_calculation(job_id)
     except Job.DoesNotExist as exc:
-        raise HttpError(404, f"Job with ID {job_id} not found.") from exc
+        raise HttpError(
+            404, gettext("Job with ID %(job_id)s not found.") % {"job_id": job_id}
+        ) from exc
 
 
 @router.get(
@@ -1378,7 +1391,7 @@ def job_jobs_fetch_by_column_retrieve(
 def get_kanban_changes(request: HttpRequest, after: str | None = None) -> dict[str, object]:
     """Return changed Kanban cards after an opaque Job dataset version."""
     if after is None:
-        raise HttpError(400, "after is required")
+        raise HttpError(400, gettext("after is required"))
     try:
         changes = KanbanService.get_kanban_changes(after)
     except ValueError as exc:
@@ -1477,8 +1490,8 @@ def job_jobs_update_status_create(
     try:
         KanbanService.update_job_status(job_id, payload.status, staff=authenticated_staff(request))
     except Job.DoesNotExist as exc:
-        raise HttpError(404, "Job not found") from exc
-    return {"success": True, "message": "Job status updated successfully"}
+        raise HttpError(404, gettext("Job not found")) from exc
+    return {"success": True, "message": gettext("Job status updated successfully")}
 
 
 @router.post(
@@ -1495,9 +1508,9 @@ def job_jobs_reorder_create(
     """Reorder a job against a visible anchor card."""
     # Enforce paired fields at the API boundary before invoking the service.
     if payload.anchor_job_id and not payload.placement:
-        raise HttpError(400, "placement is required when anchor_job_id is supplied")
+        raise HttpError(400, gettext("placement is required when anchor_job_id is supplied"))
     if payload.placement and not payload.anchor_job_id:
-        raise HttpError(400, "anchor_job_id is required when placement is supplied")
+        raise HttpError(400, gettext("anchor_job_id is required when placement is supplied"))
     try:
         KanbanService.reorder_job(
             job_id,
@@ -1507,11 +1520,11 @@ def job_jobs_reorder_create(
             staff=authenticated_staff(request),
         )
     except Job.DoesNotExist as exc:
-        raise HttpError(404, "Job not found") from exc
+        raise HttpError(404, gettext("Job not found")) from exc
     except ValueError as exc:
         logger.warning("Invalid reorder request for job %s: %s", job_id, exc)
         raise HttpError(400, str(exc)) from exc
-    return {"success": True, "message": "Job reordered successfully"}
+    return {"success": True, "message": gettext("Job reordered successfully")}
 
 
 @router.post(
@@ -1532,7 +1545,7 @@ def job_job_assignment_create(
             "Staff assignment failed: job=%s staff=%s error=%s", job_id, payload.staff_id, error
         )
         return Status(400, {"success": False, "error": error})
-    return Status(200, {"success": True, "message": "Job assigned to staff successfully."})
+    return Status(200, {"success": True, "message": gettext("Job assigned to staff successfully.")})
 
 
 @router.delete(
@@ -1550,7 +1563,9 @@ def job_job_assignment_destroy(
     success, error = job_service.remove_staff_from_job(job_id, staff_id)
     if not success:
         return Status(400, {"success": False, "error": error})
-    return Status(200, {"success": True, "message": "Staff removed from job successfully."})
+    return Status(
+        200, {"success": True, "message": gettext("Staff removed from job successfully.")}
+    )
 
 
 # ── Job files ────────────────────────────────────────────────────────────
@@ -1631,7 +1646,10 @@ def upload_job_files(
                     additional_context={"filename": file_obj.name},
                 ),
             )
-            errors.append(f"Failed to upload {file_obj.name}: {exc!s}")
+            errors.append(
+                gettext("Failed to upload %(filename)s: %(error)s")
+                % {"filename": file_obj.name, "error": str(exc)}
+            )
             continue
         uploaded.append(job_service.job_file_data(job_file))
         # Generate thumbnails asynchronously so uploads are not blocked by
@@ -1650,7 +1668,11 @@ def upload_job_files(
         )
     return Status(
         201,
-        {"status": "success", "uploaded": uploaded, "message": "Files uploaded successfully"},
+        {
+            "status": "success",
+            "uploaded": uploaded,
+            "message": gettext("Files uploaded successfully"),
+        },
     )
 
 
@@ -1704,7 +1726,7 @@ def update_job_file(
     logger.info("Updated file %s (job %s)", file_id, job_id)
     return {
         "status": "success",
-        "message": "File updated successfully",
+        "message": gettext("File updated successfully"),
         "print_on_jobsheet": job_file.print_on_jobsheet,
         "filename": job_file.filename,
     }

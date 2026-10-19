@@ -15,6 +15,7 @@ from typing import Any
 
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.translation import gettext
 from xero_python.accounting import AccountingApi
 
 from apps.core.errors import persist_app_error
@@ -240,7 +241,13 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
         # dict — the wrapper in sync.py interprets the dict as success and
         # would let the orchestrator continue to its sync_status:"success"
         # marker, masking the abort.
-        raise XeroQuotaFloorReached(f"Skipping local stock sync: Xero day quota at floor ({floor})")
+        raise XeroQuotaFloorReached(
+            gettext(
+                "Did not send stock items to Xero: Xero's daily request allowance is down to "
+                "the %(floor)s kept for people working in DocketWorks"
+            )
+            % {"floor": floor}
+        )
 
     queryset = stock_pending_sync()
 
@@ -333,8 +340,11 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
             # sync_status:"aborted".
             remaining = len(items_to_upsert) - i
             raise XeroQuotaFloorReached(
-                f"Stopping stock upsert with {remaining} un-attempted items: "
-                f"Xero day quota at floor ({floor})"
+                gettext(
+                    "Stopping stock upsert with %(remaining)s un-attempted items: "
+                    "Xero day quota at floor (%(floor)s)"
+                )
+                % {"remaining": remaining, "floor": floor}
             )
 
         items_payload = [data for _, data in batch]

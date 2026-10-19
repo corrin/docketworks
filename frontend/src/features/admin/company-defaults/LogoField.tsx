@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -36,6 +37,7 @@ function requireLogoFieldName(key: string): 'logo' | 'logo_wide' {
  * not the mounted snapshot, so a fresh upload/delete shows immediately.
  */
 export function LogoField({ field, value, section }: SettingsFieldControlProps) {
+  const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
   const uploadMutation = useMutation(companyDefaultsLogoUpdateMutation())
   const destroyMutation = useMutation(companyDefaultsLogoDestroyMutation())
@@ -63,9 +65,9 @@ export function LogoField({ field, value, section }: SettingsFieldControlProps) 
         body: { file },
       })
       queryClient.setQueryData(companyDefaultsRetrieveQueryKey(), fresh)
-      toast.success('Logo uploaded')
+      toast.success(t('logo.uploaded'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to upload logo'))
+      toast.error(apiErrorMessage(error, t('logo.uploadFailed')))
     }
   }
 
@@ -73,9 +75,9 @@ export function LogoField({ field, value, section }: SettingsFieldControlProps) 
     try {
       const fresh = await destroyMutation.mutateAsync({ path: { field_name: fieldName } })
       queryClient.setQueryData(companyDefaultsRetrieveQueryKey(), fresh)
-      toast.success('Logo removed')
+      toast.success(t('logo.removed'))
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to remove logo'))
+      toast.error(apiErrorMessage(error, t('logo.removeFailed')))
     }
   }
 
@@ -88,7 +90,7 @@ export function LogoField({ field, value, section }: SettingsFieldControlProps) 
           className="h-16 w-auto max-w-full rounded border border-slate-200 object-contain"
         />
       ) : (
-        <p className="text-xs text-slate-500">No image</p>
+        <p className="text-xs text-slate-500">{t('logo.noImage')}</p>
       )}
       <div className="flex items-center gap-2">
         {/* Opus: A visible <label> wrapping a hidden file input keeps the control
@@ -102,13 +104,13 @@ export function LogoField({ field, value, section }: SettingsFieldControlProps) 
               : 'inline-flex cursor-pointer items-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2'
           }
         >
-          Upload
+          {t('logo.upload')}
           <input
             type="file"
             accept={LOGO_ACCEPT}
             className="sr-only"
             disabled={uploadDisabled}
-            aria-label={`Upload ${field.label}`}
+            aria-label={t('logo.uploadAria', { label: field.label })}
             aria-describedby={validationError ? validationErrorId : undefined}
             data-automation-id={`${automationId}-upload`}
             onChange={(event) => {
@@ -127,7 +129,7 @@ export function LogoField({ field, value, section }: SettingsFieldControlProps) 
             onClick={() => void onRemove()}
             data-automation-id={`${automationId}-remove`}
           >
-            Remove
+            {t('logo.remove')}
           </Button>
         )}
       </div>

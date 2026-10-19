@@ -13,6 +13,8 @@ from typing import Literal
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
+from django.utils.functional import Promise
+from django.utils.translation import gettext_lazy
 
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import ResponseSchema
@@ -48,17 +50,17 @@ class SettingsSectionDefinition:
     """Display identity and order for one public settings section."""
 
     key: SettingsSectionKey
-    title: str
+    title: Promise
     order: int
 
 
 SETTINGS_SECTIONS: tuple[SettingsSectionDefinition, ...] = (
-    SettingsSectionDefinition("company", "Company", 1),
-    SettingsSectionDefinition("working_hours", "Working Hours", 2),
-    SettingsSectionDefinition("finances", "Finances", 3),
-    SettingsSectionDefinition("kpi", "KPI & Thresholds", 4),
-    SettingsSectionDefinition("setup", "Setup", 5),
-    SettingsSectionDefinition("xero", "Xero", 6),
+    SettingsSectionDefinition("company", gettext_lazy("Company"), 1),
+    SettingsSectionDefinition("working_hours", gettext_lazy("Working Hours"), 2),
+    SettingsSectionDefinition("finances", gettext_lazy("Finances"), 3),
+    SettingsSectionDefinition("kpi", gettext_lazy("KPI & Thresholds"), 4),
+    SettingsSectionDefinition("setup", gettext_lazy("Setup"), 5),
+    SettingsSectionDefinition("xero", gettext_lazy("Xero"), 6),
 )
 
 INTERNAL_SECTION: Literal["internal"] = "internal"
@@ -157,7 +159,6 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "kpi_daily_gp_target": "kpi",
     "kpi_daily_shop_hours_percentage": "kpi",
     "kpi_job_gp_target_percentage": "kpi",
-    "kpi_daily_gp_green": "kpi",
     "kpi_daily_gp_amber": "kpi",
     "daily_approved_hours_target": "kpi",
     "master_quote_template_url": "setup",
@@ -320,7 +321,7 @@ def build_company_defaults_schema() -> CompanyDefaultsSchemaOut:
         sections=[
             SettingsSectionOut(
                 key=definition.key,
-                title=definition.title,
+                title=str(definition.title),
                 order=definition.order,
                 fields=fields_by_section[definition.key],
             )

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ForecastMonthOut } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
@@ -27,33 +28,34 @@ export function SalesForecastMonthTable({
   onSelect,
   children,
 }: SalesForecastMonthTableProps) {
+  const { t } = useTranslation('reports')
   return (
     <ListTable
       isPending={isPending}
       isError={isError}
       onRetry={onRetry}
-      loadingLabel="Loading sales forecast..."
+      loadingLabel={t('salesForecast.monthTable.loading')}
       loadingAutomationId="SalesForecastReport-loading"
-      errorLabel="Failed to load the sales forecast."
+      errorLabel={t('salesForecast.monthTable.loadError')}
       rows={months}
-      emptyLabel="No sales data available"
+      emptyLabel={t('salesForecast.monthTable.empty')}
       automationId="SalesForecastReport-table"
       head={
         <tr className="border-b border-gray-200 text-gray-500">
           <th scope="col" className="px-3 py-2 text-left">
-            Month
+            {t('salesForecast.monthTable.columns.month')}
           </th>
           <th scope="col" className="px-3 py-2 text-right">
-            Xero Sales
+            {t('salesForecast.monthTable.columns.xeroSales')}
           </th>
           <th scope="col" className="px-3 py-2 text-right">
-            JM Sales
+            {t('salesForecast.monthTable.columns.jmSales')}
           </th>
           <th scope="col" className="px-3 py-2 text-right">
-            Variance
+            {t('salesForecast.monthTable.columns.variance')}
           </th>
           <th scope="col" className="px-3 py-2 text-right">
-            Variance %
+            {t('salesForecast.monthTable.columns.variancePct')}
           </th>
         </tr>
       }

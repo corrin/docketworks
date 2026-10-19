@@ -4,19 +4,21 @@
  * member approves time and the suite's other office login may do anything.
  *
  * The day is set up by the logins whose job that is, each in its own browser
- * context: the superuser seeds a job and picks a listed staff member (the
+ * context: the superuser seeds a job and hours for the workshop login (the
  * staff list is a superuser screen), and the workshop login books the entry
  * that waits.
  */
-import type { Browser } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { z } from 'zod'
 
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
-import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
+import { getWorkshopStaff } from '../fixtures/api'
+import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import {
   WORKER_HOURS,
+  asSuperuser,
   bookAsWorkshopUser,
   getLatestWeekdayDate,
   seedLabourForWeek,
@@ -25,16 +27,8 @@ import {
 
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
 
-async function seedAsSuperuser(browser: Browser, baseURL: string): Promise<SeededLabour> {
-  const context = await browser.newContext({ baseURL })
-  try {
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('office')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    return await seedLabourForWeek(page, mondayOf(getLatestWeekdayDate()))
-  } finally {
-    await context.close()
-  }
+function seedThisWeek(page: Page): Promise<SeededLabour> {
+  return seedLabourForWeek(page, mondayOf(getLatestWeekdayDate()))
 }
 
 test.use({ loginRole: 'officeStaff' })
@@ -45,7 +39,7 @@ test('office staff correct a waiting entry and approve the day, and see no pay',
   baseURL,
 }, testInfo) => {
   const origin = z.string().parse(baseURL)
-  const seeded = await seedAsSuperuser(browser, origin)
+  const seeded = await asSuperuser(browser, origin, seedThisWeek)
   const waitingEntryId = await bookAsWorkshopUser(browser, origin, seeded)
   const staffId = seeded.staff.id
   const row = autoId(page, `ApproveTimePage-row-${staffId}`)
@@ -98,14 +92,16 @@ test('office staff correct a waiting entry and approve the day, and see no pay',
 
 test("office staff correct a person's clock times, and the screen holds at three widths", async ({
   authenticatedPage: page,
+  browser,
+  baseURL,
 }, testInfo) => {
-  // A past weekday clear of the days the other specs clock and book on.
-  const day = shiftDate(getLatestWeekdayDate(), -28)
-  const listed = z
-    .object({ staff: z.array(z.object({ staff_id: z.string() })) })
-    .parse(await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json())
-  const staffId = listed.staff[0]?.staff_id
-  if (staffId === undefined) throw new Error(`Nobody is on the timesheet for ${day}.`)
+  // Ten weeks back: a weekday on which no other spec clocks, fills or books
+  // the workshop login (the phone specs use 2 to 9 weeks back, plus 4 weeks
+  // before their clock days).
+  const day = shiftDate(getLatestWeekdayDate(), -70)
+  // The workshop login, not the office login: a person's own typed times are
+  // "not clocked" and warned about, and this step proves the office's are not.
+  const staffId = (await asSuperuser(browser, z.string().parse(baseURL), getWorkshopStaff)).id
   const clock = autoId(page, `ApproveTimePage-clock-${staffId}`)
   const setClock = async (start: string, finish: string) => {
     await autoId(page, `ApproveTimePage-clock-edit-${staffId}`).click()
@@ -177,7 +173,7 @@ test('approving the last person waiting turns the day to complete', async ({
   baseURL,
 }) => {
   const origin = z.string().parse(baseURL)
-  const seeded = await seedAsSuperuser(browser, origin)
+  const seeded = await asSuperuser(browser, origin, seedThisWeek)
   // A Saturday: nobody is rostered, so the one person with time on it is the
   // only one expected, and approving them is the whole day.
   const saturday = shiftDate(mondayOf(getLatestWeekdayDate()), -2)

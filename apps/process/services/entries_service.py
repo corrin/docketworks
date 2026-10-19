@@ -16,6 +16,7 @@ from datetime import date
 from uuid import UUID
 
 from django.db import transaction
+from django.utils.translation import gettext
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
@@ -35,7 +36,11 @@ def _resolve_staff(staff_id: UUID | None) -> Staff | None:
         return None
     staff = Staff.objects.filter(pk=staff_id).first()
     if staff is None:
-        raise HttpError(400, f"'staff' does not name an existing staff member: {staff_id}.")
+        raise HttpError(
+            400,
+            gettext("'staff' does not name an existing staff member: %(staff_id)s.")
+            % {"staff_id": staff_id},
+        )
     return staff
 
 
@@ -45,7 +50,9 @@ def _resolve_job(job_id: UUID | None) -> Job | None:
         return None
     job = Job.objects.filter(pk=job_id).first()
     if job is None:
-        raise HttpError(400, f"'job' does not name an existing job: {job_id}.")
+        raise HttpError(
+            400, gettext("'job' does not name an existing job: %(job_id)s.") % {"job_id": job_id}
+        )
     return job
 
 
@@ -55,7 +62,11 @@ def _resolve_parent_entry(parent_id: UUID | None) -> FormEntry | None:
         return None
     parent = FormEntry.objects.filter(pk=parent_id).first()
     if parent is None:
-        raise HttpError(400, f"'parent_entry' does not name an existing entry: {parent_id}.")
+        raise HttpError(
+            400,
+            gettext("'parent_entry' does not name an existing entry: %(parent_id)s.")
+            % {"parent_id": parent_id},
+        )
     return parent
 
 
@@ -69,7 +80,11 @@ def _require_form_not_archived(form: Form) -> None:
     stays reachable through the existing office-only PATCH regardless.
     """
     if form.status == "archived":
-        raise HttpError(400, f"Form '{form.title}' is archived; its entries cannot be written.")
+        raise HttpError(
+            400,
+            gettext("Form '%(title)s' is archived; its entries cannot be written.")
+            % {"title": form.title},
+        )
 
 
 def create_form_entry(*, staff: Staff, form: Form, payload: EntryCreateIn) -> FormEntry:

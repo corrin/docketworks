@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
@@ -13,6 +14,7 @@ import { useRequestPasswordReset } from './index'
  * chattier client.
  */
 export function ForgotPasswordPage() {
+  const { t } = useTranslation('shell')
   const requestReset = useRequestPasswordReset()
 
   const [email, setEmail] = useState('')
@@ -23,7 +25,7 @@ export function ForgotPasswordPage() {
     event.preventDefault()
     if (requestReset.isPending) return
     if (email.trim() === '') {
-      setError('An email address is required.')
+      setError(t('forgotPassword.emailRequired'))
       return
     }
     setError(null)
@@ -33,34 +35,31 @@ export function ForgotPasswordPage() {
     } catch {
       // The endpoint only fails for real outages (its refusals are all the
       // fixed 200); the copy names the retry, not the failure detail.
-      setError('The request could not be sent. Please try again.')
+      setError(t('forgotPassword.failed'))
     }
   }
 
   return (
-    <AuthCard title="Reset your password">
+    <AuthCard title={t('forgotPassword.title')}>
       {submitted ? (
         <div className="mt-4 flex flex-col gap-6">
           <p className="text-sm text-gray-600" data-automation-id="ForgotPasswordPage-sent">
-            If that address has an account, a reset email has been sent. Follow the link in it to
-            choose a new password.
+            {t('forgotPassword.sent')}
           </p>
           <Link
             to="/login"
             className="text-sm font-medium text-blue-600 hover:underline"
             data-automation-id="ForgotPasswordPage-back"
           >
-            Back to sign in
+            {t('forgotPassword.backToSignIn')}
           </Link>
         </div>
       ) : (
         <>
-          <p className="mt-2 text-sm text-gray-600">
-            Enter your login email and we will send you a link to reset your password.
-          </p>
+          <p className="mt-2 text-sm text-gray-600">{t('forgotPassword.intro')}</p>
           <form className="mt-6 flex flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
             <label className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-gray-700">Email</span>
+              <span className="text-gray-700">{t('forgotPassword.emailLabel')}</span>
               <input
                 type="email"
                 autoComplete="email"
@@ -79,14 +78,16 @@ export function ForgotPasswordPage() {
                 className="text-sm text-gray-600 hover:underline"
                 data-automation-id="ForgotPasswordPage-cancel"
               >
-                Back to sign in
+                {t('forgotPassword.cancel')}
               </Link>
               <Button
                 type="submit"
                 disabled={requestReset.isPending}
                 data-automation-id="ForgotPasswordPage-submit"
               >
-                {requestReset.isPending ? 'Sending…' : 'Send reset email'}
+                {requestReset.isPending
+                  ? t('forgotPassword.submitting')
+                  : t('forgotPassword.submit')}
               </Button>
             </div>
           </form>

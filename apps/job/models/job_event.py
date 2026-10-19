@@ -5,9 +5,11 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, ClassVar, TypedDict
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import models
+from django.utils.functional import Promise
 from django.utils.timezone import now
+from django.utils.translation import gettext, gettext_lazy
 
 from apps.core.audit import AuditDetail, AuditEvent, JsonScalar, truncate_change
 
@@ -62,11 +64,34 @@ def _format_status(slug: str | None) -> str:
     # Lazy import to avoid Job ↔ JobEvent circular at module load
     from apps.job.models.job import Job  # noqa: PLC0415
 
-    return dict(Job.JOB_STATUS_CHOICES).get(slug, slug.replace("_", " ").title())
+    return str(dict(Job.JOB_STATUS_CHOICES).get(slug, slug.replace("_", " ").title()))
+
+
+def _priority_move_sentence(*, increased: bool, params: dict[str, object]) -> str:
+    """Render a rank move as one whole sentence per direction and column context."""
+    if increased:
+        if params["status_label"]:
+            return (
+                gettext(
+                    "Priority increased from %(old_pos)s to %(new_pos)s of %(total)s "
+                    "in %(status_label)s"
+                )
+                % params
+            )
+        return gettext("Priority increased from %(old_pos)s to %(new_pos)s of %(total)s") % params
+    if params["status_label"]:
+        return (
+            gettext(
+                "Priority decreased from %(old_pos)s to %(new_pos)s of %(total)s "
+                "in %(status_label)s"
+            )
+            % params
+        )
+    return gettext("Priority decreased from %(old_pos)s to %(new_pos)s of %(total)s") % params
 
 
 def _completion_confirmation_descriptor(
-    confirmed: str, withdrawn: str
+    confirmed: Promise, withdrawn: Promise
 ) -> Callable[[JsonScalar, JsonScalar], str]:
     """Descriptor factory for front-desk checklist items.
 
@@ -77,51 +102,61 @@ def _completion_confirmation_descriptor(
 
     def descriptor(old: JsonScalar, new: JsonScalar) -> str:  # noqa: ARG001 -- (old, new) callback protocol
         if _truthy(new):
-            return confirmed
-        return withdrawn
+            return str(confirmed)
+        return str(withdrawn)
 
     return descriptor
 
 
 def _quote_acceptance_descriptor(old: JsonScalar, new: JsonScalar) -> str:
     if new and not old:
-        return f"Quote accepted on {new}"
+        return gettext("Quote accepted on %(date)s") % {"date": new}
     if old and not new:
-        return "Quote acceptance cleared"
-    return f"Quote acceptance date changed from {old} to {new}"
+        return gettext("Quote acceptance cleared")
+    return gettext("Quote acceptance date changed from %(old)s to %(new)s") % {
+        "old": old,
+        "new": new,
+    }
 
 
 # Per-field descriptor: field_name (as it appears in detail.changes[].field_name)
 # → callable(old, new) → str. Fields not listed here use the base's default sentence.
 _FIELD_DESCRIPTORS: dict[str, Callable[[JsonScalar, JsonScalar], str]] = {
     "Rejected": lambda old, new: (  # noqa: ARG005 -- (old, new) callback protocol
-        "Job marked as rejected" if _truthy(new) else "Rejection cleared"
+        gettext("Job marked as rejected") if _truthy(new) else gettext("Rejection cleared")
     ),
     "Complex job": lambda old, new: (  # noqa: ARG005 -- (old, new) callback protocol
-        "Marked as complex job" if _truthy(new) else "Unmarked as complex job"
+        gettext("Marked as complex job") if _truthy(new) else gettext("Unmarked as complex job")
     ),
     "Paid": lambda old, new: (  # noqa: ARG005 -- (old, new) callback protocol
-        "Marked as paid" if _truthy(new) else "Marked as unpaid"
+        gettext("Marked as paid") if _truthy(new) else gettext("Marked as unpaid")
     ),
     "Quote acceptance date": _quote_acceptance_descriptor,
     "Foreman sign-off": _completion_confirmation_descriptor(
-        "Foreman signed the job off", "Foreman sign-off withdrawn"
+        gettext_lazy("Foreman signed the job off"), gettext_lazy("Foreman sign-off withdrawn")
     ),
     "Timesheets collected": _completion_confirmation_descriptor(
-        "Timesheets collected from the workshop", "Timesheet collection unconfirmed"
+        gettext_lazy("Timesheets collected from the workshop"),
+        gettext_lazy("Timesheet collection unconfirmed"),
     ),
     "Materials checked": _completion_confirmation_descriptor(
-        "Materials checked on the job", "Materials check unconfirmed"
+        gettext_lazy("Materials checked on the job"), gettext_lazy("Materials check unconfirmed")
     ),
     "Customer called": _completion_confirmation_descriptor(
-        "Customer called", "Customer call unconfirmed"
+        gettext_lazy("Customer called"), gettext_lazy("Customer call unconfirmed")
     ),
-    "Job released": _completion_confirmation_descriptor("Job released", "Job release withdrawn"),
-    "Internal notes": lambda old, new: truncate_change("Notes", old, new),
-    "Job description": lambda old, new: truncate_change("Description", old, new),
-    "Notes": lambda old, new: truncate_change("Notes", old, new),
-    "Description": lambda old, new: truncate_change("Description", old, new),
+    "Job released": _completion_confirmation_descriptor(
+        gettext_lazy("Job released"), gettext_lazy("Job release withdrawn")
+    ),
+    "Internal notes": lambda old, new: truncate_change(gettext("Notes"), old, new),
+    "Job description": lambda old, new: truncate_change(gettext("Description"), old, new),
+    "Notes": lambda old, new: truncate_change(gettext("Notes"), old, new),
+    "Description": lambda old, new: truncate_change(gettext("Description"), old, new),
 }
+
+
+#: ValidationError code for a manual note repeated within seconds; create_safe absorbs it.
+DUPLICATE_NOTE_CODE = "duplicate_manual_note"
 
 
 class JobEvent(AuditEvent):
@@ -179,7 +214,7 @@ class JobEvent(AuditEvent):
     detail = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Structured audit data for this event. Keys vary by event_type.",
+        help_text=gettext_lazy("Structured audit data for this event. Keys vary by event_type."),
     )
 
     # Field for deduplication hash
@@ -187,7 +222,7 @@ class JobEvent(AuditEvent):
         max_length=64,
         null=True,
         blank=True,
-        help_text="MD5 hash for deduplication based on job+staff+description+type",
+        help_text=gettext_lazy("MD5 hash for deduplication based on job+staff+description+type"),
     )
 
     class Meta(AuditEvent.Meta):
@@ -241,8 +276,11 @@ class JobEvent(AuditEvent):
             # Check for recent duplicates (within 5 seconds)
             if self._check_recent_duplicate():
                 raise ValidationError(
-                    "A similar manual event was created recently. "
-                    "Please wait before adding another."
+                    gettext(
+                        "You added a note like this moments ago. "
+                        "Wait a few seconds before adding another."
+                    ),
+                    code=DUPLICATE_NOTE_CODE,
                 )
 
     def build_description(self) -> str:
@@ -281,10 +319,17 @@ class JobEvent(AuditEvent):
             if old_status and new_status and old_status != new_status:
                 old_label = _format_status(old_status)
                 new_label = _format_status(new_status)
-                return (
-                    f"Moved from {old_label} ({_format_ordinal(old_pos)} of {old_total}) "
-                    f"to {new_label} ({_format_ordinal(new_pos)} of {new_total})"
-                )
+                return gettext(
+                    "Moved from %(old_label)s (%(old_pos)s of %(old_total)s) "
+                    "to %(new_label)s (%(new_pos)s of %(new_total)s)"
+                ) % {
+                    "old_label": old_label,
+                    "old_pos": _format_ordinal(old_pos),
+                    "old_total": old_total,
+                    "new_label": new_label,
+                    "new_pos": _format_ordinal(new_pos),
+                    "new_total": new_total,
+                }
 
             if new_pos == old_pos:
                 # Defensive: no-op rank events should be suppressed at create
@@ -296,11 +341,14 @@ class JobEvent(AuditEvent):
                 raise TypeError("priority position missing from event detail")
             status_label = _format_status(new_status or old_status)
             total = new_total or old_total
-            in_label = f" in {status_label}" if status_label else ""
-            direction = "increased" if new_pos < old_pos else "decreased"
-            return (
-                f"Priority {direction} from {_format_ordinal(old_pos)} "
-                f"to {_format_ordinal(new_pos)} of {total}{in_label}"
+            return _priority_move_sentence(
+                increased=new_pos < old_pos,
+                params={
+                    "old_pos": _format_ordinal(old_pos),
+                    "new_pos": _format_ordinal(new_pos),
+                    "total": total,
+                    "status_label": status_label,
+                },
             )
 
         # Legacy fallback: direction only, from float comparison
@@ -315,10 +363,10 @@ class JobEvent(AuditEvent):
             # would take out the entire timeline view over a single old row, so
             # the direction is dropped and the fact of the change is kept.
             except TypeError, ValueError:
-                return "Priority changed"
+                return gettext("Priority changed")
             if abs(new - old) < 1e-6:
                 return ""
-            return "Priority increased" if new > old else "Priority decreased"
+            return gettext("Priority increased") if new > old else gettext("Priority decreased")
         return ""
 
     @staticmethod
@@ -335,10 +383,17 @@ class JobEvent(AuditEvent):
             if old_status and new_status and old_status != new_status:
                 old_label = _format_status(old_status)
                 new_label = _format_status(new_status)
-                return (
-                    f"Moved from {old_label} ({_format_ordinal(old_pos)} of {old_total}) "
-                    f"to {new_label} ({_format_ordinal(new_pos)} of {new_total})"
-                )
+                return gettext(
+                    "Moved from %(old_label)s (%(old_pos)s of %(old_total)s) "
+                    "to %(new_label)s (%(new_pos)s of %(new_total)s)"
+                ) % {
+                    "old_label": old_label,
+                    "old_pos": _format_ordinal(old_pos),
+                    "old_total": old_total,
+                    "new_label": new_label,
+                    "new_pos": _format_ordinal(new_pos),
+                    "new_total": new_total,
+                }
 
         return JobEvent._build_changes_description(detail)
 
@@ -358,71 +413,92 @@ class JobEvent(AuditEvent):
         initial_status = detail.get("initial_status")
         pricing = detail.get("pricing_methodology")
 
-        subject = f"New job '{job_name}'" if job_name else "New job"
-        if company_name:
-            subject += f" created for company {company_name}"
+        if job_name and company_name:
+            subject = gettext("New job '%(job_name)s' created for company %(company_name)s") % {
+                "job_name": job_name,
+                "company_name": company_name,
+            }
+        elif job_name:
+            subject = gettext("New job '%(job_name)s' created") % {"job_name": job_name}
+        elif company_name:
+            subject = gettext("New job created for company %(company_name)s") % {
+                "company_name": company_name
+            }
         else:
-            subject += " created"
+            subject = gettext("New job created")
         if person_name:
-            subject += f" (Person: {person_name})"
+            subject += gettext(" (Person: %(person_name)s)") % {"person_name": person_name}
 
         sentences = [subject]
         if initial_status:
-            sentences.append(f"Initial status: {initial_status}")
+            sentences.append(
+                gettext("Initial status: %(initial_status)s") % {"initial_status": initial_status}
+            )
         if pricing:
-            sentences.append(f"Pricing methodology: {pricing}")
+            sentences.append(gettext("Pricing methodology: %(pricing)s") % {"pricing": pricing})
         if not (initial_status and pricing):
-            sentences.append("Some creation details lost")
+            sentences.append(gettext("Some creation details lost"))
         return ". ".join(sentences) + "."
 
     @staticmethod
     def _build_invoice_created_description(detail: JobEventDetail) -> str:
-        number = detail.get("xero_invoice_number", "Unknown")
-        return f"Invoice {number} created in Xero"
+        number = detail.get("xero_invoice_number", gettext("Unknown"))
+        return gettext("Invoice %(number)s created in Xero") % {"number": number}
 
     @staticmethod
     def _build_invoice_deleted_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
         if number:
-            return f"Invoice {number} deleted from Xero"
-        return "Invoice deleted from Xero"
+            return gettext("Invoice %(number)s deleted from Xero") % {"number": number}
+        return gettext("Invoice deleted from Xero")
 
     @staticmethod
     def _build_invoice_amount_changed_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
         old_total = detail.get("old_total_excl_tax")
         new_total = detail.get("new_total_excl_tax")
-        subject = f"Invoice {number}" if number else "Invoice"
-        return f"{subject} changed from ${old_total} to ${new_total} excluding tax"
+        params = {"number": number, "old_total": old_total, "new_total": new_total}
+        if number:
+            return (
+                gettext(
+                    "Invoice %(number)s changed from $%(old_total)s to $%(new_total)s excluding tax"
+                )
+                % params
+            )
+        return gettext("Invoice changed from $%(old_total)s to $%(new_total)s excluding tax") % (
+            params
+        )
 
     @staticmethod
     def _build_invoice_voided_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
-        return f"Invoice {number} voided in Xero" if number else "Invoice voided in Xero"
+        if number:
+            return gettext("Invoice %(number)s voided in Xero") % {"number": number}
+        return gettext("Invoice voided in Xero")
 
     @staticmethod
     def _build_quote_created_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_quote_number")
         if number:
-            return f"Quote {number} created in Xero"
-        return "Quote created in Xero"
+            return gettext("Quote %(number)s created in Xero") % {"number": number}
+        return gettext("Quote created in Xero")
 
     @staticmethod
     def _build_quote_deleted_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_quote_number")
         if number:
-            return f"Quote {number} deleted from Xero"
-        return "Quote deleted from Xero"
+            return gettext("Quote %(number)s deleted from Xero") % {"number": number}
+        return gettext("Quote deleted from Xero")
 
     @staticmethod
     def _build_delivery_docket_description(detail: JobEventDetail) -> str:
-        filename = detail.get("filename", "Unknown")
-        return f"Delivery docket generated: {filename}"
+        filename = detail.get("filename", gettext("Unknown"))
+        return gettext("Delivery docket generated: %(filename)s") % {"filename": filename}
 
     @staticmethod
     def _build_jsa_description(detail: JobEventDetail) -> str:
-        title = detail.get("jsa_title", "Unknown")
-        return f"JSA generated: {title}"
+        title = detail.get("jsa_title", gettext("Unknown"))
+        return gettext("JSA generated: %(title)s") % {"title": title}
 
     FIELD_DESCRIPTORS = _FIELD_DESCRIPTORS
 
@@ -512,7 +588,11 @@ class JobEvent(AuditEvent):
         # their own colleague. Any OTHER ValidationError still re-raises below.
         except ValidationError as e:
             # If duplicate error, try to find existing event
-            if "similar manual event" in str(e).lower():
+            # The code, not the words: the wording is the catalogue's (ADR 0069).
+            # save() runs full_clean, which files clean()'s refusal under
+            # NON_FIELD_ERRORS; a field error leaves that key absent.
+            non_field = e.error_dict.get(NON_FIELD_ERRORS, [])
+            if any(error.code == DUPLICATE_NOTE_CODE for error in non_field):
                 detail = kwargs.get("detail", {})
                 note_text = detail.get("note_text", "").strip() if detail else ""
                 existing_event = cls.objects.filter(

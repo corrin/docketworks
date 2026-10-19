@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 from apps.accounting.enums import InvoiceStatus
 
@@ -117,8 +118,8 @@ class Invoice(BaseXeroInvoiceDocument):
     billing_metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        verbose_name = "Invoice"
-        verbose_name_plural = "Invoices"
+        verbose_name = gettext_lazy("Invoice")
+        verbose_name_plural = gettext_lazy("Invoices")
         ordering: ClassVar[list[str]] = ["-date", "number"]
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
@@ -141,8 +142,8 @@ class Bill(BaseXeroInvoiceDocument):
     """A Xero bill (accounts payable document)."""
 
     class Meta:
-        verbose_name = "Bill"
-        verbose_name_plural = "Bills"
+        verbose_name = gettext_lazy("Bill")
+        verbose_name_plural = gettext_lazy("Bills")
         ordering: ClassVar[list[str]] = ["-date", "number"]
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
@@ -169,8 +170,8 @@ class CreditNote(BaseXeroInvoiceDocument):
     """
 
     class Meta:
-        verbose_name = "Credit Note"
-        verbose_name_plural = "Credit Notes"
+        verbose_name = gettext_lazy("Credit Note")
+        verbose_name_plural = gettext_lazy("Credit Notes")
         ordering: ClassVar[list[str]] = ["-date"]
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
@@ -192,8 +193,8 @@ class InvoiceLineItem(BaseLineItem):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="line_items")
 
     class Meta:
-        verbose_name = "Invoice Line Item"
-        verbose_name_plural = "Invoice Line Items"
+        verbose_name = gettext_lazy("Invoice Line Item")
+        verbose_name_plural = gettext_lazy("Invoice Line Items")
 
 
 class BillLineItem(BaseLineItem):
@@ -202,8 +203,8 @@ class BillLineItem(BaseLineItem):
     bill = models.ForeignKey(Bill, on_delete=models.CASCADE, related_name="line_items")
 
     class Meta:
-        verbose_name = "Bill Line Item"
-        verbose_name_plural = "Bill Line Items"
+        verbose_name = gettext_lazy("Bill Line Item")
+        verbose_name_plural = gettext_lazy("Bill Line Items")
 
 
 class CreditNoteLineItem(BaseLineItem):
@@ -212,5 +213,5 @@ class CreditNoteLineItem(BaseLineItem):
     credit_note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name="line_items")
 
     class Meta:
-        verbose_name = "Credit Note Line Item"
-        verbose_name_plural = "Credit Note Line Items"
+        verbose_name = gettext_lazy("Credit Note Line Item")
+        verbose_name_plural = gettext_lazy("Credit Note Line Items")

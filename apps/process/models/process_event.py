@@ -3,6 +3,8 @@
 from typing import ClassVar
 
 from django.db import models
+from django.utils.functional import Promise
+from django.utils.translation import gettext_lazy
 
 from apps.core.audit import AuditEvent
 
@@ -32,13 +34,13 @@ class ProcessEvent(AuditEvent):
         related_name="events",
     )
 
-    EVENT_LABELS: ClassVar[dict[str, str]] = {
-        "entry_created": "Entry created",
-        "entry_archived": "Entry archived",
-        "form_created": "Form created",
-        "form_archived": "Form archived",
-        "form_updated": "Form updated",
-        "schema_updated": "Form schema updated",
+    EVENT_LABELS: ClassVar[dict[str, Promise]] = {
+        "entry_created": gettext_lazy("Entry created"),
+        "entry_archived": gettext_lazy("Entry archived"),
+        "form_created": gettext_lazy("Form created"),
+        "form_archived": gettext_lazy("Form archived"),
+        "form_updated": gettext_lazy("Form updated"),
+        "schema_updated": gettext_lazy("Form fields changed"),
     }
 
     class Meta(AuditEvent.Meta):

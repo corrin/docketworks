@@ -8,6 +8,7 @@ from collections.abc import Callable
 from datetime import date
 from uuid import UUID
 
+from django.utils.translation import gettext
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
@@ -38,53 +39,58 @@ def parse_schema(form: Form) -> FormSchemaSpec:
 
 def _as_uuid(key: str, value: object, problems: list[str]) -> UUID | None:
     if not isinstance(value, str):
-        problems.append(f"'{key}' must be an id string.")
+        problems.append(gettext("'%(key)s' must be an id string.") % {"key": key})
         return None
     try:
         return UUID(value)
     # deliberate-swallow: a malformed id in entry data is the caller's input
     # error, converted into the named validation problem the 400 reports.
     except ValueError:
-        problems.append(f"'{key}' must be an id string.")
+        problems.append(gettext("'%(key)s' must be an id string.") % {"key": key})
         return None
 
 
 def _check_text(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     if not isinstance(value, str):
-        problems.append(f"'{field.key}' must be text.")
+        problems.append(gettext("'%(key)s' must be text.") % {"key": field.key})
 
 
 def _check_number(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        problems.append(f"'{field.key}' must be a number.")
+        problems.append(gettext("'%(key)s' must be a number.") % {"key": field.key})
 
 
 def _check_boolean(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     if not isinstance(value, bool):
-        problems.append(f"'{field.key}' must be true or false.")
+        problems.append(gettext("'%(key)s' must be true or false.") % {"key": field.key})
 
 
 def _check_date(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     if not isinstance(value, str):
-        problems.append(f"'{field.key}' must be an ISO date string.")
+        problems.append(gettext("'%(key)s' must be an ISO date string.") % {"key": field.key})
         return
     try:
         date.fromisoformat(value)
     # deliberate-swallow: a non-ISO date in entry data is the caller's input
     # error, converted into the named validation problem the 400 reports.
     except ValueError:
-        problems.append(f"'{field.key}' must be an ISO date (YYYY-MM-DD).")
+        problems.append(gettext("'%(key)s' must be an ISO date (YYYY-MM-DD).") % {"key": field.key})
 
 
 def _check_select(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     if value not in (field.options or []):
-        problems.append(f"'{field.key}' must be one of {field.options}.")
+        problems.append(
+            gettext("'%(key)s' must be one of %(options)s.")
+            % {"key": field.key, "options": field.options}
+        )
 
 
 def _check_staff(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     staff_id = _as_uuid(field.key, value, problems)
     if staff_id is not None and not Staff.objects.filter(pk=staff_id).exists():
-        problems.append(f"'{field.key}' does not name a known staff member.")
+        problems.append(
+            gettext("'%(key)s' does not name a known staff member.") % {"key": field.key}
+        )
 
 
 def _check_entry_ref(field: FormFieldSchema, value: object, problems: list[str]) -> None:
@@ -100,7 +106,10 @@ def _check_entry_ref(field: FormFieldSchema, value: object, problems: list[str])
             pk=entry_id, form_id=field.source_form, is_active=True
         ).exists()
     ):
-        problems.append(f"'{field.key}' does not name an active entry of its source form.")
+        problems.append(
+            gettext("'%(key)s' does not name an active entry of its source form.")
+            % {"key": field.key}
+        )
 
 
 _CHECKERS: dict[str, Callable[[FormFieldSchema, object, list[str]], None]] = {
@@ -130,10 +139,10 @@ def validate_entry_data(form: Form, data: dict[str, object]) -> None:
 
     for key in data:
         if key not in by_key:
-            problems.append(f"'{key}' is not a field of this form.")
+            problems.append(gettext("'%(key)s' is not a field of this form.") % {"key": key})
     for field in spec.fields:
         if field.required and (field.key not in data or data[field.key] in ("", None)):
-            problems.append(f"'{field.key}' is required.")
+            problems.append(gettext("'%(key)s' is required.") % {"key": field.key})
             continue
         if field.key in data and data[field.key] is not None:
             _check_value(field, data[field.key], problems)

@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { strongResourceVersion } from '../../../src/lib/concurrency/interceptors'
+import { strongResourceVersion } from '../../../src/lib/concurrency/etag-store'
 
 async function setupStocktake(page: Page) {
   await expect(page.getByText('Loading stocktake setup…')).toHaveCount(0)
@@ -71,9 +71,9 @@ test('find a sheet, post once, and correct the count without losing history', as
   await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeDisabled()
   await page.goto('/purchasing/stock')
   await page.getByRole('textbox', { name: 'Search stock items', exact: true }).fill(item)
-  await stockRow.getByRole('button', { name: 'Retire empty identity', exact: true }).click()
+  await stockRow.getByRole('button', { name: 'Retire empty stock item', exact: true }).click()
   await expect(stockRow).toHaveCount(0)
-  await page.getByRole('checkbox', { name: 'Include retired identities' }).check()
+  await page.getByRole('checkbox', { name: 'Include retired stock items' }).check()
   await expect(stockRow).toContainText('Retired')
   await expect(stockRow.getByRole('button', { name: 'Record count', exact: true })).toHaveCount(0)
   await stockRow.getByRole('button', { name: 'History', exact: true }).click()

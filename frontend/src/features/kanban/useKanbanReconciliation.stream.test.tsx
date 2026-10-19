@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { http, HttpResponse } from 'msw/http'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -241,7 +241,12 @@ beforeEach(() => {
   vi.useFakeTimers()
 })
 
-afterEach(() => {
+afterEach(async () => {
+  // Unmount while the faked clock still runs: Testing Library's own cleanup
+  // comes after this hook, and an abort settled on the real clock spills its
+  // work into the next test, where Node 26 then sees a drop a second late.
+  cleanup()
+  await settle()
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
@@ -489,7 +494,7 @@ describe('useKanbanReconciliation over the push channel', () => {
 
     expect(toastError).toHaveBeenCalledTimes(1)
     expect(toastError).toHaveBeenCalledWith(
-      'Live updates disconnected — falling back to periodic refresh',
+      "Lost the live connection to the board. It now checks for changes every 30 seconds while this tab is in front, so other people's moves can take up to 30 seconds to show.",
     )
   })
 

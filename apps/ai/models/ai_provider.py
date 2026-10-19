@@ -3,6 +3,7 @@
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 from apps.ai.enums import AIProviderTypes
 
@@ -10,25 +11,32 @@ from apps.ai.enums import AIProviderTypes
 class AIProvider(models.Model):
     """A configured AI provider (API key + model) selectable as the default."""
 
-    name = models.CharField(max_length=100, help_text="Friendly name for this provider")
-    api_key = models.CharField(  # noqa: DJ001
-        max_length=255, null=True, blank=True, help_text="API Key for this AI Provider"
+    name = models.CharField(
+        max_length=100, help_text=gettext_lazy("Friendly name for this provider")
     )
-    default = models.BooleanField(default=False, help_text="Use this provider as the default")
+    api_key = models.CharField(  # noqa: DJ001
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text=gettext_lazy("API Key for this AI Provider"),
+    )
+    default = models.BooleanField(
+        default=False, help_text=gettext_lazy("Use this provider as the default")
+    )
     model_name = models.CharField(  # noqa: DJ001
         max_length=100,
-        help_text="Model name (e.g., gemini-flash-latest)",
+        help_text=gettext_lazy("Model name (e.g., gemini-flash-latest)"),
         blank=True,
         null=True,
     )
     provider_type = models.CharField(
-        max_length=20, choices=AIProviderTypes, help_text="Type of AI provider"
+        max_length=20, choices=AIProviderTypes, help_text=gettext_lazy("Type of AI provider")
     )
 
     class Meta:
         db_table = "workflow_aiprovider"  # v1 home was the workflow app
-        verbose_name = "AI Provider"
-        verbose_name_plural = "AI Providers"
+        verbose_name = gettext_lazy("AI Provider")
+        verbose_name_plural = gettext_lazy("AI Providers")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=["default"],

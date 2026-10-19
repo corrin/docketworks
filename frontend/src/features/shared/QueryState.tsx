@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface QueryStateProps {
   isPending: boolean
@@ -46,6 +47,7 @@ export function QueryState({
   errorNode,
   children,
 }: QueryStateProps) {
+  const { t } = useTranslation('shared')
   if (isPending) {
     return (
       loadingNode ?? (
@@ -63,10 +65,10 @@ export function QueryState({
         {errorLabel}
         {onRetry ? (
           <button type="button" className="ml-2 underline" onClick={onRetry}>
-            Retry
+            {t('queryState.retry')}
           </button>
         ) : (
-          ' Reload the page.'
+          <> {t('queryState.reloadPage')}</>
         )}
       </div>
     )

@@ -22,6 +22,7 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import Exists, F, OuterRef, QuerySet
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.models import CompanyDefaults
@@ -157,8 +158,11 @@ def create_stock_from_allocation(
     metadata, retail_rate_pct = allocation.metadata, allocation.retail_rate_pct
     if line.unit_cost is None:
         raise ValueError(
-            f"Price not confirmed for line {line.id} ({line.description}); "
-            f"cannot create a stock allocation."
+            gettext(
+                "Price not confirmed for line %(line_id)s (%(description)s); "
+                "cannot create a stock allocation."
+            )
+            % {"line_id": line.id, "description": line.description}
         )
     stock = Stock(
         job=job,
@@ -180,7 +184,7 @@ def create_stock_from_allocation(
         qty,
         MovementContext(
             kind=StockMovementKind.DELIVERY,
-            reason=f"Receipt against PO line {line.id}",
+            reason=f"Received on PO {line.purchase_order.po_number}",
             actor=staff,
         ),
     )
@@ -205,8 +209,11 @@ def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay 
     """Materialise a received quantity as a material CostLine on a job."""
     if line.unit_cost is None:
         raise ValueError(
-            f"Price not confirmed for line {line.id} ({line.description}); "
-            f"cannot create a job allocation."
+            gettext(
+                "Price not confirmed for line %(line_id)s (%(description)s); "
+                "cannot create a job allocation."
+            )
+            % {"line_id": line.id, "description": line.description}
         )
     lock_costing_jobs([job.id])
     rate = retail_pct_to_rate(retail_rate_pct)
@@ -325,7 +332,9 @@ def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
     """
     po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(id=po_id).first()
     if po is None:
-        raise AllocationReversalError(f"Purchase Order {po_id} not found")
+        raise AllocationReversalError(
+            gettext("Purchase Order %(po_id)s not found") % {"po_id": po_id}
+        )
     return po
 
 
@@ -333,7 +342,9 @@ def _read_po_or_error(po_id: UUID) -> PurchaseOrder:
     """Return the PO without locking it, for callers that only read."""
     po = PurchaseOrder.objects.filter(id=po_id).first()
     if po is None:
-        raise AllocationReversalError(f"Purchase Order {po_id} not found")
+        raise AllocationReversalError(
+            gettext("Purchase Order %(po_id)s not found") % {"po_id": po_id}
+        )
     return po
 
 
@@ -349,7 +360,8 @@ def _get_stock_or_error(po: PurchaseOrder, stock_id: UUID) -> Stock:
     )
     if stock is None:
         raise AllocationReversalError(
-            f"Stock allocation {stock_id} not found or not from PO {po.id}"
+            gettext("Stock allocation %(stock_id)s not found or not from PO %(po_id)s")
+            % {"stock_id": stock_id, "po_id": po.id}
         )
     return stock
 
@@ -369,7 +381,10 @@ def _get_costline_or_error(po: PurchaseOrder, cost_line_id: UUID) -> CostLine:
         .first()
     )
     if cost_line is None:
-        raise AllocationReversalError(f"Job allocation {cost_line_id} not found on PO {po.id}")
+        raise AllocationReversalError(
+            gettext("Job allocation %(cost_line_id)s not found on PO %(po_id)s")
+            % {"cost_line_id": cost_line_id, "po_id": po.id}
+        )
     return cost_line
 
 
@@ -379,7 +394,9 @@ def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
         id=po_line.id, received_quantity__gte=quantity
     ).update(received_quantity=F("received_quantity") - quantity)
     if not changed:
-        raise AllocationReversalError("The allocation exceeds the recorded received quantity.")
+        raise AllocationReversalError(
+            gettext("The allocation exceeds the recorded received quantity.")
+        )
     po_line.refresh_from_db(fields=["received_quantity"])
 
 
@@ -406,7 +423,9 @@ def reverse_allocation(
         cost_line = _get_costline_or_error(po, allocation.allocation_id)
         stock = cost_line.stockmovement.stock
     if stock.source_purchase_order_line_id != line_id:
-        raise AllocationReversalError("The allocation does not belong to this purchase order line.")
+        raise AllocationReversalError(
+            gettext("The allocation does not belong to this purchase order line.")
+        )
     po_line = PurchaseOrderLine.objects.select_for_update().get(id=line_id, purchase_order=po)
     receipt = stock.movements.get(kind__in=["delivery", "delivery_opening"])
     already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
@@ -427,7 +446,7 @@ def reverse_allocation(
             -quantity,
             MovementContext(
                 kind=StockMovementKind.DELIVERY_REVERSAL,
-                reason=f"Reverse receipt allocation from PO line {po_line.id}",
+                reason=f"Receipt on PO {po.po_number} reversed",
                 actor=staff,
                 reverses=receipt,
             ),

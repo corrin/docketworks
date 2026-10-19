@@ -12,6 +12,8 @@ from django.db import connection, models, transaction
 from django.db.models import Q
 from django.db.models.lookups import Exact
 from django.utils import timezone
+from django.utils.functional import Promise
+from django.utils.translation import gettext, gettext_lazy
 from psycopg import sql
 
 from apps.core.errors import ConflictError
@@ -85,10 +87,10 @@ class CostSet(models.Model):
         "created",
     ]
 
-    KIND_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        ("estimate", "Estimate"),
-        ("quote", "Quote"),
-        ("actual", "Actual"),
+    KIND_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
+        ("estimate", gettext_lazy("Estimate")),
+        ("quote", gettext_lazy("Quote")),
+        ("actual", gettext_lazy("Actual")),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -97,7 +99,7 @@ class CostSet(models.Model):
     rev = models.IntegerField()
     summary = models.JSONField(
         default=get_default_cost_set_summary,
-        help_text="Summary data for this cost set (cost, rev, hours)",
+        help_text=gettext_lazy("Summary data for this cost set (cost, rev, hours)"),
     )
     created = models.DateTimeField(auto_now_add=True)
 
@@ -114,7 +116,7 @@ class CostSet(models.Model):
     def clean(self) -> None:
         """Validate that the revision is non-negative."""
         if self.rev < 0:
-            raise ValidationError("Revision must be non-negative")
+            raise ValidationError(gettext("Revision must be non-negative"))
 
     @property
     def total_cost(self) -> Decimal | int:
@@ -278,17 +280,20 @@ class CostLine(models.Model):
     # All CostLine model fields (derived)
     COSTLINE_ALL_FIELDS: ClassVar[list[str]] = COSTLINE_API_FIELDS + COSTLINE_INTERNAL_FIELDS
 
-    KIND_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        ("time", "Time"),
-        ("material", "Material"),
-        ("adjust", "Adjustment"),
+    KIND_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
+        ("time", gettext_lazy("Time")),
+        ("material", gettext_lazy("Material")),
+        ("adjust", gettext_lazy("Adjustment")),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     cost_set = models.ForeignKey(CostSet, on_delete=models.CASCADE, related_name="cost_lines")
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
     desc = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
-        max_length=255, help_text="Description of this cost line", blank=True, null=True
+        max_length=255,
+        help_text=gettext_lazy("Description of this cost line"),
+        blank=True,
+        null=True,
     )
     quantity = models.DecimalField(max_digits=10, decimal_places=3, default=Decimal("1.000"))
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
@@ -296,12 +301,14 @@ class CostLine(models.Model):
     ext_refs = models.JSONField(
         default=dict,
         blank=True,
-        help_text="External references (e.g., time entry IDs, material IDs)",
+        help_text=gettext_lazy("External references (e.g., time entry IDs, material IDs)"),
     )
     meta = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Additional metadata - structure varies by kind (see class docstring)",
+        help_text=gettext_lazy(
+            "Additional metadata - structure varies by kind (see class docstring)"
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -309,7 +316,9 @@ class CostLine(models.Model):
 
     # Accounting date - the date this cost should be attributed to for reporting
     accounting_date = models.DateField(
-        help_text="The date this cost should be attributed to for accounting purposes",
+        help_text=gettext_lazy(
+            "The date this cost should be attributed to for accounting purposes"
+        ),
     )
 
     # Xero sync fields for bidirectional time/expense tracking
@@ -321,8 +330,10 @@ class CostLine(models.Model):
     approved = models.BooleanField(
         default=True,
         help_text=(
-            "Indicates whether this line is approved or not by an office staff "
-            "(when the line is created by a workshop worker)"
+            gettext_lazy(
+                "Indicates whether this line is approved or not by an office staff "
+                "(when the line is created by a workshop worker)"
+            )
         ),
     )
 
@@ -332,14 +343,16 @@ class CostLine(models.Model):
         null=True,
         blank=True,
         related_name="cost_lines",
-        help_text="Staff member for actual time entries.",
+        help_text=gettext_lazy("Staff member for actual time entries."),
     )
 
     # Sequence number - auto-assigned within (staff, accounting_date) for actual time entries
     entry_seq = models.PositiveIntegerField(
         null=True,
         blank=True,
-        help_text="Sequence number within a staff member's daily actual time entries.",
+        help_text=gettext_lazy(
+            "Sequence number within a staff member's daily actual time entries."
+        ),
     )
 
     # Xero pay item - determines how this time entry is paid (leave type, overtime, etc.)
@@ -350,7 +363,9 @@ class CostLine(models.Model):
         null=True,
         blank=True,
         related_name="cost_lines",
-        help_text="The Xero pay item for this time entry (leave type, earnings rate, etc.)",
+        help_text=gettext_lazy(
+            "The Xero pay item for this time entry (leave type, earnings rate, etc.)"
+        ),
     )
 
     # Labour subtype - required for time lines, null for material/adjust
@@ -360,7 +375,7 @@ class CostLine(models.Model):
         null=True,
         blank=True,
         related_name="cost_lines",
-        help_text="The labour subtype for time lines (Workshop, Admin, Onsite, ...)",
+        help_text=gettext_lazy("The labour subtype for time lines (Workshop, Admin, Onsite, ...)"),
     )
 
     managed_by = models.CharField(  # noqa: DJ001 -- NULL means no owning workflow
@@ -368,7 +383,9 @@ class CostLine(models.Model):
         choices=CostLineOwner.choices,
         null=True,
         blank=True,
-        help_text="Workflow that owns this line; owned lines are changed through that workflow.",
+        help_text=gettext_lazy(
+            "Workflow that owns this line; owned lines are changed through that workflow."
+        ),
     )
 
     # Fable: A mark for the office, never a refusal, and never cleared once
@@ -377,7 +394,9 @@ class CostLine(models.Model):
     # kept; where the phone was is not stored.
     remote_entry = models.BooleanField(
         default=False,
-        help_text="The worker saved this line without a location at the company address.",
+        help_text=gettext_lazy(
+            "The worker saved this line without a location at the company address."
+        ),
     )
 
     class Meta:
@@ -463,7 +482,9 @@ class CostLine(models.Model):
         lock_costing_jobs(job_ids)
         current = self._stored_contribution()
         if current is not None and current.cost_set.job_id not in job_ids:
-            raise ConflictError("This cost line moved to another job. Reload before editing it.")
+            raise ConflictError(
+                gettext("This cost line moved to another job. Reload before editing it.")
+            )
         return current
 
     @property
@@ -488,14 +509,14 @@ class CostLine(models.Model):
 
         if self.kind == "time" and self.cost_set.kind == "actual":
             if self.staff_id is None:
-                raise ValidationError("Actual time entries must have staff set.")
+                raise ValidationError(gettext("Actual time entries must have staff set."))
             if self.entry_seq is None:
-                raise ValidationError("Actual time entries must have entry_seq set.")
+                raise ValidationError(gettext("Actual time entries must have entry_seq set."))
 
         if self.kind == "time" and self.labour_subtype_id is None:
-            raise ValidationError("Time lines must have labour_subtype set.")
+            raise ValidationError(gettext("Time lines must have labour_subtype set."))
         if self.kind != "time" and self.labour_subtype_id is not None:
-            raise ValidationError("Only time lines may have labour_subtype set.")
+            raise ValidationError(gettext("Only time lines may have labour_subtype set."))
 
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
@@ -520,12 +541,15 @@ class CostLine(models.Model):
         if leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
             if self.xero_pay_item_id is not None:
                 raise ValidationError(
-                    f"{leave_type.display_name} is paid by Xero's own calculation, so its "
-                    "time entries must not name a Xero pay item."
+                    gettext(
+                        "%(leave_type)s is paid by Xero's own calculation, so its "
+                        "time entries must not name a Xero pay item."
+                    )
+                    % {"leave_type": leave_type.display_name}
                 )
             return
         if self.xero_pay_item is None:
-            raise ValidationError("Actual time entries must have xero_pay_item set.")
+            raise ValidationError(gettext("Actual time entries must have xero_pay_item set."))
 
     def _actual_time_entry_requires_sequence(self) -> bool:
         if self.kind != "time":
@@ -590,15 +614,25 @@ class CostLine(models.Model):
         if job.shop_job:
             if self.unit_rev != Decimal("0.00"):
                 raise ValidationError(
-                    f"Shop jobs cannot have revenue. Got unit_rev={self.unit_rev} "
-                    f"for job '{job.name}' (job_number={job.job_number})"
+                    gettext(
+                        "Shop jobs cannot have revenue. Got unit_rev=%(unit_rev)s "
+                        "for job '%(job_name)s' (job_number=%(job_number)s)"
+                    )
+                    % {
+                        "unit_rev": self.unit_rev,
+                        "job_name": job.name,
+                        "job_number": job.job_number,
+                    }
                 )
             if self.kind == "time":
                 meta = self.meta if isinstance(self.meta, dict) else {}
                 if meta.get("is_billable", False):
                     raise ValidationError(
-                        f"Shop job time entries cannot be billable. "
-                        f"Job '{job.name}' (job_number={job.job_number})"
+                        gettext(
+                            "Shop job time entries cannot be billable. "
+                            "Job '%(job_name)s' (job_number=%(job_number)s)"
+                        )
+                        % {"job_name": job.name, "job_number": job.job_number}
                     )
 
         self.full_clean()

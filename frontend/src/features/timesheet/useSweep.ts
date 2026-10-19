@@ -9,19 +9,28 @@ import {
 } from '@/api'
 import type { SweepIn, SweepOut, SweepSkipOut } from '@/api'
 import { formatDate, formatHoursDisplay } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
-const SKIP_WORDS: Record<SweepSkipOut['reason'], string> = {
-  still_clocked_in: 'still clocked in',
-  no_clock_times: 'no clock in or out',
-}
+const SKIP_KEYS = {
+  still_clocked_in: 'stillClockedIn',
+  no_clock_times: 'noClockTimes',
+} as const satisfies Record<SweepSkipOut['reason'], string>
 
 /** What a sweep did, in words: the hours moved, then each day it left alone. */
 export function sweepWords(result: SweepOut): string {
-  const moved = `${formatHoursDisplay(result.swept_hours)} booked to General work.`
-  const skipped = result.skipped.map(
-    (skip) => `${skip.staff_name} on ${formatDate(skip.date)} (${SKIP_WORDS[skip.reason]})`,
+  const moved = i18n.t('timesheet:sweep.moved', {
+    hours: formatHoursDisplay(result.swept_hours),
+  })
+  const skipped = result.skipped.map((skip) =>
+    i18n.t('timesheet:sweep.skippedDay', {
+      name: skip.staff_name,
+      date: formatDate(skip.date),
+      reason: i18n.t(`timesheet:sweep.skip.${SKIP_KEYS[skip.reason]}`),
+    }),
   )
-  return skipped.length === 0 ? moved : `${moved} Not booked: ${skipped.join(', ')}.`
+  return skipped.length === 0
+    ? moved
+    : i18n.t('timesheet:sweep.withSkipped', { moved, skipped: skipped.join(', ') })
 }
 
 /**

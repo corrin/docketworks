@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { accountingReportsWipRetrieveOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
@@ -10,32 +11,43 @@ import { SummaryCard } from '@/features/shared/SummaryCard'
  * and method controls ship with the slice that asserts on them.
  */
 export function WipReportPage() {
+  const { t } = useTranslation('reports')
   const report = useQuery(accountingReportsWipRetrieveOptions())
 
   return (
     <div className="min-h-screen p-6">
-      <h1 className="text-xl font-bold text-gray-900" data-automation-id="WIPReport-title">
-        WIP Report
+      <h1
+        className="text-xl font-bold text-gray-900"
+        data-automation-id="WIPReport-title"
+        title={t('wipPage.titles.page')}
+      >
+        {t('wipPage.title')}
       </h1>
 
       <ListTable
         isPending={report.isPending}
         isError={report.isError}
         onRetry={() => void report.refetch()}
-        loadingLabel="Loading WIP report..."
+        loadingLabel={t('wipPage.loading')}
         loadingAutomationId="WIPReport-loading"
-        errorLabel="Failed to load the WIP report."
+        errorLabel={t('wipPage.loadError')}
         rows={report.data?.jobs}
-        emptyLabel="No jobs found"
+        emptyLabel={t('wipPage.empty')}
         automationId="WIPReport-table"
         head={
           <tr className="border-b border-gray-200 text-left text-gray-500">
-            <th className="px-3 py-2">Job</th>
-            <th className="px-3 py-2">Name</th>
-            <th className="px-3 py-2">Company</th>
-            <th className="px-3 py-2 text-right">Gross WIP</th>
-            <th className="px-3 py-2 text-right">Invoiced</th>
-            <th className="px-3 py-2 text-right">Net WIP</th>
+            <th className="px-3 py-2">{t('wipPage.columns.job')}</th>
+            <th className="px-3 py-2">{t('wipPage.columns.name')}</th>
+            <th className="px-3 py-2">{t('wipPage.columns.company')}</th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.grossWip')}>
+              {t('wipPage.columns.grossWip')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.invoiced')}>
+              {t('wipPage.columns.invoiced')}
+            </th>
+            <th className="px-3 py-2 text-right" title={t('wipPage.titles.netWip')}>
+              {t('wipPage.columns.netWip')}
+            </th>
           </tr>
         }
         renderRow={(job) => (
@@ -54,13 +66,23 @@ export function WipReportPage() {
             data-automation-id="WIPReport-summary-cards"
             className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3"
           >
-            <SummaryCard label="Total Gross WIP" valueAutomationId="WIPReport-total-gross-value">
+            <SummaryCard
+              label={t('wipPage.totalGross')}
+              valueAutomationId="WIPReport-total-gross-value"
+            >
               {formatCurrency(report.data.summary.total_gross)}
             </SummaryCard>
-            <SummaryCard label="Total Net WIP" valueAutomationId="WIPReport-total-net-value">
+            <SummaryCard
+              label={t('wipPage.totalNet')}
+              valueAutomationId="WIPReport-total-net-value"
+            >
               {formatCurrency(report.data.summary.total_net)}
             </SummaryCard>
-            <SummaryCard label="Jobs" valueAutomationId="WIPReport-job-count">
+            <SummaryCard
+              label={t('wipPage.jobCount')}
+              title={t('wipPage.titles.jobCount')}
+              valueAutomationId="WIPReport-job-count"
+            >
               {report.data.summary.job_count}
             </SummaryCard>
           </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   processFormsEntriesListOptions,
@@ -115,6 +116,7 @@ interface FieldProps {
     schema.map() loop would call useQuery a variable number of times across
     renders, breaking the rules of hooks. */
 function EntryRefField({ field, draft, onChange, disabled, automationId }: FieldProps) {
+  const { t } = useTranslation('process')
   if (field.source_form === undefined || field.source_form === null) {
     // FormFieldSchema._coherent guarantees source_form whenever type is
     // entry_ref (apps/process/schemas.py); a stored schema that violates
@@ -136,7 +138,9 @@ function EntryRefField({ field, draft, onChange, disabled, automationId }: Field
       aria-label={field.label}
       data-automation-id={automationId}
     >
-      <option value="">{entriesQuery.isPending ? 'Loading…' : 'Select…'}</option>
+      <option value="">
+        {entriesQuery.isPending ? t('entryForm.loadingOption') : t('entryForm.selectOption')}
+      </option>
       {rows.map((entry) => {
         const label = entry.display_data[displayKey] || textFor(entry.data[displayKey]) || entry.id
         return (
@@ -150,6 +154,7 @@ function EntryRefField({ field, draft, onChange, disabled, automationId }: Field
 }
 
 function SchemaField({ field, draft, onChange, disabled, staffOptions, automationId }: FieldProps) {
+  const { t } = useTranslation('process')
   if (field.type === 'entry_ref') {
     return (
       <EntryRefField
@@ -200,7 +205,7 @@ function SchemaField({ field, draft, onChange, disabled, staffOptions, automatio
         aria-label={field.label}
         data-automation-id={automationId}
       >
-        <option value="">Select…</option>
+        <option value="">{t('entryForm.selectOption')}</option>
         {(field.options ?? []).map((option) => (
           <option key={option} value={option}>
             {option}
@@ -220,7 +225,7 @@ function SchemaField({ field, draft, onChange, disabled, staffOptions, automatio
         aria-label={field.label}
         data-automation-id={automationId}
       >
-        <option value="">Select…</option>
+        <option value="">{t('entryForm.selectOption')}</option>
         {staffOptions.map((option) => (
           <option key={option.id} value={option.id}>
             {option.name}
@@ -265,6 +270,7 @@ export function EntryForm({
   automationIdPrefix,
   disabled = false,
 }: Props) {
+  const { t } = useTranslation('process')
   const [entryDate, setEntryDate] = useState(initial?.entry_date ?? localIsoDate())
   const [staffId, setStaffId] = useState(initial?.staff ?? '')
   const [jobId, setJobId] = useState<string | null>(initial?.job ?? null)
@@ -295,7 +301,8 @@ export function EntryForm({
     for (const field of schema) {
       if (!field.required) continue
       const draft = drafts[field.key]
-      if (draft === undefined || isBlank(draft)) return `'${field.label}' is required.`
+      if (draft === undefined || isBlank(draft))
+        return t('entryForm.required', { label: field.label })
     }
     return null
   }
@@ -335,7 +342,7 @@ export function EntryForm({
     <div className="flex flex-col gap-4" data-automation-id={`${automationIdPrefix}-root`}>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm font-medium">
-          <span className="text-slate-700">Entry date</span>
+          <span className="text-slate-700">{t('entryForm.entryDate')}</span>
           <input
             type="date"
             className={INPUT_CLASS}
@@ -346,7 +353,7 @@ export function EntryForm({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium">
-          <span className="text-slate-700">Signed by</span>
+          <span className="text-slate-700">{t('entryForm.signedBy')}</span>
           <select
             className={INPUT_CLASS}
             value={staffId ?? ''}
@@ -354,7 +361,7 @@ export function EntryForm({
             onChange={(event) => setStaffId(event.target.value)}
             data-automation-id={`${automationIdPrefix}-staff`}
           >
-            <option value="">Select staff…</option>
+            <option value="">{t('entryForm.selectStaff')}</option>
             {staffOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.name}
@@ -363,12 +370,12 @@ export function EntryForm({
           </select>
         </label>
         <div className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
-          <span className="text-slate-700">Job (optional)</span>
+          <span className="text-slate-700">{t('entryForm.job')}</span>
           {jobsError && (
             <p className="text-xs text-red-700">
-              Could not load jobs.{' '}
+              {t('entryForm.jobsFailed')}{' '}
               <button type="button" className="underline" onClick={() => void jobsQuery.refetch()}>
-                Retry
+                {t('entryForm.retry')}
               </button>
             </p>
           )}
@@ -376,12 +383,12 @@ export function EntryForm({
             <div className="flex-1 rounded-md border border-slate-200">
               <JobPicker
                 automationIdPrefix={`${automationIdPrefix}-job`}
-                ariaLabel="Linked job"
+                ariaLabel={t('entryForm.linkedJob')}
                 jobs={jobs}
                 selected={selectedJob}
                 disabled={disabled}
                 loading={jobsQuery.isPending}
-                placeholder="No job linked"
+                placeholder={t('entryForm.noJobLinked')}
                 triggerLabel={(job) => (job === null ? '' : `#${job.job_number} - ${job.name}`)}
                 typedSearchLimit={null}
                 commitOnTab={false}
@@ -400,7 +407,7 @@ export function EntryForm({
                 onClick={() => setJobId(null)}
                 data-automation-id={`${automationIdPrefix}-job-clear`}
               >
-                Clear
+                {t('entryForm.clearJob')}
               </Button>
             )}
           </div>
@@ -444,7 +451,7 @@ export function EntryForm({
           onClick={() => void handleSubmit()}
           data-automation-id={`${automationIdPrefix}-submit`}
         >
-          {submitting ? 'Saving…' : 'Save entry'}
+          {submitting ? t('entryForm.saving') : t('entryForm.save')}
         </Button>
       </div>
     </div>

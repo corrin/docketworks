@@ -1,10 +1,12 @@
+import { useTranslation } from 'react-i18next'
+
 import type { KpiDayDataOut } from '@/api'
 
 import { KpiCalendarDayCell } from './KpiCalendarDayCell'
 import type { KpiTarget, MoneyFormatter } from './kpiDisplay'
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const WEEKEND = ['Sat', 'Sun']
+const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri'] as const
+const WEEKEND = ['sat', 'sun'] as const
 
 interface KpiCalendarGridProps {
   /** In date order — see sortedDays in kpiDisplay. */
@@ -30,6 +32,7 @@ export function KpiCalendarGrid({
   money,
   onSelectDay,
 }: KpiCalendarGridProps) {
+  const { t } = useTranslation('reports')
   const headers = weekendEnabled ? [...WEEKDAYS, ...WEEKEND] : WEEKDAYS
   return (
     // Fable: a wide grid scrolls inside its own container
@@ -44,7 +47,7 @@ export function KpiCalendarGrid({
       >
         {headers.map((name) => (
           <div key={name} className="py-2 text-center text-xs font-semibold text-gray-500">
-            {name}
+            {t(`calendarGrid.weekday.${name}`)}
           </div>
         ))}
         {days.map((day) => (

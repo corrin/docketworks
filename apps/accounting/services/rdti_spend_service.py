@@ -11,14 +11,17 @@ from typing import TypedDict
 
 from django.db.models import DecimalField, F, Sum, Value
 from django.db.models.functions import Coalesce
+from django.utils.translation import gettext
 
 from apps.job.enums import RDTIType
 from apps.job.models.costing import CostLine
 
-# All RDTI categories, always included in the summary (even at zero).
-_RDTI_CATEGORIES: list[tuple[str, str]] = [(choice.value, choice.label) for choice in RDTIType] + [
-    ("unclassified", "Unclassified")
-]
+
+def _rdti_categories() -> list[tuple[str, str]]:
+    """All RDTI categories, always included in the summary (even at zero)."""
+    return [(choice.value, str(choice.label)) for choice in RDTIType] + [
+        ("unclassified", gettext("Unclassified"))
+    ]
 
 
 class RDTIJobDetail(TypedDict):
@@ -120,7 +123,7 @@ def get_rdti_spend_data(start_date: date, end_date: date) -> RDTISpendData:
             revenue=cat_data[rdti_value]["revenue"] if rdti_value in cat_data else 0.0,
             job_count=int(cat_data[rdti_value]["job_count"]) if rdti_value in cat_data else 0,
         )
-        for rdti_value, label in _RDTI_CATEGORIES
+        for rdti_value, label in _rdti_categories()
     ]
 
     return RDTISpendData(

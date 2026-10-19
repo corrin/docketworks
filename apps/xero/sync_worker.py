@@ -24,6 +24,7 @@ from celery import shared_task
 from django.conf import settings
 from django.core.cache import caches
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.core.errors import persist_app_error
 from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled, XeroSyncLockLost
@@ -72,7 +73,7 @@ def _publish_sync_failure(
             "datetime": timezone.now().isoformat(),
             "entity": "sync",
             "severity": "info",
-            "message": "Sync stream ended",
+            "message": gettext("The update from Xero has finished sending progress."),
             "sync_status": sync_status,
             "progress": None,
             "task_id": task_id,
@@ -129,7 +130,9 @@ def xero_sync_task(
         if settings.XERO_READONLY:
             # v1 parity: XeroReadOnlyProvider.run_full_sync skipped the whole
             # run with this message.
-            _publish_abort_marker(task_id, "Sync skipped: XERO_READONLY is set")
+            _publish_abort_marker(
+                task_id, gettext("Did not update from Xero: this site is in Xero read-only mode.")
+            )
             logger.info("Xero sync task %s skipped: XERO_READONLY", task_id)
             return
 
@@ -176,7 +179,7 @@ def xero_sync_task(
                 "datetime": timezone.now().isoformat(),
                 "entity": "sync",
                 "severity": "info",
-                "message": "Sync stream ended",
+                "message": gettext("The update from Xero has finished sending progress."),
                 "overall_progress": 1.0,
                 "entity_progress": 1.0,
                 "sync_status": "success",
@@ -192,7 +195,9 @@ def xero_sync_task(
     # what made the gate a four-way policy.
     except XeroSyncDisabled as exc:
         logger.info("Xero sync task %s skipped: %s", task_id, exc)
-        _publish_abort_marker(task_id, f"Sync skipped: {exc}")
+        _publish_abort_marker(
+            task_id, gettext("Did not update from Xero: %(reason)s") % {"reason": exc}
+        )
 
     # deliberate-swallow: operational abort, not a defect. Do NOT
     # persist_app_error (24+ rows/day at the floor would be noise), do not
@@ -208,7 +213,7 @@ def xero_sync_task(
         logger.warning("Xero sync %s aborted: %s", task_id, exc)
         _publish_sync_failure(
             task_id=task_id,
-            message=f"Sync aborted: {exc}",
+            message=gettext("Stopped updating from Xero: %(reason)s") % {"reason": exc},
             sync_status="aborted",
         )
 
@@ -216,7 +221,7 @@ def xero_sync_task(
         err = persist_app_error(exc)
         _publish_sync_failure(
             task_id=task_id,
-            message=f"Error during sync: {exc}",
+            message=gettext("Updating from Xero failed: %(error)s") % {"error": exc},
             sync_status="error",
             app_error_id=str(err.id),
         )
