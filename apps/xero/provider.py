@@ -339,10 +339,12 @@ class XeroAccountingProvider:
             )
             logger.info("Set Xero invoice %s to %s", external_id, target)
             return DocumentResult(success=True, external_id=external_id, document_status=target)
+        # deliberate-swallow: Xero refusing to delete an approved invoice is an
+        # expected answer the caller turns into the void offer, not a fault;
+        # every other failure is persisted below.
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             result = self._make_error_result(exc)
             if not void and result.error == XERO_NOT_DELETABLE:
-                # deliberate-swallow: an expected refusal, not a fault
                 result.error_type = INVOICE_APPROVED
                 return result
             persist_app_error(exc)
