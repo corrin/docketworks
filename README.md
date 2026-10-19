@@ -13,7 +13,7 @@ Django 6 + django-ninja backend, React/Vite frontend, PostgreSQL, Redis, Celery.
 ## Requirements
 
 - **Python 3.14** (managed with [uv](https://docs.astral.sh/uv/))
-- **Node.js 22+** (frontend)
+- **Node.js** at the version in `frontend/.nvmrc` (frontend)
 - **PostgreSQL 16+**
 - **Redis** (Celery broker + Django cache)
 - **ngrok** — required for Xero OAuth callbacks (a free static domain is enough)

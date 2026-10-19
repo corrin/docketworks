@@ -117,7 +117,7 @@ the stamp is written only after setup succeeds.
 
 - etckeeper (tracks /etc changes in git)
 - Python 3.14 through uv for the `docketworks` account, following `.python-version`; OS tools retain the distro Python
-- Node.js 22 (NodeSource)
+- Node.js, the major in `frontend/.nvmrc` (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
   private port behind its own password; the stock service on 6379 serves only the v1 demo).
@@ -670,5 +670,5 @@ curl -sI https://docketworks.site/
   restart the instance's gunicorn service.
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
-- All packages (Python 3.14, Node 22, PostgreSQL, etc.) have aarch64/ARM builds
+- All packages (Python, Node, PostgreSQL, etc.) have aarch64/ARM builds
 - The wildcard cert auto-renews via certbot with Dreamhost DNS hooks
