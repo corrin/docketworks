@@ -201,7 +201,7 @@ def capture_all(
     accounting = AccountingApi(client)
     payroll = PayrollNzApi(client)
     remaining = None if only is None else set(only)
-    for capture in _capture_every_route(tap, accounting, payroll, tenant_id):
+    for capture in _capture_every_route(tap, accounting, payroll, tenant_id, only):
         if remaining is None:
             yield capture
         elif capture.name in remaining:
@@ -214,11 +214,18 @@ def capture_all(
 
 
 def _capture_every_route(
-    tap: _TransportTap, accounting: AccountingApi, payroll: PayrollNzApi, tenant_id: str
+    tap: _TransportTap,
+    accounting: AccountingApi,
+    payroll: PayrollNzApi,
+    tenant_id: str,
+    only: frozenset[str] | None,
 ) -> Iterator[Capture]:
     # First, so a pass asked for these alone spends only their dozen calls:
-    # they depend on no id an earlier capture finds.
-    yield from _capture_payroll_writes(tap)
+    # they depend on no id an earlier capture finds. Skipped by a pass that
+    # asked for none of them: each run leaves an employee the Demo Company
+    # cannot delete.
+    if only is None or only & set(PAYROLL_WRITES.values()):
+        yield from _capture_payroll_writes(tap)
     yield from _capture_accounting(tap, accounting, tenant_id)
     yield from _capture_accounting_writes(tap, accounting, tenant_id)
     yield from _capture_payroll(tap, payroll, tenant_id)
@@ -416,7 +423,8 @@ def _capture_invoice_writes(
                         "DueDate": today,
                         "LineAmountTypes": "Exclusive",
                         "Reference": "recording",
-                        "Status": "AUTHORISED",
+                        # As Docketworks raises it; staff approve it in Xero.
+                        "Status": "DRAFT",
                     }
                 ]
             },
@@ -424,6 +432,24 @@ def _capture_invoice_writes(
     )
     yield invoice
     invoice_id = _text(_element(invoice, "Invoices"), "InvoiceID")
+    # The approval staff make in Xero, sent as the E2E harness sends it
+    # (approve_xero_invoice): id, status, contact and date.
+    yield _record(
+        tap,
+        "invoice_approve",
+        lambda: accounting.update_or_create_invoices(
+            tenant_id,
+            {
+                "Invoices": [
+                    {
+                        **_deletion("InvoiceID", invoice_id, contact_id, today),
+                        "Status": "AUTHORISED",
+                    }
+                ]
+            },
+            summarize_errors=False,
+        ),
+    )
     yield _record(
         tap,
         "invoice_history_create",

@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "recorded_at": "2026-10-19T08:43:23+00:00",
   "organisation": "Demo Company (NZ)",
   "sdk": "xero-python 15.2.0",
   "scrubbed_keys": [
@@ -41,20 +41,20 @@
     "content_type": "application/json; charset=utf-8",
     "content_disposition": null,
     "headers": {
-      "X-DayLimit-Remaining": "187",
-      "X-MinLimit-Remaining": "46"
+      "X-DayLimit-Remaining": "777",
+      "X-MinLimit-Remaining": "35"
     }
   },
   "body": {
-    "Id": "20212e47-e858-48ef-8119-3f73690169c1",
+    "Id": "e2be427d-756d-477a-a1dc-cd0d2d1c6ed4",
     "Status": "OK",
     "ProviderName": "Docketworks MSM Dev",
-    "DateTimeUTC": "/Date(1789378199160)/",
+    "DateTimeUTC": "/Date(1792399435174)/",
     "Invoices": [
       {
         "Type": "ACCREC",
-        "InvoiceID": "60aa5d55-a47e-4665-a974-874bb50263b9",
-        "InvoiceNumber": "INV-0055",
+        "InvoiceID": "2ffa07b3-a4a0-4e9f-822f-62afffee89a7",
+        "InvoiceNumber": "INV-0051",
         "Reference": "recording",
         "Prepayments": [],
         "Overpayments": [],
@@ -65,11 +65,11 @@
         "IsDiscounted": false,
         "HasErrors": false,
         "InvoicePaymentServices": [],
-        "UpdatedDateUTCString": "2026-09-14T09:29:59Z",
+        "UpdatedDateUTCString": "2026-10-19T08:43:55Z",
         "Contact": {
-          "ContactID": "2f79af6c-5f57-49e8-9e44-301499538add",
+          "ContactID": "44decef4-4677-4fb1-a7e1-cf5d3f3c6459",
           "ContactStatus": "ACTIVE",
-          "Name": "[TEST] Recording a1a54b7c",
+          "Name": "[TEST] Recording ed79cb85",
           "EmailAddress": "EmailAddress-scrubbed",
           "BankAccountDetails": "",
           "Addresses": [
@@ -114,7 +114,7 @@
               "PhoneCountryCode": ""
             }
           ],
-          "UpdatedDateUTC": "/Date(1789378196227+0000)/",
+          "UpdatedDateUTC": "/Date(1792399432333+0000)/",
           "ContactGroups": [],
           "IsSupplier": false,
           "IsCustomer": true,
@@ -123,12 +123,12 @@
           "ContactPersons": [],
           "HasValidationErrors": false
         },
-        "DateString": "2026-09-14T00:00:00",
-        "Date": "/Date(1789344000000+0000)/",
-        "DueDateString": "2026-09-14T00:00:00",
-        "DueDate": "/Date(1789344000000+0000)/",
+        "DateString": "2026-10-19T00:00:00",
+        "Date": "/Date(1792368000000+0000)/",
+        "DueDateString": "2026-10-19T00:00:00",
+        "DueDate": "/Date(1792368000000+0000)/",
         "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
-        "Status": "AUTHORISED",
+        "Status": "DRAFT",
         "LineAmountTypes": "Exclusive",
         "LineItems": [
           {
@@ -140,7 +140,7 @@
             "AccountCode": "200",
             "Tracking": [],
             "Quantity": 2.0,
-            "LineItemID": "1831302c-5538-459f-bd8e-d49da0013705",
+            "LineItemID": "06c1818d-1f5b-4804-8181-732b8316cb12",
             "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80",
             "ValidationErrors": []
           }
@@ -148,7 +148,7 @@
         "SubTotal": 21.0,
         "TotalTax": 3.15,
         "Total": 24.15,
-        "UpdatedDateUTC": "/Date(1789378199100+0000)/",
+        "UpdatedDateUTC": "/Date(1792399435133+0000)/",
         "CurrencyCode": "NZD"
       }
     ]

@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 128,899 (v1 172,577, -25%) |
-| tests | 90,389 (v1 50,869, +78%) |
+| code | 128,980 (v1 172,577, -25%) |
+| tests | 90,548 (v1 50,869, +78%) |
 | generated | 54,422 (v1 20,359, +167%) |
 
 ## Suppressions
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 260 |
-| non-test functions | 3121 |
+| non-test functions | 3123 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 701 |
+| object annotations | 703 |
 
 ## Wire contract (response side)
 
