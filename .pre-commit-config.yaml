@@ -90,7 +90,9 @@ repos:
         name: code quality metrics (regenerates on drift)
         entry: uv run python -m scripts.checks.code_quality
         language: system
-        types: [python]
+        # Every suffix the metric counts (code_quality.SOURCE_SUFFIXES), so a
+        # commit with no Python in it cannot leave the figures stale for CI.
+        files: \.(py|ts|tsx|js|jsx|vue|sh|html|css|scss)$
         pass_filenames: false
       - id: find-duplicates
         name: find-duplicates (one concept, one implementation)
