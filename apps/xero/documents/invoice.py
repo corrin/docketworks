@@ -9,7 +9,7 @@ from django.utils.translation import gettext
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice
-from apps.accounting.types import DocumentLineItem, InvoicePayload
+from apps.accounting.types import INVOICE_APPROVED, DocumentLineItem, InvoicePayload
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -266,37 +266,85 @@ class XeroInvoiceManager(XeroDocumentManager):
             persist_app_error(exc, AppErrorContext(job_id=self.job.id))
             raise
 
-    def delete_document(self) -> XeroDocumentResponse:
-        """Delete the invoice via the provider and remove the local record."""
+    def delete_document(self, *, void_approved: bool) -> XeroDocumentResponse:
+        """Delete a draft invoice, or void an approved one the user confirmed.
+
+        Owner ruling 2026-10-19: an approved invoice is never just deleted. The
+        user is told so and offered a void, or a second invoice for extra
+        work. The decision is made from the local copy, so nothing reaches Xero
+        until there is one write to make (owner: no call that only checks).
+        """
         try:
             self.validate_company()
             xero_id = self.get_xero_id()
             if not xero_id:
                 raise ValueError("Cannot delete invoice without a Xero ID.")
+            invoice = Invoice.objects.get(xero_id=xero_id)
 
-            result = self.provider.delete_invoice(xero_id)
+            if invoice.status in (InvoiceStatus.VOIDED, InvoiceStatus.DELETED):
+                # Already done in Xero and synced; only this job's copy is left.
+                return self._finish_delete(invoice, invoice.status)
+            draft = invoice.status in (InvoiceStatus.DRAFT, InvoiceStatus.SUBMITTED)
+            if not draft and invoice.amount_due < invoice.total_incl_tax:
+                return {
+                    "success": False,
+                    "error": gettext(
+                        "%(number)s has a payment or credit note against it in Xero, so it "
+                        "can't be voided. Remove the payment or credit note in Xero first."
+                    )
+                    % {"number": invoice.number},
+                    "status": 400,
+                }
+            if not draft and not void_approved:
+                return self._approved_refusal(invoice)
+
+            contact_id = invoice.company.xero_contact_id
+            if contact_id is None:
+                raise ValueError("Cannot delete an invoice for a company not linked to Xero.")
+            result = self.provider.delete_invoice(
+                xero_id,
+                contact_external_id=contact_id,
+                invoice_date=invoice.date,
+                void=not draft,
+            )
+            if result.error_type == INVOICE_APPROVED:
+                # The local copy was behind: Xero had approved it since the sync.
+                return self._approved_refusal(invoice)
             if not result.success:
                 return {
                     "success": False,
                     "error": result.error,
                     "status": result.status_code or 400,
                 }
-
-            invoice_to_delete = Invoice.objects.filter(xero_id=xero_id).first()
-            invoice_number = invoice_to_delete.number if invoice_to_delete else None
-            deleted_count = Invoice.objects.filter(xero_id=xero_id).delete()[0]
-            logger.info("Invoice %s deleted; %d local record(s) removed", xero_id, deleted_count)
-
-            recalculate_job_invoicing_state(self.job.id, self.staff)
-
-            self._create_job_event("invoice_deleted", {"xero_invoice_number": invoice_number})
-
-            return {
-                "success": True,
-                "xero_id": xero_id,
-                "message": gettext("Invoice deleted successfully."),
-            }
+            return self._finish_delete(invoice, result.document_status)
         except Exception as exc:
             logger.exception("Unexpected error during invoice deletion for job %s", self.job.id)
             persist_app_error(exc, AppErrorContext(job_id=self.job.id))
             raise
+
+    def _approved_refusal(self, invoice: Invoice) -> XeroDocumentResponse:
+        return {
+            "success": False,
+            "error": gettext(
+                "%(number)s is already approved so cannot be simply deleted. Would you like to "
+                "void it, or just add a second invoice? Be very careful voiding it if it has "
+                "been sent."
+            )
+            % {"number": invoice.number},
+            "error_type": INVOICE_APPROVED,
+            "status": 400,
+        }
+
+    def _finish_delete(self, invoice: Invoice, xero_status: str | None) -> XeroDocumentResponse:
+        """Mirror what Xero now holds: a voided invoice stays, marked voided."""
+        if xero_status == InvoiceStatus.VOIDED:
+            invoice.status = InvoiceStatus.VOIDED
+            invoice.save(update_fields=["status"])
+            event, message = "invoice_voided", gettext("Invoice voided.")
+        else:
+            invoice.delete()
+            event, message = "invoice_deleted", gettext("Invoice deleted successfully.")
+        logger.info("Invoice %s %s for job %s", invoice.xero_id, event, self.job.id)
+        recalculate_job_invoicing_state(self.job.id, self.staff)
+        self._create_job_event(event, {"xero_invoice_number": invoice.number})
+        return {"success": True, "xero_id": str(invoice.xero_id), "message": message}

@@ -5178,8 +5178,10 @@ export const xeroCreateQuote = <ThrowOnError extends boolean = false>(options: O
 /**
  * Delete a specific Xero invoice for a job
  *
- * Void the invoice in Xero and drop the local mirror row.
+ * Delete a draft invoice, or void an approved one when ``void_approved``.
  *
+ * An approved invoice without ``void_approved`` is refused with
+ * ``error_type`` "invoice_approved", so the screen can ask the user first.
  * ``xero_invoice_id`` is a required query parameter (v1 contract): a job can
  * carry several invoices, so deletion is always pinned to one.
  */

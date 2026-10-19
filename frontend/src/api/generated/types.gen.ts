@@ -20951,6 +20951,10 @@ export type XeroDeleteInvoiceData = {
          * Xero Invoice Id
          */
         xero_invoice_id: string;
+        /**
+         * Void Approved
+         */
+        void_approved?: boolean;
     };
     url: '/api/xero/delete_invoice/{job_id}';
 };

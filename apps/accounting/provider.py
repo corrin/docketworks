@@ -73,8 +73,14 @@ class AccountingProvider(Protocol):
         """Create a sales invoice; the result carries id/number/raw payload."""
         ...
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
-        """Void/delete the invoice identified by ``external_id``."""
+    def delete_invoice(
+        self, external_id: str, *, contact_external_id: str, invoice_date: datetime.date, void: bool
+    ) -> DocumentResult:
+        """Void the invoice when ``void``, else delete it (drafts only).
+
+        One write. A delete the accounting system refuses because the invoice
+        is approved comes back with ``error_type=INVOICE_APPROVED``.
+        """
         ...
 
     def create_quote(self, payload: QuotePayload) -> DocumentResult:

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
+  apiErrorType,
   jobJobsInvoicesRetrieveOptions,
   xeroCreateInvoiceMutation,
   xeroDeleteInvoiceMutation,
@@ -83,6 +84,13 @@ export function JobInvoiceCard({
   const [selectedMode, setSelectedMode] = useState<InvoiceMode | null>(null)
   const [percentInput, setPercentInput] = useState('')
   const [amountInput, setAmountInput] = useState('')
+  // An approved invoice the server would not just delete, with its reason:
+  // the user chooses between voiding it and a second invoice.
+  const [voidOffer, setVoidOffer] = useState<{
+    xeroId: string
+    number: string
+    reason: string
+  } | null>(null)
 
   const createInvoice = useMutation(xeroCreateInvoiceMutation())
   const deleteInvoice = useMutation(xeroDeleteInvoiceMutation())
@@ -179,17 +187,26 @@ export function JobInvoiceCard({
     )
   }
 
-  const executeDelete = (invoiceXeroId: string) => {
+  const executeDelete = (invoice: { xero_id: string; number: string }, voidApproved: boolean) => {
     if (deleteInvoice.isPending) return
+    setVoidOffer(null)
     deleteInvoice.mutate(
-      { path: { job_id: jobId }, query: { xero_invoice_id: invoiceXeroId } },
       {
-        onSuccess: () => {
-          toast.success(t('invoiceCard.deleted'))
+        path: { job_id: jobId },
+        query: { xero_invoice_id: invoice.xero_id, void_approved: voidApproved },
+      },
+      {
+        onSuccess: (response) => {
+          toast.success(response.message ?? t('invoiceCard.deleted'))
           afterInvoiceChange()
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, t('invoiceCard.deleteFailed')))
+          const reason = apiErrorMessage(error, t('invoiceCard.deleteFailed'))
+          if (apiErrorType(error) === 'invoice_approved') {
+            setVoidOffer({ xeroId: invoice.xero_id, number: invoice.number, reason })
+            return
+          }
+          toast.error(reason)
         },
       },
     )
@@ -273,9 +290,13 @@ export function JobInvoiceCard({
                     size="icon-sm"
                     data-automation-id={`JobInvoiceCard-delete-${invoice.id}`}
                     aria-label={t('invoiceCard.delete', { number: invoice.number })}
-                    title={t('invoiceCard.titles.delete')}
-                    disabled={deleteInvoice.isPending}
-                    onClick={() => executeDelete(invoice.xero_id)}
+                    title={
+                      invoice.status === 'VOIDED'
+                        ? t('invoiceCard.titles.deleteVoided')
+                        : t('invoiceCard.titles.delete')
+                    }
+                    disabled={deleteInvoice.isPending || invoice.status === 'VOIDED'}
+                    onClick={() => executeDelete(invoice, false)}
                   >
                     {deleteInvoice.isPending &&
                     deleteInvoice.variables?.query.xero_invoice_id === invoice.xero_id ? (
@@ -324,6 +345,50 @@ export function JobInvoiceCard({
           </p>
         )}
       </div>
+
+      <Dialog
+        open={voidOffer !== null}
+        onOpenChange={(open) => {
+          if (!open) setVoidOffer(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md" data-automation-id="JobInvoiceCard-void-offer">
+          <DialogHeader>
+            <DialogTitle>
+              {t('invoiceCard.voidDialog.title', { number: voidOffer?.number ?? '' })}
+            </DialogTitle>
+            <DialogDescription>{voidOffer?.reason}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setVoidOffer(null)}>
+              {t('invoiceCard.cancel')}
+            </Button>
+            <Button
+              variant="outline"
+              data-automation-id="JobInvoiceCard-void-offer-second-invoice"
+              title={t('invoiceCard.titles.create')}
+              disabled={paid || !xeroConnected || remainingToInvoice <= 0}
+              onClick={() => {
+                setVoidOffer(null)
+                openModal()
+              }}
+            >
+              {t('invoiceCard.voidDialog.secondInvoice')}
+            </Button>
+            <Button
+              variant="destructive"
+              data-automation-id="JobInvoiceCard-void-offer-void"
+              onClick={() => {
+                if (voidOffer !== null) {
+                  executeDelete({ xero_id: voidOffer.xeroId, number: voidOffer.number }, true)
+                }
+              }}
+            >
+              {t('invoiceCard.voidDialog.void')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="sm:max-w-md">

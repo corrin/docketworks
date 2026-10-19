@@ -30,6 +30,7 @@ runs of ADR 0007.
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from enum import StrEnum
 
 from apps.accounting.registry import get_provider
@@ -50,6 +51,19 @@ class ResidueKind(StrEnum):
 
 
 @dataclass(frozen=True)
+class ResidueInvoice:
+    """An invoice to remove, with what Xero wants on the update.
+
+    Contact and date ride along because both finders hold them already, so
+    removing an invoice costs no read.
+    """
+
+    label: str
+    contact_id: str
+    date: date
+
+
+@dataclass(frozen=True)
 class XeroResidue:
     """The Xero objects one removal covers, whatever found them.
 
@@ -59,7 +73,7 @@ class XeroResidue:
     operator has to go and look up before it means anything.
     """
 
-    invoices: dict[str, str] = field(default_factory=dict)
+    invoices: dict[str, ResidueInvoice] = field(default_factory=dict)
     quotes: dict[str, str] = field(default_factory=dict)
     purchase_orders: dict[str, str] = field(default_factory=dict)
     contacts: dict[str, str] = field(default_factory=dict)
@@ -134,10 +148,27 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
     removed: dict[ResidueKind, int] = dict.fromkeys(ResidueKind, 0)
     refused: list[Refusal] = []
 
+    for xero_id, entry in residue.invoices.items():
+        # Never voided: an E2E invoice is a draft, and one that is not is a
+        # refusal worth reporting rather than something to void unasked.
+        result = provider.delete_invoice(
+            xero_id, contact_external_id=entry.contact_id, invoice_date=entry.date, void=False
+        )
+        if result.success:
+            removed[ResidueKind.INVOICE] += 1
+        else:
+            refused.append(
+                Refusal(
+                    kind=ResidueKind.INVOICE,
+                    xero_id=xero_id,
+                    label=entry.label,
+                    reason=_refusal_reason(result),
+                )
+            )
+
     documents: tuple[
         tuple[ResidueKind, Mapping[str, str], Callable[[str], DocumentResult]], ...
     ] = (
-        (ResidueKind.INVOICE, residue.invoices, provider.delete_invoice),
         (ResidueKind.QUOTE, residue.quotes, provider.delete_quote),
         (ResidueKind.PURCHASE_ORDER, residue.purchase_orders, provider.delete_purchase_order),
     )

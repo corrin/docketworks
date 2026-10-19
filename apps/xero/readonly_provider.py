@@ -141,14 +141,19 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
             },
         )
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
-        """Suppress the delete.
-
-        No pre-read: the ID may be a stub that never existed in Xero, so the
-        live path's get_invoice would 404.
-        """
+    def delete_invoice(
+        self,
+        external_id: str,
+        *,
+        contact_external_id: str,  # noqa: ARG002 -- signature must shadow the live provider exactly
+        invoice_date: date,  # noqa: ARG002
+        void: bool,
+    ) -> DocumentResult:
+        """Suppress the delete, reporting the state the live write would leave."""
         _log_suppressed("delete_invoice", external_id)
-        return DocumentResult(success=True, external_id=external_id)
+        return DocumentResult(
+            success=True, external_id=external_id, document_status="VOIDED" if void else "DELETED"
+        )
 
     # --- Quotes ---
 

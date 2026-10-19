@@ -30,6 +30,13 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/** The backend's name for a refusal the screen can act on (`error_type`). */
+export function apiErrorType(error: unknown): string | null {
+  if (!isAxiosError(error) || !isRecord(error.response?.data)) return null
+  const errorType = error.response.data.error_type
+  return typeof errorType === 'string' && errorType !== '' ? errorType : null
+}
+
 /** Persisted backend error id, when this was a genuine application fault. */
 export function apiErrorId(error: unknown): string | null {
   if (!isAxiosError(error) || !isRecord(error.response?.data)) return null

@@ -22,6 +22,7 @@ from xero_python.accounting import (
 )
 
 from apps.accounting.types import (
+    INVOICE_APPROVED,
     ContactResult,
     DocumentLineItem,
     DocumentResult,
@@ -59,6 +60,10 @@ if TYPE_CHECKING:
     from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 
 logger = logging.getLogger(__name__)
+
+#: Xero's refusal to delete an invoice that is no longer a draft
+#: (recordings/invoice_delete_authorised.json).
+XERO_NOT_DELETABLE = "Invoice not of valid status for modification"
 
 
 def _slip_units(lines: list[EarningsLine] | None) -> Decimal:
@@ -309,37 +314,39 @@ class XeroAccountingProvider:
             persist_app_error(exc)
             return self._make_error_result(exc)
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
-        """See AccountingProvider.delete_invoice."""
+    def delete_invoice(
+        self, external_id: str, *, contact_external_id: str, invoice_date: date, void: bool
+    ) -> DocumentResult:
+        """See AccountingProvider.delete_invoice.
+
+        One write, no read-back: the caller decides from its own copy. Xero
+        wants contact and date on the update. A copy an hour behind Xero can
+        ask to delete an invoice someone has since approved; Xero refuses that
+        (recordings/invoice_delete_authorised.json) and it comes back as
+        INVOICE_APPROVED, so the caller can offer the void.
+        """
+        target = "VOIDED" if void else "DELETED"
         try:
             api, tenant_id = self._get_api()
-            # Pre-read: Xero requires contact and date on the DELETED update,
-            # and the local mirror row may already be gone.
-            existing_invoices = api.get_invoice(tenant_id, external_id).invoices
-            if not existing_invoices:
-                raise ValueError(
-                    gettext("Xero has no invoice %(external_id)s") % {"external_id": external_id}
-                )
-            existing = existing_invoices[0]
-            if existing.contact is None:
-                raise ValueError(
-                    gettext("Xero invoice %(external_id)s has no contact")
-                    % {"external_id": external_id}
-                )
             xero_invoice = Invoice(
                 invoice_id=external_id,
-                status="DELETED",
-                contact=Contact(contact_id=existing.contact.contact_id),
-                date=existing.date,
+                status=target,
+                contact=Contact(contact_id=contact_external_id),
+                date=invoice_date,
             )
             api.update_or_create_invoices(
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
-            logger.info("Deleted Xero invoice %s", external_id)
-            return DocumentResult(success=True, external_id=external_id)
+            logger.info("Set Xero invoice %s to %s", external_id, target)
+            return DocumentResult(success=True, external_id=external_id, document_status=target)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            result = self._make_error_result(exc)
+            if not void and result.error == XERO_NOT_DELETABLE:
+                # deliberate-swallow: an expected refusal, not a fault
+                result.error_type = INVOICE_APPROVED
+                return result
             persist_app_error(exc)
-            return self._make_error_result(exc)
+            return result
 
     # --- Quotes ---
 

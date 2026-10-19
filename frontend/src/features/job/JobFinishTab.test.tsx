@@ -104,4 +104,74 @@ describe('JobFinishTab', () => {
     await waitFor(() => expect(patched).toEqual({ customer_called: true }))
     await waitFor(() => expect(checkbox).toBeChecked())
   })
+
+  describe('deleting an approved invoice', () => {
+    const approved = {
+      id: 'invoice-1',
+      xero_id: 'xero-invoice-1',
+      number: 'INV-0101',
+      status: 'AUTHORISED',
+      date: '2026-10-01',
+      due_date: null,
+      total_excl_tax: 100,
+      total_incl_tax: 115,
+      amount_due: 115,
+      tax: 15,
+      online_url: null,
+    }
+    const reason =
+      'INV-0101 is already approved so cannot be simply deleted. Would you like to void it, or just add a second invoice? Be very careful voiding it if it has been sent.'
+
+    it('offers the void, and voids only when the user says so', async () => {
+      stubQuietEndpoints()
+      const voidFlags: (string | null)[] = []
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+        http.get('*/api/job/jobs/*/invoices/', () => HttpResponse.json({ invoices: [approved] })),
+        http.delete('*/api/xero/delete_invoice/*', ({ request }) => {
+          const flag = new URL(request.url).searchParams.get('void_approved')
+          voidFlags.push(flag)
+          return flag === 'true'
+            ? HttpResponse.json({
+                success: true,
+                xero_id: 'xero-invoice-1',
+                message: 'Invoice voided.',
+              })
+            : HttpResponse.json(
+                { success: false, error: reason, error_type: 'invoice_approved' },
+                { status: 400 },
+              )
+        }),
+      )
+
+      const { user } = renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+      await user.click(await screen.findByRole('button', { name: 'Delete invoice INV-0101' }))
+
+      expect(await screen.findByText(reason)).toBeInTheDocument()
+      expect(voidFlags).toEqual(['false'])
+
+      await user.click(autoId('JobInvoiceCard-void-offer-void'))
+
+      await waitFor(() => expect(voidFlags).toEqual(['false', 'true']))
+    })
+
+    it('keeps a voided invoice on the job with its delete button off', async () => {
+      stubQuietEndpoints()
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+        http.get('*/api/job/jobs/*/invoices/', () =>
+          HttpResponse.json({ invoices: [{ ...approved, status: 'VOIDED' }] }),
+        ),
+      )
+
+      renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+
+      const remove = await screen.findByRole('button', { name: 'Delete invoice INV-0101' })
+      expect(remove).toBeDisabled()
+      expect(remove).toHaveAttribute(
+        'title',
+        'Already voided in Xero. It stays on the job so its history is complete.',
+      )
+    })
+  })
 })

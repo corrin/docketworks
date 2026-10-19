@@ -13,6 +13,7 @@ export { client } from './client'
 export {
   apiErrorBody,
   apiErrorId,
+  apiErrorType,
   apiErrorMessage,
   isApiErrorStatus,
   isAvailabilityError,

@@ -1,5 +1,6 @@
 """What the organisation-driven sweep recognises as E2E residue, and what it spares."""
 
+import datetime
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from io import StringIO
@@ -30,6 +31,7 @@ class FakeDocument:
 
     contact: FakeContact
     status: str
+    date: datetime.date = datetime.date(2026, 9, 9)
     invoice_id: str | None = None
     invoice_number: str | None = None
     quote_id: str | None = None
@@ -69,7 +71,14 @@ class RecordingOrganisation:
         self.timeline.append((kind, external_id))
         return DocumentResult(success=True, external_id=external_id)
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
+    def delete_invoice(
+        self,
+        external_id: str,
+        *,
+        contact_external_id: str,  # noqa: ARG002 -- the live provider's signature
+        invoice_date: datetime.date,  # noqa: ARG002
+        void: bool,  # noqa: ARG002
+    ) -> DocumentResult:
         return self._record("invoice", external_id)
 
     def delete_quote(self, external_id: str) -> DocumentResult:

@@ -65,5 +65,19 @@ test.describe('job xero invoice', () => {
     await expect(remaining).toHaveText(/\$0\.00/, { timeout: 20000 })
     await expect(autoId(page, 'JobFinishTab-fully-invoiced')).toBeVisible()
     await expect(createInvoiceButton).toHaveCount(0)
+
+    // KAN-381: Docketworks raises the invoice as a draft, and a draft deletes
+    // outright (an approved one would be offered a void instead).
+    const deleteResponse = page.waitForResponse(
+      (candidate) =>
+        candidate.url().includes(`/api/xero/delete_invoice/${jobId}`) &&
+        candidate.request().method() === 'DELETE',
+    )
+    await invoiceItems.first().locator('[data-automation-id^="JobInvoiceCard-delete-"]').click()
+    expect((await deleteResponse).ok()).toBe(true)
+
+    await expect(invoiceItems).toHaveCount(initialCount, { timeout: 20000 })
+    await expect(remaining).not.toHaveText(/\$0\.00/, { timeout: 20000 })
+    await expect(createInvoiceButton).toBeVisible()
   })
 })

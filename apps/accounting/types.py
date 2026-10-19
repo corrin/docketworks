@@ -132,6 +132,11 @@ class POPayload:
     external_id: str | None = None
 
 
+#: A delete refused because the invoice is approved. The caller may ask the
+#: user whether to void it instead.
+INVOICE_APPROVED = "invoice_approved"
+
+
 @dataclass
 class DocumentResult:
     """Result of a document operation (create/update/delete)."""
@@ -147,6 +152,8 @@ class DocumentResult:
     document_status: str | None = None
     raw_response: dict[str, Any] | None = None
     error: str | None = None
+    #: Names a refusal the caller can act on, e.g. INVOICE_APPROVED.
+    error_type: str | None = None
     status_code: int | None = None
     validation_errors: list[str] = field(default_factory=list)
 

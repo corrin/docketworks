@@ -24686,8 +24686,12 @@ paths:
       - xero
   /api/xero/delete_invoice/{job_id}:
     delete:
-      description: 'Void the invoice in Xero and drop the local mirror row.
+      description: 'Delete a draft invoice, or void an approved one when ``void_approved``.
 
+
+        An approved invoice without ``void_approved`` is refused with
+
+        ``error_type`` "invoice_approved", so the screen can ask the user first.
 
         ``xero_invoice_id`` is a required query parameter (v1 contract): a job can
 
@@ -24708,6 +24712,13 @@ paths:
           format: uuid
           title: Xero Invoice Id
           type: string
+      - in: query
+        name: void_approved
+        required: false
+        schema:
+          default: false
+          title: Void Approved
+          type: boolean
       responses:
         '200':
           content:
