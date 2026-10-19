@@ -9400,7 +9400,8 @@ export const zXeroDeleteInvoicePath = z.object({
 });
 
 export const zXeroDeleteInvoiceQuery = z.object({
-    xero_invoice_id: z.uuid()
+    xero_invoice_id: z.uuid(),
+    void_approved: z.boolean().optional().default(false)
 });
 
 /**

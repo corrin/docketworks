@@ -1,5 +1,6 @@
 """Regression tests for the E2E recovery command."""
 
+import datetime
 import uuid
 from collections.abc import Sequence
 from decimal import Decimal
@@ -68,7 +69,14 @@ class RecordingOrganisation:
         self.timeline.append((kind, external_id))
         return DocumentResult(success=True, external_id=external_id)
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
+    def delete_invoice(
+        self,
+        external_id: str,
+        *,
+        contact_external_id: str,  # noqa: ARG002 -- the live provider's signature
+        invoice_date: datetime.date,  # noqa: ARG002
+        void: bool,  # noqa: ARG002
+    ) -> DocumentResult:
         return self._record("invoice", external_id)
 
     def delete_quote(self, external_id: str) -> DocumentResult:
@@ -177,7 +185,10 @@ def test_confirm_deletes_legacy_prefix_companies(office_staff: Staff) -> None:
 def test_confirm_deletes_company_scoped_invoice_without_job() -> None:
     """Invoices PROTECT on company too — a job-less invoice must not abort the cleanup."""
     test_company = Company.objects.create(
-        name="[TEST] Invoice Company", xero_last_modified="2026-08-08T00:00Z"
+        name="[TEST] Invoice Company",
+        xero_contact_id="contact-invoice",
+        xero_tenant_id="test-tenant",
+        xero_last_modified="2026-08-08T00:00Z",
     )
     invoice = make_invoice(test_company, job=None)
 
@@ -237,7 +248,10 @@ def test_handle_rejects_non_boolean_confirm_option() -> None:
 def test_confirm_deletes_protected_dependants(office_staff: Staff) -> None:
     """Adding invoices or purchasing rows must not make stale E2E data impossible to recover."""
     test_company = Company.objects.create(
-        name="[TEST] Protected Company", xero_last_modified="2026-08-08T00:00Z"
+        name="[TEST] Protected Company",
+        xero_contact_id="contact-protected",
+        xero_tenant_id="test-tenant",
+        xero_last_modified="2026-08-08T00:00Z",
     )
     job = make_job(test_company, office_staff, name="[TEST] Protected Job")
     invoice = make_invoice(test_company, job=job)
@@ -270,7 +284,10 @@ def test_confirm_rolls_back_when_a_delete_fails(
 ) -> None:
     """A newly protected relation must fail the cleanup without leaving half its rows deleted."""
     company = Company.objects.create(
-        name="[TEST] Rollback Company", xero_last_modified="2026-08-08T00:00Z"
+        name="[TEST] Rollback Company",
+        xero_contact_id="contact-rollback",
+        xero_tenant_id="test-tenant",
+        xero_last_modified="2026-08-08T00:00Z",
     )
     job = make_job(company, office_staff, name="[TEST] Rollback Job")
     invoice = make_invoice(company, job=job)
@@ -314,6 +331,8 @@ def test_confirm_removes_the_run_s_documents_and_contacts_from_xero(
     )
     job = make_job(company, office_staff, name="[TEST] Job")
     invoice = make_invoice(company, job=job)
+    # Voided from the job screen: already off Xero's books, so not sent again.
+    make_invoice(company, job=job, status="VOIDED")
     quote = make_quote(company, job=job)
     order = make_purchase_order(supplier=company, xero_raised=True)
     order.xero_id = uuid.uuid4()
@@ -541,14 +560,26 @@ def test_a_document_refusal_is_reported_by_number_and_does_not_stop_the_cleanup(
     monkeypatch: pytest.MonkeyPatch, office_staff: Staff
 ) -> None:
     """An invoice Xero will not delete must name itself and still let the rest finish."""
-    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_tenant_id="test-tenant",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
     job = make_job(company, office_staff, name="[TEST] Job")
     invoice = make_invoice(company, job=job)
 
     class RefusingOrganisation(RecordingOrganisation):
         """Accepts everything except the invoice, which Xero will not reopen."""
 
-        def delete_invoice(self, external_id: str) -> DocumentResult:
+        def delete_invoice(
+            self,
+            external_id: str,
+            *,
+            contact_external_id: str,  # noqa: ARG002 -- the live provider's signature
+            invoice_date: datetime.date,  # noqa: ARG002
+            void: bool,  # noqa: ARG002
+        ) -> DocumentResult:
             return DocumentResult(
                 success=False,
                 external_id=external_id,

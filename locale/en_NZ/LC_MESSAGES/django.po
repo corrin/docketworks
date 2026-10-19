@@ -4431,6 +4431,35 @@ msgid ""
 msgstr ""
 
 #: apps/xero/documents/invoice.py
+#, python-format
+msgid "%(number)s is already voided or deleted in Xero."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
+#, python-format
+msgid "%(number)s is marked paid in Xero, so it can't be voided here."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
+#, python-format
+msgid ""
+"%(number)s has a payment or credit note against it in Xero, so it can't be "
+"voided. Remove the payment or credit note in Xero first."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
+#, python-format
+msgid ""
+"%(number)s is already approved so cannot be simply deleted. Would you like "
+"to void it, or just add a second invoice? Be very careful voiding it if it "
+"has been sent."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
+msgid "Invoice voided."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
 msgid "Invoice deleted successfully."
 msgstr ""
 
@@ -4801,16 +4830,6 @@ msgstr ""
 msgid ""
 "Xero answered but sent back no invoice, so DocketWorks can't tell whether it "
 "was created. Check Xero before trying again."
-msgstr ""
-
-#: apps/xero/provider.py
-#, python-format
-msgid "Xero has no invoice %(external_id)s"
-msgstr ""
-
-#: apps/xero/provider.py
-#, python-format
-msgid "Xero invoice %(external_id)s has no contact"
 msgstr ""
 
 #: apps/xero/provider.py

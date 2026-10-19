@@ -7,13 +7,18 @@ the archive would leave every fake run failing its preflight on residue.
 
 import uuid
 from collections.abc import Iterator
+from datetime import date
 
 import pytest
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.company.models import Company
-from apps.diagnostics.services.e2e_xero_residue import XeroResidue, remove_residue_from_xero
+from apps.diagnostics.services.e2e_xero_residue import (
+    ResidueInvoice,
+    XeroResidue,
+    remove_residue_from_xero,
+)
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.fake.models import FakeContact, FakeInvoice
 from apps.xero.fake.seed import seed_contacts
@@ -63,7 +68,12 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
 
     outcome = remove_residue_from_xero(
         XeroResidue(
-            invoices={invoice_id: "INV-0001"}, contacts={company.xero_contact_id: company.name}
+            invoices={
+                invoice_id: ResidueInvoice(
+                    label="INV-0001", contact_id=company.xero_contact_id, date=date(2026, 9, 9)
+                )
+            },
+            contacts={company.xero_contact_id: company.name},
         ),
         "test",
     )

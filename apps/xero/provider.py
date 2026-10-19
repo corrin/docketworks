@@ -309,34 +309,28 @@ class XeroAccountingProvider:
             persist_app_error(exc)
             return self._make_error_result(exc)
 
-    def delete_invoice(self, external_id: str) -> DocumentResult:
-        """See AccountingProvider.delete_invoice."""
+    def delete_invoice(
+        self, external_id: str, *, contact_external_id: str, invoice_date: date, void: bool
+    ) -> DocumentResult:
+        """See AccountingProvider.delete_invoice.
+
+        One write, no read-back: the caller has decided from its own copy, and
+        Xero wants contact and date on the update.
+        """
+        target = "VOIDED" if void else "DELETED"
         try:
             api, tenant_id = self._get_api()
-            # Pre-read: Xero requires contact and date on the DELETED update,
-            # and the local mirror row may already be gone.
-            existing_invoices = api.get_invoice(tenant_id, external_id).invoices
-            if not existing_invoices:
-                raise ValueError(
-                    gettext("Xero has no invoice %(external_id)s") % {"external_id": external_id}
-                )
-            existing = existing_invoices[0]
-            if existing.contact is None:
-                raise ValueError(
-                    gettext("Xero invoice %(external_id)s has no contact")
-                    % {"external_id": external_id}
-                )
             xero_invoice = Invoice(
                 invoice_id=external_id,
-                status="DELETED",
-                contact=Contact(contact_id=existing.contact.contact_id),
-                date=existing.date,
+                status=target,
+                contact=Contact(contact_id=contact_external_id),
+                date=invoice_date,
             )
             api.update_or_create_invoices(
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
-            logger.info("Deleted Xero invoice %s", external_id)
-            return DocumentResult(success=True, external_id=external_id)
+            logger.info("Set Xero invoice %s to %s", external_id, target)
+            return DocumentResult(success=True, external_id=external_id, document_status=target)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)

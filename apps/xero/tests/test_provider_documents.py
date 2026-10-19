@@ -18,7 +18,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload, QuotePayload
-from apps.core.models import CompanyDefaults
+from apps.core.models import AppError, CompanyDefaults
 from apps.xero.models import XeroAccount
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
@@ -223,21 +223,40 @@ class TestCreateInvoice:
 
 
 class TestDeleteInvoice:
-    def test_pre_reads_then_upserts_deleted(self) -> None:
+    @pytest.mark.parametrize(("void", "status"), [(False, "DELETED"), (True, "VOIDED")])
+    def test_one_write_and_no_read_back(self, void: bool, status: str) -> None:
+        """Every Xero call costs; the caller has already decided from its copy."""
         provider, api = _provider_with_api()
         external_id = str(uuid.uuid4())
-        api.get_invoice.return_value = SimpleNamespace(
-            invoices=[SimpleNamespace(contact=SimpleNamespace(contact_id="c-1"), date="2026-08-01")]
-        )
         api.update_or_create_invoices.return_value = SimpleNamespace(invoices=[])
 
-        result = provider.delete_invoice(external_id)
+        result = provider.delete_invoice(
+            external_id, contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=void
+        )
 
         assert result.success
-        assert result.external_id == external_id
+        assert result.document_status == status
+        api.get_invoice.assert_not_called()
         posted = api.update_or_create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
-        assert posted["Status"] == "DELETED"
+        assert posted["Status"] == status
         assert posted["InvoiceID"] == external_id
+
+
+class TestDeleteInvoiceRefusal:
+    def test_a_refusal_is_persisted_and_returned_unread(self) -> None:
+        """A refusal means Xero and Docketworks disagree: on record, never interpreted."""
+        provider, api = _provider_with_api()
+        api.update_or_create_invoices.side_effect = _FakeApiError(
+            body='{"Message": "A validation exception occurred"}', status=400
+        )
+
+        result = provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=False
+        )
+
+        assert not result.success
+        assert result.error == "A validation exception occurred"
+        assert AppError.objects.count() == 1
 
 
 class TestPurchaseOrders:
@@ -650,7 +669,9 @@ class TestReadonlyDocumentStubs:
 
     def test_delete_stubs_succeed_without_pre_read(self) -> None:
         provider = XeroReadOnlyProvider()
-        assert provider.delete_invoice(str(uuid.uuid4())).success
+        assert provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=True
+        ).success
         assert provider.delete_purchase_order(str(uuid.uuid4())).success
 
     def test_attach_and_notes_report_success(self) -> None:

@@ -160,6 +160,7 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "contact_archive": lambda api: api.get_contacts(TENANT),
     "contact_archive_archived": lambda api: api.get_contacts(TENANT),
     "invoice_create": lambda api: api.get_invoices(TENANT),
+    "invoice_approve": lambda api: api.get_invoices(TENANT),
     "invoice_delete_authorised": lambda api: api.get_invoices(TENANT),
     "invoice_void": lambda api: api.get_invoices(TENANT),
     "invoice_history_create": lambda api: api.get_invoice_history(TENANT, "any"),

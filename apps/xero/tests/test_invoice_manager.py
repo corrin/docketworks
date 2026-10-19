@@ -16,10 +16,11 @@ import pytest
 from django.test import override_settings
 from django.utils import timezone
 
-from apps.accounting.types import DocumentResult
+from apps.accounting.models import Invoice
+from apps.accounting.types import INVOICE_APPROVED, DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_material_line
+from apps.company.tests.job_fixtures import make_invoice, make_material_line
 from apps.core.errors import app_error_for, persist_app_error
 from apps.core.models import AppError, CompanyDefaults
 from apps.job.models import Job, JobEvent
@@ -117,12 +118,13 @@ class TestErrorContract:
         provider = Mock()
         provider.delete_invoice.side_effect = RuntimeError("Xero exploded")
         manager = _manager(company, job, office_staff, provider)
+        draft = make_invoice(company, job=job, status="DRAFT")
 
         with (
-            patch.object(XeroInvoiceManager, "get_xero_id", return_value="xero-1"),
+            patch.object(XeroInvoiceManager, "get_xero_id", return_value=str(draft.xero_id)),
             pytest.raises(RuntimeError) as caught,
         ):
-            manager.delete_document()
+            manager.delete_document(void_approved=False)
 
         assert app_error_for(caught.value) is not None
         assert AppError.objects.count() == 1
@@ -137,12 +139,13 @@ class TestErrorContract:
         provider = Mock()
         provider.delete_invoice.side_effect = original
         manager = _manager(company, job, office_staff, provider)
+        draft = make_invoice(company, job=job, status="DRAFT")
 
         with (
-            patch.object(XeroInvoiceManager, "get_xero_id", return_value="xero-1"),
+            patch.object(XeroInvoiceManager, "get_xero_id", return_value=str(draft.xero_id)),
             pytest.raises(RuntimeError) as caught,
         ):
-            manager.delete_document()
+            manager.delete_document(void_approved=False)
 
         assert caught.value is original
         assert app_error_for(caught.value) == upstream_error
@@ -274,3 +277,177 @@ class TestReadonlyFabrication:
         # The same-request recalc the E2E fully-invoiced assertion stands on.
         job.refresh_from_db()
         assert job.fully_invoiced is True
+
+
+def _delete(
+    manager: XeroInvoiceManager, invoice: Invoice, *, void_approved: bool
+) -> dict[str, object]:
+    with patch.object(XeroInvoiceManager, "get_xero_id", return_value=str(invoice.xero_id)):
+        return dict(manager.delete_document(void_approved=void_approved))
+
+
+class TestDeleteRule:
+    """Owner ruling 2026-10-19: a draft is deleted; an approved invoice is never
+    just deleted. The user is offered a void, decided from the local copy so
+    Xero only ever sees the one write that does the work."""
+
+    def test_a_draft_is_deleted_in_one_write(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        draft = make_invoice(company, job=job, status="DRAFT", number="INV-D1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(draft.xero_id), document_status="DELETED"
+        )
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), draft, void_approved=False
+        )
+
+        assert response["success"] is True
+        assert provider.delete_invoice.call_args.kwargs["void"] is False
+        assert not Invoice.objects.filter(id=draft.id).exists()
+        assert JobEvent.objects.filter(job=job, event_type="invoice_deleted").exists()
+
+    def test_an_approved_invoice_is_refused_without_calling_xero(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        approved = make_invoice(company, job=job, status="AUTHORISED", number="INV-A1")
+        provider = Mock()
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), approved, void_approved=False
+        )
+
+        assert response["success"] is False
+        assert response["error_type"] == INVOICE_APPROVED
+        assert "INV-A1 is already approved" in str(response["error"])
+        provider.delete_invoice.assert_not_called()
+        assert Invoice.objects.filter(id=approved.id).exists()
+
+    def test_a_confirmed_void_keeps_the_invoice_marked_voided(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        approved = make_invoice(company, job=job, status="AUTHORISED", number="INV-A2")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(approved.xero_id), document_status="VOIDED"
+        )
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), approved, void_approved=True
+        )
+
+        assert response["success"] is True
+        assert provider.delete_invoice.call_args.kwargs["void"] is True
+        approved.refresh_from_db()
+        assert approved.status == "VOIDED"
+        assert JobEvent.objects.filter(job=job, event_type="invoice_voided").exists()
+
+    def test_a_part_paid_invoice_is_refused_without_calling_xero(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        part_paid = make_invoice(
+            company,
+            job=job,
+            status="AUTHORISED",
+            number="INV-P1",
+            total_excl_tax=Decimal("100.00"),
+            amount_due=Decimal("15.00"),
+        )
+        provider = Mock()
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), part_paid, void_approved=True
+        )
+
+        assert response["success"] is False
+        assert "payment or credit note" in str(response["error"])
+        provider.delete_invoice.assert_not_called()
+
+    def test_a_xero_refusal_stops_with_nothing_changed(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Xero refusing what the local copy allowed means the two disagree:
+        stop, show Xero's reason, offer nothing (ADR 0015)."""
+        stale = make_invoice(company, job=job, status="DRAFT", number="INV-S1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=False, error="Invoice not of valid status for modification", status_code=400
+        )
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), stale, void_approved=False
+        )
+
+        assert response["success"] is False
+        assert response["error"] == "Invoice not of valid status for modification"
+        assert "error_type" not in response
+        stale.refresh_from_db()
+        assert stale.status == "DRAFT"
+        assert not JobEvent.objects.filter(job=job, event_type="invoice_deleted").exists()
+
+    def test_a_voided_invoice_is_refused_without_calling_xero(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        voided = make_invoice(company, job=job, status="VOIDED", number="INV-V1")
+        provider = Mock()
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), voided, void_approved=True
+        )
+
+        assert response["success"] is False
+        provider.delete_invoice.assert_not_called()
+        assert Invoice.objects.filter(id=voided.id).exists()
+
+    def test_a_zero_dollar_paid_invoice_is_refused_without_claiming_a_payment(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Xero marks a $0 invoice PAID on approval; there is no payment to remove."""
+        zero = make_invoice(
+            company,
+            job=job,
+            status="PAID",
+            number="INV-Z1",
+            total_excl_tax=Decimal("0.00"),
+            amount_due=Decimal("0.00"),
+        )
+        provider = Mock()
+
+        response = _delete(_manager(company, job, office_staff, provider), zero, void_approved=True)
+
+        assert response["error"] == "INV-Z1 is marked paid in Xero, so it can't be voided here."
+        provider.delete_invoice.assert_not_called()
+
+    def test_a_submitted_invoice_deletes_rather_than_offering_a_void(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Docketworks records the drafts it raises as SUBMITTED."""
+        submitted = make_invoice(company, job=job, status="SUBMITTED", number="INV-U1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(submitted.xero_id), document_status="DELETED"
+        )
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), submitted, void_approved=False
+        )
+
+        assert response["success"] is True
+        assert provider.delete_invoice.call_args.kwargs["void"] is False
+
+    def test_xero_reporting_another_state_stops(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        approved = make_invoice(company, job=job, status="AUTHORISED", number="INV-M1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(approved.xero_id), document_status="DELETED"
+        )
+
+        with pytest.raises(ValueError, match="INV-M1"):
+            _delete(_manager(company, job, office_staff, provider), approved, void_approved=True)
+
+        approved.refresh_from_db()
+        assert approved.status == "AUTHORISED"

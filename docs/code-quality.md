@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 128,666 (v1 172,577, -25%) |
-| tests | 90,018 (v1 50,869, +77%) |
-| generated | 54,413 (v1 20,359, +167%) |
+| code | 128,980 (v1 172,577, -25%) |
+| tests | 90,548 (v1 50,869, +78%) |
+| generated | 54,422 (v1 20,359, +167%) |
 
 ## Suppressions
 
@@ -31,12 +31,12 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 786 |
+| TOTAL suppressions | 797 |
 | noqa: DJ001 | 197 |
 | noqa: PLC0415 | 156 |
 | noqa: E402 | 108 |
 | noqa: PLR0913 | 59 |
-| noqa: ARG002 | 38 |
+| noqa: ARG002 | 49 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
 | noqa: S603 | 19 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 259 |
-| non-test functions | 3116 |
+| functions returning `X \| None` | 260 |
+| non-test functions | 3123 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 700 |
+| object annotations | 703 |
 
 ## Wire contract (response side)
 
@@ -144,10 +144,10 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 438 (30%) |
+| without data-automation-id | 131 of 441 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |
 | without id: <select> | 6 |
 | without id: <textarea> | 5 |
-| without id: <Button> | 55 |
+| without id: <Button> | 56 |

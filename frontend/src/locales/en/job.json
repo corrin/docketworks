@@ -351,6 +351,16 @@
     "createFailedFallback": "Unexpected error while trying to create invoice.",
     "deleted": "Invoice deleted successfully!",
     "deleteFailed": "Failed to delete invoice.",
+    "voidDialog": {
+      "title": "{{number}} is approved",
+      "void": "Void invoice",
+      "secondInvoice": "Add a second invoice",
+      "secondInvoiceBlocked": {
+        "paid": "This job is marked paid, so it can't take another invoice.",
+        "notConnected": "Docketworks isn't connected to Xero. Log in to Xero first.",
+        "fullyInvoiced": "Everything on this job is already invoiced, so there is nothing left for a second invoice."
+      }
+    },
     "title": "Invoices",
     "subtitle": "Manage invoices for this job.",
     "loadFailed": "Could not load this job's invoices. Reload the page.",
@@ -389,7 +399,8 @@
       "fullInvoice": "Invoices the quote total less everything already invoiced on this job.",
       "percentMode": "The percentage is of the whole quote and counts invoices already raised. For example, entering 50 after a 30% deposit invoices another 20%.",
       "costsToDate": "Invoices the revenue on everything booked to the job so far, held to any agreed maximum, less what has already been invoiced.",
-      "amountMode": "Invoices exactly the amount you type, excluding GST. On a Fixed Price job it can't be more than what is left of the quote."
+      "amountMode": "Invoices exactly the amount you type, excluding GST. On a Fixed Price job it can't be more than what is left of the quote.",
+      "deleteVoided": "Already voided in Xero. It stays on the job so its history is complete."
     }
   },
   "finishTab": {

@@ -132,6 +132,11 @@ class POPayload:
     external_id: str | None = None
 
 
+#: The ``error_type`` of a delete refused because the invoice is approved; the
+#: screen asks the user whether to void it instead.
+INVOICE_APPROVED = "invoice_approved"
+
+
 @dataclass
 class DocumentResult:
     """Result of a document operation (create/update/delete)."""
