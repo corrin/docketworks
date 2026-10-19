@@ -201,9 +201,14 @@ def make_bill(company: Company) -> Bill:
 
 
 def make_credit_note(
-    company: Company, *, status: str | None = None, total_excl_tax: Decimal | None = None
+    company: Company,
+    *,
+    status: str | None = None,
+    total_excl_tax: Decimal | None = None,
+    xero_type: str = "ACCRECCREDIT",
 ) -> CreditNote:
     fields = _invoice_fields(company)
+    fields["raw_json"] = {"_type": xero_type}
     if status is not None:
         fields["status"] = status
     if total_excl_tax is not None:

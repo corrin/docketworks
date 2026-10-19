@@ -122,6 +122,8 @@ def test_total_spend_counts_drafts_skips_voided_and_takes_off_credit_notes() -> 
     make_invoice(company, status="DELETED", total_excl_tax=Decimal("2000.00"))
     make_credit_note(company, status="AUTHORISED", total_excl_tax=Decimal("30.00"))
     make_credit_note(company, status="VOIDED", total_excl_tax=Decimal("400.00"))
+    # A credit a supplier gave us is not a customer's spend coming back.
+    make_credit_note(company, total_excl_tax=Decimal("500.00"), xero_type="ACCPAYCREDIT")
 
     annotated = Company.objects.with_invoice_summary().get(id=company.id)
 

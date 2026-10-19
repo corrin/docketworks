@@ -50,14 +50,14 @@ class CompanyQuerySet(models.QuerySet["Company"]):
         zero = models.Value(Decimal("0.00"))
         own = self.model.objects.filter(pk=models.OuterRef("pk")).order_by().values("pk")
 
-        def counted_sum(relation: str) -> models.Subquery:
+        def counted_sum(relation: str, also: models.Q) -> models.Subquery:
             # Correlated, not joined: summing invoices and credit notes in one
             # join would multiply each by the other's rows.
             return models.Subquery(
                 own.annotate(
                     total=models.Sum(
                         f"{relation}__total_excl_tax",
-                        filter=~models.Q(**{f"{relation}__status__in": UNCOUNTED_STATUSES}),
+                        filter=~models.Q(**{f"{relation}__status__in": UNCOUNTED_STATUSES}) & also,
                         output_field=output,
                     )
                 ).values("total")
@@ -71,8 +71,16 @@ class CompanyQuerySet(models.QuerySet["Company"]):
                 "last_invoice_date": models.Max("invoice__date"),
                 # Owner ruling 2026-10-19: drafts count, voided and deleted
                 # invoices don't, and credit notes come off.
-                "total_spend": Coalesce(counted_sum("invoice"), zero, output_field=output)
-                - Coalesce(counted_sum("creditnote"), zero, output_field=output),
+                # Only a customer credit note comes off: the table also holds the
+                # credits suppliers give us (ACCPAYCREDIT), which are not spend.
+                "total_spend": Coalesce(
+                    counted_sum("invoice", models.Q()), zero, output_field=output
+                )
+                - Coalesce(
+                    counted_sum("creditnote", models.Q(creditnote__raw_json___type="ACCRECCREDIT")),
+                    zero,
+                    output_field=output,
+                ),
             }
         )
 
