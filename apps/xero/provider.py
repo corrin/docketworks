@@ -22,7 +22,6 @@ from xero_python.accounting import (
 )
 
 from apps.accounting.types import (
-    INVOICE_APPROVED,
     ContactResult,
     DocumentLineItem,
     DocumentResult,
@@ -60,10 +59,6 @@ if TYPE_CHECKING:
     from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 
 logger = logging.getLogger(__name__)
-
-#: Xero's refusal to delete an invoice that is no longer a draft
-#: (recordings/invoice_delete_authorised.json).
-XERO_NOT_DELETABLE = "Invoice not of valid status for modification"
 
 
 def _slip_units(lines: list[EarningsLine] | None) -> Decimal:
@@ -319,11 +314,8 @@ class XeroAccountingProvider:
     ) -> DocumentResult:
         """See AccountingProvider.delete_invoice.
 
-        One write, no read-back: the caller decides from its own copy. Xero
-        wants contact and date on the update. A copy an hour behind Xero can
-        ask to delete an invoice someone has since approved; Xero refuses that
-        (recordings/invoice_delete_authorised.json) and it comes back as
-        INVOICE_APPROVED, so the caller can offer the void.
+        One write, no read-back: the caller has decided from its own copy, and
+        Xero wants contact and date on the update.
         """
         target = "VOIDED" if void else "DELETED"
         try:
@@ -339,16 +331,9 @@ class XeroAccountingProvider:
             )
             logger.info("Set Xero invoice %s to %s", external_id, target)
             return DocumentResult(success=True, external_id=external_id, document_status=target)
-        # deliberate-swallow: Xero refusing to delete an approved invoice is an
-        # expected answer the caller turns into the void offer, not a fault;
-        # every other failure is persisted below.
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
-            result = self._make_error_result(exc)
-            if not void and result.error == XERO_NOT_DELETABLE:
-                result.error_type = INVOICE_APPROVED
-                return result
             persist_app_error(exc)
-            return result
+            return self._make_error_result(exc)
 
     # --- Quotes ---
 

@@ -6,7 +6,6 @@ the error-result conversion, and the PO zero-UUID recovery ship unexercised —
 and they only ever run against live Xero, where a defect is a real document.
 """
 
-import json
 import uuid
 from collections.abc import Iterator
 from datetime import date
@@ -18,14 +17,8 @@ from unittest.mock import Mock, patch
 import pytest
 from django.utils import timezone
 
-from apps.accounting.types import (
-    INVOICE_APPROVED,
-    DocumentLineItem,
-    InvoicePayload,
-    POPayload,
-    QuotePayload,
-)
-from apps.core.models import AppError, CompanyDefaults
+from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload, QuotePayload
+from apps.core.models import CompanyDefaults
 from apps.xero.models import XeroAccount
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
@@ -247,33 +240,6 @@ class TestDeleteInvoice:
         posted = api.update_or_create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
         assert posted["Status"] == status
         assert posted["InvoiceID"] == external_id
-
-    def test_xero_refusing_a_delete_reads_as_approved_and_is_not_an_error(self) -> None:
-        """recordings/invoice_delete_authorised.json: approved since the last sync."""
-        provider, api = _provider_with_api()
-        api.update_or_create_invoices.side_effect = _FakeApiError(
-            body=json.dumps(
-                {
-                    "Type": "ValidationException",
-                    "Elements": [
-                        {
-                            "ValidationErrors": [
-                                {"Message": "Invoice not of valid status for modification"}
-                            ]
-                        }
-                    ],
-                }
-            ),
-            status=400,
-        )
-
-        result = provider.delete_invoice(
-            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=False
-        )
-
-        assert not result.success
-        assert result.error_type == INVOICE_APPROVED
-        assert AppError.objects.count() == 0
 
 
 class TestPurchaseOrders:

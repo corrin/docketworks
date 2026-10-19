@@ -78,8 +78,9 @@ class AccountingProvider(Protocol):
     ) -> DocumentResult:
         """Void the invoice when ``void``, else delete it (drafts only).
 
-        One write. A delete the accounting system refuses because the invoice
-        is approved comes back with ``error_type=INVOICE_APPROVED``.
+        One write, decided by the caller from its own copy. A refusal comes
+        back as a failed result with status 400; the caller refreshes its copy
+        rather than guessing why.
         """
         ...
 

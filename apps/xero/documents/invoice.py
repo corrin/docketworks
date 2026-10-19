@@ -9,7 +9,11 @@ from django.utils.translation import gettext
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice
-from apps.accounting.types import INVOICE_APPROVED, DocumentLineItem, InvoicePayload
+from apps.accounting.types import (
+    INVOICE_APPROVED,
+    DocumentLineItem,
+    InvoicePayload,
+)
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -272,7 +276,8 @@ class XeroInvoiceManager(XeroDocumentManager):
         Owner ruling 2026-10-19: an approved invoice is never just deleted. The
         user is told so and offered a void, or a second invoice for extra
         work. The decision is made from the local copy, so nothing reaches Xero
-        until there is one write to make (owner: no call that only checks).
+        until there is one write to make (owner: no call that only checks), and
+        a write Xero refuses stops everything.
         """
         try:
             self.validate_company()
@@ -282,21 +287,30 @@ class XeroInvoiceManager(XeroDocumentManager):
             invoice = Invoice.objects.get(xero_id=xero_id)
 
             if invoice.status in (InvoiceStatus.VOIDED, InvoiceStatus.DELETED):
-                # Already done in Xero and synced; only this job's copy is left.
-                return self._finish_delete(invoice, invoice.status)
-            draft = invoice.status in (InvoiceStatus.DRAFT, InvoiceStatus.SUBMITTED)
-            if not draft and invoice.amount_due < invoice.total_incl_tax:
-                return {
-                    "success": False,
-                    "error": gettext(
+                return self._refusal(
+                    gettext("%(number)s is already voided or deleted in Xero.")
+                    % {"number": invoice.number}
+                )
+            paid_or_credited = invoice.status == InvoiceStatus.PAID or (
+                invoice.amount_due < invoice.total_incl_tax
+            )
+            if paid_or_credited:
+                return self._refusal(
+                    gettext(
                         "%(number)s has a payment or credit note against it in Xero, so it "
                         "can't be voided. Remove the payment or credit note in Xero first."
                     )
-                    % {"number": invoice.number},
-                    "status": 400,
-                }
-            if not draft and not void_approved:
+                    % {"number": invoice.number}
+                )
+            if invoice.status == InvoiceStatus.AUTHORISED and not void_approved:
                 return self._approved_refusal(invoice)
+            if invoice.status not in (
+                InvoiceStatus.DRAFT,
+                InvoiceStatus.SUBMITTED,
+                InvoiceStatus.AUTHORISED,
+            ):
+                raise ValueError(f"Invoice {invoice.number} has unknown status {invoice.status}")
+            draft = invoice.status != InvoiceStatus.AUTHORISED
 
             contact_id = invoice.company.xero_contact_id
             if contact_id is None:
@@ -307,10 +321,11 @@ class XeroInvoiceManager(XeroDocumentManager):
                 invoice_date=invoice.date,
                 void=not draft,
             )
-            if result.error_type == INVOICE_APPROVED:
-                # The local copy was behind: Xero had approved it since the sync.
-                return self._approved_refusal(invoice)
             if not result.success:
+                # Xero refused what this copy said it would accept, so the two
+                # disagree. Stop: the provider persisted it, the user gets
+                # Xero's own reason, and nothing here changes (ADR 0015). No
+                # guessing the cause from Xero's words, no retry.
                 return {
                     "success": False,
                     "error": result.error,
@@ -321,6 +336,10 @@ class XeroInvoiceManager(XeroDocumentManager):
             logger.exception("Unexpected error during invoice deletion for job %s", self.job.id)
             persist_app_error(exc, AppErrorContext(job_id=self.job.id))
             raise
+
+    @staticmethod
+    def _refusal(reason: str) -> XeroDocumentResponse:
+        return {"success": False, "error": reason, "status": 400}
 
     def _approved_refusal(self, invoice: Invoice) -> XeroDocumentResponse:
         return {

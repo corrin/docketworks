@@ -365,19 +365,38 @@ class TestDeleteRule:
         assert "payment or credit note" in str(response["error"])
         provider.delete_invoice.assert_not_called()
 
-    def test_a_copy_behind_xero_still_offers_the_void(
+    def test_a_xero_refusal_stops_with_nothing_changed(
         self, company: Company, job: Job, office_staff: Staff
     ) -> None:
-        """Approved in Xero since the last sync: Xero refuses the delete."""
+        """Xero refusing what the local copy allowed means the two disagree:
+        stop, show Xero's reason, offer nothing (ADR 0015)."""
         stale = make_invoice(company, job=job, status="DRAFT", number="INV-S1")
         provider = Mock()
         provider.delete_invoice.return_value = DocumentResult(
-            success=False, error="refused", error_type=INVOICE_APPROVED, status_code=400
+            success=False, error="Invoice not of valid status for modification", status_code=400
         )
 
         response = _delete(
             _manager(company, job, office_staff, provider), stale, void_approved=False
         )
 
-        assert response["error_type"] == INVOICE_APPROVED
-        assert Invoice.objects.filter(id=stale.id).exists()
+        assert response["success"] is False
+        assert response["error"] == "Invoice not of valid status for modification"
+        assert "error_type" not in response
+        stale.refresh_from_db()
+        assert stale.status == "DRAFT"
+        assert not JobEvent.objects.filter(job=job, event_type="invoice_deleted").exists()
+
+    def test_a_voided_invoice_is_refused_without_calling_xero(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        voided = make_invoice(company, job=job, status="VOIDED", number="INV-V1")
+        provider = Mock()
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), voided, void_approved=True
+        )
+
+        assert response["success"] is False
+        provider.delete_invoice.assert_not_called()
+        assert Invoice.objects.filter(id=voided.id).exists()

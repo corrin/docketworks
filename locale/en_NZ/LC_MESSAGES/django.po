@@ -4432,6 +4432,11 @@ msgstr ""
 
 #: apps/xero/documents/invoice.py
 #, python-format
+msgid "%(number)s is already voided or deleted in Xero."
+msgstr ""
+
+#: apps/xero/documents/invoice.py
+#, python-format
 msgid ""
 "%(number)s has a payment or credit note against it in Xero, so it can't be "
 "voided. Remove the payment or credit note in Xero first."
