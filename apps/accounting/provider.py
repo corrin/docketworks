@@ -79,8 +79,8 @@ class AccountingProvider(Protocol):
         """Void the invoice when ``void``, else delete it (drafts only).
 
         One write, decided by the caller from its own copy. A refusal comes
-        back as a failed result with status 400; the caller refreshes its copy
-        rather than guessing why.
+        back as a failed result: the two systems disagree, and the caller
+        stops there (ADR 0015).
         """
         ...
 

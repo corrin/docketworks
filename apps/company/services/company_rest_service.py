@@ -27,7 +27,13 @@ from django.utils import timezone
 from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
-from apps.company.models import Company, ContactMethod, Person, SupplierPickupAddress
+from apps.company.models import (
+    UNCOUNTED_STATUSES,
+    Company,
+    ContactMethod,
+    Person,
+    SupplierPickupAddress,
+)
 from apps.company.services.contact_methods import (
     clear_company_primary_phone,
     set_primary_phone,
@@ -935,7 +941,14 @@ def _job_headers(
                 "max_people": job.max_people,
                 "invoices": invoices,
                 "invoiced_total_excl_tax": float(
-                    sum((invoice.total_excl_tax for invoice in job.invoices.all()), Decimal("0"))
+                    sum(
+                        (
+                            invoice.total_excl_tax
+                            for invoice in job.invoices.all()
+                            if invoice.status not in UNCOUNTED_STATUSES
+                        ),
+                        Decimal("0"),
+                    )
                 ),
             }
         )

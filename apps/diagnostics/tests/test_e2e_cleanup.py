@@ -331,6 +331,8 @@ def test_confirm_removes_the_run_s_documents_and_contacts_from_xero(
     )
     job = make_job(company, office_staff, name="[TEST] Job")
     invoice = make_invoice(company, job=job)
+    # Voided from the job screen: already off Xero's books, so not sent again.
+    make_invoice(company, job=job, status="VOIDED")
     quote = make_quote(company, job=job)
     order = make_purchase_order(supplier=company, xero_raised=True)
     order.xero_id = uuid.uuid4()

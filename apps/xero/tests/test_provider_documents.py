@@ -18,7 +18,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload, QuotePayload
-from apps.core.models import CompanyDefaults
+from apps.core.models import AppError, CompanyDefaults
 from apps.xero.models import XeroAccount
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
@@ -240,6 +240,23 @@ class TestDeleteInvoice:
         posted = api.update_or_create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
         assert posted["Status"] == status
         assert posted["InvoiceID"] == external_id
+
+
+class TestDeleteInvoiceRefusal:
+    def test_a_refusal_is_persisted_and_returned_unread(self) -> None:
+        """A refusal means Xero and Docketworks disagree: on record, never interpreted."""
+        provider, api = _provider_with_api()
+        api.update_or_create_invoices.side_effect = _FakeApiError(
+            body='{"Message": "A validation exception occurred"}', status=400
+        )
+
+        result = provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=False
+        )
+
+        assert not result.success
+        assert result.error == "A validation exception occurred"
+        assert AppError.objects.count() == 1
 
 
 class TestPurchaseOrders:

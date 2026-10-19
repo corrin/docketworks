@@ -286,30 +286,9 @@ class XeroInvoiceManager(XeroDocumentManager):
                 raise ValueError("Cannot delete invoice without a Xero ID.")
             invoice = Invoice.objects.get(xero_id=xero_id)
 
-            if invoice.status in (InvoiceStatus.VOIDED, InvoiceStatus.DELETED):
-                return self._refusal(
-                    gettext("%(number)s is already voided or deleted in Xero.")
-                    % {"number": invoice.number}
-                )
-            paid_or_credited = invoice.status == InvoiceStatus.PAID or (
-                invoice.amount_due < invoice.total_incl_tax
-            )
-            if paid_or_credited:
-                return self._refusal(
-                    gettext(
-                        "%(number)s has a payment or credit note against it in Xero, so it "
-                        "can't be voided. Remove the payment or credit note in Xero first."
-                    )
-                    % {"number": invoice.number}
-                )
-            if invoice.status == InvoiceStatus.AUTHORISED and not void_approved:
-                return self._approved_refusal(invoice)
-            if invoice.status not in (
-                InvoiceStatus.DRAFT,
-                InvoiceStatus.SUBMITTED,
-                InvoiceStatus.AUTHORISED,
-            ):
-                raise ValueError(f"Invoice {invoice.number} has unknown status {invoice.status}")
+            refusal = self._local_refusal(invoice, void_approved=void_approved)
+            if refusal is not None:
+                return refusal
             draft = invoice.status != InvoiceStatus.AUTHORISED
 
             contact_id = invoice.company.xero_contact_id
@@ -331,11 +310,53 @@ class XeroInvoiceManager(XeroDocumentManager):
                     "error": result.error,
                     "status": result.status_code or 400,
                 }
-            return self._finish_delete(invoice, result.document_status)
+            target = InvoiceStatus.DELETED if draft else InvoiceStatus.VOIDED
+            if result.document_status != target:
+                raise ValueError(
+                    f"Asked Xero to set {invoice.number} {target}; it reported "
+                    f"{result.document_status}"
+                )
+            return self._finish_delete(invoice, voided=not draft)
         except Exception as exc:
             logger.exception("Unexpected error during invoice deletion for job %s", self.job.id)
             persist_app_error(exc, AppErrorContext(job_id=self.job.id))
             raise
+
+    def _local_refusal(
+        self, invoice: Invoice, *, void_approved: bool
+    ) -> XeroDocumentResponse | None:
+        """Refuse from the local copy before any Xero call, or None to go ahead.
+
+        One branch per status the model defines; anything else stops.
+        """
+        if invoice.status in (InvoiceStatus.VOIDED, InvoiceStatus.DELETED):
+            return self._refusal(
+                gettext("%(number)s is already voided or deleted in Xero.")
+                % {"number": invoice.number}
+            )
+        if invoice.status == InvoiceStatus.PAID:
+            # Not "has a payment": Xero marks a $0 invoice PAID on approval.
+            return self._refusal(
+                gettext("%(number)s is marked paid in Xero, so it can't be voided here.")
+                % {"number": invoice.number}
+            )
+        if invoice.amount_due < invoice.total_incl_tax:
+            return self._refusal(
+                gettext(
+                    "%(number)s has a payment or credit note against it in Xero, so it "
+                    "can't be voided. Remove the payment or credit note in Xero first."
+                )
+                % {"number": invoice.number}
+            )
+        if invoice.status == InvoiceStatus.AUTHORISED and not void_approved:
+            return self._approved_refusal(invoice)
+        if invoice.status not in (
+            InvoiceStatus.DRAFT,
+            InvoiceStatus.SUBMITTED,
+            InvoiceStatus.AUTHORISED,
+        ):
+            raise ValueError(f"Invoice {invoice.number} has unknown status {invoice.status}")
+        return None
 
     @staticmethod
     def _refusal(reason: str) -> XeroDocumentResponse:
@@ -354,9 +375,9 @@ class XeroInvoiceManager(XeroDocumentManager):
             "status": 400,
         }
 
-    def _finish_delete(self, invoice: Invoice, xero_status: str | None) -> XeroDocumentResponse:
+    def _finish_delete(self, invoice: Invoice, *, voided: bool) -> XeroDocumentResponse:
         """Mirror what Xero now holds: a voided invoice stays, marked voided."""
-        if xero_status == InvoiceStatus.VOIDED:
+        if voided:
             invoice.status = InvoiceStatus.VOIDED
             invoice.save(update_fields=["status"])
             event, message = "invoice_voided", gettext("Invoice voided.")

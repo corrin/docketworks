@@ -400,3 +400,54 @@ class TestDeleteRule:
         assert response["success"] is False
         provider.delete_invoice.assert_not_called()
         assert Invoice.objects.filter(id=voided.id).exists()
+
+    def test_a_zero_dollar_paid_invoice_is_refused_without_claiming_a_payment(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Xero marks a $0 invoice PAID on approval; there is no payment to remove."""
+        zero = make_invoice(
+            company,
+            job=job,
+            status="PAID",
+            number="INV-Z1",
+            total_excl_tax=Decimal("0.00"),
+            amount_due=Decimal("0.00"),
+        )
+        provider = Mock()
+
+        response = _delete(_manager(company, job, office_staff, provider), zero, void_approved=True)
+
+        assert response["error"] == "INV-Z1 is marked paid in Xero, so it can't be voided here."
+        provider.delete_invoice.assert_not_called()
+
+    def test_a_submitted_invoice_deletes_rather_than_offering_a_void(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Docketworks records the drafts it raises as SUBMITTED."""
+        submitted = make_invoice(company, job=job, status="SUBMITTED", number="INV-U1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(submitted.xero_id), document_status="DELETED"
+        )
+
+        response = _delete(
+            _manager(company, job, office_staff, provider), submitted, void_approved=False
+        )
+
+        assert response["success"] is True
+        assert provider.delete_invoice.call_args.kwargs["void"] is False
+
+    def test_xero_reporting_another_state_stops(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        approved = make_invoice(company, job=job, status="AUTHORISED", number="INV-M1")
+        provider = Mock()
+        provider.delete_invoice.return_value = DocumentResult(
+            success=True, external_id=str(approved.xero_id), document_status="DELETED"
+        )
+
+        with pytest.raises(ValueError, match="INV-M1"):
+            _delete(_manager(company, job, office_staff, provider), approved, void_approved=True)
+
+        approved.refresh_from_db()
+        assert approved.status == "AUTHORISED"

@@ -35,6 +35,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 from django.db.models import Model, Q, QuerySet
 
+from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
@@ -319,9 +320,13 @@ class Command(BaseCommand):
             # because Xero answered a create, so there is no unpushed case to
             # filter. PurchaseOrder.xero_id and Company.xero_contact_id are
             # nullable and the filters below are that difference, not guards.
+            # A voided or deleted invoice is already gone from Xero's books, as
+            # the organisation sweep's REMOVED_DOCUMENT_STATUSES says too.
             invoices={
                 str(invoice.xero_id): _residue_invoice(invoice)
-                for invoice in invoices.select_related("company")
+                for invoice in invoices.select_related("company").exclude(
+                    status__in=[InvoiceStatus.VOIDED, InvoiceStatus.DELETED]
+                )
             },
             # Quotes are labelled by their Xero id, not their number: the
             # number column is nullable, and a label that is sometimes absent

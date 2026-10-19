@@ -96,6 +96,14 @@ export function JobInvoiceCard({
   const deleteInvoice = useMutation(xeroDeleteInvoiceMutation())
 
   const workComplete = COMPLETED_STATUSES.has(jobStatus)
+  // Why a second invoice can't be raised right now; null when it can (ADR 0067).
+  const secondInvoiceBlocked = paid
+    ? t('invoiceCard.voidDialog.secondInvoiceBlocked.paid')
+    : !xeroConnected
+      ? t('invoiceCard.voidDialog.secondInvoiceBlocked.notConnected')
+      : remainingToInvoice <= 0
+        ? t('invoiceCard.voidDialog.secondInvoiceBlocked.fullyInvoiced')
+        : null
 
   const modalDescription = !workComplete
     ? t('invoiceCard.description.inAdvance')
@@ -366,8 +374,8 @@ export function JobInvoiceCard({
             <Button
               variant="outline"
               data-automation-id="JobInvoiceCard-void-offer-second-invoice"
-              title={t('invoiceCard.titles.create')}
-              disabled={paid || !xeroConnected || remainingToInvoice <= 0}
+              title={secondInvoiceBlocked ?? t('invoiceCard.titles.create')}
+              disabled={secondInvoiceBlocked !== null}
               onClick={() => {
                 setVoidOffer(null)
                 openModal()

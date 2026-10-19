@@ -352,9 +352,14 @@
     "deleted": "Invoice deleted successfully!",
     "deleteFailed": "Failed to delete invoice.",
     "voidDialog": {
-      "title": "Void {{number}}?",
+      "title": "{{number}} is approved",
       "void": "Void invoice",
-      "secondInvoice": "Add a second invoice"
+      "secondInvoice": "Add a second invoice",
+      "secondInvoiceBlocked": {
+        "paid": "This job is marked paid, so it can't take another invoice.",
+        "notConnected": "Docketworks isn't connected to Xero. Log in to Xero first.",
+        "fullyInvoiced": "Everything on this job is already invoiced, so there is nothing left for a second invoice."
+      }
     },
     "title": "Invoices",
     "subtitle": "Manage invoices for this job.",
