@@ -4850,6 +4850,12 @@ msgstr ""
 
 #: apps/xero/provider.py
 msgid ""
+"Xero answered but sent back no invoice, so DocketWorks can't tell whether it "
+"changed. Check the invoice in Xero."
+msgstr ""
+
+#: apps/xero/provider.py
+msgid ""
 "Xero answered but sent back no quote, so DocketWorks can't tell whether it "
 "was created. Check Xero before trying again."
 msgstr ""
