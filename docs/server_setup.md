@@ -117,7 +117,9 @@ the stamp is written only after setup succeeds.
 
 - etckeeper (tracks /etc changes in git)
 - Python 3.14 through uv for the `docketworks` account, following `.python-version`; OS tools retain the distro Python
-- Node.js, the major in `frontend/.nvmrc` (NodeSource)
+- Node.js, the major in `frontend/.nvmrc` (NodeSource), for host tools; each release builds
+  and runs its E2E with the exact `frontend/.nvmrc` version, installed on first use under
+  `/opt/docketworks/.local/node/`
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
   private port behind its own password; the stock service on 6379 serves only the v1 demo).

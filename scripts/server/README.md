@@ -39,7 +39,7 @@ sudo ./scripts/server/server-setup.sh --dreamhost-key <DREAMHOST_API_KEY> --cert
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs host-level requirements: Node (the major in `frontend/.nvmrc`), PostgreSQL, Redis, Nginx, Certbot, uv, rclone, UFW, Fail2ban, Claude Code CLI. Provisions app Python 3.14 through uv for the `docketworks` account using `.python-version`, while OS tools retain the distro Python. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
+Installs host-level requirements: Node (the major in `frontend/.nvmrc`), PostgreSQL, Redis, Nginx, Certbot, uv, rclone, UFW, Fail2ban, Claude Code CLI. Provisions app Python 3.14 through uv for the `docketworks` account using `.python-version`, while OS tools retain the distro Python. Releases build with the exact Node their `frontend/.nvmrc` names, installed once per version under `/opt/docketworks/.local/node/` by `release-utils.sh`. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
 
 Required keys (passed once on first run, then cached):
 

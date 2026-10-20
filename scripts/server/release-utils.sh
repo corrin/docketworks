@@ -316,6 +316,64 @@ state_sha_references_release() {
     [[ "$(short_release_sha "$release_sha")" == "$state_sha" ]]
 }
 
+# Opus: each release builds and tests with the exact Node its frontend/.nvmrc
+# names, installed once per version beside uv's Pythons. The host's NodeSource
+# Node follows whatever main last provisioned, so building with it failed a
+# hotfix or rollback whose release named an older major.
+NODE_ROOT="$BASE_DIR/.local/node"
+
+node_version_from_nvmrc() {
+    local version
+    version="$(tr -d '[:space:]v' <<< "$1")"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "ERROR: frontend/.nvmrc names no exact Node version: '$1'" >&2
+        return 1
+    fi
+    printf 'v%s\n' "$version"
+}
+
+release_node_bin() {
+    local sha="$1"
+    local version
+    version="$(node_version_from_nvmrc "$(git -C "$LOCAL_REPO" show "$sha:frontend/.nvmrc")")"
+    printf '%s\n' "$NODE_ROOT/$version/bin"
+}
+
+ensure_release_node() {
+    local sha="$1"
+    local bin dir version arch tarball
+    bin="$(release_node_bin "$sha")"
+    if [[ -x "$bin/node" ]]; then
+        return 0
+    fi
+    dir="$(dirname "$bin")"
+    version="$(basename "$dir")"
+    case "$(uname -m)" in
+        x86_64) arch=x64 ;;
+        aarch64) arch=arm64 ;;
+        *)
+            echo "ERROR: no Node build for $(uname -m)" >&2
+            return 1
+            ;;
+    esac
+    tarball="node-$version-linux-$arch.tar.xz"
+    log "Installing Node $version for releases..."
+    # Extracted beside the target and moved in whole, so a failed download
+    # never leaves a directory that passes the -x check above.
+    sudo -u docketworks bash -c "
+        set -euo pipefail
+        umask 022
+        mkdir -p '$NODE_ROOT'
+        work=\$(mktemp -d '$NODE_ROOT/.install.XXXXXX')
+        trap 'rm -rf \"\$work\"' EXIT
+        cd \"\$work\"
+        curl -fsSLO 'https://nodejs.org/dist/$version/$tarball'
+        curl -fsSL 'https://nodejs.org/dist/$version/SHASUMS256.txt' | grep ' $tarball\$' | sha256sum -c -
+        tar -xJf '$tarball'
+        mv 'node-$version-linux-$arch' '$dir'
+    "
+}
+
 ensure_release() {
     local sha="$1"
     local release_dir
@@ -338,6 +396,9 @@ ensure_release() {
     rm -rf "$release_dir"
 
     log "Building shared release $sha..."
+    ensure_release_node "$sha"
+    local node_bin
+    node_bin="$(release_node_bin "$sha")"
     mkdir "$release_dir"
     chown docketworks:docketworks "$release_dir"
 
@@ -345,7 +406,7 @@ ensure_release() {
         set -euo pipefail
         git -C '$LOCAL_REPO' archive '$sha' | tar -x -C '$release_dir'
         printf '%s\n' '$sha' > '$release_dir/.release-sha'
-        export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        export PATH='$node_bin:/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
         cd '$release_dir'
         # uv creates .venv in place from the committed lockfile; --frozen
         # refuses to resolve anything the lock does not pin. The gunicorn
@@ -354,16 +415,6 @@ ensure_release() {
         # scripts keep the old shebang paths.
         uv sync --frozen --no-dev
         cd '$release_dir/frontend'
-        REQUIRED_NODE_MAJOR=\$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' .nvmrc | head -n 1)
-        if [[ -z \"\$REQUIRED_NODE_MAJOR\" ]]; then
-            echo \"ERROR: Could not parse Node major from frontend/.nvmrc\" >&2
-            exit 1
-        fi
-        CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
-        if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
-            echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
-            exit 1
-        fi
         npm ci --include=dev --cache '$BASE_DIR/.npm-cache'
         npm run build
         rm -rf node_modules
