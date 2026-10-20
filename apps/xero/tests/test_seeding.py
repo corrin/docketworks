@@ -1006,6 +1006,31 @@ class TestClearProductionXeroIds:
         ):
             assert_not_production_target()
 
+    def test_fake_xero_allows_a_copy_bound_to_production(self) -> None:
+        # The verify run on a production instance serves its scrub copy, still
+        # bound to the production tenant, with the fake (ADR 0064).
+        with (
+            override_settings(
+                DATABASES={"default": {"NAME": "dw_msm_prod_scrub"}},
+                PRODUCTION_XERO_TENANT_IDS=[TENANT],
+                XERO_FAKE=True,
+            ),
+            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
+        ):
+            assert_not_production_target()
+
+    def test_real_xero_refuses_a_copy_bound_to_production(self) -> None:
+        with (
+            override_settings(
+                DATABASES={"default": {"NAME": "dw_msm_prod_scrub"}},
+                PRODUCTION_XERO_TENANT_IDS=[TENANT],
+                XERO_FAKE=False,
+            ),
+            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
+            pytest.raises(ValueError, match="production Xero tenant"),
+        ):
+            assert_not_production_target()
+
 
 @pytest.mark.django_db
 class TestRunSeedRefusals:
