@@ -426,4 +426,9 @@ def _residue_invoice(invoice: Invoice) -> ResidueInvoice:
     contact_id = invoice.company.xero_contact_id
     if contact_id is None:
         raise CommandError(f"Invoice {invoice.number} names a company not linked to Xero.")
-    return ResidueInvoice(label=invoice.number, contact_id=contact_id, date=invoice.date)
+    return ResidueInvoice(
+        label=invoice.number,
+        contact_id=contact_id,
+        date=invoice.date,
+        approved=invoice.status == InvoiceStatus.AUTHORISED,
+    )
