@@ -26,7 +26,7 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -834,12 +834,7 @@ def timesheets_approvals_approve_day(
 )
 def timesheets_approvals_sweep(request: HttpRequest, payload: SweepIn) -> approval.SweepData:
     """Sweep one person's days, or everyone's when no person is given (KAN-380)."""
-    if payload.end_date < payload.start_date:
-        raise HttpError(400, gettext("The end date is before the start date."))
-    days = [
-        payload.start_date + timedelta(days=offset)
-        for offset in range((payload.end_date - payload.start_date).days + 1)
-    ]
+    days = approval.sweep_days(payload.start_date, payload.end_date)
     actor = authenticated_staff(request)
     return (
         approval.sweep_everyone(days, actor)

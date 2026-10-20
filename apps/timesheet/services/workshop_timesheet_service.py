@@ -46,6 +46,7 @@ from apps.job.services.time_entry_rates import (
 )
 from apps.timesheet.models import (
     EDITED_STANDARD_BREAK,
+    SWEPT_GENERAL_WORK,
     UNTOUCHED_STANDARD_BREAK,
     AttendanceDay,
     mark_break_edited,
@@ -256,7 +257,9 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
 
 
 #: Lines nobody typed, never marked entered late.
-_GENERATED_SOURCES = frozenset({UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK})
+_GENERATED_SOURCES = frozenset(
+    {UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK, SWEPT_GENERAL_WORK}
+)
 
 
 def entered_late(line: CostLine) -> bool:
@@ -571,7 +574,7 @@ def create_entry(
     data: WorkshopEntryCreateData,
     location: EntryLocation | None = None,
     *,
-    generated: bool = False,
+    source: str | None = None,
 ) -> WorkshopEntryData:
     """Create a time line for ``owner``, saved by ``actor``.
 
@@ -580,8 +583,9 @@ def create_entry(
     whether it is marked as saved away from the workshop. ``location`` is
     where the actor's phone says it is; None when it gave none.
 
-    ``generated`` is a line nobody typed (the breaks put on a day when it is
-    closed): never marked late or remote, since there was no entry to judge.
+    ``source`` marks a line nobody typed (the breaks put on a day when it is
+    closed, the sweep's General work): never marked late or remote, since
+    there was no entry to judge.
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
@@ -602,8 +606,8 @@ def create_entry(
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
             is_billable=data.get("is_billable", True),
         )
-        if generated:
-            meta["source"] = UNTOUCHED_STANDARD_BREAK
+        if source is not None:
+            meta["source"] = source
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         if start_time is not None:
@@ -630,7 +634,7 @@ def create_entry(
             # Time the office enters is approved as it is saved, whoever it is
             # for; a worker's own waits for the office.
             approved=actor.is_office_staff,
-            remote_entry=not generated and saved_remotely(actor, location),
+            remote_entry=source is None and saved_remotely(actor, location),
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, actor)
@@ -746,6 +750,8 @@ def update_entry(
     line = _editable_line(actor, data["entry_id"])
 
     with transaction.atomic():
+        # His lock before the jobs', as every write to his day takes them.
+        Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
@@ -824,6 +830,8 @@ def update_entry(
 def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = None) -> None:
     """Delete an entry: the actor's own, or anyone's when the actor is office staff."""
     line = CostLine.objects.get(id=entry_id, kind="time")
+    # His lock before the jobs', as every write to his day takes them.
+    Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
     # Locked on the line alone: the snapshot's joins are nullable, which

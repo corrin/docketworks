@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 128,998 (v1 172,577, -25%) |
-| tests | 90,585 (v1 50,869, +78%) |
+| code | 129,106 (v1 172,577, -25%) |
+| tests | 90,664 (v1 50,869, +78%) |
 | generated | 54,422 (v1 20,359, +167%) |
 
 ## Suppressions
@@ -31,9 +31,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 797 |
+| TOTAL suppressions | 798 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 156 |
+| noqa: PLC0415 | 157 |
 | noqa: E402 | 108 |
 | noqa: PLR0913 | 59 |
 | noqa: ARG002 | 49 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 260 |
-| non-test functions | 3123 |
+| non-test functions | 3127 |
 
 ## Broad type annotations
 

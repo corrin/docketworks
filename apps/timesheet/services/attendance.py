@@ -21,9 +21,15 @@ from django.utils.translation import gettext, gettext_noop
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
+from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import UNTOUCHED_STANDARD_BREAK, AttendanceDay, ClockHow
+from apps.timesheet.models import (
+    SWEPT_GENERAL_WORK,
+    UNTOUCHED_STANDARD_BREAK,
+    AttendanceDay,
+    ClockHow,
+)
 from apps.timesheet.services.location import EntryLocation, saved_remotely
 from apps.timesheet.services.timesheet_events import DaySnapshot, record_day_event
 
@@ -321,13 +327,17 @@ def unallocated_windows(
     the breaks and the timed entries, as the fill sheet lays
     out a day. None until both clock times are known: a day still clocked in,
     or never clocked, has no clocked time to speak of.
+
+    Leave is never clocked time: a morning on leave and an afternoon clocked
+    is a whole afternoon to account for, so leave lines take none of it.
     """
     if row is None or row.clock_out is None:
         return None
-    timed = [window for line in entries if (window := _line_window(line)) is not None]
+    worked = [line for line in entries if line.managed_by != CostLineOwner.LEAVE]
+    timed = [window for line in worked if (window := _line_window(line)) is not None]
     occupied = [*break_windows(day, row, break_lines), *timed]
     cursor = row.clock_in
-    for line in [line for line in entries if _line_window(line) is None]:
+    for line in [line for line in worked if _line_window(line) is None]:
         begins = start_after_breaks(cursor, occupied)
         ends = finish_in_the_day(begins, line.quantity, occupied)
         # Hours that would run past midnight take the rest of the day.
@@ -707,6 +717,9 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     start = start.replace(second=0, microsecond=0)
     finish = None if finish is None else finish.replace(second=0, microsecond=0)
     by_hand = _by_hand(owner, actor)
+    # His lock first, as the sweep takes it: it reads these times to make
+    # General work, and must not read them half way through a change.
+    Staff.objects.select_for_update().filter(pk=owner.pk).first()
     row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
     before = _snapshot(row)
     if row is None:
@@ -724,6 +737,7 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     _record(actor, row, "clock_times_set", before, location=location)
     generate_default_breaks(row, actor, location)
     drop_breaks_after_finish(row, actor, location)
+    drop_sweep_outside_clock(row, actor, location)
     return attendance_data(row)
 
 
@@ -845,6 +859,43 @@ def drop_breaks_after_finish(
             delete_entry(actor, line.id, location)
 
 
+def drop_sweep_outside_clock(
+    row: AttendanceDay, actor: Staff, location: EntryLocation | None = None
+) -> None:
+    """Take off the sweep's General work entries the day's clock times no longer cover.
+
+    The sweep made them from the clock times as they stood; a later finish of
+    15:00 leaves 15:00 to 17:00 on General work that he was not here for, and
+    paid. One reaching outside the new times goes whole, leaving any stretch
+    still clocked for the office to sweep again. Bounds are on quarter hours,
+    as the sweep set them. A worker cannot take off the office's approved
+    entry, so his own change to such a day is refused and the office makes it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        return
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        delete_entry,
+    )
+
+    first = to_quarter(row.clock_in)
+    last = None if row.clock_out is None else to_quarter(row.clock_out)
+    swept = CostLine.objects.filter(
+        cost_set__kind="actual",
+        cost_set__job_id=general_work_id,
+        kind="time",
+        staff=row.staff,
+        accounting_date=row.date,
+        meta__source=SWEPT_GENERAL_WORK,
+    )
+    for line in swept:
+        window = _line_window(line)
+        if window is None:
+            raise ValueError(f"Swept General work line {line.id} has no start and stop")
+        if window.start < first or (last is not None and window.end > last):
+            delete_entry(actor, line.id, location)
+
+
 def _break_lines_if_any(owner: Staff, day: date) -> list[CostLine]:
     """Return his lines on the Break job for a day; none on an instance without it."""
     job_id = break_job_id()
@@ -893,7 +944,7 @@ def _create_break(  # noqa: PLR0913 -- whose break, its day and times, its kind 
             "wage_rate_multiplier": ORDINARY if paid else UNPAID,
         },
         location,
-        generated=generated,
+        source=UNTOUCHED_STANDARD_BREAK if generated else None,
     )
 
 

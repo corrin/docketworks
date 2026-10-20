@@ -3831,10 +3831,6 @@ msgstr ""
 msgid "Break not found."
 msgstr ""
 
-#: apps/timesheet/api.py
-msgid "The end date is before the start date."
-msgstr ""
-
 #: apps/timesheet/leave_api.py
 msgid "Employee not found."
 msgstr ""
@@ -3962,6 +3958,26 @@ msgstr ""
 msgid ""
 "General work isn't set up: there is no General work job yet. Ask an "
 "administrator to choose it in Company Defaults > Working Hours."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+#, python-format
+msgid ""
+"General work is set to %(job)s, which is for breaks or leave, not worked "
+"time. Ask an administrator to choose another job in Company Defaults > "
+"Working Hours."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "The end date is before the start date."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "Days after today haven't been worked yet, so they can't be swept."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "A sweep covers one week at most."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
