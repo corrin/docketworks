@@ -15,7 +15,13 @@ import { formatHoursDisplay } from '../../../src/lib/format'
 import { getPostableWeek, getWorkshopStaff } from '../fixtures/api'
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
-import { asSuperuser, bookAsWorkshopUser, getLatestWeekdayDate, seedLabourForWeek } from './support'
+import {
+  asSuperuser,
+  bookAsWorkshopUser,
+  getLatestWeekdayDate,
+  seedLabourForWeek,
+  sendDayAsWorkshopUser,
+} from './support'
 
 /**
  * 06:30 to 15:00 with the standard breaks the office's times put on the day
@@ -105,6 +111,7 @@ test("a person's clocked time on no job is swept onto General work and the day a
     // Sweeping is approving: the worker's own waiting entry went with the day.
     await expect(autoId(page, `ApproveTimePage-entry-${waitingEntryId}`)).toContainText('Approved')
   })
+  await sendDayAsWorkshopUser(browser, origin, seeded.date)
 })
 
 test('sweeping everyone on a day sweeps a person the office clocked', async ({
@@ -138,4 +145,5 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
     await expect(swept.nth(index)).toContainText(times)
     await expect(swept.nth(index)).toContainText(formatHoursDisplay(hours))
   }
+  await sendDayAsWorkshopUser(browser, origin, day)
 })

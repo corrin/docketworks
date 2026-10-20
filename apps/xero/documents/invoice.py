@@ -382,7 +382,9 @@ class XeroInvoiceManager(XeroDocumentManager):
         """Mirror what Xero now holds: a voided invoice stays, marked voided."""
         if voided:
             invoice.status = InvoiceStatus.VOIDED
-            invoice.save(update_fields=["status"])
+            # django_updated_at named: auto_now moves only with update_fields,
+            # and the job's invoice list is cached on it.
+            invoice.save(update_fields=["status", "django_updated_at"])
             event, message = "invoice_voided", gettext("Invoice voided.")
         else:
             invoice.delete()

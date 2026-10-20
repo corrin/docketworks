@@ -38,10 +38,12 @@ from uuid import UUID
 from django.core.cache import BaseCache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import Count, Max
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.http import quote_etag
 from django.utils.translation import gettext
 from ninja import File as NinjaFile
 from ninja import Form, Router, UploadedFile
@@ -52,7 +54,11 @@ from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.envelope import require_if_match
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
+from apps.core.etag import (
+    generate_updated_at_etag,
+    if_none_match_satisfied,
+    updated_at_etag_value,
+)
 from apps.job.models import Job, JobFile, LabourSubtype
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.schemas import (
@@ -148,6 +154,19 @@ office_auth = OfficeStaffCookieJWTAuth()
 
 def _job_etag(job: Job) -> str:
     return generate_updated_at_etag("job", job.id, job.updated_at)
+
+
+def _invoices_etag(job: Job) -> str:
+    """Return the job's invoice list as a version: its latest change and its count.
+
+    A job with no invoices is a version too, the empty list, and it reads the
+    same again if every invoice it gains is later deleted.
+    """
+    latest = job.invoices.aggregate(changed=Max("django_updated_at"), count=Count("id"))
+    if latest["changed"] is None:
+        return quote_etag(f"job_invoices:{job.id}:none")
+    value = updated_at_etag_value("job_invoices", job.id, latest["changed"])
+    return quote_etag(f"{value}:{latest['count']}")
 
 
 def _current_job_etag(job_id: UUID) -> str | None:
@@ -1139,11 +1158,12 @@ def job_jobs_invoices_retrieve(
 ) -> Status[None] | JobInvoicesResponse:
     """Return the job's invoice mirror rows, with conditional GET support.
 
-    The invoice push busts the job ETag (its persistence path saves the job),
-    so this cache key does move when an invoice is created locally.
+    The ETag is the invoices' own, not the job's: Xero's webhook and sync
+    change an invoice's status without touching its job, and a job ETag
+    answered 304 with the old status until something else edited the job.
     """
     job = _get_job_or_404(job_id)
-    if _not_modified(request, response, _job_etag(job)):
+    if _not_modified(request, response, _invoices_etag(job)):
         return Status(304, None)
     return JobInvoicesResponse(
         invoices=[

@@ -2929,8 +2929,9 @@ export const jobJobsInvoicesRetrieveQueryKey = (options: Options<JobJobsInvoices
  *
  * Return the job's invoice mirror rows, with conditional GET support.
  *
- * The invoice push busts the job ETag (its persistence path saves the job),
- * so this cache key does move when an invoice is created locally.
+ * The ETag is the invoices' own, not the job's: Xero's webhook and sync
+ * change an invoice's status without touching its job, and a job ETag
+ * answered 304 with the old status until something else edited the job.
  */
 export const jobJobsInvoicesRetrieveOptions = (options: Options<JobJobsInvoicesRetrieveData>) => queryOptions<JobJobsInvoicesRetrieveResponse, AxiosError<DefaultError>, JobJobsInvoicesRetrieveResponse, ReturnType<typeof jobJobsInvoicesRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
