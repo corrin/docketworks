@@ -368,7 +368,7 @@ class TestJobRejection:
         job.refresh_from_db()
         job.notes = "Keep these notes"
         if moved_on:
-            job.status = "on_hold"
+            job.status = "unusual"
         job.save(staff=office_staff)
         initial_events = job.events.count()
         response = api.post(
@@ -381,7 +381,7 @@ class TestJobRejection:
         assert job.notes == "Keep these notes"
         if moved_on:
             assert response.status_code == 412, response.content
-            assert job.status == "on_hold"
+            assert job.status == "unusual"
             assert job.rejected_flag is True
             assert job.events.count() == initial_events
         else:

@@ -1729,8 +1729,15 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- one transaction validates, mu
 
             # Enrichment context so Job.save() creates a single rich event
             # instead of service + model creating duplicates
+            # Only the fields the delta changes: the event's before and after
+            # hold no others, and undo reverses each field this names.
             meta_payload: dict[str, object] = {
-                "fields": list(delta_payload.fields),
+                "fields": [
+                    field_name
+                    for field_name in delta_payload.fields
+                    if normalise_value(delta_payload.before[field_name])
+                    != normalise_value(delta_payload.after[field_name])
+                ],
                 "actor_id": delta_payload.actor_id,
                 "made_at": delta_payload.made_at,
                 "etag": delta_payload.etag,
