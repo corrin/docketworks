@@ -295,6 +295,31 @@ describe('job rejection', () => {
     },
   )
 
+  it('asks before rejecting on a retry, even with nothing left to invoice', async () => {
+    // Guards JobRejectionAction's onRetry: a later Retry for another field of
+    // this job must never archive it without a confirmation.
+    mockUser()
+    const bodies: unknown[] = []
+    server.use(
+      http.get(`${JOB_URL}finish/`, () => HttpResponse.json(balance('0.00'))),
+      http.get(JOB_URL, () => HttpResponse.json({ data: { job } })),
+      http.patch(JOB_URL, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json({ detail: 'Changed elsewhere' }, { status: 412 })
+      }),
+    )
+    const { user } = renderWithProviders(<JobRejectionAction job={job} />)
+    await waitForAction()
+    await user.click(autoId('JobView-rejection-action'))
+    await waitFor(() => expect(bodies).toHaveLength(1))
+
+    act(() => emitConcurrencyRetry({ kind: 'job', id: JOB_ID }))
+
+    await waitFor(() => expect(autoId('JobView-rejection-confirm')).toBeVisible())
+    expect(queryAutoId('JobView-rejection-warning')).toBeNull()
+    expect(bodies).toHaveLength(1)
+  })
+
   it('hides the mutation action from workshop staff', async () => {
     mockUser({ is_office_staff: false })
     const { queryClient } = renderWithProviders(<JobRejectionAction job={job} />)
