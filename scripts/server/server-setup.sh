@@ -512,7 +512,11 @@ rm -f /opt/docketworks/shared.env
 # --- uv for docketworks user (Python dependency manager; release builds) ---
 
 if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v uv' &>/dev/null; then
-    log "uv already installed for docketworks user, skipping."
+    # Opus: uv carries its list of Python builds inside the binary, so a uv
+    # older than the pin in .python-version cannot install it; the weekly
+    # sweep moves that pin, so uv moves with it.
+    log "uv already installed for docketworks user, updating..."
+    sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv self update'
 else
     log "Installing uv for docketworks user..."
     sudo -u docketworks bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
@@ -531,16 +535,17 @@ chmod o+rx /opt/docketworks/.local /opt/docketworks/.local/share \
 APP_PYTHON_VERSION="$("$APP_PYTHON" --version 2>&1)"
 log_version "app Python" "$APP_PYTHON_VERSION"
 
-# --- pnpm (via corepack) ---
+# --- pnpm (via npm) ---
 # Solely for the co-hosted marketing website (/opt/docketworks-website,
 # docs/server_setup.md Part G) — the app itself builds with npm.
+# Opus: Node 26 ships no corepack, and the Node upgrade removes it,
+# leaving the /usr/bin/pnpm it linked dangling; --force replaces that link.
 
-if command -v pnpm &>/dev/null; then
+if pnpm --version &>/dev/null; then
     log "pnpm already installed, skipping."
 else
-    log "Installing pnpm via corepack..."
-    corepack enable
-    corepack prepare pnpm@latest --activate
+    log "Installing pnpm via npm..."
+    npm install -g --force pnpm
 fi
 log_version "pnpm" "$(pnpm --version)"
 

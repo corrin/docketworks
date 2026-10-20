@@ -125,7 +125,7 @@ the stamp is written only after setup succeeds.
   and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
-- pnpm (via corepack) and pm2 (for marketing website)
+- pnpm and pm2, through npm (for marketing website)
 - Claude Code CLI
 - Build dependencies (build-essential, libpq-dev, pkg-config)
 - uv (for the `docketworks` system user; release builds run `uv sync --frozen`)
