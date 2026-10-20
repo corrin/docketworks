@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "recorded_at": "2026-10-20T08:31:44+00:00",
   "organisation": "Demo Company (NZ)",
   "sdk": "xero-python 15.2.0",
   "scrubbed_keys": [
@@ -33,7 +33,7 @@
   "lists_kept_to": null,
   "request": {
     "method": "PUT",
-    "path": "/api.xro/2.0/Invoices/60aa5d55-a47e-4665-a974-874bb50263b9/History",
+    "path": "/api.xro/2.0/Invoices/7cba08f0-907d-4a27-8644-345d6c04bc51/History",
     "query": {}
   },
   "response": {
@@ -41,19 +41,19 @@
     "content_type": "application/json; charset=utf-8",
     "content_disposition": null,
     "headers": {
-      "X-DayLimit-Remaining": "186",
-      "X-MinLimit-Remaining": "45"
+      "X-DayLimit-Remaining": "974",
+      "X-MinLimit-Remaining": "53"
     }
   },
   "body": {
-    "Id": "e29bf586-e62f-4b68-832f-ea27e00dc183",
+    "Id": "29448e5f-61ea-4e9d-b8da-1d3b726d3354",
     "Status": "OK",
     "ProviderName": "Docketworks MSM Dev",
-    "DateTimeUTC": "/Date(1789378200532)/",
+    "DateTimeUTC": "/Date(1792485137723)/",
     "HistoryRecords": [
       {
-        "DateUTCString": "2026-09-14T09:30:00",
-        "DateUTC": "/Date(1789378200532)/",
+        "DateUTCString": "2026-10-20T08:32:17",
+        "DateUTC": "/Date(1792485137723)/",
         "Details": "Recorded by the catalogue",
         "ValidationErrors": []
       }

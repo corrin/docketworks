@@ -163,6 +163,7 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "invoice_approve": lambda api: api.get_invoices(TENANT),
     "invoice_delete_authorised": lambda api: api.get_invoices(TENANT),
     "invoice_void": lambda api: api.get_invoices(TENANT),
+    "invoice_delete": lambda api: api.get_invoices(TENANT),
     "invoice_history_create": lambda api: api.get_invoice_history(TENANT, "any"),
     # The SDK has the method; its stub does not.
     "invoice_attachment_create": lambda api: api.get_invoice_attachments(TENANT, "any"),  # type: ignore[attr-defined]

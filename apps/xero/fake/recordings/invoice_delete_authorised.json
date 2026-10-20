@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "recorded_at": "2026-10-20T08:31:44+00:00",
   "organisation": "Demo Company (NZ)",
   "sdk": "xero-python 15.2.0",
   "scrubbed_keys": [
@@ -43,19 +43,19 @@
     "content_type": "application/json; charset=utf-8",
     "content_disposition": null,
     "headers": {
-      "X-DayLimit-Remaining": "184",
-      "X-MinLimit-Remaining": "43"
+      "X-DayLimit-Remaining": "971",
+      "X-MinLimit-Remaining": "50"
     }
   },
   "body": {
-    "Id": "cccdfa77-77e2-468a-a4eb-ba384eccb600",
+    "Id": "e5611045-456d-4a0c-af2f-ab6f496ce1de",
     "Status": "OK",
     "ProviderName": "Docketworks MSM Dev",
-    "DateTimeUTC": "/Date(1789378203533)/",
+    "DateTimeUTC": "/Date(1792485142301)/",
     "Invoices": [
       {
         "Type": "ACCREC",
-        "InvoiceID": "60aa5d55-a47e-4665-a974-874bb50263b9",
+        "InvoiceID": "7cba08f0-907d-4a27-8644-345d6c04bc51",
         "Payments": [],
         "CreditNotes": [],
         "Prepayments": [],
@@ -65,7 +65,7 @@
         "HasErrors": true,
         "InvoicePaymentServices": [],
         "Contact": {
-          "ContactID": "2f79af6c-5f57-49e8-9e44-301499538add",
+          "ContactID": "198d80cf-21bb-4a5f-bed3-59d9fe1f736f",
           "Addresses": [],
           "Phones": [],
           "ContactGroups": [],
@@ -73,10 +73,10 @@
           "HasValidationErrors": false,
           "ValidationErrors": []
         },
-        "DateString": "2026-09-14T00:00:00",
-        "Date": "/Date(1789344000000+0000)/",
-        "DueDateString": "2026-09-14T00:00:00",
-        "DueDate": "/Date(1789344000000+0000)/",
+        "DateString": "2026-10-20T00:00:00",
+        "Date": "/Date(1792454400000+0000)/",
+        "DueDateString": "2026-10-20T00:00:00",
+        "DueDate": "/Date(1792454400000+0000)/",
         "Status": "DELETED",
         "LineAmountTypes": "Exclusive",
         "LineItems": [
@@ -89,7 +89,7 @@
             "AccountCode": "200",
             "Tracking": [],
             "Quantity": 2.0,
-            "LineItemID": "1831302c-5538-459f-bd8e-d49da0013705",
+            "LineItemID": "19a075d4-d514-469c-9410-bd13e0222e89",
             "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
           }
         ],
