@@ -121,3 +121,17 @@ class TestInvoicesRetrieve:
         second = api.get(f"/api/job/jobs/{job.id}/invoices/", HTTP_IF_NONE_MATCH=etag)
 
         assert second.status_code == 304
+
+    def test_an_invoice_changed_by_xero_is_served_fresh(
+        self, api: Client, job: Job, company: Company
+    ) -> None:
+        """Guards _invoices_etag: a sync changes the invoice, never the job."""
+        invoice = make_invoice(company, job=job)
+        etag = api.get(f"/api/job/jobs/{job.id}/invoices/").headers["ETag"]
+
+        invoice.status = "AUTHORISED"
+        invoice.save(update_fields=["status", "django_updated_at"])
+        again = api.get(f"/api/job/jobs/{job.id}/invoices/", HTTP_IF_NONE_MATCH=etag)
+
+        assert again.status_code == 200
+        assert again.json()["invoices"][0]["status"] == "AUTHORISED"

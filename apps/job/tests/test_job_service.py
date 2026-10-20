@@ -291,6 +291,29 @@ class TestUndoJobChange:
         rejection = JobDeltaRejection.objects.latest("created_at")
         assert rejection.reason == "Undo delta mismatch"
 
+    def test_undo_of_a_delta_naming_an_unchanged_field_reverses_the_rest(
+        self, job: Job, office_staff: Staff
+    ) -> None:
+        """Guards update_job's delta meta: it names only the fields the delta changed."""
+        fields = ["description", "notes"]
+        before = {"description": job.description, "notes": job.notes}
+        payload = {
+            "change_id": str(uuid4()),
+            "job_id": str(job.id),
+            "fields": fields,
+            "before": before,
+            "after": {"description": "First edit", "notes": job.notes},
+            "before_checksum": compute_job_delta_checksum(job.id, before, fields),
+        }
+        job_service.update_job(job.id, payload, office_staff, _etag(job))
+        job.refresh_from_db()
+
+        change_id = job_service._safe_uuid(payload["change_id"])
+        assert change_id is not None
+        updated = job_service.undo_job_change(job.id, change_id, office_staff, _etag(job))
+
+        assert updated.description is None
+
 
 class TestDeleteJob:
     def test_delete_refuses_job_with_real_costs(self, job: Job, office_staff: Staff) -> None:

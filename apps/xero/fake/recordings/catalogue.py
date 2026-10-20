@@ -432,24 +432,9 @@ def _capture_invoice_writes(
     )
     yield invoice
     invoice_id = _text(_element(invoice, "Invoices"), "InvoiceID")
-    # The approval staff make in Xero, sent as the E2E harness sends it
-    # (approve_xero_invoice): id, status, contact and date.
-    yield _record(
-        tap,
-        "invoice_approve",
-        lambda: accounting.update_or_create_invoices(
-            tenant_id,
-            {
-                "Invoices": [
-                    {
-                        **_deletion("InvoiceID", invoice_id, contact_id, today),
-                        "Status": "AUTHORISED",
-                    }
-                ]
-            },
-            summarize_errors=False,
-        ),
-    )
+    # Each update below is sent as Docketworks sends it (the provider's
+    # delete_invoice, approve_xero_invoice): errors summarised, so a refusal
+    # is Xero's 400, not a 200 carrying per-element errors.
     yield _record(
         tap,
         "invoice_history_create",
@@ -464,13 +449,30 @@ def _capture_invoice_writes(
             tenant_id, invoice_id, "recording.pdf", b"%PDF-1.4 recording", include_online=False
         ),
     )
+    # Docketworks adds its history note and PDF to the draft it has just
+    # raised; the approval staff make in Xero comes after, sent as the E2E
+    # harness sends it (approve_xero_invoice): id, status, contact and date.
+    yield _record(
+        tap,
+        "invoice_approve",
+        lambda: accounting.update_or_create_invoices(
+            tenant_id,
+            {
+                "Invoices": [
+                    {
+                        **_deletion("InvoiceID", invoice_id, contact_id, today),
+                        "Status": "AUTHORISED",
+                    }
+                ]
+            },
+        ),
+    )
     yield _record(
         tap,
         "invoice_delete_authorised",
         lambda: accounting.update_or_create_invoices(
             tenant_id,
             {"Invoices": [_deletion("InvoiceID", invoice_id, contact_id, today)]},
-            summarize_errors=False,
         ),
     )
     yield _record(
@@ -483,7 +485,43 @@ def _capture_invoice_writes(
                     {**_deletion("InvoiceID", invoice_id, contact_id, today), "Status": "VOIDED"}
                 ]
             },
-            summarize_errors=False,
+        ),
+    )
+
+    # Docketworks' everyday delete: a draft nobody approved, set to DELETED.
+    draft = accounting.create_invoices(
+        tenant_id,
+        {
+            "Invoices": [
+                {
+                    "Type": "ACCREC",
+                    "Contact": {"ContactID": contact_id},
+                    "LineItems": [
+                        {
+                            "Description": "Job: 1 - recording",
+                            "Quantity": 1,
+                            "UnitAmount": Decimal("10.50"),
+                            "AccountCode": "200",
+                        }
+                    ],
+                    "Date": today,
+                    "DueDate": today,
+                    "LineAmountTypes": "Exclusive",
+                    "Reference": "recording",
+                    "Status": "DRAFT",
+                }
+            ]
+        },
+    )
+    if not draft.invoices:
+        raise ValueError("Xero created no invoice for the draft-delete recording")
+    draft_id = str(draft.invoices[0].invoice_id)
+    yield _record(
+        tap,
+        "invoice_delete",
+        lambda: accounting.update_or_create_invoices(
+            tenant_id,
+            {"Invoices": [_deletion("InvoiceID", draft_id, contact_id, today)]},
         ),
     )
 

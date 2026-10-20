@@ -210,6 +210,32 @@ export async function asSuperuser<T>(
 export const WORKER_HOURS = 1.25
 
 /**
+ * Send a day as the workshop login, as the worker does from My time. A day the
+ * office clocked and swept but nobody sent stays pending on My time, ahead of
+ * the day a later phone spec opens it for; sending it leaves nothing behind.
+ */
+export async function sendDayAsWorkshopUser(
+  browser: Browser,
+  baseURL: string,
+  date: string,
+): Promise<void> {
+  const context = await browser.newContext({ baseURL })
+  try {
+    const page = await context.newPage()
+    const { username, password } = e2eCredentials('workshop')
+    await authenticateViaLoginPage(page, username, password, () => () => undefined)
+    const response = await page.request.post('/api/timesheets/my-day/submit/', {
+      data: { date, rows: [] },
+    })
+    if (!response.ok()) {
+      throw new Error(`Sending ${date} failed: ${response.status()} ${await response.text()}`)
+    }
+  } finally {
+    await context.close()
+  }
+}
+
+/**
  * Book time as the workshop login would, in its own browser context: who
  * wrote a line decides whether it starts approved, and a worker's does not.
  * It is booked to the seeded staff member, which is the workshop login itself.

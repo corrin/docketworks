@@ -228,7 +228,9 @@ class TestDeleteInvoice:
         """Every Xero call costs; the caller has already decided from its copy."""
         provider, api = _provider_with_api()
         external_id = str(uuid.uuid4())
-        api.update_or_create_invoices.return_value = SimpleNamespace(invoices=[])
+        api.update_or_create_invoices.return_value = SimpleNamespace(
+            invoices=[SimpleNamespace(status=status)]
+        )
 
         result = provider.delete_invoice(
             external_id, contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=void
@@ -240,6 +242,19 @@ class TestDeleteInvoice:
         posted = api.update_or_create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
         assert posted["Status"] == status
         assert posted["InvoiceID"] == external_id
+
+    def test_the_status_reported_is_the_one_xero_answers(self) -> None:
+        """Guards delete_invoice: the manager's disagreement check reads this, not the request."""
+        provider, api = _provider_with_api()
+        api.update_or_create_invoices.return_value = SimpleNamespace(
+            invoices=[SimpleNamespace(status="AUTHORISED")]
+        )
+
+        result = provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=True
+        )
+
+        assert result.document_status == "AUTHORISED"
 
 
 class TestDeleteInvoiceRefusal:

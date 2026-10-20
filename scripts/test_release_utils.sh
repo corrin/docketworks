@@ -310,4 +310,9 @@ if [[ ! -d "$RELEASES_DIR/$RECENT_SHA" ]]; then
     exit 1
 fi
 
+# Guards node_version_from_nvmrc: a release builds with exactly the Node it names.
+assert_eq "v26.12.0" "$(node_version_from_nvmrc "26.12.0")" "an exact .nvmrc version is the Node a release uses"
+assert_eq "v26.12.0" "$(node_version_from_nvmrc $'v26.12.0\n')" "a leading v and trailing newline are the same version"
+assert_failure "a major alone names no Node to install" node_version_from_nvmrc "26" 2>/dev/null
+
 echo "release-utils tests passed"

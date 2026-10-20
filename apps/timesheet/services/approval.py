@@ -9,27 +9,30 @@ The Approve time screen is for office staff who are not shown pay, so nothing
 this module returns carries a rate, a cost or a revenue figure.
 """
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Literal, TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import QuerySet
+from django.utils import timezone
 from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
-from apps.core.errors import ConflictError
+from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay
+from apps.timesheet.models import SWEPT_GENERAL_WORK, AttendanceDay, LeaveType
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
     Window,
     attendance_data,
+    break_job_id,
     day_breaks,
     duration_words,
     fill_figures,
@@ -141,14 +144,10 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     person is not an error. Leave and other workflow-managed lines are not
     touched; they are approved when they are made.
     """
-    waiting = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        staff=worker,
-        accounting_date=day,
-        approved=False,
-        managed_by=None,
-    )
+    # The person first, then the jobs: the order the sweep and every write to
+    # his day take them in, so none of them waits on another in a circle.
+    Staff.objects.select_for_update().filter(pk=worker.pk).first()
+    waiting = _waiting(worker, day)
     lock_costing_jobs(set(waiting.values_list("cost_set__job_id", flat=True)))
     # Locked on the line alone: the snapshot's joins are nullable, which
     # Postgres refuses under FOR UPDATE. Read again under the locks, so a line
@@ -161,6 +160,18 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     for line in locked:
         approve_line(line, actor)
     return len(locked)
+
+
+def _waiting(worker: Staff, day: date) -> QuerySet[CostLine]:
+    """His entries for the day the office has still to approve; leave is approved when made."""
+    return CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        staff=worker,
+        accounting_date=day,
+        approved=False,
+        managed_by=None,
+    )
 
 
 def _staff_day(
@@ -297,7 +308,57 @@ class SweepData(TypedDict):
 
 
 class GeneralWorkNotSetUpError(ConflictError):
-    """The instance has no General work job, so there is nowhere to sweep to."""
+    """The instance has no usable General work job, so there is nowhere to sweep to."""
+
+
+def _general_work_job_id() -> UUID:
+    """Return the job the sweep books to, refusing one that is not worked time.
+
+    Pointed at Break, swept time would read as breaks; pointed at a leave job,
+    it would post to Xero as leave and draw down balances. Company Defaults
+    cannot refuse either when it is saved: the core app knows nothing of
+    breaks or leave, so the sweep refuses before it writes anything.
+    """
+    general_work = CompanyDefaults.get_solo().general_work_job
+    if general_work is None:
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work isn't set up: there is no General work job yet. Ask an administrator "
+                "to choose it in Company Defaults > Working Hours."
+            )
+        )
+    if general_work.id == break_job_id() or LeaveType.objects.filter(job=general_work).exists():
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work is set to %(job)s, which is for breaks or leave, not worked time. "
+                "Ask an administrator to choose another job in Company Defaults > Working Hours."
+            )
+            % {"job": general_work.name}
+        )
+    return general_work.id
+
+
+#: The longest stretch one sweep takes: the weekly overview's week.
+SWEEP_MOST_DAYS = 7
+
+
+def sweep_days(start: date, end: date) -> list[date]:
+    """Return the days from ``start`` to ``end``, refusing a range the sweep must not take.
+
+    A day after today has not been worked: sweeping it would approve office-set
+    clock times as paid time nobody has done yet. Today is allowed, since a
+    person who has clocked out is done. A week is the most a sweep holds its
+    lock on everyone's day for.
+    """
+    if end < start:
+        raise InvalidInputError(gettext("The end date is before the start date."))
+    if end > timezone.localdate():
+        raise InvalidInputError(
+            gettext("Days after today haven't been worked yet, so they can't be swept.")
+        )
+    if (end - start).days >= SWEEP_MOST_DAYS:
+        raise InvalidInputError(gettext("A sweep covers one week at most."))
+    return [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
 
 
 @transaction.atomic
@@ -333,19 +394,21 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     Sweeping is approving (owner, 2026-10-17): the office saw the day and
     accepted it, so the worker's own waiting entries are approved with it.
     """
-    general_work_id = CompanyDefaults.get_solo().general_work_job_id
-    if general_work_id is None:
-        raise GeneralWorkNotSetUpError(
-            gettext(
-                "General work isn't set up: there is no General work job yet. Ask an administrator "
-                "to choose it in Company Defaults > Working Hours."
-            )
-        )
+    general_work_id = _general_work_job_id()
     # Two offices sweeping the same person would both read the same stretches
     # before either writes, and pay them twice; the second waits here and
     # reads the first's entries. Ordered by pk so two sweeps never deadlock.
+    # Every write to a person's day takes his lock first, so his entries and
+    # clock times stand still until the sweep commits.
     staff_ids = {person.pk for people in people_by_day.values() for person in people}
     list(Staff.objects.select_for_update().filter(pk__in=staff_ids).order_by("pk"))
+    # Every job the sweep will write to, at once and in id order: taken one
+    # call at a time they could cross another writer's order and deadlock.
+    job_ids = {general_work_id}
+    for day, people in people_by_day.items():
+        for person in people:
+            job_ids |= set(_waiting(person, day).values_list("cost_set__job_id", flat=True))
+    lock_costing_jobs(job_ids)
     swept = Decimal(0)
     approved = 0
     skipped: list[SweepSkipData] = []
@@ -392,6 +455,7 @@ def _put_on_general_work(
                 # A shop job's time is billed to nobody; the model refuses otherwise.
                 "is_billable": False,
             },
+            source=SWEPT_GENERAL_WORK,
         )
     return _hours_in(windows)
 

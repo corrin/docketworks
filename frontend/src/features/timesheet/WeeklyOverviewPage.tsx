@@ -65,6 +65,11 @@ export function WeeklyOverviewPage({
   const weekQuery = useQuery(timesheetsWeeklyRetrieveOptions({ query: { start_date: weekStart } }))
   const payroll = usePayrollWeek(weekStart)
   const { sweep, sweeping } = useSweep()
+  // Days after today have not been worked, and the server refuses them.
+  const today = localIsoDate()
+  const weekEnd = shiftDate(weekStart, DAYS_IN_WEEK - 1)
+  const weekStarted = weekStart <= today
+  const sweepEnd = weekEnd < today ? weekEnd : today
 
   // Fable: A bare /timesheets/weekly means "the week I need to deal with",
   // which only the server can name — so land on the postable week, as v1 did.
@@ -133,14 +138,11 @@ export function WeeklyOverviewPage({
         <Button
           variant="outline"
           size="sm"
-          disabled={sweeping}
-          title={t('weekly.sweepWeekTitle')}
+          disabled={sweeping || !weekStarted}
+          title={weekStarted ? t('weekly.sweepWeekTitle') : t('weekly.sweepWeekNotStarted')}
           data-automation-id="WeeklyOverview-sweep-week"
           onClick={() =>
-            void sweep(
-              { start_date: weekStart, end_date: shiftDate(weekStart, DAYS_IN_WEEK - 1) },
-              t('weekly.sweepFailed'),
-            )
+            void sweep({ start_date: weekStart, end_date: sweepEnd }, t('weekly.sweepFailed'))
           }
         >
           {t('weekly.sweepWeek')}

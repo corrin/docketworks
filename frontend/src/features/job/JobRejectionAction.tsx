@@ -39,7 +39,10 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
       if (typeof changes.rejected_flag !== 'boolean') {
         throw new Error('A rejection retry must include its intended rejection flag')
       }
-      void prepare(fresh, changes.rejected_flag)
+      // Opus: a retry arrives from the job's shared conflict toast, perhaps
+      // long after this attempt was abandoned, so it always asks again
+      // rather than archiving the job on a click meant for another field.
+      void prepare(fresh, changes.rejected_flag, true)
     },
   })
 
@@ -71,7 +74,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
     }
   }
 
-  async function prepare(baseline: JobDetail, reject: boolean) {
+  async function prepare(baseline: JobDetail, reject: boolean, askFirst = false) {
     if (busy.current) return
     busy.current = true
     discardChanges()
@@ -88,7 +91,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
         staleTime: 0,
       })
       const remaining = Number(finish.summary.remaining_to_invoice_excl_gst)
-      if (remaining > 0) {
+      if (remaining > 0 || askFirst) {
         setState({ phase: 'confirm', reject, baseline, remaining })
         return
       }
@@ -159,7 +162,7 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
               {rejecting ? t('rejection.rejectDescription') : t('rejection.reopenDescription')}
             </DialogDescription>
           </DialogHeader>
-          {state.phase === 'confirm' && state.reject ? (
+          {state.phase === 'confirm' && state.reject && state.remaining > 0 ? (
             <p data-automation-id="JobView-rejection-warning" className="text-sm text-amber-800">
               {t('rejection.uninvoicedWarning', { amount: formatCurrency(state.remaining) })}
             </p>

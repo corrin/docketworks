@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounting.services.invoice_calculation import INVOICE_VALID_STATUSES
 from apps.accounts.models import Staff
 from apps.job.models import Job
 
@@ -28,8 +29,15 @@ class PaidFlagResult:
 
 
 def _invoice_counts(job: Job) -> tuple[int, int]:
-    """Return (total invoices, unpaid invoices) for a job."""
-    invoices = list(job.invoices.all())
+    """Return (total invoices, unpaid invoices) for a job.
+
+    A voided or deleted invoice was never owed, so it neither counts as one
+    of the job's invoices nor holds the job unpaid: a job invoiced again
+    after a void is paid when the replacement is.
+    """
+    invoices = [
+        invoice for invoice in job.invoices.all() if invoice.status in INVOICE_VALID_STATUSES
+    ]
     unpaid = sum(1 for invoice in invoices if not invoice.paid)
     return len(invoices), unpaid
 

@@ -5,10 +5,12 @@ from datetime import date, time, timedelta
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -502,3 +504,93 @@ class TestSweep:
         assert everyone.status_code == 200, everyone.content
         # The worker's day was swept already: only the other worker's 2.5 hours move.
         assert everyone.json()["swept_hours"] == 2.5
+
+    def test_leave_on_the_day_takes_none_of_the_clocked_time(
+        self,
+        office_staff: Staff,
+        company: Company,
+        superuser: Staff,
+        general_work: Job,
+        worker: Staff,
+    ) -> None:
+        """Guards attendance.unallocated_windows: leave on the day leaves clocked hours free."""
+        leave_job = make_leave_job(company, superuser, "Annual Leave")
+        leave = make_time_line(leave_job, worker, accounting_date=DAY, hours="4.000")
+        CostLine.objects.filter(pk=leave.pk).update(managed_by="leave")
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:00:00", "08:00:00", "2.000")]
+        assert result["swept_hours"] == 2.0
+
+    def test_a_clock_change_takes_off_swept_time_it_no_longer_covers(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.drop_sweep_outside_clock: an earlier finish is not paid after it."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(7, 0), office_staff)
+
+        assert _general_work_entries(general_work, worker) == []
+        approval.sweep_person(worker, [DAY], office_staff)
+        assert _general_work_entries(general_work, worker) == [("06:00:00", "07:00:00", "1.000")]
+
+    def test_a_clock_change_keeps_swept_time_it_still_covers(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.drop_sweep_outside_clock: bounds are the sweep's quarter hours."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        attendance.set_clock_times(worker, DAY, time(6, 50), time(8, 10), office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:45:00", "08:15:00", "1.500")]
+
+    def test_general_work_set_to_break_or_leave_is_refused(
+        self,
+        office_staff: Staff,
+        company: Company,
+        superuser: Staff,
+        break_job: Job,
+        worker: Staff,
+    ) -> None:
+        """Guards approval._general_work_job_id: neither breaks nor leave are worked time."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        defaults = CompanyDefaults.get_solo()
+        for wrong in (break_job, make_leave_job(company, superuser, "Annual Leave")):
+            defaults.general_work_job = wrong
+            defaults.save(update_fields=["general_work_job"])
+
+            with pytest.raises(approval.GeneralWorkNotSetUpError, match=wrong.name):
+                approval.sweep_person(worker, [DAY], office_staff)
+
+
+class TestSweepDays:
+    """Guards approval.sweep_days: the range a sweep may take."""
+
+    def test_today_and_the_six_days_before_are_a_sweep(self) -> None:
+        today = timezone.localdate()
+
+        days = approval.sweep_days(today - timedelta(days=6), today)
+
+        assert days[0] == today - timedelta(days=6)
+        assert days[-1] == today
+        assert len(days) == approval.SWEEP_MOST_DAYS
+
+    def test_a_day_after_today_is_refused(self) -> None:
+        today = timezone.localdate()
+
+        with pytest.raises(InvalidInputError, match="after today"):
+            approval.sweep_days(today, today + timedelta(days=1))
+
+    def test_more_than_a_week_is_refused(self) -> None:
+        today = timezone.localdate()
+
+        with pytest.raises(InvalidInputError, match="one week"):
+            approval.sweep_days(today - timedelta(days=7), today)
+
+    def test_an_end_before_the_start_is_refused(self) -> None:
+        with pytest.raises(InvalidInputError, match="before the start"):
+            approval.sweep_days(DAY, DAY - timedelta(days=1))

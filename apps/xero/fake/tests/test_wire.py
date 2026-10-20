@@ -161,8 +161,8 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "contact_archive_archived": lambda api: api.get_contacts(TENANT),
     "invoice_create": lambda api: api.get_invoices(TENANT),
     "invoice_approve": lambda api: api.get_invoices(TENANT),
-    "invoice_delete_authorised": lambda api: api.get_invoices(TENANT),
     "invoice_void": lambda api: api.get_invoices(TENANT),
+    "invoice_delete": lambda api: api.get_invoices(TENANT),
     "invoice_history_create": lambda api: api.get_invoice_history(TENANT, "any"),
     # The SDK has the method; its stub does not.
     "invoice_attachment_create": lambda api: api.get_invoice_attachments(TENANT, "any"),  # type: ignore[attr-defined]
@@ -271,8 +271,10 @@ def test_every_json_recording_has_a_round_trip_or_a_reason() -> None:
     # These carry no model: a 404 is text/html, the past-the-end 400 is
     # raised by the SDK before deserialising, a PDF is bytes, and the 429 is
     # an empty body under four headers.
-    # The duplicate-name refusal is a 400 the SDK raises on before deserialising.
+    # The duplicate-name refusal and the approved-invoice delete are 400s the
+    # SDK raises on before deserialising.
     unmodelled = {
+        "invoice_delete_authorised",
         "invoice_not_found",
         "employees_past_end",
         "quote_pdf",

@@ -35,6 +35,13 @@ describe('RelatedJobsTable', () => {
                   total_excl_tax: 25.5,
                   online_url: null,
                 }),
+                jobInvoiceRef({
+                  id: 'inv-3',
+                  number: 'INV-0003',
+                  date: '2026-03-06',
+                  total_excl_tax: 40,
+                  status: 'VOIDED',
+                }),
               ],
               invoiced_total_excl_tax: 125.5,
             }),
@@ -71,6 +78,9 @@ describe('RelatedJobsTable', () => {
     )
     // No Xero link yet: the number is text, not a dead anchor.
     expect(autoId('PersonDetail-jobs-invoice-inv-2').querySelector('a')).toBeNull()
+    // A voided invoice stays listed, marked, since the total beside it leaves it out.
+    expect(autoId('PersonDetail-jobs-invoice-inv-3')).toHaveTextContent('Voided')
+    expect(firstInvoice).not.toHaveTextContent('Voided')
     expect(autoId('PersonDetail-jobs-cell-job-1-invoiced')).toHaveTextContent('$125.50')
     // The status reads as the job screen names it, not the stored code.
     expect(autoId('PersonDetail-jobs-row-job-1')).toHaveTextContent('In Progress')

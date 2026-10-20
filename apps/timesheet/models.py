@@ -243,6 +243,9 @@ class LeaveDay(models.Model):
 UNTOUCHED_STANDARD_BREAK = "standard_breaks"
 #: The same break once he or the office has moved or changed it: his, kept.
 EDITED_STANDARD_BREAK = "standard_breaks_edited"
+#: A General work entry the sweep made from his clock times (KAN-380): when
+#: those times change, the ones they no longer cover go.
+SWEPT_GENERAL_WORK = "general_work_sweep"
 
 
 def mark_break_edited(meta: dict[str, object]) -> None:

@@ -119,7 +119,10 @@ class Command(BaseCommand):
                 found[str(xero_id)] = str(number)
                 if entity == "invoices":
                     invoices[str(xero_id)] = ResidueInvoice(
-                        label=str(number), contact_id=item.contact.contact_id, date=item.date
+                        label=str(number),
+                        contact_id=item.contact.contact_id,
+                        date=item.date,
+                        approved=status == "AUTHORISED",
                     )
             self.stdout.write(f"  {entity}: {len(found)} to remove")
 

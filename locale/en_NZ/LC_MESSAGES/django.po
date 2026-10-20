@@ -3831,10 +3831,6 @@ msgstr ""
 msgid "Break not found."
 msgstr ""
 
-#: apps/timesheet/api.py
-msgid "The end date is before the start date."
-msgstr ""
-
 #: apps/timesheet/leave_api.py
 msgid "Employee not found."
 msgstr ""
@@ -3962,6 +3958,26 @@ msgstr ""
 msgid ""
 "General work isn't set up: there is no General work job yet. Ask an "
 "administrator to choose it in Company Defaults > Working Hours."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+#, python-format
+msgid ""
+"General work is set to %(job)s, which is for breaks or leave, not worked "
+"time. Ask an administrator to choose another job in Company Defaults > "
+"Working Hours."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "The end date is before the start date."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "Days after today haven't been worked yet, so they can't be swept."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+msgid "A sweep covers one week at most."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
@@ -4437,7 +4453,9 @@ msgstr ""
 
 #: apps/xero/documents/invoice.py
 #, python-format
-msgid "%(number)s is marked paid in Xero, so it can't be voided here."
+msgid ""
+"%(number)s is marked paid in Xero, so it can't be voided here. Open it in "
+"Xero, remove any payment on it, then void it there."
 msgstr ""
 
 #: apps/xero/documents/invoice.py
@@ -4830,6 +4848,12 @@ msgstr ""
 msgid ""
 "Xero answered but sent back no invoice, so DocketWorks can't tell whether it "
 "was created. Check Xero before trying again."
+msgstr ""
+
+#: apps/xero/provider.py
+msgid ""
+"Xero answered but sent back no invoice, so DocketWorks can't tell whether it "
+"changed. Check the invoice in Xero."
 msgstr ""
 
 #: apps/xero/provider.py

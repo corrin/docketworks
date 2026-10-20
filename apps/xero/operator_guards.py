@@ -66,6 +66,12 @@ def assert_not_production_target(tenant_id: str | None = None) -> None:
         "production restore."
     )
 
+    if settings.XERO_FAKE:
+        # Opus: under the fake no call leaves the route table (auth._build),
+        # so the bound tenant names no organisation that could be written.
+        # The verify run serves a copy still bound to production's tenant
+        # (ADR 0064); refusing it there turns the release gate red.
+        return
     if tenant_id is None:
         tenant_id = get_tenant_id()
     if is_production_tenant(tenant_id):

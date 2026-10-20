@@ -349,7 +349,8 @@
       "bereavementLeave": "Bereavement leave",
       "otherLeave": "Other leave"
     },
-    "sweepWeekTitle": "For every day this week, Monday to Sunday, puts any time someone was clocked in but not on a job or break onto General work, then approves that person's day. A day still clocked in, or never clocked, is left alone and listed.",
+    "sweepWeekNotStarted": "This week hasn't started yet, so there is no time to book",
+    "sweepWeekTitle": "For every day this week up to today, puts any time someone was clocked in but not on a job or break onto General work, then approves that person's day. A day still clocked in, or never clocked, is left alone and listed.",
     "totalColumnTitle": "All hours on this person's timesheet for the week, leave included, approved or not. Unpaid lunch is not counted.",
     "heldBackColumnTitle": "Hours the office has not approved yet. Posting to Xero pays approved time only, so these hours are not paid until someone approves them.",
     "billableColumnTitle": "The share of this person's hours that are charged to a customer. Leave and shop jobs count as not charged, so leave lowers this figure.",

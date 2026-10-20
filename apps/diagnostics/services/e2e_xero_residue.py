@@ -55,12 +55,14 @@ class ResidueInvoice:
     """An invoice to remove, with what Xero wants on the update.
 
     Contact and date ride along because both finders hold them already, so
-    removing an invoice costs no read.
+    removing an invoice costs no read. ``approved`` is an invoice approved in
+    Xero, which Xero voids and never deletes.
     """
 
     label: str
     contact_id: str
     date: date
+    approved: bool
 
 
 @dataclass(frozen=True)
@@ -149,10 +151,14 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
     refused: list[Refusal] = []
 
     for xero_id, entry in residue.invoices.items():
-        # Never voided: an E2E invoice is a draft, and one that is not is a
-        # refusal worth reporting rather than something to void unasked.
+        # A spec that approves an invoice and fails before its own void leaves
+        # it approved; Xero refuses the delete, so it is voided. A paid one is
+        # refused either way and reported.
         result = provider.delete_invoice(
-            xero_id, contact_external_id=entry.contact_id, invoice_date=entry.date, void=False
+            xero_id,
+            contact_external_id=entry.contact_id,
+            invoice_date=entry.date,
+            void=entry.approved,
         )
         if result.success:
             removed[ResidueKind.INVOICE] += 1

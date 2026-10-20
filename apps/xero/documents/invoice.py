@@ -337,7 +337,10 @@ class XeroInvoiceManager(XeroDocumentManager):
         if invoice.status == InvoiceStatus.PAID:
             # Not "has a payment": Xero marks a $0 invoice PAID on approval.
             return self._refusal(
-                gettext("%(number)s is marked paid in Xero, so it can't be voided here.")
+                gettext(
+                    "%(number)s is marked paid in Xero, so it can't be voided here. Open it in "
+                    "Xero, remove any payment on it, then void it there."
+                )
                 % {"number": invoice.number}
             )
         if invoice.amount_due < invoice.total_incl_tax:
@@ -379,7 +382,9 @@ class XeroInvoiceManager(XeroDocumentManager):
         """Mirror what Xero now holds: a voided invoice stays, marked voided."""
         if voided:
             invoice.status = InvoiceStatus.VOIDED
-            invoice.save(update_fields=["status"])
+            # django_updated_at named: auto_now moves only with update_fields,
+            # and the job's invoice list is cached on it.
+            invoice.save(update_fields=["status", "django_updated_at"])
             event, message = "invoice_voided", gettext("Invoice voided.")
         else:
             invoice.delete()

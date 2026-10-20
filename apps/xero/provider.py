@@ -315,7 +315,8 @@ class XeroAccountingProvider:
         """See AccountingProvider.delete_invoice.
 
         One write, no read-back: the caller has decided from its own copy, and
-        Xero wants contact and date on the update.
+        Xero wants contact and date on the update. The status reported is the
+        one Xero's answer carries, so the caller can see a disagreement.
         """
         target = "VOIDED" if void else "DELETED"
         try:
@@ -326,11 +327,19 @@ class XeroAccountingProvider:
                 contact=Contact(contact_id=contact_external_id),
                 date=invoice_date,
             )
-            api.update_or_create_invoices(
+            response = api.update_or_create_invoices(
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
-            logger.info("Set Xero invoice %s to %s", external_id, target)
-            return DocumentResult(success=True, external_id=external_id, document_status=target)
+            if not response.invoices:
+                raise ValueError(
+                    gettext(
+                        "Xero answered but sent back no invoice, so DocketWorks can't tell "
+                        "whether it changed. Check the invoice in Xero."
+                    )
+                )
+            reported = response.invoices[0].status
+            logger.info("Set Xero invoice %s to %s; Xero reports %s", external_id, target, reported)
+            return DocumentResult(success=True, external_id=external_id, document_status=reported)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)
