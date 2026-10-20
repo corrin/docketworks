@@ -1,10 +1,7 @@
-import { z } from 'zod'
-
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 import { runManagePy } from '../../scripts/db-backup-utils'
-
-const createdInvoice = z.object({ xero_id: z.string().uuid() })
+import { zXeroCreateInvoiceResponse } from '../../../src/api/generated/zod.gen'
 
 test.describe('job xero invoice', () => {
   test.setTimeout(120000)
@@ -114,7 +111,7 @@ test.describe('job xero invoice', () => {
     await autoId(page, 'JobFinishTab-mode-invoice-full').click()
     const createdResponse = await created
     expect(createdResponse.ok()).toBe(true)
-    const { xero_id: xeroId } = createdInvoice.parse(await createdResponse.json())
+    const { xero_id: xeroId } = zXeroCreateInvoiceResponse.parse(await createdResponse.json())
 
     // What office staff do in Xero's own screen, and the webhook brings back.
     runManagePy(['approve_xero_invoice', xeroId])

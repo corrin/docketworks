@@ -4453,7 +4453,9 @@ msgstr ""
 
 #: apps/xero/documents/invoice.py
 #, python-format
-msgid "%(number)s is marked paid in Xero, so it can't be voided here."
+msgid ""
+"%(number)s is marked paid in Xero, so it can't be voided here. Open it in "
+"Xero, remove any payment on it, then void it there."
 msgstr ""
 
 #: apps/xero/documents/invoice.py

@@ -432,6 +432,9 @@ def _capture_invoice_writes(
     )
     yield invoice
     invoice_id = _text(_element(invoice, "Invoices"), "InvoiceID")
+    # Each update below is sent as Docketworks sends it (the provider's
+    # delete_invoice, approve_xero_invoice): errors summarised, so a refusal
+    # is Xero's 400, not a 200 carrying per-element errors.
     yield _record(
         tap,
         "invoice_history_create",
@@ -462,7 +465,6 @@ def _capture_invoice_writes(
                     }
                 ]
             },
-            summarize_errors=False,
         ),
     )
     yield _record(
@@ -471,7 +473,6 @@ def _capture_invoice_writes(
         lambda: accounting.update_or_create_invoices(
             tenant_id,
             {"Invoices": [_deletion("InvoiceID", invoice_id, contact_id, today)]},
-            summarize_errors=False,
         ),
     )
     yield _record(
@@ -484,7 +485,6 @@ def _capture_invoice_writes(
                     {**_deletion("InvoiceID", invoice_id, contact_id, today), "Status": "VOIDED"}
                 ]
             },
-            summarize_errors=False,
         ),
     )
 
@@ -522,7 +522,6 @@ def _capture_invoice_writes(
         lambda: accounting.update_or_create_invoices(
             tenant_id,
             {"Invoices": [_deletion("InvoiceID", draft_id, contact_id, today)]},
-            summarize_errors=False,
         ),
     )
 

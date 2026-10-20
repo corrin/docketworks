@@ -417,7 +417,10 @@ class TestDeleteRule:
 
         response = _delete(_manager(company, job, office_staff, provider), zero, void_approved=True)
 
-        assert response["error"] == "INV-Z1 is marked paid in Xero, so it can't be voided here."
+        assert response["error"] == (
+            "INV-Z1 is marked paid in Xero, so it can't be voided here. Open it in Xero, "
+            "remove any payment on it, then void it there."
+        )
         provider.delete_invoice.assert_not_called()
 
     def test_a_submitted_invoice_deletes_rather_than_offering_a_void(
