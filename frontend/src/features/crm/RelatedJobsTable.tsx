@@ -9,6 +9,7 @@ import {
   type CrmJobRow,
 } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
+import { isRemovedInvoiceStatus, xeroInvoiceStatusLabel } from '@/features/shared/xeroInvoiceStatus'
 import { formatCurrency, formatDate } from '@/lib/format'
 
 /** Whose jobs the table lists. The two lists share one wire shape and one endpoint family. */
@@ -227,6 +228,13 @@ function JobRow({
                   </a>
                 )}{' '}
                 <span className="text-gray-500">{formatDate(invoice.date)}</span>
+                {/* Kept in the list so the job's history is whole, but owed
+                    nothing: the total beside it leaves it out. */}
+                {isRemovedInvoiceStatus(invoice.status) && (
+                  <span className="ml-1 text-xs text-gray-500">
+                    ({xeroInvoiceStatusLabel(invoice.status)})
+                  </span>
+                )}
               </li>
             ))}
           </ul>

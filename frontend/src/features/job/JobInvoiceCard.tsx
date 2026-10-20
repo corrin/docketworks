@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/format'
-import { i18n } from '@/lib/i18n'
+import { xeroInvoiceStatusLabel } from '@/features/shared/xeroInvoiceStatus'
 
 type InvoiceMode = XeroInvoiceCreateIn['mode']
 
@@ -38,27 +38,6 @@ interface JobInvoiceCardProps {
   jobStatus: string
   paid: boolean
   onInvoicesChanged: () => void
-}
-
-/** Xero's invoice statuses (accounting InvoiceStatus). */
-const XERO_INVOICE_STATUSES = [
-  'DRAFT',
-  'SUBMITTED',
-  'AUTHORISED',
-  'PAID',
-  'VOIDED',
-  'DELETED',
-] as const
-
-/** An invoice status in Xero's own screen words ("Awaiting Payment", not
-    AUTHORISED). Throws on a status InvoiceStatus does not declare: the wire
-    types it as a plain string. */
-function xeroInvoiceStatusLabel(status: string): string {
-  const known = XERO_INVOICE_STATUSES.find((candidate) => candidate === status)
-  if (known === undefined) {
-    throw new Error(`Unknown Xero invoice status: '${status}'`)
-  }
-  return i18n.t(`job:invoiceCard.status.${known}`)
 }
 
 /**
