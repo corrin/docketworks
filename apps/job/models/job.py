@@ -124,6 +124,22 @@ def _handle_boolean_change(
     return handler
 
 
+#: Module level so ``Job.Meta`` can name it: a nested class does not see the
+#: enclosing class's attributes.
+_JOB_STATUS_CHOICES: list[tuple[str, Promise]] = [
+    # Main kanban columns (visible)
+    ("draft", gettext_lazy("Draft")),
+    ("awaiting_approval", gettext_lazy("Awaiting Approval")),
+    ("approved", gettext_lazy("Approved")),
+    ("in_progress", gettext_lazy("In Progress")),
+    ("unusual", gettext_lazy("Unusual")),
+    ("recently_completed", gettext_lazy("Recently Completed")),
+    # Hidden statuses (maintained but not shown on kanban)
+    ("special", gettext_lazy("Special")),
+    ("archived", gettext_lazy("Archived")),
+]
+
+
 class Job(models.Model):
     """A customer (or shop) job: the aggregate root of the costing domain."""
 
@@ -217,18 +233,7 @@ class Job(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, null=False, blank=False)
-    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
-        # Main kanban columns (visible)
-        ("draft", gettext_lazy("Draft")),
-        ("awaiting_approval", gettext_lazy("Awaiting Approval")),
-        ("approved", gettext_lazy("Approved")),
-        ("in_progress", gettext_lazy("In Progress")),
-        ("unusual", gettext_lazy("Unusual")),
-        ("recently_completed", gettext_lazy("Recently Completed")),
-        # Hidden statuses (maintained but not shown on kanban)
-        ("special", gettext_lazy("Special")),
-        ("archived", gettext_lazy("Archived")),
-    ]
+    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, Promise]]] = _JOB_STATUS_CHOICES
 
     STATUS_TOOLTIPS: ClassVar[dict[str, str]] = {
         # Main kanban statuses
@@ -484,6 +489,12 @@ class Job(models.Model):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_project_id=""), name="xero_project_id_not_blank"
+            ),
+            # Every reader maps the status to a kanban column and a label and
+            # has no answer for any other value.
+            models.CheckConstraint(
+                condition=models.Q(status__in=[code for code, _ in _JOB_STATUS_CHOICES]),
+                name="job_job_status_valid",
             ),
         ]
 
