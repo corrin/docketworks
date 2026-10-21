@@ -319,24 +319,33 @@ def to_quarter(moment: time) -> time:
 def unallocated_windows(
     day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
 ) -> list[Window] | None:
-    """Return the stretches he was clocked in that hold no entry and no break (KAN-380).
+    """Return the stretches of his day that hold no entry and no break (KAN-380).
 
     Each is a time entry waiting to be made, its start and stop on quarter
     hours unless that would reach into an entry or break beside it. Entries
-    kept without times are laid out first, end to end from clock-in around
-    the breaks and the timed entries, as the fill sheet lays
-    out a day. None until both clock times are known: a day still clocked in,
-    or never clocked, has no clocked time to speak of.
+    kept without times are laid out first, end to end from the day's start
+    around the breaks and the timed entries, as the fill sheet lays out a
+    day. None while he is still clocked in, and on a weekend nobody clocked.
 
-    Leave is never clocked time: a morning on leave and an afternoon clocked
-    is a whole afternoon to account for, so leave lines take none of it.
+    Not clocking in is working the standard day (owner, 2026-10-21), with its
+    standard breaks; leave he took is part of that day and takes its hours.
+    Leave is never clocked time, though: a morning on leave and an afternoon
+    clocked is a whole afternoon to account for, so leave takes none of it.
     """
-    if row is None or row.clock_out is None:
+    if row is None:
+        standard = standard_day(day)
+        if standard is None:
+            return None
+        day_start, day_end = standard.start, standard.end
+        worked = entries
+    elif row.clock_out is None:
         return None
-    worked = [line for line in entries if line.managed_by != CostLineOwner.LEAVE]
+    else:
+        day_start, day_end = row.clock_in, row.clock_out
+        worked = [line for line in entries if line.managed_by != CostLineOwner.LEAVE]
     timed = [window for line in worked if (window := _line_window(line)) is not None]
     occupied = [*break_windows(day, row, break_lines), *timed]
-    cursor = row.clock_in
+    cursor = day_start
     for line in [line for line in worked if _line_window(line) is None]:
         begins = start_after_breaks(cursor, occupied)
         ends = finish_in_the_day(begins, line.quantity, occupied)
@@ -344,7 +353,7 @@ def unallocated_windows(
         laid_end = ends if ends is not None else time(23, 59)
         occupied.append(Window(begins, laid_end))
         cursor = laid_end
-    first, last = _minutes(row.clock_in), _minutes(row.clock_out)
+    first, last = _minutes(day_start), _minutes(day_end)
     windows: list[Window] = []
     free_from, floor = first, 0
     for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
