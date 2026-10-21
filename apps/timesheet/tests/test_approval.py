@@ -578,6 +578,43 @@ class TestSweep:
         assert not AttendanceDay.objects.filter(staff=worker, date=today).exists()
         assert result["swept_hours"] == 0.0
 
+    def test_an_unclocked_day_puts_no_standard_break_inside_a_job_entry(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.generate_default_breaks: a paid break inside his job paid twice."""
+        _standard_day_with_breaks()
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="2.000",
+            approved=False,
+            start_time="08:00:00",
+            end_time="10:00:00",
+        )
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        day = attendance.day_attendance(worker, DAY)
+        assert day["clock_in"] is not None
+        breaks = [
+            (f"{each['start']:%H:%M}", f"{each['end']:%H:%M}")
+            for each in attendance.day_breaks(
+                DAY,
+                AttendanceDay.objects.get(staff=worker, date=DAY),
+                attendance.split_breaks(
+                    list(CostLine.objects.filter(staff=worker, accounting_date=DAY))
+                )[1],
+            )
+        ]
+        assert breaks == [("11:30", "12:00"), ("13:30", "13:45")]
+        assert _general_work_entries(general_work, worker) == [
+            ("07:00:00", "08:00:00", "1.000"),
+            ("10:00:00", "11:30:00", "1.500"),
+            ("12:00:00", "13:30:00", "1.500"),
+            ("13:45:00", "15:30:00", "1.750"),
+        ]
+
     def test_an_unclocked_day_with_leave_is_left_for_the_office(
         self,
         office_staff: Staff,

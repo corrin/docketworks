@@ -827,10 +827,21 @@ def generate_default_breaks(
     """
     if row.breaks_generated:
         return
+    # Time already on a job is time he worked: a paid break there would pay it
+    # twice. Usually none: breaks go on as the day starts, before any entry.
+    lines = CostLine.objects.filter(
+        cost_set__kind="actual", kind="time", staff=row.staff, accounting_date=row.date
+    )
+    break_id = break_job_id()
+    # Without a Break job there are no break lines to leave out.
+    job_lines = lines if break_id is None else lines.exclude(cost_set__job_id=break_id)
+    booked = [window for line in job_lines if (window := _line_window(line)) is not None]
     for each in _default_breaks():
         # A day given both times at once has no break he was not there for.
         ends_after = row.clock_out is not None and each.window.end > row.clock_out
         if each.window.start < row.clock_in or ends_after:
+            continue
+        if any(_overlaps(window, each.window) for window in booked):
             continue
         _create_break(
             row.staff,
@@ -903,6 +914,10 @@ def drop_sweep_outside_clock(
             raise ValueError(f"Swept General work line {line.id} has no start and stop")
         if window.start < first or (last is not None and window.end > last):
             delete_entry(actor, line.id, location)
+
+
+def _overlaps(first: Window, second: Window) -> bool:
+    return first.start < second.end and second.start < first.end
 
 
 def _break_lines_if_any(owner: Staff, day: date) -> list[CostLine]:
