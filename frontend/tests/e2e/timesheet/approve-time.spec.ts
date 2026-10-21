@@ -23,6 +23,7 @@ import {
   getLatestWeekdayDate,
   seedLabourForWeek,
   type SeededLabour,
+  sendDayAsWorkshopUser,
 } from './support'
 
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
@@ -165,6 +166,9 @@ test("office staff correct a person's clock times, and the screen holds at three
       })
     })
   }
+
+  // The worker sends the day the office set, as on any day he did not clock.
+  await sendDayAsWorkshopUser(browser, z.string().parse(baseURL), day)
 })
 
 test('approving the last person waiting turns the day to complete', async ({
