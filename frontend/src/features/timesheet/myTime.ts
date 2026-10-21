@@ -381,6 +381,25 @@ export function fillGapToNextEntry(
   return bookableRange(from, until)
 }
 
+/**
+ * Whether start–end lies over time another entry already holds. It is
+ * allowed, since two things at once does happen, and the drawer says so (owner,
+ * 2026-10-21). Entries that only touch end to start do not overlap; a range
+ * without both times has no place yet.
+ */
+export function overlapsBooked(
+  start: string,
+  end: string,
+  entries: WorkshopTimesheetEntryOut[],
+): boolean {
+  const from = minutesOfDay(start)
+  const until = minutesOfDay(end)
+  if (from === null || until === null) return false
+  return splitDayEntries(entries).timed.some(
+    (entry) => requireMinutes(entry.start_time) < until && requireMinutes(entry.end_time) > from,
+  )
+}
+
 /** What the drawer's form holds when the user submits. */
 export interface EntryFormValues {
   jobId: string

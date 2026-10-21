@@ -153,6 +153,15 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
             event.preventDefault()
             actionRef.current?.focus()
           }}
+          onPointerDownOutside={(event) => {
+            // Opus: A press on the action button while this dialog animates
+            // closed is the reopen itself; the closing layer dismissed what it
+            // opened. While open, the button sits behind the overlay.
+            const target = event.detail.originalEvent.target
+            // Any other press outside dismisses, as Radix does by default.
+            if (!(target instanceof Node) || !actionRef.current?.contains(target)) return
+            event.preventDefault()
+          }}
         >
           <DialogHeader>
             <DialogTitle>

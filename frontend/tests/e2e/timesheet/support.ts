@@ -211,8 +211,8 @@ export const WORKER_HOURS = 1.25
 
 /**
  * Send a day as the workshop login, as the worker does from My time. A day the
- * office clocked and swept but nobody sent stays pending on My time, ahead of
- * the day a later phone spec opens it for; sending it leaves nothing behind.
+ * office set the times of is his to send; left unsent, My time names it ahead
+ * of any later day a phone spec opens.
  */
 export async function sendDayAsWorkshopUser(
   browser: Browser,

@@ -961,6 +961,14 @@ class Job(models.Model):
                 return
             detail["position"] = priority_position
 
+        delta_meta = enrichment.get("delta_meta")
+        if delta_meta is not None:
+            # Undo reverses each field named here from delta_before, so a field
+            # the delta named but this save did not change is not named.
+            delta_meta = {
+                **delta_meta,
+                "fields": [name for name in delta_meta["fields"] if name in changes_before],
+            }
         JobEvent.objects.create(
             job=self,
             event_type=event_type,
@@ -970,7 +978,7 @@ class Job(models.Model):
             delta_after=changes_after,
             schema_version=enrichment.get("schema_version", 0),
             change_id=enrichment.get("change_id"),
-            delta_meta=enrichment.get("delta_meta"),
+            delta_meta=delta_meta,
             delta_checksum=enrichment.get("delta_checksum") or None,
         )
 

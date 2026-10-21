@@ -566,6 +566,17 @@ class TestSweep:
             with pytest.raises(approval.GeneralWorkNotSetUpError, match=wrong.name):
                 approval.sweep_person(worker, [DAY], office_staff)
 
+    @pytest.mark.usefixtures("general_work")
+    def test_a_swept_day_is_sent(self, office_staff: Staff, worker: Staff) -> None:
+        """Guards approval._send_for_him: sweeping submits, so his app stops asking for the day."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert attendance.pending_day(worker, DAY + timedelta(days=1)) is None
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert attendance.day_state(row) == "sent"
+
 
 class TestSweepDays:
     """Guards approval.sweep_days: the range a sweep may take."""

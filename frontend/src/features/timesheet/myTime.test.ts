@@ -18,6 +18,7 @@ import {
   fillWords,
   jobChangeFields,
   lastUsedJobId,
+  overlapsBooked,
   rateLabel,
   rateOptionsFor,
   resolveSelectedJob,
@@ -278,6 +279,26 @@ describe('adjustEnd', () => {
 
   it('mends a zero-length range at the end of the day', () => {
     expect(adjustEnd({ start: '23:59', end: '23:59' }, 5)).toEqual({ start: '23:58', end: '23:59' })
+  })
+})
+
+describe('overlapsBooked', () => {
+  // Guards overlapsBooked: an hour swept to General work, then booked again.
+  const swept = makeEntry({ id: 'gw', start_time: '06:30:00', end_time: '07:30:00' })
+
+  it('warns when the time is already booked', () => {
+    expect(overlapsBooked('07:00', '08:00', [swept])).toBe(true)
+  })
+
+  it('does not warn for an entry that starts where another ends', () => {
+    expect(overlapsBooked('07:30', '08:30', [swept])).toBe(false)
+  })
+
+  it('does not warn without both times or against untimed entries', () => {
+    expect(overlapsBooked('07:00', '', [swept])).toBe(false)
+    expect(
+      overlapsBooked('07:00', '08:00', [makeEntry({ start_time: null, end_time: null })]),
+    ).toBe(false)
   })
 })
 

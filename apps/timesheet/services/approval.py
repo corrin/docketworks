@@ -42,7 +42,11 @@ from apps.timesheet.services.attendance import (
     unallocated_windows,
 )
 from apps.timesheet.services.location import saved_remotely
-from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.timesheet_events import (
+    record_day_event,
+    record_timesheet_event,
+    snapshot_if_entry,
+)
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
@@ -417,7 +421,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
             windows = unallocated_windows(day, row, entries, break_lines)
-            if windows is None:
+            if row is None or windows is None:
                 skipped.append(
                     {
                         "staff_id": str(person.id),
@@ -429,7 +433,29 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
             else:
                 swept += _put_on_general_work(person, day, windows, general_work_id, actor)
                 approved += approve_day(person, day, actor)
+                _send_for_him(person, row, actor)
     return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
+
+
+def _send_for_him(worker: Staff, row: AttendanceDay, actor: Staff) -> None:
+    """Mark a swept day sent, as the office has now filled and accepted it.
+
+    Left unsent, his app asks him to finish the day, and the rows he sent
+    would be laid out after the General work and paid on top of it.
+    """
+    if row.submitted_at is not None:
+        return
+    row.submitted_at = timezone.now()
+    row.save(update_fields=["submitted_at", "updated_at"])
+    record_day_event(
+        staff=actor,
+        worker=worker,
+        day=row.date,
+        event_type="day_sent",
+        before=None,
+        after=None,
+        trusted=True,
+    )
 
 
 def _put_on_general_work(
