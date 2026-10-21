@@ -322,20 +322,40 @@ state_sha_references_release() {
 # hotfix or rollback whose release named an older major.
 NODE_ROOT="$BASE_DIR/.local/node"
 
-node_version_from_nvmrc() {
+# Prints the newest release of a Node major from nodejs.org's index.json,
+# which lists newest first.
+latest_node_of_major() {
+    local major="$1"
+    local index="$2"
     local version
-    version="$(tr -d '[:space:]v' <<< "$1")"
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "ERROR: frontend/.nvmrc names no exact Node version: '$1'" >&2
+    version="$(grep -o "\"version\":\"v$major\.[0-9]*\.[0-9]*\"" <<< "$index" | head -n 1 | cut -d '"' -f 4)"
+    if [[ -z "$version" ]]; then
+        echo "ERROR: nodejs.org lists no Node $major release" >&2
         return 1
     fi
-    printf 'v%s\n' "$version"
+    printf '%s\n' "$version"
+}
+
+node_version_from_nvmrc() {
+    local version index
+    version="$(tr -d '[:space:]v' <<< "$1")"
+    if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf 'v%s\n' "$version"
+    elif [[ "$version" =~ ^[0-9]+$ ]]; then
+        # Releases before exact pins name only a major; a rollback to one still builds.
+        index="$(curl -fsSL https://nodejs.org/dist/index.json)" || return 1
+        latest_node_of_major "$version" "$index"
+    else
+        echo "ERROR: frontend/.nvmrc names no Node version: '$1'" >&2
+        return 1
+    fi
 }
 
 release_node_bin() {
     local sha="$1"
     local version
-    version="$(node_version_from_nvmrc "$(git -C "$LOCAL_REPO" show "$sha:frontend/.nvmrc")")"
+    # A command substitution does not inherit errexit, so a failure is passed on by hand.
+    version="$(node_version_from_nvmrc "$(git -C "$LOCAL_REPO" show "$sha:frontend/.nvmrc")")" || return 1
     printf '%s\n' "$NODE_ROOT/$version/bin"
 }
 
@@ -372,6 +392,10 @@ ensure_release_node() {
         tar -xJf '$tarball'
         mv 'node-$version-linux-$arch' '$dir'
     "
+    if [[ "$("$bin/node" --version)" != "$version" ]]; then
+        echo "ERROR: $bin/node is not Node $version" >&2
+        return 1
+    fi
 }
 
 ensure_release() {
