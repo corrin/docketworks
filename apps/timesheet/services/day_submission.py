@@ -111,6 +111,9 @@ def submit_day(
     nothing and the office sees the gap. ``location`` is where his phone says
     it is, passed to every entry so each is judged, not assumed away.
     """
+    # His lock first, as every write to his day takes it: a sweep of this day
+    # waits here, or this send waits for the sweep and reads its entries.
+    Staff.objects.select_for_update().filter(pk=worker.pk).first()
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=day).first()
     if row is None or row.clock_out is None:
         raise ConflictError(gettext("Clock out before you send the day."))

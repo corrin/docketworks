@@ -462,6 +462,7 @@
   },
   "entryDrawer": {
     "bookOwnTime": "Book your own time for {{date}}.",
+    "overlapsBooked": "You are already booked for that time. Were you doing two things at once?",
     "entryOn": "#{{number}} {{name}} on {{date}}",
     "addTitle": "Add entry",
     "approvedTitle": "Approved entry",
