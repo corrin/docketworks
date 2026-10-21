@@ -126,9 +126,8 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
 
   await autoId(page, 'ApproveTimePage-sweep-day').click()
 
-  await expect(
-    page.getByText(`${formatHoursDisplay(HOURS_FOR_JOBS)} booked to General work.`),
-  ).toBeVisible()
+  // Everyone rostered that day is swept with them, so the total is not theirs alone.
+  await expect(page.getByText(/booked to General work\./).first()).toBeVisible()
   await expect(state).toContainText('Approved')
   const swept = autoId(page, `ApproveTimePage-entries-${staffId}`).locator('li', {
     hasText: 'General work',

@@ -437,6 +437,7 @@
     "sweepPersonTitle": "This also approves the day",
     "noClockTimes": "No clock in or out for this day",
     "theirTimeOnJobs": "All their time is on jobs",
+    "stillClockedIn": "Still clocked in",
     "sweepPersonFailed": "Couldn't book {{name}}'s leftover time to General work.",
     "sweepPerson": "Book {{hours}} to General work",
     "approveDay": "Approve day",
