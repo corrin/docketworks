@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { Mail, Printer } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, getPurchaseOrderEmailMutation } from '@/api'
@@ -24,6 +25,7 @@ interface PoDocumentActionsProps {
  * to remember, and forgetting is invisible until the accounts disagree.
  */
 export function PoDocumentActions({ po }: PoDocumentActionsProps) {
+  const { t } = useTranslation('purchasing')
   const composeEmail = useMutation(getPurchaseOrderEmailMutation())
 
   const emailSupplier = () => {
@@ -34,7 +36,7 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
     // features string, because noopener makes window.open return null.
     const draftTab = window.open('', '_blank')
     if (draftTab === null) {
-      toast.error('Allow pop-ups for this site to open the supplier email.')
+      toast.error(t('poDocumentActions.allowPopups'))
       return
     }
     draftTab.opener = null
@@ -50,7 +52,7 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
         },
         onError: (error) => {
           draftTab.close()
-          toast.error(apiErrorMessage(error, 'Failed to draft the supplier email.'))
+          toast.error(apiErrorMessage(error, t('poDocumentActions.emailFailed')))
         },
       },
     )
@@ -64,7 +66,7 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
         onClick={() => void printPurchaseOrder(po.id)}
       >
         <Printer className="mr-2 h-4 w-4" />
-        Print
+        {t('poDocumentActions.print')}
       </Button>
       <Button
         variant="outline"
@@ -72,12 +74,14 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
         // refuses a supplier with no address, and a button that cannot work
         // should say so before it is pressed, as the Xero card does.
         disabled={composeEmail.isPending || !po.supplier_has_email}
-        title={po.supplier_has_email ? undefined : 'This supplier has no email address on file'}
+        title={po.supplier_has_email ? undefined : t('poDocumentActions.noSupplierEmail')}
         data-automation-id="PoDetailView-email"
         onClick={emailSupplier}
       >
         <Mail className="mr-2 h-4 w-4" />
-        {composeEmail.isPending ? 'Drafting…' : 'Email supplier'}
+        {composeEmail.isPending
+          ? t('poDocumentActions.drafting')
+          : t('poDocumentActions.emailSupplier')}
       </Button>
     </div>
   )

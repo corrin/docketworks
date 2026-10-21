@@ -6,7 +6,10 @@ Upgrade everything, test, freeze the tested version. ADR 0033 is the rule; this 
 
 Every Sunday 20:00 UTC (Monday morning NZ), `.github/workflows/dependency-sweep.yml` runs
 `scripts/ops/sweep_dependencies.sh` on main and opens one PR, **Weekly dependency sweep**, on
-branch `chore/weekly-dependency-sweep`. The script takes every direct dependency in
+branch `chore/weekly-dependency-sweep`. The script first checks it runs on the newest Node and
+logs that version in `frontend/.nvmrc`, logs the newest Python in `.python-version` and
+`requires-python`, and moves the pre-commit hook revisions; CI, server setup and nvm all read
+those files. It then takes every direct dependency in
 `frontend/package.json` and `pyproject.toml` to its newest published version, pins it exactly
 there, re-locks both lockfiles, and writes the PR body: what moved, what the resolver still
 holds below latest, and the pip-audit report. It opens nothing when nothing moved.

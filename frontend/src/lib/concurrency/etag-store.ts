@@ -26,3 +26,23 @@ export function deleteEtag(key: string): void {
 export function clearEtags(): void {
   etags.clear()
 }
+
+// --- Strong-version header filtering ---
+
+function strongHeaderValue(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const normalized = value.trim()
+  if (!normalized || /^W\//i.test(normalized)) {
+    return null
+  }
+  return normalized
+}
+
+/** Headers with lowercased keys, as axios normalizes response headers. */
+export function strongResourceVersion(headers: Record<string, unknown>): string | null {
+  return (
+    strongHeaderValue(headers['x-resource-version']) ?? strongHeaderValue(headers['etag']) ?? null
+  )
+}

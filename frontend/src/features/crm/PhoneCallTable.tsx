@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { AudioPlayer } from '@/features/shared/AudioPlayer'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatDateTime } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { callDirectionLabel } from './phoneCallFilters'
 import { linkedJobOption, PhoneCallLinkJobDialog } from './PhoneCallLinkJobDialog'
@@ -21,8 +23,11 @@ import { linkedJobOption, PhoneCallLinkJobDialog } from './PhoneCallLinkJobDialo
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
   const remainder = seconds % 60
-  if (minutes === 0) return `${remainder}s`
-  return `${minutes}m ${String(remainder).padStart(2, '0')}s`
+  if (minutes === 0) return i18n.t('crm:phoneCallTable.durationSeconds', { seconds: remainder })
+  return i18n.t('crm:phoneCallTable.durationMinutes', {
+    minutes,
+    seconds: String(remainder).padStart(2, '0'),
+  })
 }
 
 /** The recording's playable URL, or null when there is nothing to play. */
@@ -61,6 +66,7 @@ export function PhoneCallTable({
   emptyLabel,
   onAssignNumber,
 }: PhoneCallTableProps) {
+  const { t } = useTranslation('crm')
   const queryClient = useQueryClient()
   const [linkTarget, setLinkTarget] = useState<PhoneCallRecordOut | null>(null)
 
@@ -70,9 +76,9 @@ export function PhoneCallTable({
       // The refetch is authoritative rather than the response: unlinking moves
       // the call into the "needs job link" queue, which is a different row set.
       void queryClient.invalidateQueries({ queryKey: crmPhoneCallsListQueryKey() })
-      toast.success('Phone call unlinked from job')
+      toast.success(t('phoneCallTable.unlinked'))
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Failed to unlink phone call')),
+    onError: (error) => toast.error(apiErrorMessage(error, t('phoneCallTable.unlinkFailed'))),
   })
 
   return (
@@ -81,33 +87,33 @@ export function PhoneCallTable({
         isPending={isPending}
         isError={isError}
         onRetry={onRetry}
-        loadingLabel="Loading calls..."
-        errorLabel="Failed to load calls."
+        loadingLabel={t('phoneCallTable.loading')}
+        errorLabel={t('phoneCallTable.loadFailed')}
         rows={rows}
         emptyLabel={emptyLabel}
         automationId="PhoneCallTable"
         head={
           <tr className="border-b border-gray-200 bg-slate-50">
             <th scope="col" className={HEAD_CLASS}>
-              Date &amp; Time
+              {t('phoneCallTable.columns.dateTime')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Number / Company
+              {t('phoneCallTable.columns.numberCompany')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Our Number
+              {t('phoneCallTable.columns.ourNumber')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Direction
+              {t('phoneCallTable.columns.direction')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Duration
+              {t('phoneCallTable.columns.duration')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Job
+              {t('phoneCallTable.columns.job')}
             </th>
             <th scope="col" className={HEAD_CLASS}>
-              Recording
+              {t('phoneCallTable.columns.recording')}
             </th>
           </tr>
         }
@@ -129,7 +135,7 @@ export function PhoneCallTable({
                     data-automation-id={`PhoneCallTable-attempts-${call.id}`}
                     className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
                   >
-                    × {call.attempt_count} attempts
+                    {t('phoneCallTable.attempts', { count: call.attempt_count })}
                   </span>
                 )}
               </td>
@@ -149,7 +155,7 @@ export function PhoneCallTable({
                         data-automation-id={`PhoneCallTable-assign-number-${call.id}`}
                         onClick={() => onAssignNumber(call)}
                       >
-                        Assign number
+                        {t('phoneCallTable.assignNumber')}
                       </Button>
                     )}
                 </div>
@@ -172,7 +178,7 @@ export function PhoneCallTable({
                       data-automation-id={`PhoneCallTable-linked-job-${call.id}`}
                       className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700"
                     >
-                      Job #{linkedJob.job_number}
+                      {t('phoneCallTable.linkedJob', { number: linkedJob.job_number })}
                     </span>
                     <Button
                       type="button"
@@ -181,7 +187,7 @@ export function PhoneCallTable({
                       data-automation-id={`PhoneCallTable-change-job-${call.id}`}
                       onClick={() => setLinkTarget(call)}
                     >
-                      Change
+                      {t('phoneCallTable.change')}
                     </Button>
                     <Button
                       type="button"
@@ -192,7 +198,7 @@ export function PhoneCallTable({
                       disabled={unlink.isPending}
                       onClick={() => unlink.mutate({ path: { call_id: call.id } })}
                     >
-                      Unlink
+                      {t('phoneCallTable.unlink')}
                     </Button>
                     <div className="basis-full text-xs text-gray-500">{linkedJob.name}</div>
                   </div>
@@ -204,17 +210,19 @@ export function PhoneCallTable({
                     data-automation-id={`PhoneCallTable-link-job-${call.id}`}
                     onClick={() => setLinkTarget(call)}
                   >
-                    Link job
+                    {t('phoneCallTable.linkJob')}
                   </Button>
                 ) : (
                   // A call with no company: the link endpoint would 400, since
                   // the job must belong to the call's company.
-                  <span className="text-xs text-gray-500">Assign company first</span>
+                  <span className="text-xs text-gray-500">
+                    {t('phoneCallTable.assignCompanyFirst')}
+                  </span>
                 )}
               </td>
               <td className="min-w-64 px-3 py-2">
                 {url === null || call.recording === null ? (
-                  <span className="text-xs text-gray-500">No recording</span>
+                  <span className="text-xs text-gray-500">{t('phoneCallTable.noRecording')}</span>
                 ) : (
                   // The length shown is the recording's own, measured when it
                   // was archived — not duration_seconds, which is the provider's

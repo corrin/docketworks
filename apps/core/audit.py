@@ -22,7 +22,9 @@ from decimal import Decimal
 from typing import ClassVar, NotRequired, TypedDict
 
 from django.db import models
+from django.utils.functional import Promise
 from django.utils.timezone import now
+from django.utils.translation import gettext
 
 #: What a JSON column holds at a leaf.
 JsonScalar = str | int | float | bool | None
@@ -104,12 +106,20 @@ def truncate(text: JsonScalar, max_chars: int = 60) -> str:
 
 def truncate_change(label: str, old: JsonScalar, new: JsonScalar) -> str:
     """Describe a change to a long text field without quoting all of it."""
-    return f"{label} changed from '{truncate(old)}' to '{truncate(new)}'"
+    return gettext("%(label)s changed from '%(old)s' to '%(new)s'") % {
+        "label": label,
+        "old": truncate(old),
+        "new": truncate(new),
+    }
 
 
 def default_descriptor(field_name: str, old: JsonScalar, new: JsonScalar) -> str:
     """Render a field change with no registered descriptor."""
-    return f"{field_name} changed from '{old}' to '{new}'"
+    return gettext("%(field_name)s changed from '%(old)s' to '%(new)s'") % {
+        "field_name": field_name,
+        "old": old,
+        "new": new,
+    }
 
 
 class AuditEvent(models.Model):
@@ -134,7 +144,7 @@ class AuditEvent(models.Model):
     detail = models.JSONField(default=dict, blank=True)
 
     FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {}
-    EVENT_LABELS: ClassVar[dict[str, str]] = {}
+    EVENT_LABELS: ClassVar[dict[str, Promise]] = {}
 
     class Meta:
         abstract = True
@@ -156,7 +166,9 @@ class AuditEvent(models.Model):
         # and hides that the before and after are gone; someone auditing the job
         # would take it at face value and stop looking.
         if "old_value" not in change and "new_value" not in change:
-            return f"{field} changed (details lost)" if field else "Changed (details lost)"
+            if field:
+                return gettext("%(field)s changed (details lost)") % {"field": field}
+            return gettext("Changed (details lost)")
         old = change.get("old_value", "")
         new = change.get("new_value", "")
         descriptor = cls.FIELD_DESCRIPTORS.get(field)
@@ -194,7 +206,7 @@ class AuditEvent(models.Model):
             return note
         label = self.EVENT_LABELS.get(self.event_type)
         if label:
-            return label
+            return str(label)
         return f"({self.event_type})"
 
     @property

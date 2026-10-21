@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { timesheetsJobsRetrieveOptions } from '@/api'
 import type { FillOut, FillRowIn, TimesheetJobOut } from '@/api'
@@ -42,6 +43,7 @@ interface FillDaySheetProps {
  * buttons; "the rest" takes whatever is left of the time he was here.
  */
 export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: FillDaySheetProps) {
+  const { t } = useTranslation('timesheet')
   // Asked for when the sheet opens, not when the page does: a closed sheet
   // needs no job list, and the list is a few hundred jobs.
   const jobsQuery = useQuery({ ...timesheetsJobsRetrieveOptions(), enabled: open })
@@ -92,7 +94,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
       <DrawerContent className="max-h-[92vh]" data-automation-id="FillDaySheet">
         <div className="mx-auto w-full max-w-md overflow-y-auto">
           <DrawerHeader>
-            <DrawerTitle>Fill the day</DrawerTitle>
+            <DrawerTitle>{t('fillDay.title')}</DrawerTitle>
             <DrawerDescription>{formatDateLong(date)}</DrawerDescription>
           </DrawerHeader>
 
@@ -116,13 +118,13 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                      #{row.job.job_number} {row.job.name}
+                      {t('fillDay.jobLabel', { number: row.job.job_number, name: row.job.name })}
                     </span>
                     <Button
                       variant="outline"
                       size="icon"
                       className={TOUCH_TARGET_CLASS}
-                      aria-label="Remove row"
+                      aria-label={t('fillDay.removeRow')}
                       data-automation-id={`FillDaySheet-row-${row.key}-remove`}
                       onClick={() => setRows(rows.filter((other) => other.key !== row.key))}
                     >
@@ -138,7 +140,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                         data-automation-id={`FillDaySheet-row-${row.key}-hours-${hours}`}
                         onClick={() => change(row.key, { hours })}
                       >
-                        {hours}h
+                        {t('fillDay.hoursChip', { hours })}
                       </Button>
                     ))}
                     {rest > 0 && (
@@ -148,7 +150,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                         data-automation-id={`FillDaySheet-row-${row.key}-rest`}
                         onClick={() => change(row.key, { hours: rest })}
                       >
-                        The rest ({formatHoursDisplay(rest)})
+                        {t('fillDay.theRest', { hours: formatHoursDisplay(rest) })}
                       </Button>
                     )}
                   </div>
@@ -157,7 +159,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                       variant="outline"
                       size="icon"
                       className={TOUCH_TARGET_CLASS}
-                      aria-label="Quarter of an hour less"
+                      aria-label={t('fillDay.quarterLess')}
                       disabled={row.hours === null || row.hours <= QUARTER_HOUR}
                       data-automation-id={`FillDaySheet-row-${row.key}-less`}
                       onClick={() => change(row.key, { hours: (row.hours ?? 0) - QUARTER_HOUR })}
@@ -172,8 +174,8 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                       min={QUARTER_HOUR}
                       step={QUARTER_HOUR}
                       value={row.hours ?? ''}
-                      placeholder="Hours"
-                      aria-label="Hours"
+                      placeholder={t('fillDay.hours')}
+                      aria-label={t('fillDay.hours')}
                       className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
                       data-automation-id={`FillDaySheet-row-${row.key}-hours`}
                       onChange={(event) =>
@@ -186,7 +188,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                       variant="outline"
                       size="icon"
                       className={TOUCH_TARGET_CLASS}
-                      aria-label="Quarter of an hour more"
+                      aria-label={t('fillDay.quarterMore')}
                       data-automation-id={`FillDaySheet-row-${row.key}-more`}
                       onClick={() => change(row.key, { hours: (row.hours ?? 0) + QUARTER_HOUR })}
                     >
@@ -202,14 +204,14 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                           change(row.key, { timeAndAHalf: event.target.checked })
                         }
                       />
-                      Time and a half
+                      {t('fillDay.timeAndAHalf')}
                     </label>
                   </div>
                   <input
                     type="text"
                     value={row.description}
-                    placeholder="What was it? (optional)"
-                    aria-label="Description"
+                    placeholder={t('fillDay.descriptionPlaceholder')}
+                    aria-label={t('fillDay.description')}
                     className={INPUT_CLASS}
                     data-automation-id={`FillDaySheet-row-${row.key}-description`}
                     onChange={(event) => change(row.key, { description: event.target.value })}
@@ -219,7 +221,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
             })}
 
             <div className="space-y-2" data-automation-id="FillDaySheet-jobs">
-              <p className="text-sm font-medium text-gray-700">Add a job</p>
+              <p className="text-sm font-medium text-gray-700">{t('fillDay.addJob')}</p>
               <div className="flex flex-wrap gap-2">
                 {[...pinned, ...recent].map((job) => (
                   <Button
@@ -230,7 +232,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                     onClick={() => addRow(job)}
                   >
                     <span className="truncate">
-                      #{job.job_number} {job.name}
+                      {t('fillDay.jobLabel', { number: job.job_number, name: job.name })}
                     </span>
                   </Button>
                 ))}
@@ -239,12 +241,12 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                 <JobPicker
                   triggerClassName={TOUCH_TARGET_CLASS}
                   automationIdPrefix="FillDaySheet-job-picker"
-                  ariaLabel="Another job"
+                  ariaLabel={t('fillDay.anotherJob')}
                   jobs={jobs}
                   selected={null}
                   disabled={sending}
                   loading={jobsQuery.isPending}
-                  placeholder="Another job"
+                  placeholder={t('fillDay.anotherJob')}
                   triggerLabel={() => ''}
                   typedSearchLimit={null}
                   commitOnTab={false}
@@ -263,7 +265,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                 data-automation-id="FillDaySheet-send"
                 onClick={() => void send()}
               >
-                Send to office
+                {t('fillDay.send')}
               </Button>
               <Button
                 variant="outline"
@@ -272,7 +274,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                 data-automation-id="FillDaySheet-cancel"
                 onClick={onClose}
               >
-                Not yet
+                {t('fillDay.notYet')}
               </Button>
             </div>
           </DrawerFooter>

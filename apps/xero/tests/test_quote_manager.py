@@ -326,7 +326,7 @@ class TestCreateBusinessGates:
         response, provider = self._refused(company, job, office_staff)
 
         assert response["error_type"] == "validation_error"
-        assert "Xero contact" in str(response["error"])
+        assert "isn't in Xero yet" in str(response["error"])
         provider.create_quote.assert_not_called()
 
     def test_time_materials_job_is_refused(self, company: Company, office_staff: Staff) -> None:
@@ -346,7 +346,7 @@ class TestCreateBusinessGates:
         response, provider = self._refused(company, bare_job, office_staff)
 
         assert response["error_type"] == "validation_error"
-        assert "no cost lines" in str(response["error"])
+        assert "has no lines" in str(response["error"])
         provider.create_quote.assert_not_called()
 
     def test_blank_line_description_is_refused_in_breakdown_mode(

@@ -26,6 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import requests
+from django.utils.translation import gettext
 from holidays.countries.new_zealand import NewZealand
 
 from apps.platform.integrations.models import IntegrationSettings
@@ -52,7 +53,10 @@ def get_api_key() -> str:
     api_key = IntegrationSettings.get_solo().google_maps_api_key
     if api_key is None:
         raise GeocodingNotConfiguredError(
-            "Google Maps API key not set — enter it on Admin > Integrations"
+            gettext(
+                "The Google Maps key hasn't been entered. An administrator enters it under "
+                "Admin > Integrations."
+            )
         )
     return api_key
 
@@ -202,7 +206,7 @@ def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
     try:
         response = send()
     except requests.RequestException as exc:
-        raise GeocodingError(f"Network error: {exc}") from exc
+        raise GeocodingError(gettext("Network error: %(error)s") % {"error": exc}) from exc
 
     # Every Places request passes through here, so this is the one place the
     # spend is recorded — a transport failure above reached nobody and spent
@@ -211,7 +215,10 @@ def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
 
     if response.status_code != 200:
         logger.error("Google Places API error: %s - %s", response.status_code, response.text)
-        raise GeocodingError(f"Google Places returned {response.status_code}: {response.text}")
+        raise GeocodingError(
+            gettext("Google Places returned %(status_code)s: %(body)s")
+            % {"status_code": response.status_code, "body": response.text}
+        )
 
     try:
         parsed = response.json()
@@ -219,10 +226,15 @@ def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
         # requests' JSONDecodeError subclasses ValueError (and RequestException,
         # but that is already past): catching ValueError covers both the stdlib
         # and simplejson backings without naming either.
-        raise GeocodingError(f"Google Places returned a body that is not JSON: {exc}") from exc
+        raise GeocodingError(
+            gettext("Google Places returned a body that is not JSON: %(error)s") % {"error": exc}
+        ) from exc
 
     if not isinstance(parsed, dict):
-        raise GeocodingError(f"Google Places returned {type(parsed).__name__}, not a JSON object")
+        raise GeocodingError(
+            gettext("Google Places returned %(type_name)s, not a JSON object")
+            % {"type_name": type(parsed).__name__}
+        )
     return parsed
 
 

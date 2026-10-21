@@ -1,4 +1,5 @@
 import type { JobForPurchasing, PurchaseOrderLineOut, PurchaseOrderLineUpdateRequest } from '@/api'
+import { i18n } from '@/lib/i18n'
 
 // A PO line never books against a closed job (v1 rule).
 const EXCLUDED_STATUSES = new Set(['rejected', 'archived', 'completed'])
@@ -63,7 +64,7 @@ export function emptyPoLineDraft(): PoLineDraft {
  */
 export function poLineItemLabel(itemCode: string | null, description: string): string {
   if (itemCode !== null) return itemCode
-  return description.trim() !== '' ? description : 'Select Item'
+  return description.trim() !== '' ? description : i18n.t('purchasing:lines.selectItem')
 }
 
 export function poLineDraftIsEmpty(draft: PoLineDraft): boolean {
@@ -114,10 +115,18 @@ export function draftCreateBody(draft: PoLineDraft): PurchaseOrderLineUpdateRequ
  * which is different from having none listed.
  */
 export function poListJobsLabel(jobs: readonly { job_number: string }[]): string {
-  if (jobs.length === 0) return '—'
+  if (jobs.length === 0) return i18n.t('purchasing:lines.noJobs')
   if (jobs.length === 1) return jobs[0]!.job_number
-  if (jobs.length === 2) return `${jobs[0]!.job_number}, ${jobs[1]!.job_number}`
-  return `${jobs[0]!.job_number} +${jobs.length - 1} others`
+  if (jobs.length === 2) {
+    return i18n.t('purchasing:lines.twoJobs', {
+      first: jobs[0]!.job_number,
+      second: jobs[1]!.job_number,
+    })
+  }
+  return i18n.t('purchasing:lines.manyJobs', {
+    first: jobs[0]!.job_number,
+    others: jobs.length - 1,
+  })
 }
 
 /** What a purchase order is worth so far, and how much of it is still unknown. */

@@ -36,6 +36,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from django.utils.translation import gettext
+
 from apps.accounts.services.payroll_terms import contracted_hours_on
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
@@ -91,7 +93,7 @@ class LeaveCatalogue:
     code_by_job: Mapping[UUID, str]
 
     @classmethod
-    def load(cls) -> "LeaveCatalogue":
+    def load(cls) -> LeaveCatalogue:
         """Read the configured categories once."""
         rows = list(LeaveType.objects.exclude(job=None).select_related("job"))
         return cls(
@@ -141,9 +143,12 @@ class LeaveCatalogue:
         code = self.code_by_pay_item.get(pay_item.id)
         if code is None:
             raise ValueError(
-                f"Xero leave type {pay_item.name!r} is not mapped to a Docketworks leave "
-                "category, so how it is reported and paid is unknown. Map it under "
-                "Timesheets -> Leave settings."
+                gettext(
+                    "Xero leave type %(leave_type)s is not mapped to a DocketWorks leave "
+                    "category, so how it is reported and paid is unknown. Map it under "
+                    "Timesheets -> Leave settings."
+                )
+                % {"leave_type": repr(pay_item.name)}
             )
         return code
 
@@ -261,7 +266,7 @@ def is_leave(line: CostLine, catalogue: LeaveCatalogue) -> bool:
     return catalogue.code_for(line) is not None
 
 
-def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool) -> Decimal:
+def scheduled_hours(staff: Staff, target_date: date, *, weekend_enabled: bool) -> Decimal:
     """Return what the staff member was rostered for, zero on a 5-day week's weekend.
 
     Opus: Lived only in the daily service, while the weekly one read the roster

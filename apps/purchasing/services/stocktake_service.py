@@ -5,6 +5,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import ConflictError, InvalidInputError
@@ -50,7 +51,7 @@ def configure_stocktake(staff: Staff) -> StocktakeConfiguration:
 def require_workshop_stock(stock: Stock) -> None:
     """Require unassigned physical workshop stock."""
     if not countable_stock().filter(pk=stock.pk).exists():
-        raise InvalidInputError("Count only unassigned workshop stock.")
+        raise InvalidInputError(gettext("Count only unassigned workshop stock."))
 
 
 @transaction.atomic
@@ -60,7 +61,9 @@ def create_stocktake(staff: Staff, stock_id: UUID | None) -> Stocktake:
         pk=StocktakeConfiguration.singleton_instance_id
     ).first()
     if configuration is None:
-        raise InvalidInputError("Set up the stocktake adjustment job before starting a count.")
+        raise InvalidInputError(
+            gettext("Set up the stocktake adjustment job before starting a count.")
+        )
     count = Stocktake.objects.create(adjustment_job=configuration.adjustment_job, created_by=staff)
     if stock_id is not None:
         stock = Stock.objects.get(pk=stock_id)
@@ -89,10 +92,10 @@ def require_draft(count: Stocktake, if_match: str) -> None:
         count,
         if_match,
         count.version,
-        "This draft changed in another session. Reload before saving.",
+        gettext("This draft changed in another session. Reload before saving."),
     )
     if count.posted_at is not None:
-        raise InvalidInputError("Posted counts are read-only. Create a linked correction.")
+        raise InvalidInputError(gettext("Posted counts are read-only. Create a linked correction."))
 
 
 def _save_line(count: Stocktake, data: StocktakeLineWrite) -> None:
@@ -105,14 +108,20 @@ def _save_line(count: Stocktake, data: StocktakeLineWrite) -> None:
             or stock.quantity != data.expected_quantity
         ):
             raise ConflictError(
-                f"{stock.description}: stock changed. Review and recount this line."
+                gettext("%(description)s: stock changed. Review and recount this line.")
+                % {"description": stock.description}
             )
         if stock.unit_cost != data.unit_cost:
-            raise InvalidInputError(f"{stock.description}: use the recorded unit cost.")
+            raise InvalidInputError(
+                gettext("%(description)s: use the recorded unit cost.")
+                % {"description": stock.description}
+            )
     elif data.expected_quantity != 0 or data.expected_version != 0:
-        raise InvalidInputError("Newly found material must start from zero recorded stock.")
+        raise InvalidInputError(
+            gettext("Newly found material must start from zero recorded stock.")
+        )
     if StocktakeLine.objects.filter(pk=data.id).exclude(stocktake=count).exists():
-        raise InvalidInputError("The count line belongs to another stocktake.")
+        raise InvalidInputError(gettext("The count line belongs to another stocktake."))
     StocktakeLine.objects.update_or_create(
         pk=data.id,
         stocktake=count,
@@ -138,7 +147,7 @@ def save_stocktake(count_id: UUID, data: StocktakeSave, *, if_match: str) -> Sto
     ids = [line.id for line in data.lines]
     stock_ids = [line.stock_id for line in data.lines if line.stock_id is not None]
     if len(set(ids)) != len(ids) or len(set(stock_ids)) != len(stock_ids):
-        raise InvalidInputError("Count each stock item once.")
+        raise InvalidInputError(gettext("Count each stock item once."))
     for line in sorted(data.lines, key=lambda row: str(row.stock_id)):
         _save_line(count, line)
     count.lines.exclude(id__in=ids).delete()
@@ -155,7 +164,10 @@ def _post_line(line: StocktakeLine, staff: Staff, job: Job) -> None:
     if difference == 0:
         return
     if line.reason is None:
-        raise InvalidInputError(f"{line.description}: choose a reason for the difference.")
+        raise InvalidInputError(
+            gettext("%(description)s: choose a reason for the difference.")
+            % {"description": line.description}
+        )
     if line.stock is None:
         line.stock = Stock.objects.create(
             job=Stock.get_stock_holding_job(),
@@ -199,18 +211,21 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
             count,
             if_match,
             count.version - 1,
-            "This posting request does not match the posted draft.",
+            gettext(
+                "This stocktake has already been posted, and not from this screen's copy. "
+                "Reload the stocktake to see what was posted."
+            ),
         )
         return count
     require_draft(count, if_match)
     lines = list(count.lines.select_related("stock").order_by("stock_id", "id"))
     counted = [line for line in lines if line.counted_quantity is not None]
     if not counted:
-        raise InvalidInputError("Enter at least one physical count before posting.")
+        raise InvalidInputError(gettext("Enter at least one physical count before posting."))
     lock_costing_jobs([count.adjustment_job_id])
     job = Job.objects.get(pk=count.adjustment_job_id)
     if not job.shop_job:
-        raise InvalidInputError("The stocktake adjustment job must remain non-billable.")
+        raise InvalidInputError(gettext("The stocktake adjustment job must remain non-billable."))
     for line in counted:
         if line.stock_id is not None:
             stock = Stock.objects.select_for_update().get(pk=line.stock_id)
@@ -221,7 +236,8 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
                 or stock.unit_cost != line.unit_cost
             ):
                 raise ConflictError(
-                    f"{line.description}: stock changed. Review and recount this line."
+                    gettext("%(description)s: stock changed. Review and recount this line.")
+                    % {"description": line.description}
                 )
             line.stock = stock
         _post_line(line, staff, job)
@@ -241,10 +257,10 @@ def correct_stocktake(count_id: UUID, staff: Staff, *, if_match: str) -> Stockta
         original,
         if_match,
         original.version,
-        "Reload the posted count before creating its correction.",
+        gettext("Reload the posted count before creating its correction."),
     )
     if original.posted_at is None:
-        raise InvalidInputError("Edit this draft directly; it has not been posted.")
+        raise InvalidInputError(gettext("Edit this draft directly; it has not been posted."))
     existing = Stocktake.objects.filter(corrects=original).first()
     if existing is not None:
         return existing
@@ -256,7 +272,9 @@ def correct_stocktake(count_id: UUID, staff: Staff, *, if_match: str) -> Stockta
     for line in original.lines.select_related("stock").filter(stock__isnull=False):
         stock = line.stock
         if stock is None:
-            raise InvalidInputError("A posted material count is missing its stock identity.")
+            raise InvalidInputError(
+                gettext("A posted count is for a stock item that no longer exists.")
+            )
         StocktakeLine.objects.create(
             stocktake=correction,
             stock=stock,

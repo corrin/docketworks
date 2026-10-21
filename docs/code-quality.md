@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 124,678 (v1 172,577, -28%) |
-| tests | 88,741 (v1 50,869, +74%) |
-| generated | 53,985 (v1 20,359, +165%) |
+| code | 129,366 (v1 172,577, -25%) |
+| tests | 90,896 (v1 50,869, +79%) |
+| generated | 54,480 (v1 20,359, +168%) |
 
 ## Suppressions
 
@@ -31,22 +31,22 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 788 |
+| TOTAL suppressions | 798 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 156 |
-| noqa: E402 | 106 |
-| noqa: PLR0913 | 61 |
-| noqa: ARG002 | 38 |
+| noqa: PLC0415 | 157 |
+| noqa: E402 | 108 |
+| noqa: PLR0913 | 59 |
+| noqa: ARG002 | 49 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
 | noqa: S603 | 19 |
 | noqa: C901 | 18 |
-| noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
 | noqa: F405 | 6 |
 | noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
+| noqa: TRY300 | 6 |
 | noqa: N803 | 5 |
 | noqa: S105 | 5 |
 | noqa: N815 | 4 |
@@ -59,6 +59,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S608 | 3 |
 | noqa: D107 | 2 |
 | noqa: DTZ001 | 2 |
+| noqa: DTZ011 | 2 |
 | noqa: F401 | 2 |
 | noqa: PIE804 | 2 |
 | noqa: S108 | 2 |
@@ -68,7 +69,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: B904 | 1 |
 | noqa: C416 | 1 |
 | noqa: DTZ007 | 1 |
-| noqa: DTZ011 | 1 |
 | noqa: F821 | 1 |
 | noqa: PLR0915 | 1 |
 | noqa: S107 | 1 |
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 224 |
+| in comments | 223 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 259 |
-| non-test functions | 3082 |
+| functions returning `X \| None` | 260 |
+| non-test functions | 3129 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 698 |
+| object annotations | 703 |
 
 ## Wire contract (response side)
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 329 |
-| response properties | 2120 |
+| response schemas | 331 |
+| response properties | 2127 |
 | optional (pinned at zero) | 0 |
-| nullable | 469 |
+| nullable | 471 |
 
 ## Automation ids (frontend)
 
@@ -144,10 +144,10 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 431 (30%) |
+| without data-automation-id | 131 of 441 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |
 | without id: <select> | 6 |
 | without id: <textarea> | 5 |
-| without id: <Button> | 55 |
+| without id: <Button> | 56 |

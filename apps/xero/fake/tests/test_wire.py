@@ -11,7 +11,7 @@ exact subset of what was recorded.
 
 import json
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -19,7 +19,15 @@ import pytest
 from xero_python import payrollnz as payroll_sdk
 from xero_python.accounting import AccountingApi
 from xero_python.models import BaseModel
-from xero_python.payrollnz import PayrollNzApi
+from xero_python.payrollnz import (
+    EmployeeLeaveSetup,
+    EmployeeLeaveType,
+    EmployeeTax,
+    Employment,
+    PaymentMethod,
+    PayrollNzApi,
+    SalaryAndWage,
+)
 
 from apps.xero.fake.tests.conftest import sdk_client_answering
 from apps.xero.fake.wire import Json, WireShapeError, ms_date_now, to_wire
@@ -152,8 +160,9 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "contact_archive": lambda api: api.get_contacts(TENANT),
     "contact_archive_archived": lambda api: api.get_contacts(TENANT),
     "invoice_create": lambda api: api.get_invoices(TENANT),
-    "invoice_delete_authorised": lambda api: api.get_invoices(TENANT),
+    "invoice_approve": lambda api: api.get_invoices(TENANT),
     "invoice_void": lambda api: api.get_invoices(TENANT),
+    "invoice_delete": lambda api: api.get_invoices(TENANT),
     "invoice_history_create": lambda api: api.get_invoice_history(TENANT, "any"),
     # The SDK has the method; its stub does not.
     "invoice_attachment_create": lambda api: api.get_invoice_attachments(TENANT, "any"),  # type: ignore[attr-defined]
@@ -172,6 +181,18 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "item_create": lambda api: api.get_items(TENANT),
     "item_update": lambda api: api.get_items(TENANT),
 }
+# The SDK validates a pay record as it is built; the round trip needs one to send.
+_SALARY = SalaryAndWage(
+    earnings_rate_id="any",
+    number_of_units_per_week=1,
+    rate_per_unit=1,
+    number_of_units_per_day=1,
+    days_per_week=1,
+    effective_from=date(2026, 1, 1),
+    annual_salary=0,
+    status="Active",
+    payment_type="Hourly",
+)
 _PAYROLL_ROUTES: dict[str, Callable[[PayrollNzApi], BaseModel]] = {
     "employees_page": lambda api: api.get_employees(TENANT, page=1),
     "employee": lambda api: api.get_employee(TENANT, "any"),
@@ -184,6 +205,26 @@ _PAYROLL_ROUTES: dict[str, Callable[[PayrollNzApi], BaseModel]] = {
     "pay_runs": lambda api: api.get_pay_runs(TENANT),
     "pay_run_calendars": lambda api: api.get_pay_run_calendars(TENANT),
     "pay_slips": lambda api: api.get_pay_slips(TENANT, "any"),
+    "employee_create": lambda api: api.get_employee(TENANT, "any"),
+    "employee_update": lambda api: api.get_employee(TENANT, "any"),
+    "employment_create": lambda api: api.create_employment(
+        TENANT, "any", Employment(payroll_calendar_id="any", start_date=date(2026, 1, 1))
+    ),
+    "salary_and_wage_create": lambda api: api.create_employee_salary_and_wage(
+        TENANT, "any", _SALARY
+    ),
+    "working_pattern_create": lambda api: api.get_employee_working_pattern(TENANT, "any", "any"),
+    "employee_tax_update": lambda api: api.update_employee_tax(TENANT, "any", EmployeeTax()),
+    "payment_method_create": lambda api: api.create_employee_payment_method(
+        TENANT, "any", PaymentMethod(payment_method="Electronically")
+    ),
+    "leave_setup_create": lambda api: api.create_employee_leave_setup(
+        TENANT, "any", EmployeeLeaveSetup()
+    ),
+    "employee_leave_types": lambda api: api.get_employee_leave_types(TENANT, "any"),
+    "employee_leave_type_create": lambda api: api.create_employee_leave_type(
+        TENANT, "any", EmployeeLeaveType()
+    ),
 }
 
 
@@ -230,8 +271,10 @@ def test_every_json_recording_has_a_round_trip_or_a_reason() -> None:
     # These carry no model: a 404 is text/html, the past-the-end 400 is
     # raised by the SDK before deserialising, a PDF is bytes, and the 429 is
     # an empty body under four headers.
-    # The duplicate-name refusal is a 400 the SDK raises on before deserialising.
+    # The duplicate-name refusal and the approved-invoice delete are 400s the
+    # SDK raises on before deserialising.
     unmodelled = {
+        "invoice_delete_authorised",
         "invoice_not_found",
         "employees_past_end",
         "quote_pdf",

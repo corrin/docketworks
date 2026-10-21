@@ -108,7 +108,7 @@ class TestPayRunList:
         response = manage_client.get("/api/timesheets/payroll/pay-runs/")
 
         assert response.status_code == 500
-        assert "xero_payroll_calendar_id not configured" in response.json()["detail"]
+        assert "doesn't know which Xero pay calendar to use" in response.json()["detail"]
 
     @pytest.mark.usefixtures("payroll_defaults")
     def test_empty_calendar_returns_200_with_null_postable_dates(
@@ -335,7 +335,7 @@ class TestPostStaffWeek:
 @pytest.mark.usefixtures("company")
 class TestPayrollDeepLink:
     def test_missing_shortcode_fails_loudly(self) -> None:
-        with pytest.raises(ValueError, match="Xero shortcode not configured"):
+        with pytest.raises(ValueError, match="doesn't have Xero's short code"):
             payroll_service.build_xero_payroll_url(uuid.uuid4())
 
 

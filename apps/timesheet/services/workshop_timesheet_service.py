@@ -22,6 +22,7 @@ from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError
@@ -45,6 +46,7 @@ from apps.job.services.time_entry_rates import (
 )
 from apps.timesheet.models import (
     EDITED_STANDARD_BREAK,
+    SWEPT_GENERAL_WORK,
     UNTOUCHED_STANDARD_BREAK,
     AttendanceDay,
     mark_break_edited,
@@ -73,14 +75,14 @@ def entry_owner(actor: Staff, staff_id: UUID | None) -> Staff:
     if staff_id is None or staff_id == actor.id:
         return actor
     if not actor.is_office_staff:
-        raise EntryOwnershipError("Only office staff see or enter another person's time.")
+        raise EntryOwnershipError(gettext("Only office staff see or enter another person's time."))
     return Staff.objects.get(id=staff_id)
 
 
-def _refuse_another_persons_entry(line: CostLine, actor: Staff, verb: str) -> None:
+def _refuse_another_persons_entry(line: CostLine, actor: Staff, refusal: str) -> None:
     """Refuse a change to someone else's entry by anyone but the office."""
     if line.meta.get("staff_id") != str(actor.id) and not actor.is_office_staff:
-        raise EntryOwnershipError(f"You can only {verb} your own timesheet entries.")
+        raise EntryOwnershipError(refusal)
 
 
 def _owner_of(line: CostLine) -> Staff:
@@ -193,7 +195,7 @@ def resolve_entry_date(date_param: str | None) -> date:
         return timezone.localdate()
     parsed = parse_date(date_param)
     if parsed is None:
-        raise ValueError("date must be provided in YYYY-MM-DD format.")
+        raise ValueError(gettext("date must be provided in YYYY-MM-DD format."))
     return parsed
 
 
@@ -229,13 +231,15 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
     if start is None or end is None:
         return
     if end <= start:
-        raise ValueError("end_time must be after start_time.")
+        raise ValueError(gettext("The finish time must be after the start time."))
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
     duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
     if hours - duration > _TIME_AGREEMENT_TOLERANCE:
         raise ValueError(
-            f"hours ({hours}) cannot be more than the start_time-end_time span "
-            f"({duration.quantize(Decimal('0.01'))})."
+            gettext(
+                "hours (%(hours)s) cannot be more than the start_time-end_time span (%(span)s)."
+            )
+            % {"hours": hours, "span": duration.quantize(Decimal("0.01"))}
         )
 
 
@@ -253,7 +257,9 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
 
 
 #: Lines nobody typed, never marked entered late.
-_GENERATED_SOURCES = frozenset({UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK})
+_GENERATED_SOURCES = frozenset(
+    {UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK, SWEPT_GENERAL_WORK}
+)
 
 
 def entered_late(line: CostLine) -> bool:
@@ -568,7 +574,7 @@ def create_entry(
     data: WorkshopEntryCreateData,
     location: EntryLocation | None = None,
     *,
-    generated: bool = False,
+    source: str | None = None,
 ) -> WorkshopEntryData:
     """Create a time line for ``owner``, saved by ``actor``.
 
@@ -577,8 +583,9 @@ def create_entry(
     whether it is marked as saved away from the workshop. ``location`` is
     where the actor's phone says it is; None when it gave none.
 
-    ``generated`` is a line nobody typed (the breaks put on a day when it is
-    closed): never marked late or remote, since there was no entry to judge.
+    ``source`` marks a line nobody typed (the breaks put on a day when it is
+    closed, the sweep's General work): never marked late or remote, since
+    there was no entry to judge.
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
@@ -599,8 +606,8 @@ def create_entry(
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
             is_billable=data.get("is_billable", True),
         )
-        if generated:
-            meta["source"] = UNTOUCHED_STANDARD_BREAK
+        if source is not None:
+            meta["source"] = source
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         if start_time is not None:
@@ -627,7 +634,7 @@ def create_entry(
             # Time the office enters is approved as it is saved, whoever it is
             # for; a worker's own waits for the office.
             approved=actor.is_office_staff,
-            remote_entry=not generated and saved_remotely(actor, location),
+            remote_entry=source is None and saved_remotely(actor, location),
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, actor)
@@ -651,7 +658,9 @@ def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
         "xero_pay_item",
         "staff",
     ).get(id=entry_id, kind="time")
-    _refuse_another_persons_entry(line, actor, "update")
+    _refuse_another_persons_entry(
+        line, actor, gettext("You can only update your own timesheet entries.")
+    )
     refuse_workflow_managed(line, "edit")
     return line
 
@@ -741,13 +750,17 @@ def update_entry(
     line = _editable_line(actor, data["entry_id"])
 
     with transaction.atomic():
+        # His lock before the jobs', as every write to his day takes them.
+        Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
         lock_costing_jobs(job_ids)
         line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
-            raise ConflictError("This entry moved to another job. Reload before editing it.")
+            raise ConflictError(
+                gettext("This entry moved to another job. Reload before editing it.")
+            )
         refuse_worker_change_to_approved(line, actor)
         before = snapshot_if_entry(line)
         meta = dict(line.meta)
@@ -781,7 +794,7 @@ def update_entry(
             changed = True
 
         if not changed:
-            raise ValueError("No changes supplied.")
+            raise ValueError(gettext("No changes supplied."))
 
         _redraw_finish(line, meta, data)
 
@@ -817,6 +830,8 @@ def update_entry(
 def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = None) -> None:
     """Delete an entry: the actor's own, or anyone's when the actor is office staff."""
     line = CostLine.objects.get(id=entry_id, kind="time")
+    # His lock before the jobs', as every write to his day takes them.
+    Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
     # Locked on the line alone: the snapshot's joins are nullable, which
@@ -827,8 +842,10 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         .get(pk=line.pk)
     )
     if line.cost_set.job_id != job_id:
-        raise ConflictError("This entry moved to another job. Reload before deleting it.")
-    _refuse_another_persons_entry(line, actor, "delete")
+        raise ConflictError(gettext("This entry moved to another job. Reload before deleting it."))
+    _refuse_another_persons_entry(
+        line, actor, gettext("You can only delete your own timesheet entries.")
+    )
     refuse_workflow_managed(line, "cancel")
     refuse_worker_change_to_approved(line, actor)
     # Recorded before the delete: Django clears the pk on the instance it

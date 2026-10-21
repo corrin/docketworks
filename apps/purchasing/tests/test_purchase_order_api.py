@@ -1179,7 +1179,7 @@ def test_received_line_cannot_lose_inventory_provenance(
         headers={"If-Match": _current_etag(api, po)},
     )
     assert response.status_code == 400, response.content
-    assert b"provenance" in response.content
+    assert b"can't be deleted" in response.content
     with pytest.raises(ProtectedError):
         line.delete()
     stock.refresh_from_db()

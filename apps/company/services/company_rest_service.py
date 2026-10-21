@@ -24,9 +24,16 @@ from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, Q, QuerySet, When
 from django.http import HttpRequest
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
-from apps.company.models import Company, ContactMethod, Person, SupplierPickupAddress
+from apps.company.models import (
+    UNCOUNTED_STATUSES,
+    Company,
+    ContactMethod,
+    Person,
+    SupplierPickupAddress,
+)
 from apps.company.services.contact_methods import (
     clear_company_primary_phone,
     set_primary_phone,
@@ -48,7 +55,9 @@ class DuplicateContactError(ConflictError):
 
     def __init__(self, name: str, external_id: str | None) -> None:
         """Carry the duplicate's identity so the endpoint can report it."""
-        super().__init__(f"Company '{name}' already exists in the accounting provider")
+        super().__init__(
+            gettext("Company '%(name)s' already exists in the accounting provider") % {"name": name}
+        )
         self.name = name
         self.external_id = external_id
 
@@ -58,7 +67,12 @@ class ProviderAuthRequiredError(ValueError):
 
     def __init__(self) -> None:
         """Use the fixed message; the endpoint maps this type to 401."""
-        super().__init__("Accounting provider authentication required")
+        super().__init__(
+            gettext(
+                "DocketWorks is not logged in to the accounting system (Xero). Connect to "
+                "Xero, then try again."
+            )
+        )
 
 
 class CompanyPhoneAnnotations(TypedDict):
@@ -212,7 +226,7 @@ def _date_to_datetime(date_obj: date | None) -> datetime | None:
     return datetime.combine(date_obj, datetime.min.time(), tzinfo=timezone.get_current_timezone())
 
 
-def annotated_with_phone(company: Company) -> "_AnnotatedCompanyWithPhone":
+def annotated_with_phone(company: Company) -> _AnnotatedCompanyWithPhone:
     """Vouch that the ``phone`` annotation is present on a fetched Company.
 
     The custom ``CompanyQuerySet`` erases ``WithAnnotations`` typing through
@@ -428,7 +442,8 @@ class CompanyRestService:
                 },
             )
             raise ValueError(
-                f"Failed to create company in {provider.provider_name}: {result.error}"
+                gettext("Failed to create company in %(provider)s: %(error)s")
+                % {"provider": provider.provider_name, "error": result.error}
             )
 
         logger.info(
@@ -445,7 +460,7 @@ class CompanyRestService:
         return company
 
     @staticmethod
-    def update_company(company_id: UUID, data: CompanyUpdateData) -> "_AnnotatedCompanyWithPhone":
+    def update_company(company_id: UUID, data: CompanyUpdateData) -> _AnnotatedCompanyWithPhone:
         """Update a company; a Xero-synced one (``xero_contact_id`` set) also pushes.
 
         The provider token is checked before the local write, so an
@@ -473,7 +488,7 @@ class CompanyRestService:
             # explicit {"name": ""} silently blanked the company. Reject it
             # (ledgered divergence; ultra review 2026-08-02).
             if "name" in data and not data["name"]:
-                raise ValueError("Company name is required")
+                raise ValueError(gettext("Company name is required"))
 
             if company.xero_contact_id and not get_provider().get_valid_token():
                 raise ProviderAuthRequiredError
@@ -777,7 +792,7 @@ class CompanyRestService:
 
     @staticmethod
     def _format_company_summary(
-        company: "_AnnotatedCompanyWithPhone",
+        company: _AnnotatedCompanyWithPhone,
     ) -> CompanySummaryData:
         """Format a single company summary for list/search responses.
 
@@ -809,7 +824,7 @@ class CompanyRestService:
 
     @staticmethod
     def _format_company_detail(
-        company: "_AnnotatedCompanyWithPhone",
+        company: _AnnotatedCompanyWithPhone,
     ) -> CompanyDetailData:
         """Format complete company details for API responses.
 
@@ -926,7 +941,14 @@ def _job_headers(
                 "max_people": job.max_people,
                 "invoices": invoices,
                 "invoiced_total_excl_tax": float(
-                    sum((invoice.total_excl_tax for invoice in job.invoices.all()), Decimal("0"))
+                    sum(
+                        (
+                            invoice.total_excl_tax
+                            for invoice in job.invoices.all()
+                            if invoice.status not in UNCOUNTED_STATUSES
+                        ),
+                        Decimal("0"),
+                    )
                 ),
             }
         )

@@ -4,9 +4,9 @@ One-off dev-machine setup. These steps persist across restores.
 
 ## Install tools
 
-1. **Python 3.12** — exactly 3.12 (the project pins `>=3.12,<3.13`).
+1. **Python 3.14** — exactly 3.14 (the project pins `>=3.14,<3.15`). `uv sync` installs the pinned interpreter when needed; the OS Python can stay on its distro version.
 2. **[uv](https://docs.astral.sh/uv/)** — manages the Python environment and dependencies.
-3. **Node.js 22+ and npm** — the React frontend and Playwright E2E tests.
+3. **Node.js at the version in `frontend/.nvmrc`, with its own npm** (`nvm install` from `frontend/`) — the React frontend and Playwright E2E tests.
 4. **PostgreSQL 16+** — install and ensure it is running. Allow password auth over sockets for app
    users (keep peer auth for `postgres`):
    ```
@@ -111,7 +111,7 @@ across the load.
 
 ## Troubleshooting
 
-1. **Dependencies** — rerun `uv sync`; check for errors. Confirm `uv run python --version` is 3.12.
+1. **Dependencies** — rerun `uv sync`; check for errors. Confirm `uv run python --version` is 3.14.
 2. **`.env`** — verify `SECRET_KEY`, `JWT_SIGNING_KEY`, and the `DB_*` values; `settings.py` names any missing variable.
 3. **Database** — is PostgreSQL running? Does the role/database exist and match `.env`?
 4. **Redis** — `redis-cli ping` should return `PONG`.
@@ -128,3 +128,8 @@ across the load.
    the URI registered in the Xero developer portal — they must be identical.
 7. **Django** — run `uv run python -m uvicorn config.asgi:application --port 8000` directly to see
    startup errors with `DEBUG=true`.
+8. **ASGI disconnect messages** — expected client disconnects on CPython 3.14.7 and 3.14.8
+   can log `CancelledError exception in shielded future` to the console. This is the
+   upstream issue tracked by [Django #37385](https://code.djangoproject.com/ticket/37385)
+   and [CPython #156321](https://github.com/python/cpython/issues/156321). These console
+   messages do not create `AppError` records; application error logging remains enabled.

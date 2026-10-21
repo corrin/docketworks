@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Trash2 } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
+  apiErrorType,
   jobJobsInvoicesRetrieveOptions,
   xeroCreateInvoiceMutation,
   xeroDeleteInvoiceMutation,
@@ -21,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/format'
+import { xeroInvoiceStatusLabel } from '@/features/shared/xeroInvoiceStatus'
 
 type InvoiceMode = XeroInvoiceCreateIn['mode']
 
@@ -50,6 +53,7 @@ export function JobInvoiceCard({
   paid,
   onInvoicesChanged,
 }: JobInvoiceCardProps) {
+  const { t } = useTranslation('job')
   const invoicesQuery = useQuery(jobJobsInvoicesRetrieveOptions({ path: { job_id: jobId } }))
   const ping = useQuery(xeroPingRetrieveOptions())
   const xeroConnected = ping.data?.connected ?? false
@@ -59,24 +63,41 @@ export function JobInvoiceCard({
   const [selectedMode, setSelectedMode] = useState<InvoiceMode | null>(null)
   const [percentInput, setPercentInput] = useState('')
   const [amountInput, setAmountInput] = useState('')
+  // An approved invoice the server would not just delete, with its reason:
+  // the user chooses between voiding it and a second invoice.
+  const [voidOffer, setVoidOffer] = useState<{
+    xeroId: string
+    number: string
+    reason: string
+  } | null>(null)
 
   const createInvoice = useMutation(xeroCreateInvoiceMutation())
   const deleteInvoice = useMutation(xeroDeleteInvoiceMutation())
 
   const workComplete = COMPLETED_STATUSES.has(jobStatus)
+  // Why a second invoice can't be raised right now; null when it can (ADR 0067).
+  const secondInvoiceBlocked = paid
+    ? t('invoiceCard.voidDialog.secondInvoiceBlocked.paid')
+    : !xeroConnected
+      ? t('invoiceCard.voidDialog.secondInvoiceBlocked.notConnected')
+      : remainingToInvoice <= 0
+        ? t('invoiceCard.voidDialog.secondInvoiceBlocked.fullyInvoiced')
+        : null
 
   const modalDescription = !workComplete
-    ? 'Request payment in advance, take a deposit, or raise a progress invoice.'
+    ? t('invoiceCard.description.inAdvance')
     : pricingMethodology === 'fixed_price'
-      ? 'Invoice the remaining quote balance.'
-      : 'Invoice the remaining Time & Materials costs.'
+      ? t('invoiceCard.description.remainingQuote')
+      : t('invoiceCard.description.remainingTimeMaterials')
   const fullInvoiceLabel = workComplete
-    ? 'Invoice remaining quote balance'
-    : 'Invoice full amount in advance'
-  const costsToDateLabel = workComplete ? 'Invoice remaining T&M costs' : 'Invoice costs to date'
+    ? t('invoiceCard.fullInvoice.remaining')
+    : t('invoiceCard.fullInvoice.inAdvance')
+  const costsToDateLabel = workComplete
+    ? t('invoiceCard.costsToDate.remaining')
+    : t('invoiceCard.costsToDate.toDate')
   const customAmountHint = workComplete
-    ? 'Invoice a specific dollar amount'
-    : 'Invoice a deposit or progress payment of a specific amount'
+    ? t('invoiceCard.customAmountHint.complete')
+    : t('invoiceCard.customAmountHint.inProgress')
 
   const openModal = () => {
     setSelectedMode(null)
@@ -97,7 +118,7 @@ export function JobInvoiceCard({
     // throwOnError), so the failure signal is on the result, not in a catch.
     void invoicesQuery.refetch().then((result) => {
       if (result.error) {
-        toast.error('Invoice saved, but the list could not be refreshed. Reload the job.')
+        toast.error(t('invoiceCard.refreshFailed'))
       }
     })
   }
@@ -110,7 +131,7 @@ export function JobInvoiceCard({
     if (mode === 'invoice_percent') {
       const pct = parseFloat(percentInput)
       if (isNaN(pct) || pct <= 0 || pct > 100) {
-        toast.error('Please enter a valid percentage (1-100)')
+        toast.error(t('invoiceCard.invalidPercent'))
         return
       }
       percent = pct
@@ -118,7 +139,7 @@ export function JobInvoiceCard({
     if (mode === 'invoice_amount') {
       const amt = parseFloat(amountInput)
       if (isNaN(amt) || amt <= 0) {
-        toast.error('Please enter a valid amount')
+        toast.error(t('invoiceCard.invalidAmount'))
         return
       }
       amount = amt
@@ -136,7 +157,7 @@ export function JobInvoiceCard({
       },
       {
         onSuccess: (response) => {
-          toast.success('Invoice created successfully!')
+          toast.success(t('invoiceCard.created'))
           // A created invoice can still carry warnings (e.g. the workshop
           // PDF attachment failed); each one is the user's to act on.
           response.messages?.forEach((message) => toast.warning(message))
@@ -144,27 +165,35 @@ export function JobInvoiceCard({
         },
         onError: (error) => {
           toast.error(
-            `Failed to create invoice: ${apiErrorMessage(
-              error,
-              'Unexpected error while trying to create invoice.',
-            )}`,
+            t('invoiceCard.createFailed', {
+              reason: apiErrorMessage(error, t('invoiceCard.createFailedFallback')),
+            }),
           )
         },
       },
     )
   }
 
-  const executeDelete = (invoiceXeroId: string) => {
+  const executeDelete = (invoice: { xero_id: string; number: string }, voidApproved: boolean) => {
     if (deleteInvoice.isPending) return
+    setVoidOffer(null)
     deleteInvoice.mutate(
-      { path: { job_id: jobId }, query: { xero_invoice_id: invoiceXeroId } },
       {
-        onSuccess: () => {
-          toast.success('Invoice deleted successfully!')
+        path: { job_id: jobId },
+        query: { xero_invoice_id: invoice.xero_id, void_approved: voidApproved },
+      },
+      {
+        onSuccess: (response) => {
+          toast.success(response.message ?? t('invoiceCard.deleted'))
           afterInvoiceChange()
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, 'Failed to delete invoice.'))
+          const reason = apiErrorMessage(error, t('invoiceCard.deleteFailed'))
+          if (apiErrorType(error) === 'invoice_approved') {
+            setVoidOffer({ xeroId: invoice.xero_id, number: invoice.number, reason })
+            return
+          }
+          toast.error(reason)
         },
       },
     )
@@ -174,20 +203,19 @@ export function JobInvoiceCard({
     <aside className="rounded-xl border border-slate-200 bg-white">
       <div className="px-3 pt-3 pb-2">
         <h3 className="text-base font-semibold text-gray-900">
-          Invoices <span className="text-sm text-slate-400">({invoices.length})</span>
+          {t('invoiceCard.title')}{' '}
+          <span className="text-sm text-slate-400">({invoices.length})</span>
         </h3>
-        <p className="text-xs text-slate-500">Manage invoices for this job.</p>
+        <p className="text-xs text-slate-500">{t('invoiceCard.subtitle')}</p>
       </div>
 
       <div className="max-h-[20rem] overflow-y-auto px-2 pb-2">
         {invoicesQuery.isError ? (
           // A failed read must not masquerade as the empty state: "No
           // invoices" tells staff it is safe to invoice again.
-          <div className="py-6 text-center text-red-700">
-            Could not load this job&apos;s invoices. Reload the page.
-          </div>
+          <div className="py-6 text-center text-red-700">{t('invoiceCard.loadFailed')}</div>
         ) : invoices.length === 0 ? (
-          <div className="py-6 text-center text-gray-500">No invoices for this project</div>
+          <div className="py-6 text-center text-gray-500">{t('invoiceCard.empty')}</div>
         ) : (
           <ul
             role="list"
@@ -211,7 +239,7 @@ export function JobInvoiceCard({
                           : 'bg-slate-100 text-slate-700'
                       }`}
                     >
-                      {invoice.status}
+                      {xeroInvoiceStatusLabel(invoice.status)}
                     </span>
                   </div>
                   <div className="text-[11px] leading-4 text-slate-500">
@@ -220,7 +248,9 @@ export function JobInvoiceCard({
                 </div>
 
                 <div className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
-                  {formatCurrency(invoice.total_excl_tax)}
+                  {t('invoiceCard.amountExclGst', {
+                    amount: formatCurrency(invoice.total_excl_tax),
+                  })}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -228,7 +258,7 @@ export function JobInvoiceCard({
                     variant="outline"
                     size="icon-sm"
                     data-automation-id={`JobInvoiceCard-open-${invoice.id}`}
-                    aria-label={`Open invoice ${invoice.number} in Xero`}
+                    aria-label={t('invoiceCard.openInXero', { number: invoice.number })}
                     disabled={!invoice.online_url}
                     onClick={() => {
                       if (invoice.online_url) {
@@ -236,7 +266,7 @@ export function JobInvoiceCard({
                         // this window (reverse tabnabbing).
                         window.open(invoice.online_url, '_blank', 'noopener,noreferrer')
                       } else {
-                        toast.error('No online URL available for this invoice.')
+                        toast.error(t('invoiceCard.noOnlineUrl'))
                       }
                     }}
                   >
@@ -246,9 +276,14 @@ export function JobInvoiceCard({
                     variant="destructive"
                     size="icon-sm"
                     data-automation-id={`JobInvoiceCard-delete-${invoice.id}`}
-                    aria-label={`Delete invoice ${invoice.number}`}
-                    disabled={deleteInvoice.isPending}
-                    onClick={() => executeDelete(invoice.xero_id)}
+                    aria-label={t('invoiceCard.delete', { number: invoice.number })}
+                    title={
+                      invoice.status === 'VOIDED'
+                        ? t('invoiceCard.titles.deleteVoided')
+                        : t('invoiceCard.titles.delete')
+                    }
+                    disabled={deleteInvoice.isPending || invoice.status === 'VOIDED'}
+                    onClick={() => executeDelete(invoice, false)}
                   >
                     {deleteInvoice.isPending &&
                     deleteInvoice.variables?.query.xero_invoice_id === invoice.xero_id ? (
@@ -270,44 +305,93 @@ export function JobInvoiceCard({
           <button
             type="button"
             data-automation-id="JobFinishTab-create-invoice"
+            title={t('invoiceCard.titles.create')}
             disabled={createInvoice.isPending || paid || !xeroConnected}
             className="flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-white hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 focus:outline-none disabled:opacity-50"
             onClick={openModal}
           >
             {createInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {createInvoice.isPending
-              ? 'Creating...'
+              ? t('invoiceCard.creating')
               : xeroConnected
-                ? 'Create Invoice'
-                : 'Login to Xero first'}
+                ? t('invoiceCard.create')
+                : t('invoiceCard.loginFirst')}
           </button>
         ) : (
           <p
             data-automation-id="JobFinishTab-fully-invoiced"
             className="text-center text-xs text-slate-500"
           >
-            Fully invoiced — nothing further to invoice.
+            {t('invoiceCard.fullyInvoiced')}
           </p>
         )}
 
         {paid && (
           <p className="text-center text-xs text-slate-500">
-            Job is marked as <strong>Paid</strong>. Unmark &quot;Paid&quot; to create another
-            invoice.
+            <Trans t={t} i18nKey="invoiceCard.paidHint" components={{ strong: <strong /> }} />
           </p>
         )}
       </div>
 
+      <Dialog
+        open={voidOffer !== null}
+        onOpenChange={(open) => {
+          if (!open) setVoidOffer(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md" data-automation-id="JobInvoiceCard-void-offer">
+          <DialogHeader>
+            <DialogTitle>
+              {t('invoiceCard.voidDialog.title', { number: voidOffer?.number ?? '' })}
+            </DialogTitle>
+            <DialogDescription>{voidOffer?.reason}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setVoidOffer(null)}>
+              {t('invoiceCard.cancel')}
+            </Button>
+            <Button
+              variant="outline"
+              data-automation-id="JobInvoiceCard-void-offer-second-invoice"
+              title={secondInvoiceBlocked ?? t('invoiceCard.titles.create')}
+              disabled={secondInvoiceBlocked !== null}
+              onClick={() => {
+                setVoidOffer(null)
+                openModal()
+              }}
+            >
+              {t('invoiceCard.voidDialog.secondInvoice')}
+            </Button>
+            <Button
+              variant="destructive"
+              data-automation-id="JobInvoiceCard-void-offer-void"
+              onClick={() => {
+                if (voidOffer !== null) {
+                  executeDelete({ xero_id: voidOffer.xeroId, number: voidOffer.number }, true)
+                }
+              }}
+            >
+              {t('invoiceCard.voidDialog.void')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Invoice</DialogTitle>
+            <DialogTitle>{t('invoiceCard.dialogTitle')}</DialogTitle>
             <DialogDescription>{modalDescription}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
               <div className="flex justify-between border-t pt-1">
-                <span className="font-medium text-slate-700">Current amount to invoice</span>
+                <span
+                  className="font-medium text-slate-700"
+                  title={t('invoiceCard.titles.currentAmount')}
+                >
+                  {t('invoiceCard.currentAmount')}
+                </span>
                 <span className="font-bold tabular-nums text-orange-600">
                   {formatCurrency(remainingToInvoice)}
                 </span>
@@ -320,12 +404,15 @@ export function JobInvoiceCard({
                   <Button
                     className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                     data-automation-id="JobFinishTab-mode-invoice-full"
+                    title={t('invoiceCard.titles.fullInvoice')}
                     disabled={createInvoice.isPending}
                     onClick={() => executeCreate('invoice_full')}
                   >
                     <span className="font-semibold">{fullInvoiceLabel}</span>
                     <span className="text-xs font-normal opacity-90">
-                      {formatCurrency(remainingToInvoice)} excl GST
+                      {t('invoiceCard.amountExclGst', {
+                        amount: formatCurrency(remainingToInvoice),
+                      })}
                     </span>
                   </Button>
 
@@ -333,12 +420,13 @@ export function JobInvoiceCard({
                     variant="outline"
                     className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                     data-automation-id="JobFinishTab-mode-invoice-percent"
+                    title={t('invoiceCard.titles.percentMode')}
                     disabled={createInvoice.isPending}
                     onClick={() => selectMode('invoice_percent')}
                   >
-                    <span className="font-semibold">Invoice % of quote</span>
+                    <span className="font-semibold">{t('invoiceCard.percentMode')}</span>
                     <span className="text-xs font-normal opacity-70">
-                      Invoice a cumulative percentage of the quoted amount
+                      {t('invoiceCard.percentModeHint')}
                     </span>
                   </Button>
                   {selectedMode === 'invoice_percent' && (
@@ -348,8 +436,8 @@ export function JobInvoiceCard({
                         min="1"
                         max="100"
                         step="0.1"
-                        aria-label="Invoice percentage of quote"
-                        placeholder="e.g. 50"
+                        aria-label={t('invoiceCard.percentInput')}
+                        placeholder={t('invoiceCard.percentPlaceholder')}
                         value={percentInput}
                         className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                         onChange={(event) => setPercentInput(event.target.value)}
@@ -365,7 +453,7 @@ export function JobInvoiceCard({
                         disabled={createInvoice.isPending}
                         onClick={() => executeCreate('invoice_percent')}
                       >
-                        Confirm
+                        {t('invoiceCard.confirm')}
                       </Button>
                     </div>
                   )}
@@ -374,12 +462,13 @@ export function JobInvoiceCard({
                 <Button
                   className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                   data-automation-id="JobFinishTab-mode-invoice-costs-to-date"
+                  title={t('invoiceCard.titles.costsToDate')}
                   disabled={createInvoice.isPending}
                   onClick={() => executeCreate('invoice_costs_to_date')}
                 >
                   <span className="font-semibold">{costsToDateLabel}</span>
                   <span className="text-xs font-normal opacity-90">
-                    {formatCurrency(remainingToInvoice)} excl GST
+                    {t('invoiceCard.amountExclGst', { amount: formatCurrency(remainingToInvoice) })}
                   </span>
                 </Button>
               )}
@@ -388,10 +477,11 @@ export function JobInvoiceCard({
                 variant="outline"
                 className="flex h-auto w-full flex-col items-start gap-1 px-4 py-4"
                 data-automation-id="JobFinishTab-mode-invoice-amount"
+                title={t('invoiceCard.titles.amountMode')}
                 disabled={createInvoice.isPending}
                 onClick={() => selectMode('invoice_amount')}
               >
-                <span className="font-semibold">Invoice $ amount</span>
+                <span className="font-semibold">{t('invoiceCard.amountMode')}</span>
                 <span className="text-xs font-normal opacity-70">{customAmountHint}</span>
               </Button>
               {selectedMode === 'invoice_amount' && (
@@ -400,7 +490,7 @@ export function JobInvoiceCard({
                     type="number"
                     min="0"
                     step="0.01"
-                    aria-label="Invoice amount"
+                    aria-label={t('invoiceCard.amountInput')}
                     placeholder="0.00"
                     value={amountInput}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
@@ -417,7 +507,7 @@ export function JobInvoiceCard({
                     disabled={createInvoice.isPending}
                     onClick={() => executeCreate('invoice_amount')}
                   >
-                    Confirm
+                    {t('invoiceCard.confirm')}
                   </Button>
                 </div>
               )}
@@ -429,7 +519,7 @@ export function JobInvoiceCard({
               disabled={createInvoice.isPending}
               onClick={() => setShowModal(false)}
             >
-              Cancel
+              {t('invoiceCard.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>

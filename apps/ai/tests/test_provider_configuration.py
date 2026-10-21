@@ -69,7 +69,7 @@ def test_default_and_explicit_selection_are_independent(superuser_api: Client) -
     assert resolve_target(AIProviderTypes.OPENAI).provider_name == "Second"
     assert resolve_target(provider=AIProvider.objects.get(pk=first)).provider_name == "First"
     assert superuser_api.delete(f"{URL}{second}/").status_code == 204
-    with pytest.raises(LLMConfigurationError, match="none is marked default"):
+    with pytest.raises(LLMConfigurationError, match="has AI providers but no default one"):
         resolve_target()
 
 

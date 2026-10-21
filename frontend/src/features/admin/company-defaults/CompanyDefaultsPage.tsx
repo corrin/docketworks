@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -31,15 +32,17 @@ import {
 /** The working week the timesheet screens bill against; ported from v1
  *  SectionForm.vue:725-731. Saturday and Sunday have no hours columns —
  *  weekend work is enabled by `weekend_timesheets_enabled`, not by a span. */
-const WORKING_DAYS: readonly { label: string; startKey: string; endKey: string }[] = [
-  { label: 'Monday', startKey: 'mon_start', endKey: 'mon_end' },
-  { label: 'Tuesday', startKey: 'tue_start', endKey: 'tue_end' },
-  { label: 'Wednesday', startKey: 'wed_start', endKey: 'wed_end' },
-  { label: 'Thursday', startKey: 'thu_start', endKey: 'thu_end' },
-  { label: 'Friday', startKey: 'fri_start', endKey: 'fri_end' },
-]
+const WORKING_DAYS = [
+  { day: 'monday', startKey: 'mon_start', endKey: 'mon_end' },
+  { day: 'tuesday', startKey: 'tue_start', endKey: 'tue_end' },
+  { day: 'wednesday', startKey: 'wed_start', endKey: 'wed_end' },
+  { day: 'thursday', startKey: 'thu_start', endKey: 'thu_end' },
+  { day: 'friday', startKey: 'fri_start', endKey: 'fri_end' },
+] as const
 
-const WORKING_HOURS_TIME_KEYS = new Set(WORKING_DAYS.flatMap((day) => [day.startKey, day.endKey]))
+const WORKING_HOURS_TIME_KEYS = new Set<string>(
+  WORKING_DAYS.flatMap((day) => [day.startKey, day.endKey]),
+)
 
 // Carried by the save but never drawn: google_place_id has to be a section
 // field so buildPatch sends it, and the address picker is the only thing that
@@ -53,6 +56,7 @@ export function CompanyDefaultsPage({ section }: { section: string }) {
   // every authenticated page); a second useQuery over the raw generated options
   // would be a sibling cache entry that the save path's setQueryData never
   // reaches, and TimesheetEntryPage already reads it this way.
+  const { t } = useTranslation('admin')
   const defaultsQuery = useQuery(companyDefaultsQueryOptions())
   const schemaQuery = useQuery(companyDefaultsSchemaRetrieveOptions())
 
@@ -61,12 +65,12 @@ export function CompanyDefaultsPage({ section }: { section: string }) {
       className="mx-auto flex max-w-5xl flex-col gap-6 p-6"
       data-automation-id="CompanyDefaultsPage-root"
     >
-      <h1 className="text-2xl font-semibold">Company Defaults</h1>
+      <h1 className="text-2xl font-semibold">{t('companyDefaults.title')}</h1>
       <QueryState
         isPending={defaultsQuery.isPending || schemaQuery.isPending}
         isError={defaultsQuery.isError || schemaQuery.isError}
-        loadingNode={<p className="text-sm text-slate-500">Loading company defaults…</p>}
-        errorNode={<p className="text-sm text-red-700">Could not load company defaults.</p>}
+        loadingNode={<p className="text-sm text-slate-500">{t('companyDefaults.loading')}</p>}
+        errorNode={<p className="text-sm text-red-700">{t('companyDefaults.loadFailed')}</p>}
       >
         {defaultsQuery.data && schemaQuery.data && (
           <SectionShell
@@ -89,11 +93,12 @@ function SectionShell({
   sectionKey: string
   defaults: CompanyDefaultsOut
 }) {
+  const { t } = useTranslation('admin')
   const current = sections.find((candidate) => candidate.key === sectionKey)
   return (
     <>
       <nav
-        aria-label="Settings sections"
+        aria-label={t('companyDefaults.sectionsNav')}
         className="flex flex-wrap gap-1 border-b border-slate-200"
         data-automation-id="CompanyDefaultsPage-section-nav"
       >
@@ -119,7 +124,12 @@ function SectionShell({
         <SectionForm key={current.key} section={current} defaults={defaults} />
       ) : (
         <p className="py-16 text-center text-sm text-slate-500">
-          Unknown section: <code>{sectionKey}</code>
+          <Trans
+            t={t}
+            i18nKey="companyDefaults.unknownSection"
+            values={{ section: sectionKey }}
+            components={{ code: <code /> }}
+          />
         </p>
       )}
     </>
@@ -155,6 +165,7 @@ function SectionForm({
   section: SettingsSectionOut
   defaults: CompanyDefaultsOut
 }) {
+  const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
   const updateMutation = useMutation(companyDefaultsPartialUpdateMutation())
   // Two snapshots, seeded ONCE and advanced together only on a successful save:
@@ -197,9 +208,11 @@ function SectionForm({
       queryClient.setQueryData(companyDefaultsRetrieveQueryKey(), fresh)
       setServer(snapshotSection(fresh, section.fields))
       setDrafts(snapshotSection(fresh, section.fields))
-      toast.success(`${section.title} saved`)
+      toast.success(t('companyDefaults.saved', { section: section.title }))
     } catch (error) {
-      toast.error(apiErrorMessage(error, `Could not save ${section.title}.`))
+      toast.error(
+        apiErrorMessage(error, t('companyDefaults.saveFailed', { section: section.title })),
+      )
     } finally {
       setSaving(false)
     }
@@ -259,12 +272,14 @@ function SectionForm({
               key={day.startKey}
               className="flex flex-col gap-2 rounded-md border border-slate-200 p-3 sm:flex-row sm:items-center sm:gap-4"
             >
-              <span className="text-sm font-medium text-slate-700 sm:w-28">{day.label}</span>
+              <span className="text-sm font-medium text-slate-700 sm:w-28">
+                {t(`companyDefaults.days.${day.day}`)}
+              </span>
               <div className="flex flex-1 gap-2">
                 {(
                   [
-                    ['Start', day.startKey],
-                    ['End', day.endKey],
+                    [t('companyDefaults.start'), day.startKey],
+                    [t('companyDefaults.end'), day.endKey],
                   ] as const
                 ).map(([boundary, key]) => {
                   const field = requireField(fieldsByKey, key)
@@ -296,14 +311,14 @@ function SectionForm({
           onClick={() => setDrafts(server)}
           data-automation-id="CompanyDefaultsPage-cancel-button"
         >
-          Cancel
+          {t('companyDefaults.cancel')}
         </Button>
         <Button
           disabled={saving || !isDirty}
           onClick={() => void save()}
           data-automation-id="CompanyDefaultsPage-save-button"
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('companyDefaults.saving') : t('companyDefaults.save')}
         </Button>
       </div>
     </div>

@@ -21,6 +21,7 @@ import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows, type DraftEntry } from '@/features/shared/useDraftRows'
 import { formatCurrency } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 import {
   emptyPoLineDraft,
   jobsBookableOnPoLine,
@@ -151,23 +152,40 @@ export function PoLinesTable({
       draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
       rowExitHandlers={draftRows.rowExitHandlers}
       tableClassName="w-full min-w-[1190px] table-fixed"
-      columnLayout={COLUMN_LAYOUT}
+      columnLayout={columnLayout()}
     />
   )
 }
 
 const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'price_tbc', 'unit_cost'])
 
-const COLUMN_LAYOUT: Readonly<Record<string, DataTableColumnLayout>> = {
+// A function, not a module constant: the header tooltips are read from the
+// catalogue at render, after i18n has loaded (ADR 0069).
+const columnLayout = (): Readonly<Record<string, DataTableColumnLayout>> => ({
   item: { widthClassName: 'w-[155px] min-[1600px]:w-[180px]' },
   description: {},
-  job: { widthClassName: 'w-[250px] min-[1600px]:w-[330px]' },
+  job: {
+    widthClassName: 'w-[250px] min-[1600px]:w-[330px]',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.job'),
+  },
   quantity: { widthClassName: 'w-[90px]', headerClassName: 'text-right' },
-  price_tbc: { widthClassName: 'w-[74px]', headerClassName: 'text-center' },
-  unit_cost: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
-  total: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
+  price_tbc: {
+    widthClassName: 'w-[74px]',
+    headerClassName: 'text-center',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.priceTbc'),
+  },
+  unit_cost: {
+    widthClassName: 'w-[106px]',
+    headerClassName: 'text-right',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.unitCost'),
+  },
+  total: {
+    widthClassName: 'w-[106px]',
+    headerClassName: 'text-right',
+    headerTitle: i18n.t('purchasing:poLinesTable.titles.total'),
+  },
   actions: { widthClassName: 'w-[38px]' },
-}
+})
 
 type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 
@@ -249,7 +267,7 @@ function DescriptionCell({ row, table }: CellProps) {
         value={field.value}
         disabled={rowLocked(context, gridRow)}
         data-automation-id={`PoLinesTable-description-${rowIndex}`}
-        aria-label={`Description row ${rowIndex}`}
+        aria-label={i18n.t('purchasing:poLinesTable.descriptionRow', { row: rowIndex })}
         className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1"
         onChange={(event) => field.onChange(event.target.value)}
         onFocus={field.onFocus}
@@ -272,11 +290,11 @@ function JobCell({ row, table }: CellProps) {
   return (
     <JobPicker
       automationIdPrefix="JobSelect"
-      ariaLabel={`Job for line ${row.index + 1}`}
+      ariaLabel={i18n.t('purchasing:poLinesTable.jobForLine', { line: row.index + 1 })}
       jobs={context.jobs}
       selected={selected}
       loading={context.jobsLoading}
-      placeholder="Assign job..."
+      placeholder={i18n.t('purchasing:poLinesTable.assignJob')}
       // The line's own job_number/job_name, not the resolved job: a line may
       // hold a job that has since left the bookable list, and the cell must
       // still show what it is bound to.
@@ -347,7 +365,7 @@ function NumberCell({
       value={field.value}
       disabled={rowLocked(context, gridRow) || (fieldName === 'unit_cost' && priceTbc)}
       data-automation-id={`PoLinesTable-${automation}-${rowIndex}`}
-      aria-label={`${automation} row ${rowIndex}`}
+      aria-label={i18n.t('purchasing:poLinesTable.numberRow', { field: automation, row: rowIndex })}
       className="w-full rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
       onChange={(event) => field.onChange(event.target.value)}
       onFocus={field.onFocus}
@@ -368,7 +386,7 @@ function PriceTbcCell({ row, table }: CellProps) {
       checked={checked}
       disabled={rowLocked(context, gridRow)}
       data-automation-id={`PoLinesTable-price-tbc-${rowIndex}`}
-      aria-label={`price to be confirmed row ${rowIndex}`}
+      aria-label={i18n.t('purchasing:poLinesTable.priceTbcRow', { row: rowIndex })}
       className="mx-auto mt-1 block h-4 w-4 accent-blue-600 disabled:opacity-50"
       onChange={(event) => {
         const next = event.target.checked
@@ -402,10 +420,10 @@ function ActionsCell({ row, table }: CellProps) {
       // where that reasoning belongs.)
       disabled={context.readOnly}
       data-automation-id={`PoLinesTable-delete-${rowIndex}`}
-      aria-label={`delete line ${rowIndex}`}
+      aria-label={i18n.t('purchasing:poLinesTable.deleteLine', { row: rowIndex })}
       className="text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
       onClick={() => {
-        if (!window.confirm('Delete this purchase order line?')) return
+        if (!window.confirm(i18n.t('purchasing:poLinesTable.confirmDelete'))) return
         context.deleteLine(gridRow.line.id)
       }}
     >
@@ -437,20 +455,40 @@ const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 // same reason — it is a checkbox, it DOES render on drafts, and after unit
 // cost it would swallow that Tab.
 const COLUMNS = [
-  columnHelper.display({ id: 'item', header: 'Item', cell: ItemCell }),
-  columnHelper.display({ id: 'description', header: 'Description', cell: DescriptionCell }),
-  columnHelper.display({ id: 'job', header: 'Job', cell: JobCell }),
+  columnHelper.display({
+    id: 'item',
+    header: () => i18n.t('purchasing:poLinesTable.header.item'),
+    cell: ItemCell,
+  }),
+  columnHelper.display({
+    id: 'description',
+    header: () => i18n.t('purchasing:poLinesTable.header.description'),
+    cell: DescriptionCell,
+  }),
+  columnHelper.display({
+    id: 'job',
+    header: () => i18n.t('purchasing:poLinesTable.header.job'),
+    cell: JobCell,
+  }),
   columnHelper.display({
     id: 'quantity',
-    header: 'Quantity',
+    header: () => i18n.t('purchasing:poLinesTable.header.quantity'),
     cell: (props: CellProps) => <NumberCell {...props} field="quantity" automation="quantity" />,
   }),
-  columnHelper.display({ id: 'price_tbc', header: 'Price TBC', cell: PriceTbcCell }),
+  columnHelper.display({
+    id: 'price_tbc',
+    header: () => i18n.t('purchasing:poLinesTable.header.priceTbc'),
+    cell: PriceTbcCell,
+  }),
   columnHelper.display({
     id: 'unit_cost',
-    header: 'Unit Cost',
+    header: () => i18n.t('purchasing:poLinesTable.header.unitCost'),
     cell: (props: CellProps) => <NumberCell {...props} field="unit_cost" automation="unit-cost" />,
   }),
-  columnHelper.display({ id: 'total', header: 'Total', cell: TotalCell }),
+  columnHelper.display({
+    id: 'total',
+    header: () => i18n.t('purchasing:poLinesTable.header.total'),
+    cell: TotalCell,
+  }),
   columnHelper.display({ id: 'actions', header: '', cell: ActionsCell }),
 ]

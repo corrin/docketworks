@@ -1,0 +1,175 @@
+{
+  "personSelection": {
+    "invalidEmail": "Please enter a valid email address",
+    "updating": "Updating person...",
+    "updateFailed": "Failed to update person.",
+    "updated": "Person updated successfully!",
+    "deleting": "Deleting person...",
+    "removeFailed": "Failed to remove person.",
+    "removed": "Person removed successfully",
+    "phoneCheckFailed": "Failed to check phone ownership.",
+    "creating": "Creating person...",
+    "createFailed": "Failed to create person. Please check the form and try again.",
+    "created": "Person created successfully!",
+    "matchSelect": "Select person",
+    "matchRestore": "Restore company link",
+    "matchLink": "Link to this company",
+    "linking": "Linking person...",
+    "linked": "Person linked successfully!",
+    "linkFailed": "Failed to link the existing person.",
+    "saving": "Saving...",
+    "update": "Update Person",
+    "create": "Create Person",
+    "title": "Select Person",
+    "company": "Company: <name>{{companyName}}</name>",
+    "phoneInUse": "This phone number is already in use",
+    "phoneOwnedByPeople": "Choose the matching person. Their name and contact details are kept.",
+    "phoneOwnedByCompany": "It belongs to {{companies}} and cannot be assigned to a person.",
+    "phoneInternal": "It is one of our own phone numbers and can't be given to a person.",
+    "noEmail": "No email",
+    "inactiveCompany": "{{companyName}} (inactive)",
+    "noCompanyLinks": "No company links",
+    "createSeparate": "Create a separate person with this shared number",
+    "deleteTitle": "Delete Person?",
+    "deleteConfirm": "Are you sure you want to remove <strong>{{name}}</strong>? The person will be marked as inactive.",
+    "deletePrimaryWarning": "This is the primary person for this company.",
+    "cancelDelete": "Cancel",
+    "confirmDelete": "Delete",
+    "loading": "Loading people...",
+    "loadFailed": "Could not load people.",
+    "retry": "Retry",
+    "existingPeople": "Existing People ({{total}})",
+    "primaryBadge": "Primary",
+    "selectTitle": "Select this person",
+    "selectAria": "Select {{name}}",
+    "select": "Select",
+    "editTitle": "Edit person",
+    "editAria": "Edit {{name}}",
+    "deleteButtonTitle": "Delete person",
+    "deleteAria": "Delete {{name}}",
+    "empty": "No existing people",
+    "emptyHint": "Create a new person to get started",
+    "editHeading": "Edit Person",
+    "createHeading": "Create New Person",
+    "cancelEdit": "Cancel edit",
+    "nameLabel": "Name",
+    "namePlaceholder": "Person name",
+    "positionLabel": "Position",
+    "positionPlaceholder": "Job title/position",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "Phone number",
+    "emailLabel": "Email",
+    "emailPlaceholder": "Email address",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "Additional notes",
+    "setPrimary": "Set as primary person",
+    "autoPrimary": "Automatically set for first person",
+    "cancel": "Cancel",
+    "editOnlyNameEmail": "Editing changes name and email only"
+  },
+  "jobPicker": {
+    "searchPlaceholder": "Search jobs… (job number, name, or company)",
+    "loading": "Jobs are loading…",
+    "noMatches": "No jobs found for \"{{search}}\"",
+    "noJobs": "No jobs available",
+    "otherJobs": "Other jobs",
+    "company": "Company: {{companyName}}",
+    "noCompany": "No Company",
+    "searching": "Searching all jobs…",
+    "searchFailed": "Could not search beyond this screen’s jobs."
+  },
+  "loadMore": {
+    "count": "Showing {{shown}} of {{total}} {{noun}}",
+    "failed": "Loading more failed.",
+    "retrying": "Retrying...",
+    "retry": "Retry",
+    "loading": "Loading more...",
+    "loadMore": "Load more"
+  },
+  "saveFailedBadge": {
+    "label": "Save failed"
+  },
+  "queryState": {
+    "retry": "Retry",
+    "reloadPage": "Reload the page."
+  },
+  "itemSelect": {
+    "searchPlaceholder": "Search items by description, code, or type...",
+    "stockFailed": "Could not load stock items.",
+    "loading": "Loading items…",
+    "noItems": "No items found.",
+    "labourFailed": "Could not load labour rates.",
+    "labourHeading": "Labour",
+    "perHour": "{{rate}}/hr",
+    "stockHeading": "Stock"
+  },
+  "createCompany": {
+    "title": "Add New Company",
+    "description": "Creates the company here and as a contact in Xero.",
+    "nameRequired": "Company name is required",
+    "failed": "Failed to create company.",
+    "nameLabel": "Company Name",
+    "cancel": "Cancel",
+    "submitting": "Creating…",
+    "submit": "Create Company"
+  },
+  "companyLookup": {
+    "placeholder": "Search for a company...",
+    "created": "Company \"{{name}}\" created successfully!",
+    "createFailed": "Failed to create company.",
+    "resultsAria": "{{label}} search results",
+    "addNew": "Add new company \"{{query}}\"",
+    "ctrlEnterHint": "or press Ctrl+Enter",
+    "noResults": "No companies found",
+    "xeroValid": "This company is in Xero",
+    "xeroMissing": "This company isn't in Xero yet",
+    "xeroBadge": "Xero"
+  },
+  "personSelector": {
+    "optional": "(Optional)",
+    "placeholder": "No person selected",
+    "clear": "Clear selection",
+    "selectCompanyFirst": "Please select a company first",
+    "loadFailed": "Could not load people.",
+    "retry": "Retry"
+  },
+  "addressAutocomplete": {
+    "placeholder": "Start typing the street address",
+    "unavailable": "Address lookup is unavailable; type the address by hand.",
+    "candidatesAria": "Address candidates"
+  },
+  "audioPlayer": {
+    "pause": "Pause",
+    "play": "Play",
+    "seek": "Seek"
+  },
+  "dialog": {
+    "close": "Close",
+    "footerClose": "Close"
+  },
+  "commandDialog": {
+    "title": "Command Palette",
+    "description": "Search for a command to run..."
+  },
+  "inlineEditText": {
+    "placeholder": "Click to edit"
+  },
+  "concurrency": {
+    "stocktakeConflictToast": "This stocktake was saved elsewhere. Reload the saved draft to continue.",
+    "stocktakeConflictError": "This stocktake was saved elsewhere. Your entries have been retained.",
+    "stocktakeMissingToast": "Reload the stocktake before saving.",
+    "stocktakeMissingError": "Stocktake version information is missing. Your entries have been retained.",
+    "jobConflictToast": "Someone else changed this job. The screen now shows their changes.",
+    "jobConflictError": "Someone else changed this job. The screen now shows their changes. Make your changes again.",
+    "jobMissingToast": "Missing version information. Job data reloaded.",
+    "jobMissingError": "Missing version information. Job data reloaded. Please retry your changes.",
+    "poConflictToast": "Someone else changed this purchase order. The screen now shows their changes.",
+    "poConflictError": "Someone else changed this purchase order. The screen now shows their changes. Check them, then save again.",
+    "poMissingToast": "Missing version information. Purchase order data has been reloaded - please review before retrying your update.",
+    "poMissingError": "Missing version information. Purchase order data reloaded. Please review and resubmit.",
+    "retry": "Retry"
+  },
+  "unsavedChanges": {
+    "prompt": "You have unsaved changes. Discard them and leave this page?"
+  }
+}

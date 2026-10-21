@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { FileText, Printer } from 'lucide-react'
+import { FileText, Printer, XCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions } from '@/api'
@@ -12,6 +13,7 @@ import { lazy, Suspense } from 'react'
 import type { JobFieldValues } from './delta'
 import { JobAttachmentsTab } from './JobAttachmentsTab'
 import { JobSettingsTab } from './JobSettingsTab'
+import { JobRejectionAction } from './JobRejectionAction'
 import { JobViewTabs } from './JobViewTabs'
 import { printDeliveryDocket, printWorkshopPdf } from './print'
 import type { JobTabKey } from './tabs'
@@ -43,11 +45,6 @@ const JobQuotingChatTab = lazy(() =>
   import('./JobQuotingChatTab').then((module) => ({ default: module.JobQuotingChatTab })),
 )
 
-const PRICING_OPTIONS = [
-  { key: 'fixed_price', label: 'Fixed Price' },
-  { key: 'time_materials', label: 'Time & Materials' },
-]
-
 interface JobDetailPageProps {
   jobId: string
   activeTab: JobTabKey
@@ -62,6 +59,7 @@ interface JobDetailPageProps {
  * into this page).
  */
 export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPageProps) {
+  const { t } = useTranslation('job')
   const jobQuery = useSuspenseQuery(getFullJobOptions({ path: { job_id: jobId } }))
   const job = jobQuery.data.data.job
   const statusValues = useQuery(jobJobsStatusValuesRetrieveOptions())
@@ -71,7 +69,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
     save(baseline, changes).catch((error: unknown) => {
       // The concurrency interceptor already toasts 412/428 with a Retry.
       if (!isConcurrencyError(error)) {
-        toast.error(apiErrorMessage(error, 'Failed to save the job.'))
+        toast.error(apiErrorMessage(error, t('detailPage.saveFailed')))
       }
     })
   }
@@ -81,7 +79,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span data-automation-id="JobView-job-number" className="text-xl font-bold text-gray-900">
-            Job #{job.job_number} -
+            {t('detailPage.jobNumber', { jobNumber: job.job_number })}
           </span>
           <InlineEditText
             value={job.name}
@@ -102,18 +100,31 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
               onCommit={(job_status) => saveField({ job_status: job.job_status }, { job_status })}
             />
           ) : statusValues.isError ? (
-            <span className="text-sm text-red-600">Status choices failed to load</span>
+            <span className="text-sm text-red-600">{t('detailPage.statusChoicesFailed')}</span>
           ) : null}
           <InlineEditSelect
             automationId="JobView-pricing-method"
             value={job.pricing_methodology}
-            options={PRICING_OPTIONS}
+            options={[
+              { key: 'fixed_price', label: t('detailPage.pricing.fixedPrice') },
+              { key: 'time_materials', label: t('detailPage.pricing.timeMaterials') },
+            ]}
             onCommit={(pricing_methodology) =>
               saveField({ pricing_methodology: job.pricing_methodology }, { pricing_methodology })
             }
           />
+          {job.rejected_flag && (
+            <span
+              data-automation-id="JobView-rejected-badge"
+              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
+            >
+              <XCircle className="h-4 w-4" aria-hidden="true" />
+              {t('detailPage.rejected')}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <JobRejectionAction key={jobId} job={job} />
           <Button
             type="button"
             variant="outline"
@@ -124,7 +135,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
             }}
           >
             <Printer className="h-4 w-4" />
-            Workshop PDF
+            {t('detailPage.workshopPdf')}
           </Button>
           <Button
             type="button"
@@ -136,7 +147,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
             }}
           >
             <FileText className="h-4 w-4" />
-            Delivery Docket
+            {t('detailPage.deliveryDocket')}
           </Button>
         </div>
       </div>
@@ -156,31 +167,43 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
         ) : activeTab === 'attachments' ? (
           <JobAttachmentsTab key={jobId} jobId={jobId} />
         ) : activeTab === 'finishJob' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobFinishTab key={jobId} jobId={jobId} job={job} />
           </Suspense>
         ) : activeTab === 'quote' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobQuoteTab key={jobId} jobId={jobId} job={job} />
           </Suspense>
         ) : activeTab === 'estimate' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobEstimateTab key={jobId} jobId={jobId} />
           </Suspense>
         ) : activeTab === 'actual' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobActualTab key={jobId} jobId={jobId} />
           </Suspense>
         ) : activeTab === 'quotingChat' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobQuotingChatTab key={jobId} jobId={jobId} />
           </Suspense>
         ) : activeTab === 'history' ? (
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <Suspense
+            fallback={<div className="p-6 text-sm text-gray-500">{t('detailPage.loading')}</div>}
+          >
             <JobHistoryTab key={jobId} jobId={jobId} />
           </Suspense>
         ) : (
-          <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
+          <div className="p-6 text-sm text-gray-500">{t('detailPage.laterSlice')}</div>
         )}
       </div>
     </div>

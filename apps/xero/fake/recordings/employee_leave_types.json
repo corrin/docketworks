@@ -1,0 +1,106 @@
+{
+  "recorded_at": "2026-10-18T08:00:33+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees/c41e2d0e-2606-4598-b199-0aa532058aee/LeaveTypes",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "890",
+      "X-MinLimit-Remaining": "50"
+    }
+  },
+  "body": {
+    "id": "f3316a45-8372-4911-81ed-78ced40ca399",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-10-18T08:00:48.5468514",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "leaveTypes": [
+      {
+        "leaveTypeID": "e7f56407-ec34-4a8c-9bf4-df61bc6a6951",
+        "scheduleOfAccrual": "PercentageOfGrossEarnings",
+        "hoursAccruedAnnually": 0.0,
+        "unitsAccruedAnnually": 0.0,
+        "maximumToAccrue": 0.0,
+        "openingBalance": 0.0,
+        "rateAccruedHourly": null,
+        "percentageOfGrossEarnings": 8.0,
+        "includeHolidayPayEveryPay": false,
+        "showAnnualLeaveInAdvance": null,
+        "annualLeaveTotalAmountPaid": null,
+        "scheduleOfAccrualDate": null,
+        "openingBalanceTypeOfUnits": "Dollars",
+        "typeOfUnitsToAccrue": "Dollars"
+      },
+      {
+        "leaveTypeID": "02183a11-559d-487f-9a25-fd35723c5505",
+        "scheduleOfAccrual": "OnAnniversaryDate",
+        "hoursAccruedAnnually": 0.0,
+        "unitsAccruedAnnually": 0.0,
+        "maximumToAccrue": 0.0,
+        "openingBalance": 160.0,
+        "rateAccruedHourly": null,
+        "percentageOfGrossEarnings": 0.0,
+        "includeHolidayPayEveryPay": null,
+        "showAnnualLeaveInAdvance": true,
+        "annualLeaveTotalAmountPaid": null,
+        "scheduleOfAccrualDate": null,
+        "openingBalanceTypeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "3061bd30-903e-45fb-ad56-c41cfa4994ca",
+        "scheduleOfAccrual": "AnnuallyAfter6Months",
+        "hoursAccruedAnnually": 80.0,
+        "unitsAccruedAnnually": 80.0,
+        "maximumToAccrue": 80.0,
+        "openingBalance": 80.0,
+        "rateAccruedHourly": null,
+        "percentageOfGrossEarnings": 0.0,
+        "includeHolidayPayEveryPay": null,
+        "showAnnualLeaveInAdvance": null,
+        "annualLeaveTotalAmountPaid": null,
+        "scheduleOfAccrualDate": null,
+        "openingBalanceTypeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      }
+    ]
+  }
+}

@@ -45,6 +45,36 @@ echo "Green: merge. Red: the loop in docs/dependency-sweep.md. A pin this sweep 
 echo "a gate rejects goes back to its previous version with a dated deferral beside it."
 echo
 
+# Runtimes first: the packages below are installed and locked by these. Their version files
+# log what the sweep ran on, so every runtime is checked against the newest stable release and
+# the run stops on an older one rather than logging it (CI: setup-node `latest`; by hand:
+# `nvm install node`).
+newest_node=$(curl -fsS https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["version"])')
+if [[ "$(node --version)" != "$newest_node" ]]; then
+    echo "ERROR: the sweep runs on Node $newest_node; this shell has $(node --version)." >&2
+    exit 1
+fi
+newest_python=$(uv python list --only-downloads --output-format json | python3 -c '
+import json, re, sys
+stable = [p["version"] for p in json.load(sys.stdin)
+          if p["implementation"] == "cpython" and p["variant"] == "default"
+          and re.fullmatch(r"\d+\.\d+\.\d+", p["version"])]
+print(max(stable, key=lambda v: tuple(map(int, v.split(".")))))')
+python_minor=${newest_python%.*}
+before_runtimes=$(printf 'node %s\npython %s\n' "$(cat frontend/.nvmrc)" "$(cat .python-version)")
+echo "${newest_node#v}" > frontend/.nvmrc
+echo "$newest_python" > .python-version
+sed -i -E "s/^requires-python = .*/requires-python = \"==${python_minor}.*\"/" pyproject.toml
+sed -i -E "s/^target-version = \"py[0-9]+\"/target-version = \"py${python_minor/./}\"/" pyproject.toml
+uv run --quiet pre-commit autoupdate >/dev/null
+after_runtimes=$(printf 'node %s\npython %s\n' "$(cat frontend/.nvmrc)" "$(cat .python-version)")
+echo "## Runtimes and hooks"
+echo
+report_moves "$before_runtimes" "$after_runtimes"
+echo
+echo "Pre-commit hook revisions: \`pre-commit autoupdate\`; the diff shows what moved."
+echo
+
 before_frontend=$(snapshot_frontend)
 (cd frontend && npx --yes npm-check-updates --target latest -u >/dev/null)
 (cd frontend && npm install --no-fund --no-audit >/dev/null)

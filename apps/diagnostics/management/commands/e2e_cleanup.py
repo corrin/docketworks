@@ -35,6 +35,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 from django.db.models import Model, Q, QuerySet
 
+from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
@@ -47,6 +48,7 @@ from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import delete_local_recording
 from apps.diagnostics.services.e2e_xero_residue import (
     RemovalOutcome,
+    ResidueInvoice,
     XeroResidue,
     remove_residue_from_xero,
 )
@@ -318,7 +320,14 @@ class Command(BaseCommand):
             # because Xero answered a create, so there is no unpushed case to
             # filter. PurchaseOrder.xero_id and Company.xero_contact_id are
             # nullable and the filters below are that difference, not guards.
-            invoices={str(invoice.xero_id): invoice.number for invoice in invoices},
+            # A voided or deleted invoice is already gone from Xero's books, as
+            # the organisation sweep's REMOVED_DOCUMENT_STATUSES says too.
+            invoices={
+                str(invoice.xero_id): _residue_invoice(invoice)
+                for invoice in invoices.select_related("company").exclude(
+                    status__in=[InvoiceStatus.VOIDED, InvoiceStatus.DELETED]
+                )
+            },
             # Quotes are labelled by their Xero id, not their number: the
             # number column is nullable, and a label that is sometimes absent
             # is worse in a refusal line than one that is always the value you
@@ -411,3 +420,15 @@ class Command(BaseCommand):
         """Delete one category and report Django's cascade details."""
         count, details = queryset.delete()
         self.stdout.write(f"  {label}: {count} objects ({details})")
+
+
+def _residue_invoice(invoice: Invoice) -> ResidueInvoice:
+    contact_id = invoice.company.xero_contact_id
+    if contact_id is None:
+        raise CommandError(f"Invoice {invoice.number} names a company not linked to Xero.")
+    return ResidueInvoice(
+        label=invoice.number,
+        contact_id=contact_id,
+        date=invoice.date,
+        approved=invoice.status == InvoiceStatus.AUTHORISED,
+    )

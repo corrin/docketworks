@@ -40,6 +40,7 @@ from django.core.management.base import BaseCommand, CommandParser
 from apps.core.test_data import TEST_COMPANY_NAME, is_e2e_name, is_test_company_name
 from apps.diagnostics.services.e2e_xero_residue import (
     RemovalOutcome,
+    ResidueInvoice,
     XeroResidue,
     remove_residue_from_xero,
 )
@@ -100,6 +101,7 @@ class Command(BaseCommand):
     def _find_residue(self) -> XeroResidue:
         """Read the organisation and keep what only E2E could have created."""
         documents: dict[str, dict[str, str]] = {entity: {} for entity, _, _ in DOCUMENT_ENTITIES}
+        invoices: dict[str, ResidueInvoice] = {}
         for entity, id_attribute, number_attribute in DOCUMENT_ENTITIES:
             found = documents[entity]
             for item in iter_xero_entities(entity):
@@ -115,10 +117,17 @@ class Command(BaseCommand):
                 if number is None:
                     raise ValueError(f"Xero {entity} {xero_id} carries no {number_attribute}")
                 found[str(xero_id)] = str(number)
+                if entity == "invoices":
+                    invoices[str(xero_id)] = ResidueInvoice(
+                        label=str(number),
+                        contact_id=item.contact.contact_id,
+                        date=item.date,
+                        approved=status == "AUTHORISED",
+                    )
             self.stdout.write(f"  {entity}: {len(found)} to remove")
 
         return XeroResidue(
-            invoices=documents["invoices"],
+            invoices=invoices,
             quotes=documents["quotes"],
             purchase_orders=documents["purchase_orders"],
             contacts=self._find_contacts(),

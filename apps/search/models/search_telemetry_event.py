@@ -6,6 +6,7 @@ from typing import ClassVar
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 
 class SearchTelemetryEvent(models.Model):
@@ -14,15 +15,15 @@ class SearchTelemetryEvent(models.Model):
     class EventType(models.TextChoices):
         """Kind of telemetry event recorded."""
 
-        SEARCH = "search", "Search"
-        CLICK = "click", "Click"
+        SEARCH = "search", gettext_lazy("Search")
+        CLICK = "click", gettext_lazy("Click")
 
     class Domain(models.TextChoices):
         """Search domain the event belongs to."""
 
-        COMPANY = "company", "Company"
-        KANBAN = "kanban", "Kanban"
-        STOCK = "stock", "Stock"
+        COMPANY = "company", gettext_lazy("Company")
+        KANBAN = "kanban", gettext_lazy("Kanban")
+        STOCK = "stock", gettext_lazy("Stock")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event_type = models.CharField(max_length=20, choices=EventType.choices)

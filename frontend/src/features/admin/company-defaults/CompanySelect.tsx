@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { companiesAllListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
@@ -10,13 +11,14 @@ import type { SettingsFieldControlProps } from './SettingsFieldInput'
  * raw-select house style rather than a searchable combobox, because the list
  * is short enough that scanning it beats typing into it. */
 export function CompanySelect({ field, value, onChange, section }: SettingsFieldControlProps) {
+  const { t } = useTranslation('admin')
   const companiesQuery = useQuery(companiesAllListOptions())
   const automationId = fieldAutomationId(section, field.key)
 
   if (companiesQuery.isError) {
     return (
       <p className="text-xs text-red-700" data-automation-id={`${automationId}-error`}>
-        Could not load companies.
+        {t('companySelect.loadFailed')}
       </p>
     )
   }

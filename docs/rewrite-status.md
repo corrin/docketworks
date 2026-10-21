@@ -38,21 +38,18 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **67 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **69 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 278 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3691 collected |
+| API operations v2 exposes | 279 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3771 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
-| ADRs | 42 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064 written here) |
+| ADRs | 45 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064, 0067–0069 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
 is done only when that spec is green.
-
-PR #190 browser acceptance: run `job/job-history.spec.ts` and
-`timesheet/move-entry.spec.ts` after fixing the local fake seed setup.
 
 **Record every rename by hand as you port an operation.** 17 `workflow_*` operations
 are still to come, and `scripts/v1-frontend-operations.yml` is where a rename is

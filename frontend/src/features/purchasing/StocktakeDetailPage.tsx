@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -34,14 +35,15 @@ function draftRows(count: StocktakeDetail): CountRow[] {
   }))
 }
 export function StocktakeDetailPage({ stocktakeId }: { stocktakeId: string }) {
+  const { t } = useTranslation('purchasing')
   const count = useQuery(stocktakeRetrieveOptions({ path: { id: stocktakeId } }))
   return (
     <QueryState
       isPending={count.isPending}
       isError={count.isError && count.data === undefined}
       onRetry={() => void count.refetch()}
-      loadingLabel="Loading count…"
-      errorLabel="Unable to load count."
+      loadingLabel={t('stocktakeDetail.loading')}
+      errorLabel={t('stocktakeDetail.loadFailed')}
     >
       {count.data && (
         <StocktakeEditor
@@ -69,6 +71,7 @@ function StocktakeEditor({
   count: StocktakeDetail
   refresh: () => Promise<StocktakeDetail>
 }) {
+  const { t } = useTranslation('purchasing')
   const navigate = useNavigate()
   const cache = useQueryClient()
   const [rows, setRows] = useState(() => draftRows(count))
@@ -113,7 +116,7 @@ function StocktakeEditor({
     try {
       await Promise.all([refresh(), refreshStock()])
     } catch {
-      toast.error('Unable to refresh. Your entries have been retained.')
+      toast.error(t('stocktakeDetail.refreshFailed'))
     }
   }
   const reloadSaved = async () => {
@@ -125,7 +128,7 @@ function StocktakeEditor({
       update.reset()
       post.reset()
     } catch {
-      toast.error('Unable to reload. Your entries have been retained.')
+      toast.error(t('stocktakeDetail.reloadFailed'))
     } finally {
       setReloading(false)
     }
@@ -148,7 +151,7 @@ function StocktakeEditor({
   }
   const save = () => {
     if (rows.some((row) => row.unitCostInput === '')) {
-      toast.error('Enter a unit cost for every found item.')
+      toast.error(t('stocktakeDetail.unitCostRequired'))
       return
     }
     const lines: StocktakeLineWrite[] = rows.map((row) => ({
@@ -167,7 +170,7 @@ function StocktakeEditor({
       {
         onSuccess: (saved) => {
           accepted(saved)
-          toast.success('Draft saved')
+          toast.success(t('stocktakeDetail.draftSaved'))
         },
         onError: failed,
       },
@@ -213,19 +216,29 @@ function StocktakeEditor({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link className="text-blue-700 underline" to="/purchasing/stocktakes">
-            Stocktakes
+            {t('stocktakeDetail.backToList')}
           </Link>
-          <h1 className="text-xl font-bold">Stocktake · {formatDateTime(count.created_at)}</h1>
+          <h1 className="text-xl font-bold">
+            {t('stocktakeDetail.title', { date: formatDateTime(count.created_at) })}
+          </h1>
           <p>
-            {readOnly ? 'Posted' : dirty ? 'Unsaved count' : 'Draft'} · {count.author}
+            {t('stocktakeDetail.stateAndAuthor', {
+              state: readOnly
+                ? t('stocktakeDetail.posted')
+                : dirty
+                  ? t('stocktakeDetail.unsaved')
+                  : t('stocktakeDetail.draft'),
+              author: count.author,
+            })}
           </p>
         </div>
         <Link
           className="text-blue-700 underline"
           to="/jobs/$jobId"
           params={{ jobId: count.adjustment_job_id }}
+          title={t('stocktakeDetail.adjustmentJobTitle')}
         >
-          Stocktake Adjustments job
+          {t('stocktakeDetail.adjustmentJob')}
         </Link>
       </div>
       {count.corrects_id && (
@@ -233,24 +246,32 @@ function StocktakeEditor({
           className="text-blue-700 underline"
           to="/purchasing/stocktakes/$stocktakeId"
           params={{ stocktakeId: count.corrects_id }}
+          title={t('stocktakeDetail.originalTitle')}
         >
-          Original stocktake
+          {t('stocktakeDetail.original')}
         </Link>
       )}
-      <p>
-        Count unassigned workshop material. Leave uncounted items blank; enter zero when nothing is
-        present.
-      </p>
+      <p>{t('stocktakeDetail.instructions')}</p>
       <EntryGridSection
-        title="Physical count"
+        title={t('stocktakeDetail.physicalCount')}
         actions={
           !readOnly && (
             <div className="flex gap-2">
-              <Button variant="outline" disabled={busy} onClick={() => setShowPicker(!showPicker)}>
-                {showPicker ? 'Hide stock search' : 'Add stock to count'}
+              <Button
+                variant="outline"
+                disabled={busy}
+                title={showPicker ? undefined : t('stocktakeDetail.showPickerTitle')}
+                onClick={() => setShowPicker(!showPicker)}
+              >
+                {showPicker ? t('stocktakeDetail.hidePicker') : t('stocktakeDetail.showPicker')}
               </Button>
-              <Button variant="outline" disabled={busy} onClick={addFound}>
-                Add found item
+              <Button
+                variant="outline"
+                disabled={busy}
+                title={t('stocktakeDetail.addFoundTitle')}
+                onClick={addFound}
+              >
+                {t('stocktakeDetail.addFound')}
               </Button>
             </div>
           )
@@ -292,34 +313,40 @@ function StocktakeEditor({
             )
           }}
         />
-        <p className="mt-3">
-          {rows.length} items · {rows.filter((row) => row.counted_quantity !== null).length} counted
+        <p className="mt-3" title={t('stocktakeDetail.progressTitle')}>
+          {t('stocktakeDetail.progress', {
+            items: rows.length,
+            counted: rows.filter((row) => row.counted_quantity !== null).length,
+          })}
         </p>
       </EntryGridSection>
       {conflicted && (
         <div role="alert">
-          <p>
-            This draft was saved elsewhere. Reloading will replace your retained entries with the
-            saved draft.
-          </p>
+          <p>{t('stocktakeDetail.conflict')}</p>
           <Button variant="outline" disabled={reloading} onClick={() => void reloadSaved()}>
-            Reload saved draft
+            {t('stocktakeDetail.reloadSaved')}
           </Button>
         </div>
       )}
       {error && (
         <p role="alert" className="text-red-700">
-          {apiErrorMessage(error, 'Unable to save stocktake. Your entries have been retained.')}
+          {apiErrorMessage(error, t('stocktakeDetail.saveFailed'))}
         </p>
       )}
       <div className="flex flex-wrap gap-3">
         {!readOnly && (
           <>
-            <Button variant="outline" disabled={busy || !dirty} onClick={save}>
-              Save draft
+            <Button
+              variant="outline"
+              disabled={busy || !dirty}
+              title={t('stocktakeDetail.saveDraftTitle')}
+              onClick={save}
+            >
+              {t('stocktakeDetail.saveDraft')}
             </Button>
             <Button
               disabled={busy || dirty || !rows.some((row) => row.counted_quantity !== null)}
+              title={t('stocktakeDetail.postTitle')}
               onClick={() =>
                 post.mutate(
                   { path: { id: count.id }, headers: { 'If-Match': version } },
@@ -327,31 +354,35 @@ function StocktakeEditor({
                     onSuccess: (saved) => {
                       accepted(saved)
                       void refreshStock().catch(() =>
-                        toast.error('Posted, but current stock could not be refreshed.'),
+                        toast.error(t('stocktakeDetail.postedRefreshFailed')),
                       )
-                      toast.success('Stocktake posted')
+                      toast.success(t('stocktakeDetail.stocktakePosted'))
                     },
                     onError: failed,
                   },
                 )
               }
             >
-              Post stocktake
+              {t('stocktakeDetail.post')}
             </Button>
             <Button
               variant="ghost"
               disabled={busy}
+              title={t('stocktakeDetail.checkStockTitle')}
               onClick={() =>
-                void refreshStock().catch(() => toast.error('Unable to refresh current stock.'))
+                void refreshStock().catch(() =>
+                  toast.error(t('stocktakeDetail.stockRefreshFailed')),
+                )
               }
             >
-              Check current stock
+              {t('stocktakeDetail.checkStock')}
             </Button>
           </>
         )}
         {readOnly && (
           <Button
             disabled={busy}
+            title={t('stocktakeDetail.createCorrectionTitle')}
             onClick={() =>
               correct.mutate(
                 { path: { id: count.id }, headers: { 'If-Match': version } },
@@ -365,20 +396,17 @@ function StocktakeEditor({
               )
             }
           >
-            Create correction
+            {t('stocktakeDetail.createCorrection')}
           </Button>
         )}
       </div>
       {readOnly && (
-        <EntryGridSection title="Posted movements">
+        <EntryGridSection title={t('stocktakeDetail.postedMovements')}>
           <StocktakeMovementHistory countId={count.id} />
         </EntryGridSection>
       )}
       {count.posted_at !== null && (
-        <p>
-          Posted {formatDateTime(count.posted_at)}. Surplus moves from the adjustment job into
-          workshop stock; shortages move the other way.
-        </p>
+        <p>{t('stocktakeDetail.postedNote', { date: formatDateTime(count.posted_at) })}</p>
       )}
     </div>
   )

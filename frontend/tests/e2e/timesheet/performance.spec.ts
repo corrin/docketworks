@@ -1,5 +1,4 @@
-import type { Page } from '@playwright/test'
-
+import { getWorkshopStaff } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 import { getLatestWeekdayDate } from './support'
 
@@ -10,20 +9,10 @@ import { getLatestWeekdayDate } from './support'
  * rather than failing, exactly as in v1.
  */
 
-async function firstStaffId(page: Page, date: string): Promise<string> {
-  await page.goto(`/timesheets/daily?date=${date}`)
-  const firstStaff = page.locator('[data-automation-id^="StaffRow-name-"]').first()
-  await firstStaff.waitFor({ timeout: 10000 })
-  const automationId = await firstStaff.getAttribute('data-automation-id')
-  const staffId = automationId?.replace('StaffRow-name-', '')
-  if (!staffId) throw new Error(`Could not derive staffId from ${automationId}`)
-  return staffId
-}
-
 test.describe('timesheet entry performance', () => {
   test('measure page load time and network requests', async ({ authenticatedPage: page }) => {
     const date = getLatestWeekdayDate()
-    const staffId = await firstStaffId(page, date)
+    const staffId = (await getWorkshopStaff(page)).id
 
     const requests: { url: string; start: number; end?: number }[] = []
     const t0 = Date.now()
@@ -67,7 +56,7 @@ test.describe('timesheet entry performance', () => {
 
   test('measure sequential vs parallel API behavior', async ({ authenticatedPage: page }) => {
     const date = getLatestWeekdayDate()
-    const staffId = await firstStaffId(page, date)
+    const staffId = (await getWorkshopStaff(page)).id
 
     const timings: { url: string; start: number; end: number }[] = []
     const t0 = Date.now()

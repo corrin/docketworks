@@ -4,6 +4,7 @@ from typing import ClassVar
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class IntegrationSettings(models.Model):
@@ -60,8 +61,8 @@ class IntegrationSettings(models.Model):
         # scrub contract. The physical rename belongs to the post-cutover
         # "purge v1/v2 names" sweep in docs/rewrite-status.md.
         db_table = "crm_phoneprovidersettings"
-        verbose_name = "Integration Settings"
-        verbose_name_plural = "Integration Settings"
+        verbose_name = gettext_lazy("Integration Settings")
+        verbose_name_plural = gettext_lazy("Integration Settings")
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
                 condition=~models.Q(chatkit_domain_key=""),
@@ -97,7 +98,7 @@ class IntegrationSettings(models.Model):
         return "integration settings"
 
     @classmethod
-    def get_solo(cls) -> "IntegrationSettings":
+    def get_solo(cls) -> IntegrationSettings:
         """Return the singleton. Never creates one — reads do not write.
 
         Fable: the row is created by core/0003 on a fresh install and by

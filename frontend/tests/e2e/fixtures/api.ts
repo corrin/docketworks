@@ -2,6 +2,8 @@
 import type { Page } from '@playwright/test'
 import { z } from 'zod'
 
+import { e2eCredentials } from './auth'
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -108,6 +110,35 @@ export async function getStaffList(page: Page): Promise<StaffListItem[]> {
     throw new Error(`Staff list read failed: ${response.status()} ${await response.text()}`)
   }
   return z.array(staffListItemSchema).parse(await response.json())
+}
+
+/**
+ * The workshop E2E login's staff row: the one person every staff-picking spec
+ * names. e2e_ensure_fixtures makes it an hourly Xero payroll employee in every
+ * environment, rostered Monday to Friday, so it is on every timesheet.
+ */
+export async function getWorkshopStaff(page: Page): Promise<StaffListItem> {
+  const username = e2eCredentials('workshop').username.toLowerCase()
+  const staff = (await getStaffList(page)).find(
+    (member) => member.office_email?.toLowerCase() === username,
+  )
+  if (staff === undefined) {
+    throw new Error(`No staff row has office_email ${username}: run manage.py e2e_ensure_fixtures.`)
+  }
+  return staff
+}
+
+/** The workshop login as the timesheet screens list it on a date. */
+export async function getWorkshopTimesheetStaff(page: Page, date: string): Promise<TimesheetStaff> {
+  const { id } = await getWorkshopStaff(page)
+  const staff = (await getTimesheetStaff(page, date)).find((member) => member.id === id)
+  if (staff === undefined) {
+    throw new Error(
+      `The workshop login is not on the timesheet for ${date}: it must be a Xero payroll ` +
+        'employee employed that day (run manage.py e2e_ensure_fixtures).',
+    )
+  }
+  return staff
 }
 
 const payRunListSchema = z.object({

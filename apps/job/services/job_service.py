@@ -30,6 +30,8 @@ from django.db.models import (
 )
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.functional import Promise
+from django.utils.translation import gettext, gettext_lazy
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
@@ -121,7 +123,7 @@ class JobDeltaPayload:
     current_values: dict[str, object] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, object]) -> "JobDeltaPayload":
+    def from_dict(cls, payload: Mapping[str, object]) -> JobDeltaPayload:
         """Build a payload from a JSON mapping, failing early on bad structure."""
         required_keys = {"change_id", "fields", "before", "after", "before_checksum"}
         missing = required_keys - payload.keys()
@@ -478,21 +480,21 @@ class JobBasicInformationData(TypedDict):
 # ── Serialisation builders ───────────────────────────────────────────────
 
 # Map internal field names to user-friendly labels for undo descriptions.
-_UNDO_FIELD_LABELS: dict[str, str] = {
-    "name": "job name",
-    "description": "description",
-    "status": "status",
-    "order_number": "order number",
-    "notes": "notes",
-    "company_id": "company",
-    "person_id": "person",
-    "delivery_date": "delivery date",
-    "job_status": "status",
-    "paid": "payment status",
-    "job_is_valid": "validity",
-    "rejected_flag": "rejection status",
-    "rdti_type": "RDTI classification",
-    "pricing_methodology": "pricing method",
+_UNDO_FIELD_LABELS: dict[str, Promise] = {
+    "name": gettext_lazy("job name"),
+    "description": gettext_lazy("description"),
+    "status": gettext_lazy("status"),
+    "order_number": gettext_lazy("order number"),
+    "notes": gettext_lazy("notes"),
+    "company_id": gettext_lazy("company"),
+    "person_id": gettext_lazy("person"),
+    "delivery_date": gettext_lazy("delivery date"),
+    "job_status": gettext_lazy("status"),
+    "paid": gettext_lazy("payment status"),
+    "job_is_valid": gettext_lazy("validity"),
+    "rejected_flag": gettext_lazy("rejection status"),
+    "rdti_type": gettext_lazy("RDTI classification"),
+    "pricing_methodology": gettext_lazy("pricing method"),
 }
 
 
@@ -510,17 +512,20 @@ def _undo_info(event: JobEvent) -> tuple[bool, str | None]:
     meta = event.delta_meta or {}
     fields = meta.get("fields", [])
     if not fields:
-        return True, f"Undo '{event.description}'"
+        return True, gettext("Undo '%(description)s'") % {"description": event.description}
 
     field_names = [
-        _UNDO_FIELD_LABELS.get(str(field_name), str(field_name).replace("_", " "))
+        str(_UNDO_FIELD_LABELS.get(str(field_name), str(field_name).replace("_", " ")))
         for field_name in fields
     ]
     if len(field_names) == 1:
-        return True, f"Undo change to {field_names[0]}"
+        return True, gettext("Undo change to %(field)s") % {"field": field_names[0]}
     if len(field_names) <= 3:
-        return True, f"Undo changes to {', '.join(field_names[:-1])} and {field_names[-1]}"
-    return True, f"Undo changes to {len(field_names)} fields"
+        return True, gettext("Undo changes to %(fields)s and %(last)s") % {
+            "fields": ", ".join(field_names[:-1]),
+            "last": field_names[-1],
+        }
+    return True, gettext("Undo changes to %(count)s fields") % {"count": len(field_names)}
 
 
 def job_event_data(event: JobEvent) -> JobEventData:
@@ -813,19 +818,22 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
     )
 
     if not data.get("name"):
-        raise ValueError("Job name is required")
+        raise ValueError(gettext("Job name is required"))
     if not data.get("company_id"):
-        raise ValueError("Company is required")
+        raise ValueError(gettext("Company is required"))
 
     try:
         company = Company.objects.get(id=data["company_id"])
     except Company.DoesNotExist as exc:
-        raise ValueError("Company not found") from exc
+        raise ValueError(gettext("Company not found")) from exc
 
     if not company.allow_jobs:
         raise ValueError(
-            f"Company '{company.name}' is not permitted for jobs. "
-            f"Update the company to allow jobs if this is wrong."
+            gettext(
+                "Company '%(company)s' is not permitted for jobs. "
+                "Update the company to allow jobs if this is wrong."
+            )
+            % {"company": company.name}
         )
 
     job = Job(name=data["name"], company=company, created_by=user)
@@ -845,7 +853,9 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
         try:
             job.person = Person.objects.get(id=person_id)
         except Person.DoesNotExist as exc:
-            raise ValueError(f"Person with id {person_id} not found") from exc
+            raise ValueError(
+                gettext("Person with id %(person_id)s not found") % {"person_id": person_id}
+            ) from exc
 
     if "is_urgent" in data:
         job.is_urgent = data["is_urgent"]
@@ -853,9 +863,9 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
     estimated_materials = data.get("estimated_materials")
     estimated_time = data.get("estimated_time")
     if estimated_materials is None:
-        raise ValueError("estimated_materials is required")
+        raise ValueError(gettext("estimated_materials is required"))
     if estimated_time is None:
-        raise ValueError("estimated_time is required")
+        raise ValueError(gettext("estimated_time is required"))
 
     with transaction.atomic():
         # Job.save() resolves the default "Ordinary Time" pay item (the one
@@ -1005,7 +1015,7 @@ def get_job_for_edit(job_id: UUID) -> JobEditData:
     try:
         job = Job.objects.select_related("company").get(id=job_id)
     except Job.DoesNotExist as exc:
-        raise ValueError(f"Job with id {job_id} not found") from exc
+        raise ValueError(gettext("Job with id %(job_id)s not found") % {"job_id": job_id}) from exc
 
     events = JobEvent.objects.filter(job=job).select_related("staff").order_by("-timestamp")
     return {
@@ -1020,7 +1030,7 @@ def get_job_summary(job_id: UUID) -> JobEditData:
     try:
         job = Job.objects.select_related("company").get(id=job_id)
     except Job.DoesNotExist as exc:
-        raise ValueError(f"Job with id {job_id} not found") from exc
+        raise ValueError(gettext("Job with id %(job_id)s not found") % {"job_id": job_id}) from exc
 
     return {
         "job": job_detail_data(job, summary_only=True),
@@ -1034,7 +1044,7 @@ def get_job_basic_information(job_id: UUID) -> JobBasicInformationData:
     try:
         job = Job.objects.get(id=job_id)
     except Job.DoesNotExist as exc:
-        raise ValueError(f"Job with id {job_id} not found") from exc
+        raise ValueError(gettext("Job with id %(job_id)s not found") % {"job_id": job_id}) from exc
 
     return {
         "description": job.description or "",
@@ -1064,7 +1074,7 @@ def _safe_uuid(value: object) -> UUID | None:
     # deliberate-swallow: this path is reached only by a MALFORMED id — absence
     # already returned above — and an unparseable id is not a valid one, which
     # is precisely what None reports to the caller
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 
@@ -1358,8 +1368,14 @@ def _parse_delta_date(field_name: str, value: object) -> date | None:
         try:
             return date.fromisoformat(value)
         except ValueError as exc:
-            raise ValueError(f"Invalid date for '{field_name}': {value!r}") from exc
-    raise ValueError(f"Invalid date for '{field_name}': {value!r}")
+            raise ValueError(
+                gettext("Invalid date for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            ) from exc
+    raise ValueError(
+        gettext("Invalid date for '%(field)s': %(value)s")
+        % {"field": field_name, "value": repr(value)}
+    )
 
 
 def _parse_delta_datetime(field_name: str, value: object) -> datetime | None:
@@ -1372,10 +1388,16 @@ def _parse_delta_datetime(field_name: str, value: object) -> datetime | None:
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
-            raise ValueError(f"Invalid datetime for '{field_name}': {value!r}") from exc
+            raise ValueError(
+                gettext("Invalid datetime for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            ) from exc
     else:
         # ValueError (not TypeError): delta validation answers 400.
-        raise ValueError(f"Invalid datetime for '{field_name}': {value!r}")  # noqa: TRY004
+        raise ValueError(  # noqa: TRY004
+            gettext("Invalid datetime for '%(field)s': %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        )
     if timezone.is_naive(parsed):
         parsed = timezone.make_aware(parsed)
     return parsed
@@ -1393,13 +1415,25 @@ def _parse_delta_decimal(field_name: str, value: object) -> Decimal | None:
     try:
         parsed = Decimal(str(value))
     except InvalidOperation as exc:
-        raise ValueError(f"Invalid decimal for '{field_name}': {value!r}") from exc
+        raise ValueError(
+            gettext("Invalid decimal for '%(field)s': %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        ) from exc
     if not parsed.is_finite():
-        raise ValueError(f"Invalid decimal for '{field_name}': {value!r}")
+        raise ValueError(
+            gettext("Invalid decimal for '%(field)s': %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        )
     if parsed != parsed.quantize(_PRICE_CAP_QUANTUM):
-        raise ValueError(f"'{field_name}' allows at most 2 decimal places: {value!r}")
+        raise ValueError(
+            gettext("'%(field)s' allows at most 2 decimal places: %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        )
     if abs(parsed) >= _PRICE_CAP_MAX_ABS:
-        raise ValueError(f"'{field_name}' exceeds the allowed magnitude: {value!r}")
+        raise ValueError(
+            gettext("'%(field)s' exceeds the allowed magnitude: %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        )
     return parsed
 
 
@@ -1413,7 +1447,10 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
         and value is not None
         and (not isinstance(value, str) or value not in _CHOICE_DELTA_FIELDS[field_name])
     ):
-        raise ValueError(f"Invalid value for '{field_name}': {value!r}")
+        raise ValueError(
+            gettext("Invalid value for '%(field)s': %(value)s")
+            % {"field": field_name, "value": repr(value)}
+        )
 
     if field_name in _FK_DELTA_FIELDS:
         if value is not None:
@@ -1422,7 +1459,10 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
             if not isinstance(related_model, type):
                 raise ValueError(f"Field '{field_name}' is not a relation")
             if not related_model._default_manager.filter(pk=value).exists():
-                raise ValueError(f"{_FK_DELTA_FIELDS[field_name]} with id {value} not found")
+                raise ValueError(
+                    gettext("%(relation)s with id %(value)s not found")
+                    % {"relation": _FK_DELTA_FIELDS[field_name], "value": value}
+                )
         setattr(job, field_name, value)
     elif field_name in _DATE_DELTA_FIELDS:
         setattr(job, field_name, _parse_delta_date(field_name, value))
@@ -1432,25 +1472,43 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
         setattr(job, field_name, _parse_delta_decimal(field_name, value))
     elif field_name in _INT_DELTA_FIELDS:
         if isinstance(value, bool) or not isinstance(value, int):
-            raise ValueError(f"Invalid integer for '{field_name}': {value!r}")
+            raise ValueError(
+                gettext("Invalid integer for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            )
         if value < 0:
             # Reject before the database CHECK turns a client error into a 500.
-            raise ValueError(f"'{field_name}' cannot be negative: {value!r}")
+            raise ValueError(
+                gettext("'%(field)s' cannot be negative: %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            )
         setattr(job, field_name, value)
     elif field_name in _BOOL_DELTA_FIELDS:
         if not isinstance(value, bool):
-            raise ValueError(f"Invalid boolean for '{field_name}': {value!r}")
+            raise ValueError(
+                gettext("Invalid boolean for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            )
         setattr(job, field_name, value)
     elif field_name in _NULLABLE_TEXT_DELTA_FIELDS:
         if value == "":
             # NULL is the only unset; reject before the database CHECK sees "".
-            raise ValueError(f"Field '{field_name}' cannot be blank; send null to clear it")
+            raise ValueError(
+                gettext("Field '%(field)s' cannot be blank; send null to clear it")
+                % {"field": field_name}
+            )
         if value is not None and not isinstance(value, str):
-            raise ValueError(f"Invalid value for '{field_name}': {value!r}")
+            raise ValueError(
+                gettext("Invalid value for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            )
         setattr(job, field_name, value)
     else:
         if not isinstance(value, str) or not value:
-            raise ValueError(f"Invalid value for '{field_name}': {value!r}")
+            raise ValueError(
+                gettext("Invalid value for '%(field)s': %(value)s")
+                % {"field": field_name, "value": repr(value)}
+            )
         setattr(job, _FIELD_ATTRIBUTE_MAP.get(field_name, field_name), value)
 
 
@@ -1671,8 +1729,13 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- one transaction validates, mu
 
             # Enrichment context so Job.save() creates a single rich event
             # instead of service + model creating duplicates
+            # Named as the model's attributes: Job.save keeps only those the
+            # save changed, which are the ones its event holds and undo reverses.
             meta_payload: dict[str, object] = {
-                "fields": list(delta_payload.fields),
+                "fields": [
+                    _FIELD_ATTRIBUTE_MAP.get(field_name, field_name)
+                    for field_name in delta_payload.fields
+                ],
                 "actor_id": delta_payload.actor_id,
                 "made_at": delta_payload.made_at,
                 "etag": delta_payload.etag,
@@ -1758,7 +1821,18 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
     raw_fields = meta.get("fields") or list(event.delta_before.keys())
     if not raw_fields:
         raise ValueError("Event metadata missing target fields for undo")
-    fields = [str(field_name) for field_name in raw_fields]
+    # GPT: Events store model attribute names; the delta protocol names status
+    # job_status. Reverse only the requested fields, not incidental model changes.
+    wire_names = {attribute: wire for wire, attribute in _FIELD_ATTRIBUTE_MAP.items()}
+    fields = [wire_names.get(str(field_name), str(field_name)) for field_name in raw_fields]
+    before = {
+        field_name: event.delta_before[_FIELD_ATTRIBUTE_MAP.get(field_name, field_name)]
+        for field_name in fields
+    }
+    after = {
+        field_name: event.delta_after[_FIELD_ATTRIBUTE_MAP.get(field_name, field_name)]
+        for field_name in fields
+    }
 
     current_values: dict[str, object] = {
         field_name: _get_job_field_value(job, field_name) for field_name in fields
@@ -1767,8 +1841,7 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
     mismatch_fields = [
         field_name
         for field_name in fields
-        if normalise_value(current_values[field_name])
-        != normalise_value(event.delta_after.get(field_name))
+        if normalise_value(current_values[field_name]) != normalise_value(after[field_name])
     ]
 
     if mismatch_fields:
@@ -1797,7 +1870,7 @@ def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversin
         "job_id": str(job.id),
         "fields": fields,
         "before": current_values,
-        "after": event.delta_before,
+        "after": before,
         "before_checksum": checksum,
         "actor_id": str(user.id),
         "made_at": timezone.now().isoformat(),
@@ -1826,13 +1899,13 @@ def add_job_event(
     """Add a manual event to the Job with duplicate prevention."""
     # Guard clause - input validation
     if not description or not description.strip():
-        raise ValueError("Event description is required")
+        raise ValueError(gettext("Write the note before adding it."))
 
     try:
         # Lock the job to prevent race conditions
         job = Job.objects.select_for_update().get(id=job_id)
     except Job.DoesNotExist as exc:
-        raise ValueError(f"Job {job_id} not found") from exc
+        raise ValueError(gettext("Job %(job_id)s not found") % {"job_id": job_id}) from exc
 
     current_etag = generate_updated_at_etag("job", job.id, job.updated_at)
     if not if_match_satisfied(if_match, current_etag):
@@ -1862,7 +1935,9 @@ def add_job_event(
             user.office_email,
             exc,
         )
-        raise ValueError("Unable to create event due to duplicate constraint") from exc
+        raise ValueError(
+            gettext("That note was just added. It hasn't been added a second time.")
+        ) from exc
 
     if not created:
         logger.warning(
@@ -1903,7 +1978,9 @@ def delete_job(job_id: UUID, user: Staff, if_match: str) -> JobDeleteResult:
         if actual_cost_set and (
             actual_cost_set.summary.get("cost", 0) > 0 or actual_cost_set.summary.get("rev", 0) > 0
         ):
-            raise ValueError("Cannot delete this job because it has real costs or revenue.")
+            raise ValueError(
+                gettext("Cannot delete this job because it has real costs or revenue.")
+            )
 
         job_name = job.name
         job_number = job.job_number
@@ -1911,7 +1988,10 @@ def delete_job(job_id: UUID, user: Staff, if_match: str) -> JobDeleteResult:
 
         logger.info("Job %s '%s' deleted by %s", job_number, job_name, user.office_email)
 
-    return {"success": True, "message": f"Job {job_number} deleted successfully"}
+    return {
+        "success": True,
+        "message": gettext("Job %(job_number)s deleted successfully") % {"job_number": job_number},
+    }
 
 
 class QuoteAcceptResult(TypedDict):
@@ -1934,13 +2014,16 @@ def accept_quote(job_id: UUID, user: Staff, if_match: str) -> QuoteAcceptResult:
             raise PreconditionFailedError("ETag mismatch: resource has changed")
 
         if not job.latest_quote:
-            raise ValueError("No quote found for this job")
+            raise ValueError(gettext("No quote found for this job"))
         if job.quote_acceptance_date:
-            raise ValueError("Quote has already been accepted")
+            raise ValueError(gettext("Quote has already been accepted"))
         if job.status not in ["draft", "awaiting_approval"]:
             raise ValueError(
-                f"Cannot accept quote when job status is '{job.status}'. "
-                "Job must be in 'draft' or 'awaiting_approval' state."
+                gettext(
+                    "Cannot accept quote when job status is '%(status)s'. "
+                    "Job must be in 'draft' or 'awaiting_approval' state."
+                )
+                % {"status": job.status}
             )
 
         job.quote_acceptance_date = timezone.now()
@@ -1957,7 +2040,7 @@ def accept_quote(job_id: UUID, user: Staff, if_match: str) -> QuoteAcceptResult:
         "job_id": str(job_id),
         "quote_acceptance_date": job.quote_acceptance_date.isoformat(),
         "status": job.status,
-        "message": "Quote accepted successfully",
+        "message": gettext("Quote accepted successfully"),
     }
 
 
@@ -1994,7 +2077,7 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
     try:
         job = Job.objects.get(id=job_id)
     except Job.DoesNotExist as exc:
-        raise ValueError(f"Job with id {job_id} not found") from exc
+        raise ValueError(gettext("Job with id %(job_id)s not found") % {"job_id": job_id}) from exc
 
     timeline_entries: list[TimelineEntryData] = []
 
@@ -2046,9 +2129,15 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
 
             description = cost_line.desc or ""
             if cost_line.kind == "time":
-                description = f"{description} ({float(cost_line.quantity):.2f} hours)"
+                description = gettext("%(description)s (%(quantity)s hours)") % {
+                    "description": description,
+                    "quantity": f"{float(cost_line.quantity):.2f}",
+                }
             elif cost_line.kind == "material":
-                description = f"{description} (qty: {float(cost_line.quantity):.3f})"
+                description = gettext("%(description)s (qty: %(quantity)s)") % {
+                    "description": description,
+                    "quantity": f"{float(cost_line.quantity):.3f}",
+                }
 
             common: TimelineEntryData = {
                 "id": cost_line.id,
@@ -2098,7 +2187,10 @@ COST_SET_KINDS: tuple[str, ...] = ("estimate", "quote", "actual")
 def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
     """Return the newest CostSet of ``kind`` with grid-ordered lines."""
     if kind not in COST_SET_KINDS:
-        raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
+        raise ValueError(
+            gettext("Invalid kind. Must be one of: %(kinds)s")
+            % {"kinds": ", ".join(COST_SET_KINDS)}
+        )
     return CostSet.objects.filter(job=job, kind=kind).prefetch_related("cost_lines").first()
 
 
@@ -2162,11 +2254,11 @@ def _timesheet_pricing_staff(meta: dict[str, object], data: CostLineWriteData) -
     """Resolve the Staff a timesheet line is priced for: ``meta.staff_id``."""
     staff_id = meta.get("staff_id")
     if not staff_id:
-        raise ValueError("Staff id must be provided when creating a new timesheet entry.")
+        raise ValueError(gettext("Staff id must be provided when creating a new timesheet entry."))
     try:
         staff = Staff.objects.get(id=str(staff_id))
     except (Staff.DoesNotExist, DjangoValidationError, ValueError) as exc:
-        raise ValueError(f"Staff not found: {staff_id}") from exc
+        raise ValueError(gettext("Staff not found: %(staff_id)s") % {"staff_id": staff_id}) from exc
     # Keep the line's staff FK consistent with the authoritative meta.staff_id.
     data["staff"] = staff.id
     return staff
@@ -2212,7 +2304,7 @@ def _reprice_timesheet_line(
 def _validate_costline_write(data: CostLineWriteData) -> None:
     quantity = data.get("quantity")
     if quantity is not None and quantity < 0:
-        raise ValueError("Quantity must be non-negative")
+        raise ValueError(gettext("Quantity must be non-negative"))
 
 
 def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
@@ -2262,7 +2354,7 @@ def move_time_line(
     the source could not bill lets the stored zero go.
     """
     if not is_timesheet_entry(line):
-        raise InvalidInputError("Only timesheet entries move to another job.")
+        raise InvalidInputError(gettext("Only timesheet entries move to another job."))
     source = line.cost_set.job
     cost_set = get_or_create_cost_set(destination, "actual")
     line.cost_set = cost_set
@@ -2281,17 +2373,22 @@ def move_time_line(
 def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
     """Create a cost line on the job's ``kind`` cost set."""
     if kind not in COST_SET_KINDS:
-        raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
+        raise ValueError(
+            gettext("Invalid kind. Must be one of: %(kinds)s")
+            % {"kinds": ", ".join(COST_SET_KINDS)}
+        )
     _validate_costline_write(data)
     if kind == "actual" and staff.is_office_staff and "stock_id" in (data.get("ext_refs") or {}):
-        raise ValueError("Issue material through purchasing so its stock movement is recorded.")
+        raise ValueError(
+            gettext("Issue material through purchasing so its stock movement is recorded.")
+        )
 
     meta = data.get("meta") or {}
     # Timesheet lines may omit labour_subtype; the rate pipeline then uses the
     # worker's Staff.default_labour_subtype.
     is_timesheet_line = bool(meta.get("created_from_timesheet"))
     if data.get("kind") == "time" and data.get("labour_subtype") is None and not is_timesheet_line:
-        raise ValueError("labour_subtype is required for time lines.")
+        raise ValueError(gettext("labour_subtype is required for time lines."))
 
     with transaction.atomic():
         lock_costing_jobs([job.id])
@@ -2323,11 +2420,12 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
     """Refuse generic editing of costs owned by an operational workflow."""
     if line.managed_by in ("stocktake", "stock"):
         raise InvalidInputError(
-            "This line belongs to a stock movement; correct it through purchasing."
+            gettext("This line belongs to a stock movement; correct it through purchasing.")
         )
     if line.managed_by == "leave":
         raise InvalidInputError(
-            f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
+            gettext("This line belongs to a leave request; %(remedy)s it from Timesheets → Leave.")
+            % {"remedy": remedy}
         )
 
 
@@ -2350,7 +2448,9 @@ def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
         and line.kind == "time"
         and line.cost_set.kind == "actual"
     ):
-        raise ApprovedEntryLockedError("This entry has been approved. Ask the office to change it.")
+        raise ApprovedEntryLockedError(
+            gettext("This entry has been approved. Ask the office to change it.")
+        )
 
 
 @transaction.atomic
@@ -2376,14 +2476,14 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         .get(pk=line.pk)
     )
     if line.cost_set.job_id != source_job_id:
-        raise ConflictError("This entry moved to another job. Reload before editing it.")
+        raise ConflictError(gettext("This entry moved to another job. Reload before editing it."))
     if (
         "job_id" in data
         and data["job_id"] != line.cost_set.job_id
         and not staff.is_office_staff
         and line.meta.get("staff_id") != str(staff.id)
     ):
-        raise AccessDeniedError("Only office staff move another person's time.")
+        raise AccessDeniedError(gettext("Only office staff move another person's time."))
     refuse_workflow_managed(line, "edit")
     refuse_worker_change_to_approved(line, staff)
     _validate_costline_write(data)
@@ -2406,7 +2506,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
                 id=data["job_id"]
             )
         except Job.DoesNotExist as exc:
-            raise InvalidInputError(f"Job {data['job_id']} does not exist.") from exc
+            raise InvalidInputError(
+                gettext("Job %(job_id)s does not exist.") % {"job_id": data["job_id"]}
+            ) from exc
         # The move settles billability on the meta the line will store, so the
         # stored meta is the base and the patch's own meta (if any) sits on top.
         patch_meta = {**instance_meta, **patch_meta}
@@ -2422,7 +2524,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         # A standard break changed from the grid is his, as from his phone.
         mark_break_edited(line.meta)
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
-            raise ValueError("Issue material through purchasing so its stock movement is recorded.")
+            raise ValueError(
+                gettext("Issue material through purchasing so its stock movement is recorded.")
+            )
         line.save()
         if moved_cost_set is not None:
             update_latest_actual(line.cost_set.job, moved_cost_set.rev, moved_cost_set.id, staff)
@@ -2565,14 +2669,14 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
     """
     current_quote = job.get_latest("quote")
     if current_quote is None:
-        raise ValueError("No quote found for this job. Cannot create revision.")
+        raise ValueError(gettext("No quote found for this job. Cannot create revision."))
 
     with transaction.atomic():
         lock_costing_jobs([job.id])
         current_quote = CostSet.objects.get(pk=current_quote.id)
         cost_lines = list(current_quote.cost_lines.all())
         if not cost_lines:
-            raise ValueError("No cost lines found in current quote. Nothing to revise.")
+            raise ValueError(gettext("No cost lines found in current quote. Nothing to revise."))
         quote_revision = _archive_quote_revision(current_quote, cost_lines, reason)
 
         # Bulk delete intentionally skips CostLine.delete()'s summary refresh:
@@ -2595,7 +2699,7 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
     )
     return {
         "success": True,
-        "message": "Quote revision created successfully. Ready for new quote.",
+        "message": gettext("Quote revision created successfully. Ready for new quote."),
         "quote_revision": quote_revision,
         "archived_cost_lines_count": len(cost_lines),
         "job_id": str(job.id),
@@ -2665,18 +2769,20 @@ def copy_estimate_to_quote(
     # job-aging read latest_quote unconditionally — a direct API copy would
     # flip an over-budget badge with no visible quote anywhere.
     if job.pricing_methodology == "time_materials":
-        raise ValueError("A time and materials job has no quote — there is nothing to copy onto.")
+        raise ValueError(
+            gettext("A time and materials job has no quote — there is nothing to copy onto.")
+        )
 
     estimate = job.get_latest("estimate")
     quote = job.get_latest("quote")
     if estimate is None or quote is None:
-        raise ValueError("Job is missing its estimate or quote cost set.")
+        raise ValueError(gettext("This job has no estimate or quote costs and revenue to copy."))
     archived_quote_revision: int | None = None
     with transaction.atomic():
         lock_costing_jobs([job.id])
         estimate = CostSet.objects.get(pk=estimate.pk)
         if not estimate.cost_lines.exists():
-            raise ValueError("The estimate has no cost lines to copy.")
+            raise ValueError(gettext("The estimate has no cost lines to copy."))
         # Deciding outside the transaction was the reviewed-away shape: a line
         # created between the blank/equality reads and the replace would be
         # bulk-deleted without ever reaching the archive. The CostSet row lock
@@ -2692,7 +2798,7 @@ def copy_estimate_to_quote(
         if _cost_line_contents(quote_lines) == _cost_line_contents(list(estimate.cost_lines.all())):
             return {
                 "success": True,
-                "message": "The quote already matches the estimate.",
+                "message": gettext("The quote already matches the estimate."),
                 "copied_cost_lines_count": 0,
                 "archived_quote_revision": None,
                 "job_id": str(job.id),
@@ -2709,8 +2815,10 @@ def copy_estimate_to_quote(
         is_blank = all(line.total_cost == 0 and line.total_rev == 0 for line in quote_lines)
         if not is_blank and not archive_existing:
             raise QuoteNotBlankError(
-                "The quote already has priced cost lines. "
-                "Pass archive_existing to archive them as a revision first."
+                gettext(
+                    "The quote already has priced cost lines. "
+                    "Pass archive_existing to archive them as a revision first."
+                )
             )
 
         if is_blank:
@@ -2737,7 +2845,7 @@ def copy_estimate_to_quote(
     )
     return {
         "success": True,
-        "message": "Estimate copied to quote.",
+        "message": gettext("Estimate copied to quote."),
         "copied_cost_lines_count": copied,
         "archived_quote_revision": archived_quote_revision,
         "job_id": str(job.id),
@@ -2870,7 +2978,10 @@ def seed_subtype_onto_existing_jobs(subtype: LabourSubtype) -> int:
     duplicate insert races are ignored and followed by an invariant check.
     """
     if not subtype.is_active:
-        raise ValueError(f"Cannot seed inactive LabourSubtype '{subtype.name}' onto jobs.")
+        raise ValueError(
+            gettext("Cannot seed inactive LabourSubtype '%(name)s' onto jobs.")
+            % {"name": subtype.name}
+        )
 
     with transaction.atomic():
         table_name = connection.ops.quote_name(Job._meta.db_table)
@@ -2934,8 +3045,11 @@ def _check_labour_subtype_update_guards(
         dependent = Staff.objects.filter(default_labour_subtype=subtype).count()
         if dependent:
             raise ValueError(
-                f"{dependent} staff default to '{subtype.name}'; "
-                "reassign them before deactivating it."
+                gettext(
+                    "%(dependent)s staff default to '%(name)s'; "
+                    "reassign them before deactivating it."
+                )
+                % {"dependent": dependent, "name": subtype.name}
             )
 
     # Guard: never empty the active Workshop (or non-workshop) pool.
@@ -2944,13 +3058,12 @@ def _check_labour_subtype_update_guards(
     # covers both deactivation (is_active=False) and flipping is_workshop.
     new_active = data.get("is_active", subtype.is_active)
     new_workshop = data.get("is_workshop", subtype.is_workshop)
-    for was, now, is_ws, label in (
-        (subtype.is_active and subtype.is_workshop, new_active and new_workshop, True, "Workshop"),
+    for was, now, is_ws in (
+        (subtype.is_active and subtype.is_workshop, new_active and new_workshop, True),
         (
             subtype.is_active and not subtype.is_workshop,
             new_active and not new_workshop,
             False,
-            "non-workshop",
         ),
     ):
         if was and not now:
@@ -2960,10 +3073,17 @@ def _check_labour_subtype_update_guards(
                 .exists()
             )
             if not others:
-                raise ValueError(
-                    f"'{subtype.name}' is the only active {label} subtype; "
-                    "job creation, Xero sync and quote import depend on it."
-                )
+                if is_ws:
+                    message = gettext(
+                        "'%(name)s' is the only active Workshop subtype; "
+                        "creating jobs, updating from Xero and importing quotes all need one."
+                    )
+                else:
+                    message = gettext(
+                        "'%(name)s' is the only active non-workshop subtype; "
+                        "creating jobs, updating from Xero and importing quotes all need one."
+                    )
+                raise ValueError(message % {"name": subtype.name})
 
 
 def update_labour_subtype(subtype_pk: UUID, data: LabourSubtypeWriteData) -> LabourSubtype:
@@ -3013,7 +3133,9 @@ def update_job_labour_rates(
     subtypes = LabourSubtype.objects.in_bulk([e["labour_subtype"] for e in entries])
     missing = [str(e["labour_subtype"]) for e in entries if e["labour_subtype"] not in subtypes]
     if missing:
-        raise ValueError(f"LabourSubtype not found: {', '.join(missing)}")
+        raise ValueError(
+            gettext("LabourSubtype not found: %(missing)s") % {"missing": ", ".join(missing)}
+        )
 
     # Check the bad case first (ADR 0015): any catalogue subtype may be sent,
     # but only subtypes seeded onto this job have a rate row. Reject unknown
@@ -3027,7 +3149,9 @@ def update_job_labour_rates(
         if e["labour_subtype"] not in rates_by_subtype
     ]
     if unknown:
-        raise ValueError(f"No rate row on this job for: {', '.join(unknown)}.")
+        raise ValueError(
+            gettext("No rate row on this job for: %(unknown)s.") % {"unknown": ", ".join(unknown)}
+        )
 
     # Atomic so a failure mid-loop never leaves a half-applied update without
     # a matching JobEvent.

@@ -41,7 +41,7 @@ class PhoneCallRecordingOut(Schema):
     updated_at: datetime
 
     @classmethod
-    def from_recording(cls, recording: PhoneCallRecording) -> "PhoneCallRecordingOut":
+    def from_recording(cls, recording: PhoneCallRecording) -> PhoneCallRecordingOut:
         """Build the payload from the model row.
 
         Built explicitly (not a resolver) because ninja re-validates returned
@@ -120,7 +120,7 @@ class PhoneCallRecordOut(Schema):
         call: PhoneCallRecord,
         recording: PhoneCallRecording | None,
         attempt_count: int = 1,
-    ) -> "PhoneCallRecordOut":
+    ) -> PhoneCallRecordOut:
         """Build the payload from a call row and its (optional) recording."""
         return cls(
             id=call.id,

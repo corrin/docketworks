@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { jobTimesheetEntriesHistoryRetrieveOptions } from '@/api'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -33,6 +34,7 @@ export function TimesheetHistoryDialog({ staffId, date, open, onClose }: Props) 
 }
 
 function HistoryBody({ staffId, date }: { staffId: string; date: string }) {
+  const { t } = useTranslation('timesheet')
   const historyQuery = useQuery(
     jobTimesheetEntriesHistoryRetrieveOptions({ query: { staff_id: staffId, date } }),
   )
@@ -45,7 +47,7 @@ function HistoryBody({ staffId, date }: { staffId: string; date: string }) {
     changes: event.changes,
     description: event.trusted
       ? event.description
-      : `${event.description} · Away from the workshop`,
+      : t('history.awayFromWorkshop', { description: event.description }),
   }))
 
   return (
@@ -54,19 +56,19 @@ function HistoryBody({ staffId, date }: { staffId: string; date: string }) {
       data-automation-id="TimesheetHistoryDialog-content"
     >
       <DialogHeader>
-        <DialogTitle>Timesheet history, {formatDateLong(date)}</DialogTitle>
+        <DialogTitle>{t('history.title', { date: formatDateLong(date) })}</DialogTitle>
       </DialogHeader>
       <QueryState
         isPending={historyQuery.isPending}
         isError={historyQuery.isError}
         onRetry={() => void historyQuery.refetch()}
-        loadingLabel="Loading history..."
-        errorLabel="Failed to load this day's history."
+        loadingLabel={t('history.loading')}
+        errorLabel={t('history.loadFailed')}
       >
         <AuditEventList
           events={events}
           automationIdPrefix="TimesheetHistoryDialog"
-          emptyLabel="No history recorded yet."
+          emptyLabel={t('history.empty')}
         />
       </QueryState>
     </DialogContent>

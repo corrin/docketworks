@@ -26,7 +26,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 
 ## Server Setup
 
-`server-setup.sh` provisions all host-level dependencies. It is idempotent: every install block is dpkg-guarded, so re-running is cheap. **It is intended to run on every release** — `deploy.sh` invokes it at the start of each deploy so new system deps added in any future PR (a new apt package, a new systemd-managed service) auto-converge on every host without an operator-remembered bootstrap step. You can also run it directly on a fresh server.
+`server-setup.sh` provisions host-level dependencies and is safe to re-run. `deploy.sh` compares the provisioning inputs against `/opt/docketworks/.server-setup-hash` and runs setup when they differ. The inputs include `.python-version`, provisioning scripts and configuration templates; the stamp records only successful setup. You can also run setup directly on a fresh server.
 
 ```bash
 # UAT (wildcard cert via Dreamhost DNS):
@@ -39,7 +39,7 @@ sudo ./scripts/server/server-setup.sh --dreamhost-key <DREAMHOST_API_KEY> --cert
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs host-level requirements: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, uv, rclone, UFW, Fail2ban, Claude Code CLI. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
+Installs host-level requirements: Node (the major in `frontend/.nvmrc`), PostgreSQL, Redis, Nginx, Certbot, uv, rclone, UFW, Fail2ban, Claude Code CLI. Provisions app Python 3.14 through uv for the `docketworks` account using `.python-version`, while OS tools retain the distro Python. Releases build with the exact Node their `frontend/.nvmrc` names, installed once per version under `/opt/docketworks/.local/node/` by `release-utils.sh`. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
 
 Required keys (passed once on first run, then cached):
 
@@ -146,7 +146,7 @@ Operator runbook (the commands to run): [docs/server_setup.md](../../docs/server
 What `deploy.sh` does, in order:
 
 1. Pull latest code from GitHub (into the shared local repo).
-2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
+2. Compare the provisioning-input hash and run `server-setup.sh` when it differs, including when `.python-version` differs.
 3. Resolve each target instance's tracked ref and build or reuse one release per unique SHA. A bare `--all` deployment may resolve multiple refs and SHAs.
 4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `app` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/rollback.sh <instance> <previous-8-char-sha> --restore-backup` unless `--no-backup` was used. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
 5. Clean up complete releases unused for 14 days that are no longer
@@ -291,7 +291,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | File                                                | Description                                                                                          |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
-| `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
+| `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs when provisioning inputs differ — see "Server Setup". |
 | `instance.sh`                                       | Prepare config, create/reconfigure, stop/start, destroy, rehearse, or list instances                 |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |

@@ -45,7 +45,7 @@ export function AuditEventList({ events, automationIdPrefix, emptyLabel }: Props
               {event.changes.map((change) => (
                 <li key={change.field_name}>
                   <span className="font-medium">{change.field_name}</span>:{' '}
-                  {change.old_value || '—'} &rarr; {change.new_value || '—'}
+                  {change.old_value || '—'} → {change.new_value || '—'}
                 </li>
               ))}
             </ul>

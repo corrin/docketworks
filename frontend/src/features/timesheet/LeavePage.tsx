@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import {
   apiErrorMessage,
@@ -24,15 +25,15 @@ import { TabBar, type TabBarItem } from '@/features/shared/TabBar'
 
 export type LeaveScope = 'current' | 'history'
 
-// Opus: Explicit labels rather than the CSS `capitalize` the pill tabs used —
-// the shared bar renders a label string, and every other tab bar in the app
-// already names its tabs rather than styling its keys into titles.
-const LEAVE_TABS: readonly TabBarItem<LeaveScope>[] = [
-  { key: 'current', label: 'Current' },
-  { key: 'history', label: 'History' },
-]
-
 export function LeavePage() {
+  const { t } = useTranslation('timesheet')
+  // Opus: Explicit labels rather than the CSS `capitalize` the pill tabs used —
+  // the shared bar renders a label string, and every other tab bar in the app
+  // already names its tabs rather than styling its keys into titles.
+  const leaveTabs: readonly TabBarItem<LeaveScope>[] = [
+    { key: 'current', label: t('leave.currentTab'), title: t('leave.currentTabTitle') },
+    { key: 'history', label: t('leave.historyTab'), title: t('leave.historyTabTitle') },
+  ]
   const [scope, setScope] = useState<LeaveScope>('current')
   const [search, setSearch] = useState('')
   const [newOpen, setNewOpen] = useState(false)
@@ -62,13 +63,21 @@ export function LeavePage() {
   )
 
   const cancelRequest = async (request: LeaveRequestOut) => {
-    if (!window.confirm(`Cancel ${request.leave_type_name} for ${request.staff_name}?`)) return
+    if (
+      !window.confirm(
+        t('leave.confirmCancel', {
+          leaveType: request.leave_type_name,
+          staffName: request.staff_name,
+        }),
+      )
+    )
+      return
     setActionError(null)
     try {
       await deleteMutation.mutateAsync({ path: { request_id: request.id } })
       await refresh()
     } catch (error) {
-      setActionError(apiErrorMessage(error, 'Could not cancel the leave request.'))
+      setActionError(apiErrorMessage(error, t('leave.cancelFailed')))
     }
   }
 
@@ -76,14 +85,14 @@ export function LeavePage() {
     <main className="space-y-5 p-5" data-automation-id="LeavePage-root">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Leave</h1>
-          <p className="text-sm text-slate-500">Upcoming and historical staff leave.</p>
+          <h1 className="text-xl font-semibold text-slate-900">{t('leave.title')}</h1>
+          <p className="text-sm text-slate-500">{t('leave.subtitle')}</p>
         </div>
         <div className="flex flex-col gap-2">
           {(staffError || settingsError) && (
             <p className="text-xs text-red-700">
-              {staffError && 'Could not load staff. '}
-              {settingsError && 'Could not load leave settings. '}
+              {staffError && t('leave.staffLoadFailed')}
+              {settingsError && t('leave.settingsLoadFailed')}
               <button
                 type="button"
                 className="underline"
@@ -92,29 +101,45 @@ export function LeavePage() {
                   if (settingsError) void settingsQuery.refetch()
                 }}
               >
-                Retry
+                {t('leave.retry')}
               </button>
             </p>
           )}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setClosureOpen(true)}>
-              <CalendarDays className="h-4 w-4" /> Office closed
+            <Button
+              variant="outline"
+              title={t('leave.officeClosedTitle')}
+              onClick={() => setClosureOpen(true)}
+            >
+              <CalendarDays className="h-4 w-4" /> {t('leave.officeClosed')}
             </Button>
             <Button data-automation-id="LeavePage-new" onClick={() => setNewOpen(true)}>
-              <Plus className="h-4 w-4" /> New leave
+              <Plus className="h-4 w-4" /> {t('leave.newLeave')}
             </Button>
           </div>
         </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard label="Away today" valueAutomationId="LeavePage-away-today">
+        <SummaryCard
+          label={t('leave.awayToday')}
+          title={t('leave.awayTodayTitle')}
+          valueAutomationId="LeavePage-away-today"
+        >
           {listQuery.data?.summary.away_today ?? 0}
         </SummaryCard>
-        <SummaryCard label="Upcoming requests" valueAutomationId="LeavePage-upcoming-requests">
+        <SummaryCard
+          label={t('leave.upcomingRequests')}
+          title={t('leave.upcomingRequestsTitle')}
+          valueAutomationId="LeavePage-upcoming-requests"
+        >
           {listQuery.data?.summary.upcoming_requests ?? 0}
         </SummaryCard>
-        <SummaryCard label="Upcoming hours" valueAutomationId="LeavePage-upcoming-hours">
+        <SummaryCard
+          label={t('leave.upcomingHours')}
+          title={t('leave.upcomingHoursTitle')}
+          valueAutomationId="LeavePage-upcoming-hours"
+        >
           {listQuery.data?.summary.upcoming_hours ?? 0}
         </SummaryCard>
       </div>
@@ -122,7 +147,7 @@ export function LeavePage() {
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
           <TabBar
-            tabs={LEAVE_TABS}
+            tabs={leaveTabs}
             activeKey={scope}
             onChange={setScope}
             idPrefix="LeavePage-tab"
@@ -131,9 +156,9 @@ export function LeavePage() {
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Search employee or leave type"
+            placeholder={t('leave.searchPlaceholder')}
             automationId="LeavePage-search"
-            label="Search leave"
+            label={t('leave.searchLabel')}
           />
         </div>
 
@@ -142,8 +167,8 @@ export function LeavePage() {
           <QueryState
             isPending={listQuery.isPending}
             isError={listQuery.isError}
-            loadingNode={<p className="p-6 text-sm text-slate-500">Loading leave…</p>}
-            errorNode={<p className="p-6 text-sm text-red-700">Could not load leave.</p>}
+            loadingNode={<p className="p-6 text-sm text-slate-500">{t('leave.loading')}</p>}
+            errorNode={<p className="p-6 text-sm text-red-700">{t('leave.loadFailed')}</p>}
           >
             {listQuery.data && (
               <LeaveTable
@@ -183,7 +208,7 @@ export function LeavePage() {
           // settings read resolves — not a fallback for missing data: the
           // five codes are seeded by migration.
           settingsQuery.data?.leave_types.find((type) => type.code === 'public_holiday')
-            ?.display_name ?? 'Public Holiday'
+            ?.display_name ?? t('leave.publicHolidayDefault')
         }
       />
     </main>
@@ -199,18 +224,21 @@ function LeaveTable({
   onEdit: (row: LeaveRequestOut) => void
   onCancel: (row: LeaveRequestOut) => void
 }) {
+  const { t } = useTranslation('timesheet')
   if (rows.length === 0)
-    return <p className="p-8 text-center text-sm text-slate-500">No leave found.</p>
+    return <p className="p-8 text-center text-sm text-slate-500">{t('leave.empty')}</p>
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
           <tr>
-            <th className="px-4 py-2">Employee</th>
-            <th className="px-4 py-2">Leave type</th>
-            <th className="px-4 py-2">Dates</th>
-            <th className="px-4 py-2">Hours</th>
-            <th className="px-4 py-2">Actions</th>
+            <th className="px-4 py-2">{t('leave.employeeColumn')}</th>
+            <th className="px-4 py-2">{t('leave.leaveTypeColumn')}</th>
+            <th className="px-4 py-2">{t('leave.datesColumn')}</th>
+            <th className="px-4 py-2" title={t('leave.hoursColumnTitle')}>
+              {t('leave.hoursColumn')}
+            </th>
+            <th className="px-4 py-2">{t('leave.actionsColumn')}</th>
           </tr>
         </thead>
         <tbody>
@@ -220,21 +248,32 @@ function LeaveTable({
               <td className="px-4 py-3">
                 {row.leave_type_name}
                 {row.source === 'office_closure' && (
-                  <span className="ml-2 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                    Office closure
+                  <span
+                    className="ml-2 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
+                    title={t('leave.officeClosureSourceTitle')}
+                  >
+                    {t('leave.officeClosureSource')}
                   </span>
                 )}
               </td>
               <td className="px-4 py-3">
-                {formatDate(row.start_date)} – {formatDate(row.end_date)}
+                {t('leave.dateRange', {
+                  start: formatDate(row.start_date),
+                  end: formatDate(row.end_date),
+                })}
               </td>
               <td className="px-4 py-3">{row.total_hours}</td>
               <td className="space-x-2 px-4 py-3">
                 <Button size="sm" variant="outline" onClick={() => onEdit(row)}>
-                  Edit
+                  {t('leave.edit')}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => onCancel(row)}>
-                  Cancel
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title={t('leave.cancelTitle')}
+                  onClick={() => onCancel(row)}
+                >
+                  {t('leave.cancel')}
                 </Button>
               </td>
             </tr>

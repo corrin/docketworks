@@ -24,8 +24,9 @@ Accepted report semantics:
   ``net_profit`` is a real net profit — gross profit less overhead incurred —
   but only while the threshold stays set to the opex share; retuned upward as
   a stretch goal it becomes a variance, and v1's KPI page proves the cost of
-  misreading it (it built a "projected expenses" row from ``gp_green`` and
-  ``working_days``, so the arithmetic on screen never reached the field).
+  misreading it (it built a "projected expenses" row from a separate green
+  threshold and ``working_days``, so the arithmetic on screen never reached
+  the field).
 - **Weekend work is bonus, not baseline** (owner ruling, 2026-09-01). The
   target and ``avg_weekday_gp`` count WEEKDAYS, never the days the calendar
   happens to show: the month's overhead is already fully spread across its
@@ -43,8 +44,9 @@ Accepted report semantics:
   but a noisy daily signal while billed hours lead them — bill enough hours
   and the money follows. Both are served rather than one derived in the
   browser, so the two ladders cannot fork from the month counters'.
-- The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
-  ``_amber`` threshold field is unused there; changing it changes report data.
+- The profit ladder, for a day and for the month's active-day average, is
+  green >= gp_target, amber >= gp_amber, else red (owner ruling 2026-10-19:
+  green, amber, red, each from its own setting).
 - ``color_shop`` can only be green (shop share <= 20%) or red. Amber is
   deliberately unreachable under the accepted threshold contract.
 """
@@ -73,7 +75,6 @@ class Thresholds(TypedDict):
     kpi_daily_billable_hours_amber: float
     kpi_daily_gp_target: float
     kpi_daily_shop_hours_percentage: float
-    kpi_daily_gp_green: float
     kpi_daily_gp_amber: float
 
 
@@ -135,7 +136,6 @@ def get_company_thresholds() -> Thresholds:
         kpi_daily_billable_hours_amber=float(defaults.kpi_daily_billable_hours_amber),
         kpi_daily_gp_target=float(defaults.kpi_daily_gp_target),
         kpi_daily_shop_hours_percentage=float(defaults.kpi_daily_shop_hours_percentage),
-        kpi_daily_gp_green=float(defaults.kpi_daily_gp_green),
         kpi_daily_gp_amber=float(defaults.kpi_daily_gp_amber),
     )
 
@@ -194,15 +194,11 @@ def _hours_color(billable_hours: float | Decimal, thresholds: Thresholds) -> Day
 
 
 def _profit_color(gross_profit: float | Decimal, thresholds: Thresholds) -> DayColor:
-    """Green once the day covered its overhead, amber part-way.
-
-    Green >= gp_target, amber >= gp_green — the ``_amber`` threshold is
-    unused here (see module docstring), and changing that changes report data.
-    """
+    """Green once the day covered its overhead, amber from the amber setting."""
     return _get_color(
         gross_profit,
         thresholds["kpi_daily_gp_target"],
-        thresholds["kpi_daily_gp_green"],
+        thresholds["kpi_daily_gp_amber"],
     )
 
 
@@ -721,10 +717,8 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
         thresholds["kpi_daily_billable_hours_green"],
         thresholds["kpi_daily_billable_hours_amber"],
     )
-    final["color_gp"] = _get_color(
-        0.0 if avg_active_day_gp is None else avg_active_day_gp,
-        thresholds["kpi_daily_gp_target"],
-        thresholds["kpi_daily_gp_target"] / 2,
+    final["color_gp"] = _profit_color(
+        0.0 if avg_active_day_gp is None else avg_active_day_gp, thresholds
     )
     # v1's reversed-argument call, kept bit-for-bit (see module docstring).
     final["color_shop"] = _get_color(

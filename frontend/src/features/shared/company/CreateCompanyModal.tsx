@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage, companiesCreateCreateMutation, type CompanySearchResult } from '@/api'
 import {
@@ -37,6 +38,7 @@ export function CreateCompanyModal({
   onClose,
   onCreated,
 }: CreateCompanyModalProps) {
+  const { t } = useTranslation('shared')
   const [saving, setSaving] = useState(false)
 
   return (
@@ -48,8 +50,8 @@ export function CreateCompanyModal({
     >
       <DialogContent data-automation-id="CreateCompanyModal-container">
         <DialogHeader>
-          <DialogTitle>Add New Company</DialogTitle>
-          <DialogDescription>Creates the company here and as a contact in Xero.</DialogDescription>
+          <DialogTitle>{t('createCompany.title')}</DialogTitle>
+          <DialogDescription>{t('createCompany.description')}</DialogDescription>
         </DialogHeader>
         <CreateCompanyForm
           initialName={initialName}
@@ -73,6 +75,7 @@ function CreateCompanyForm({
   saving: boolean
   setSaving: (saving: boolean) => void
 }) {
+  const { t } = useTranslation('shared')
   const nameId = useId()
   const errorId = useId()
   const [name, setName] = useState(initialName)
@@ -82,7 +85,7 @@ function CreateCompanyForm({
   const submit = async () => {
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Company name is required')
+      setError(t('createCompany.nameRequired'))
       return
     }
     setError(null)
@@ -93,7 +96,7 @@ function CreateCompanyForm({
       })
       onCreated(requireXeroLinkedCompany(response))
     } catch (mutationError) {
-      setError(apiErrorMessage(mutationError, 'Failed to create company.'))
+      setError(apiErrorMessage(mutationError, t('createCompany.failed')))
     } finally {
       setSaving(false)
     }
@@ -109,7 +112,7 @@ function CreateCompanyForm({
     >
       <div>
         <label htmlFor={nameId} className="mb-1 block text-sm font-medium text-gray-700">
-          Company Name <span className="text-red-500">*</span>
+          {t('createCompany.nameLabel')} <span className="text-red-500">*</span>
         </label>
         <input
           id={nameId}
@@ -142,7 +145,7 @@ function CreateCompanyForm({
           disabled={saving}
           onClick={onClose}
         >
-          Cancel
+          {t('createCompany.cancel')}
         </button>
         <button
           type="submit"
@@ -150,7 +153,7 @@ function CreateCompanyForm({
           className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving}
         >
-          {saving ? 'Creating…' : 'Create Company'}
+          {saving ? t('createCompany.submitting') : t('createCompany.submit')}
         </button>
       </div>
     </form>

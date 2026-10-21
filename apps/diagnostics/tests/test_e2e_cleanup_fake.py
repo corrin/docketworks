@@ -7,13 +7,18 @@ the archive would leave every fake run failing its preflight on residue.
 
 import uuid
 from collections.abc import Iterator
+from datetime import date
 
 import pytest
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.company.models import Company
-from apps.diagnostics.services.e2e_xero_residue import XeroResidue, remove_residue_from_xero
+from apps.diagnostics.services.e2e_xero_residue import (
+    ResidueInvoice,
+    XeroResidue,
+    remove_residue_from_xero,
+)
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.fake.models import FakeContact, FakeInvoice
 from apps.xero.fake.seed import seed_contacts
@@ -29,9 +34,14 @@ def fake_xero() -> Iterator[str]:
         yield tenant
 
 
-def test_the_cleanup_deletes_the_document_and_archives_the_contact(
-    fake_xero: str,
+@pytest.mark.parametrize(
+    ("sent_status", "approved", "left_status"),
+    [("DRAFT", False, "DELETED"), ("AUTHORISED", True, "VOIDED")],
+)
+def test_the_cleanup_removes_the_document_and_archives_the_contact(
+    fake_xero: str, sent_status: str, approved: bool, left_status: str
 ) -> None:
+    """Guards remove_residue_from_xero: a draft is deleted, an approved invoice voided."""
     company = Company.objects.create(
         name="[TEST] Residue Co",
         xero_contact_id=str(uuid.uuid4()),
@@ -52,7 +62,7 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
                     ],
                     "Date": "2026-09-09",
                     "DueDate": "2026-09-16",
-                    "Status": "DRAFT",
+                    "Status": sent_status,
                 }
             ]
         },
@@ -63,7 +73,15 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
 
     outcome = remove_residue_from_xero(
         XeroResidue(
-            invoices={invoice_id: "INV-0001"}, contacts={company.xero_contact_id: company.name}
+            invoices={
+                invoice_id: ResidueInvoice(
+                    label="INV-0001",
+                    contact_id=company.xero_contact_id,
+                    date=date(2026, 9, 9),
+                    approved=approved,
+                )
+            },
+            contacts={company.xero_contact_id: company.name},
         ),
         "test",
     )
@@ -71,5 +89,5 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
     assert not outcome.refused
     deleted = FakeInvoice.held(fake_xero, invoice_id)
     archived = FakeContact.held(fake_xero, company.xero_contact_id)
-    assert deleted is not None and deleted.status == "DELETED"
+    assert deleted is not None and deleted.status == left_status
     assert archived is not None and archived.status == "ARCHIVED"

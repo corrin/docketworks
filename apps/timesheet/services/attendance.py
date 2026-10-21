@@ -16,13 +16,20 @@ from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext, gettext_noop
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
+from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import UNTOUCHED_STANDARD_BREAK, AttendanceDay, ClockHow
+from apps.timesheet.models import (
+    SWEPT_GENERAL_WORK,
+    UNTOUCHED_STANDARD_BREAK,
+    AttendanceDay,
+    ClockHow,
+)
 from apps.timesheet.services.location import EntryLocation, saved_remotely
 from apps.timesheet.services.timesheet_events import DaySnapshot, record_day_event
 
@@ -127,7 +134,7 @@ def _required_break_job_id() -> UUID:
         # Refused, not skipped: a day made without its breaks would pay half
         # an hour short with nothing to show for it. In words a worker can
         # pass on; the fix is the office's (``create_shop_jobs``).
-        raise BreaksNotSetUpError("Breaks are not set up. Tell the office.")
+        raise BreaksNotSetUpError(gettext("Breaks are not set up. Tell the office."))
     return job_id
 
 
@@ -218,8 +225,10 @@ def duration_words(hours: Decimal) -> str:
     minutes = int((hours * 60).to_integral_value(ROUND_HALF_UP))
     whole, rest = divmod(minutes, 60)
     if whole == 0:
-        return f"{rest}m"
-    return f"{whole}h" if rest == 0 else f"{whole}h {rest}m"
+        return gettext("%(minutes)sm") % {"minutes": rest}
+    if rest == 0:
+        return gettext("%(hours)sh") % {"hours": whole}
+    return gettext("%(hours)sh %(minutes)sm") % {"hours": whole, "minutes": rest}
 
 
 def _minutes(moment: time) -> int:
@@ -285,6 +294,71 @@ def fill_figures(
         "entered_hours": float(entered),
         "to_go_hours": float(to_fill - on_breaks - entered),
     }
+
+
+#: The last minute a time of day can hold: the day has no 24:00.
+_LAST_QUARTER_MINUTE = 24 * 60 - QUARTER_HOUR_MINUTES
+
+
+def to_quarter(moment: time) -> time:
+    """Return the nearest quarter hour: the one rounding rule for an entry's start or stop.
+
+    Clock times are logged as tapped; an entry's start and stop are set on
+    quarter hours, so its hours are simply the stop less the start, and pay
+    is the sum of entries (owner, 2026-10-17). Change the rounding here and
+    every entry it sets follows. A stop after 23:52 rounds to 23:45, since the
+    day has no 24:00.
+    """
+    quarters = (Decimal(_minutes(moment)) / QUARTER_HOUR_MINUTES).quantize(
+        Decimal("1"), ROUND_HALF_UP
+    )
+    minutes = min(int(quarters) * QUARTER_HOUR_MINUTES, _LAST_QUARTER_MINUTE)
+    return time(minutes // 60, minutes % 60)
+
+
+def unallocated_windows(
+    day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
+) -> list[Window] | None:
+    """Return the stretches he was clocked in that hold no entry and no break (KAN-380).
+
+    Each is a time entry waiting to be made, its start and stop on quarter
+    hours unless that would reach into an entry or break beside it. Entries
+    kept without times are laid out first, end to end from clock-in around
+    the breaks and the timed entries, as the fill sheet lays
+    out a day. None until both clock times are known: a day still clocked in,
+    or never clocked, has no clocked time to speak of.
+
+    Leave is never clocked time: a morning on leave and an afternoon clocked
+    is a whole afternoon to account for, so leave lines take none of it.
+    """
+    if row is None or row.clock_out is None:
+        return None
+    worked = [line for line in entries if line.managed_by != CostLineOwner.LEAVE]
+    timed = [window for line in worked if (window := _line_window(line)) is not None]
+    occupied = [*break_windows(day, row, break_lines), *timed]
+    cursor = row.clock_in
+    for line in [line for line in worked if _line_window(line) is None]:
+        begins = start_after_breaks(cursor, occupied)
+        ends = finish_in_the_day(begins, line.quantity, occupied)
+        # Hours that would run past midnight take the rest of the day.
+        laid_end = ends if ends is not None else time(23, 59)
+        occupied.append(Window(begins, laid_end))
+        cursor = laid_end
+    first, last = _minutes(row.clock_in), _minutes(row.clock_out)
+    windows: list[Window] = []
+    free_from, floor = first, 0
+    for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
+        # Each bound rounds to its quarter, but never into the entry or break
+        # beside it: those minutes are already paid.
+        start = max(_minutes(to_quarter(_time_of(free_from))), floor)
+        end = min(_minutes(to_quarter(_time_of(min(taken_start, last)))), taken_start)
+        windows.append(Window(_time_of(start), _time_of(end)))
+        free_from, floor = max(free_from, taken_end), max(floor, taken_end)
+    return [window for window in windows if window.end > window.start]
+
+
+def _time_of(minutes: int) -> time:
+    return time(minutes // 60, minutes % 60)
 
 
 def _merged(windows: list[Window]) -> list[tuple[int, int]]:
@@ -356,7 +430,7 @@ def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
     """Return the hours worked between two times: the span less the breaks inside it."""
     first, last = _minutes(start), _minutes(finish)
     if last <= first:
-        raise InvalidInputError("The finish has to be after the start.")
+        raise InvalidInputError(gettext("The finish has to be after the start."))
     minutes = last - first - _minutes_inside(first, last, breaks)
     return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
 
@@ -402,12 +476,12 @@ def calendar_bounds(
 #: The words for a start or finish the office should know about. A time
 #: tapped at the workshop needs none, and neither does one the office set.
 _CLOCK_IN_CAUTIONS: dict[str, str] = {
-    ClockHow.NOT_CLOCKED: "Did not clock in",
-    ClockHow.CLOCKED_REMOTELY: "Clocked in away from the workshop",
+    ClockHow.NOT_CLOCKED: gettext_noop("Did not clock in"),
+    ClockHow.CLOCKED_REMOTELY: gettext_noop("Clocked in away from the workshop"),
 }
 _CLOCK_OUT_CAUTIONS: dict[str, str] = {
-    ClockHow.NOT_CLOCKED: "Did not clock out",
-    ClockHow.CLOCKED_REMOTELY: "Clocked out away from the workshop",
+    ClockHow.NOT_CLOCKED: gettext_noop("Did not clock out"),
+    ClockHow.CLOCKED_REMOTELY: gettext_noop("Clocked out away from the workshop"),
 }
 
 
@@ -415,9 +489,9 @@ def clock_cautions(row: AttendanceDay) -> list[str]:
     """Say, in the office's words, what was not clocked on the day."""
     cautions = []
     if row.clock_in_how in _CLOCK_IN_CAUTIONS:
-        cautions.append(_CLOCK_IN_CAUTIONS[row.clock_in_how])
+        cautions.append(gettext(_CLOCK_IN_CAUTIONS[row.clock_in_how]))
     if row.clock_out_how is not None and row.clock_out_how in _CLOCK_OUT_CAUTIONS:
-        cautions.append(_CLOCK_OUT_CAUTIONS[row.clock_out_how])
+        cautions.append(gettext(_CLOCK_OUT_CAUTIONS[row.clock_out_how]))
     return cautions
 
 
@@ -562,9 +636,11 @@ def clock_in(worker: Staff, now: datetime, location: EntryLocation | None = None
     )
     if not created:
         if row.clock_out is None:
-            raise ClockingRefusedError("You are already clocked in.")
+            raise ClockingRefusedError(gettext("You are already clocked in."))
         raise ClockingRefusedError(
-            "You have already clocked in and out today. Change the times, or clock back in."
+            gettext(
+                "You have already clocked in and out today. Change the times, or clock back in."
+            )
         )
     _record(worker, row, "clocked_in", None, location=location)
     generate_default_breaks(row, worker, location)
@@ -578,13 +654,15 @@ def clock_out(
     """Finish the worker's day at ``now``. Only today's open day is stamped."""
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=now.date()).first()
     if row is None:
-        raise ClockingRefusedError("You are not clocked in today.")
+        raise ClockingRefusedError(gettext("You are not clocked in today."))
     if row.clock_out is not None:
-        raise ClockingRefusedError("You have already clocked out today.")
+        raise ClockingRefusedError(gettext("You have already clocked out today."))
     finish = _to_the_minute(now)
     if finish == row.clock_in:
         # Its own words: the midnight wording below would make no sense here.
-        raise ClockingRefusedError("You clocked in a moment ago. Wait a minute to clock out.")
+        raise ClockingRefusedError(
+            gettext("You clocked in a moment ago. Wait a minute to clock out.")
+        )
     _require_finish_after_start(row.clock_in, finish)
     before = _snapshot(row)
     row.clock_out = finish
@@ -599,8 +677,11 @@ def _require_finish_after_start(start: time, finish: time) -> None:
     """Refuse a finish that is not later the same day; a shift past midnight is one."""
     if finish <= start:
         raise InvalidInputError(
-            f"A finish time has to be later than the start time ({start:%H:%M}). "
-            "If you worked past midnight, ask the office to put it right."
+            gettext(
+                "A finish time has to be later than the start time (%(start)s). "
+                "If you worked past midnight, ask the office to put it right."
+            )
+            % {"start": f"{start:%H:%M}"}
         )
 
 
@@ -630,12 +711,15 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     correcting the finish does not disown a start he did tap.
     """
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff change another person's clock times.")
+        raise AccessDeniedError(gettext("Only office staff change another person's clock times."))
     if finish is not None:
         _require_finish_after_start(start, finish)
     start = start.replace(second=0, microsecond=0)
     finish = None if finish is None else finish.replace(second=0, microsecond=0)
     by_hand = _by_hand(owner, actor)
+    # His lock first, as the sweep takes it: it reads these times to make
+    # General work, and must not read them half way through a change.
+    Staff.objects.select_for_update().filter(pk=owner.pk).first()
     row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
     before = _snapshot(row)
     if row is None:
@@ -653,6 +737,7 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     _record(actor, row, "clock_times_set", before, location=location)
     generate_default_breaks(row, actor, location)
     drop_breaks_after_finish(row, actor, location)
+    drop_sweep_outside_clock(row, actor, location)
     return attendance_data(row)
 
 
@@ -668,10 +753,10 @@ def use_standard_hours(
     put on the day as for any day with both times.
     """
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff set another person's hours.")
+        raise AccessDeniedError(gettext("Only office staff set another person's hours."))
     standard = standard_day(day)
     if standard is None:
-        raise InvalidInputError("There are no standard hours on a weekend. Set the times.")
+        raise InvalidInputError(gettext("There are no standard hours on a weekend. Set the times."))
     by_hand = _by_hand(owner, actor)
     row, created = AttendanceDay.objects.get_or_create(
         staff=owner,
@@ -684,7 +769,7 @@ def use_standard_hours(
         },
     )
     if not created:
-        raise ConflictError("This day already has clock times. Change them instead.")
+        raise ConflictError(gettext("This day already has clock times. Change them instead."))
     _record(actor, row, "standard_hours_used", None, location=location)
     generate_default_breaks(row, actor, location)
     drop_breaks_after_finish(row, actor, location)
@@ -774,6 +859,43 @@ def drop_breaks_after_finish(
             delete_entry(actor, line.id, location)
 
 
+def drop_sweep_outside_clock(
+    row: AttendanceDay, actor: Staff, location: EntryLocation | None = None
+) -> None:
+    """Take off the sweep's General work entries the day's clock times no longer cover.
+
+    The sweep made them from the clock times as they stood; a later finish of
+    15:00 leaves 15:00 to 17:00 on General work that he was not here for, and
+    paid. One reaching outside the new times goes whole, leaving any stretch
+    still clocked for the office to sweep again. Bounds are on quarter hours,
+    as the sweep set them. A worker cannot take off the office's approved
+    entry, so his own change to such a day is refused and the office makes it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        return
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        delete_entry,
+    )
+
+    first = to_quarter(row.clock_in)
+    last = None if row.clock_out is None else to_quarter(row.clock_out)
+    swept = CostLine.objects.filter(
+        cost_set__kind="actual",
+        cost_set__job_id=general_work_id,
+        kind="time",
+        staff=row.staff,
+        accounting_date=row.date,
+        meta__source=SWEPT_GENERAL_WORK,
+    )
+    for line in swept:
+        window = _line_window(line)
+        if window is None:
+            raise ValueError(f"Swept General work line {line.id} has no start and stop")
+        if window.start < first or (last is not None and window.end > last):
+            delete_entry(actor, line.id, location)
+
+
 def _break_lines_if_any(owner: Staff, day: date) -> list[CostLine]:
     """Return his lines on the Break job for a day; none on an instance without it."""
     job_id = break_job_id()
@@ -822,7 +944,7 @@ def _create_break(  # noqa: PLR0913 -- whose break, its day and times, its kind 
             "wage_rate_multiplier": ORDINARY if paid else UNPAID,
         },
         location,
-        generated=generated,
+        source=UNTOUCHED_STANDARD_BREAK if generated else None,
     )
 
 
@@ -833,7 +955,7 @@ UNPAID = Decimal("0.0")
 
 def _require_break_times(start: time, end: time) -> None:
     if end <= start:
-        raise InvalidInputError("A break finishes after it starts.")
+        raise InvalidInputError(gettext("A break finishes after it starts."))
 
 
 @transaction.atomic
@@ -849,10 +971,10 @@ def add_break(  # noqa: PLR0913 -- a break is its day, its two times, its kind a
 ) -> None:
     """Add a break to a day that has clock times: his own, or anyone's for office staff."""
     if actor.id != owner.id and not actor.is_office_staff:
-        raise AccessDeniedError("Only office staff change another person's breaks.")
+        raise AccessDeniedError(gettext("Only office staff change another person's breaks."))
     _require_break_times(start, end)
     if not AttendanceDay.objects.filter(staff=owner, date=day).exists():
-        raise ConflictError("Set the day's clock times before adding a break.")
+        raise ConflictError(gettext("Set the day's clock times before adding a break."))
     _create_break(
         owner,
         day,

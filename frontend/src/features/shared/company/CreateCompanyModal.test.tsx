@@ -1,6 +1,6 @@
 import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http } from 'msw/http'
 import { describe, expect, it, vi } from 'vitest'
 
 import { autoId } from '@/test/auto-id'

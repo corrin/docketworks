@@ -19,6 +19,7 @@ from typing import Final, Literal, Protocol, cast, runtime_checkable
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.http import HttpRequest, HttpResponse
+from django.utils.translation import gettext
 from ninja.errors import AuthenticationError as NinjaAuthenticationError
 from ninja.errors import AuthorizationError as NinjaAuthorizationError
 from ninja.security import APIKeyCookie
@@ -286,7 +287,7 @@ class OfficeStaffCookieJWTAuth(CookieJWTAuth):
             return None
         if not (isinstance(user, StaffPermissions) and user.is_office_staff):
             raise NinjaAuthorizationError(
-                message="You do not have permission to perform this action."
+                message=gettext("You do not have permission to perform this action.")
             )
         return user
 
@@ -306,6 +307,6 @@ class SuperuserCookieJWTAuth(CookieJWTAuth):
             return None
         if not (isinstance(user, StaffPermissions) and user.is_superuser):
             raise NinjaAuthorizationError(
-                message="You do not have permission to perform this action."
+                message=gettext("You do not have permission to perform this action.")
             )
         return user

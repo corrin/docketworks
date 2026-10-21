@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -24,7 +25,12 @@ import {
 import { INPUT_CLASS } from '@/components/ui/field'
 
 import { EntryForm } from './EntryForm'
-import { extractFields, isFormSchemaSpec } from './formSchema'
+import {
+  extractFields,
+  isFormSchemaSpec,
+  requireDocumentType,
+  requireFormStatus,
+} from './formSchema'
 
 // apps/process/models.py Form.Category.choices define exactly these five
 // keys; FormCreateIn/FormUpdateIn's category field mirrors them as a closed
@@ -39,32 +45,6 @@ export function isCategory(value: string): value is Category {
 
 export function requireCategory(value: string): Category {
   if (!isCategory(value)) throw new Error(`Unexpected category "${value}".`)
-  return value
-}
-
-const DOCUMENT_TYPE_VALUES = ['form', 'register'] as const
-type DocumentType = (typeof DOCUMENT_TYPE_VALUES)[number]
-
-function isDocumentType(value: string): value is DocumentType {
-  return (DOCUMENT_TYPE_VALUES as readonly string[]).includes(value)
-}
-
-function requireDocumentType(value: string): DocumentType {
-  if (!isDocumentType(value)) throw new Error(`Unexpected document type "${value}".`)
-  return value
-}
-
-// Form.Status has exactly these two values; FormUpdateIn.status mirrors them
-// as a closed literal union on the wire.
-const FORM_STATUS_VALUES = ['active', 'archived'] as const
-type FormStatus = (typeof FORM_STATUS_VALUES)[number]
-
-function isFormStatus(value: string): value is FormStatus {
-  return (FORM_STATUS_VALUES as readonly string[]).includes(value)
-}
-
-function requireFormStatus(value: string): FormStatus {
-  if (!isFormStatus(value)) throw new Error(`Unexpected form status "${value}".`)
   return value
 }
 
@@ -134,6 +114,7 @@ interface Props {
  * refuse dismissal mid-save.
  */
 export function FormDialog({ open, onOpenChange, form }: Props) {
+  const { t } = useTranslation('process')
   const [saving, setSaving] = useState(false)
 
   return (
@@ -151,7 +132,9 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
         data-automation-id="FormDialog-container"
       >
         <DialogHeader>
-          <DialogTitle>{form === null ? 'New Form' : 'Edit Form'}</DialogTitle>
+          <DialogTitle>
+            {form === null ? t('formDialog.newTitle') : t('formDialog.editTitle')}
+          </DialogTitle>
         </DialogHeader>
         <FormDefinitionForm
           form={form}
@@ -175,6 +158,7 @@ function FormDefinitionForm({
   setSaving: (saving: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useTranslation('process')
   const queryClient = useQueryClient()
   const categoriesQuery = useQuery(processCategoriesRetrieveOptions())
   const createMutation = useMutation(processFormsCreateMutation())
@@ -193,18 +177,19 @@ function FormDefinitionForm({
     } catch (error) {
       return {
         ok: false as const,
-        message: error instanceof Error ? error.message : 'Invalid JSON',
+        message: error instanceof Error ? error.message : t('formDialog.invalidJson'),
       }
     }
-  }, [drafts.schemaText])
+  }, [drafts.schemaText, t])
 
   const previewFields = parsedSchema.ok ? extractFields(parsedSchema.value) : []
 
   function localProblem(): string | null {
-    if (drafts.title.trim() === '') return 'A title is required.'
-    if (drafts.category === '') return 'A category is required.'
-    if (form === null && drafts.document_type === '') return 'A document type is required.'
-    if (!parsedSchema.ok) return `Schema must be valid JSON: ${parsedSchema.message}`
+    if (drafts.title.trim() === '') return t('formDialog.titleRequired')
+    if (drafts.category === '') return t('formDialog.categoryRequired')
+    if (form === null && drafts.document_type === '') return t('formDialog.documentTypeRequired')
+    if (!parsedSchema.ok)
+      return t('formDialog.schemaInvalidJson', { message: parsedSchema.message })
     // Only the wire SHAPE is checked here — fields[].key/label/type present
     // and typed, options/source_form/display_key typed when given. Business
     // rules (a `select` needs `options`, `source_form` names a real form,
@@ -212,7 +197,7 @@ function FormDefinitionForm({
     // real validator here would drift out of sync with it, so those stay
     // 422s, not local refusals.
     if (!isFormSchemaSpec(parsedSchema.value)) {
-      return 'Schema must have the shape { fields: [{ key, label, type, ... }] }.'
+      return t('formDialog.schemaShape')
     }
     return null
   }
@@ -269,10 +254,10 @@ function FormDefinitionForm({
       // partial key here — rather than manual setQueryData — invalidates
       // every variant currently mounted.
       await queryClient.invalidateQueries({ queryKey: processFormsListQueryKey() })
-      toast.success('Form saved successfully')
+      toast.success(t('formDialog.saved'))
       onOpenChange(false)
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not save the form.'))
+      toast.error(apiErrorMessage(error, t('formDialog.saveFailed')))
     } finally {
       setSaving(false)
     }
@@ -283,26 +268,26 @@ function FormDefinitionForm({
       <div className="flex flex-col gap-6">
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
           <TextField
-            label="Title"
+            label={t('formDialog.title')}
             automationId="FormDialog-title"
             value={drafts.title}
             onChange={(value) => setDraft('title', value)}
           />
           <TextField
-            label="Document number"
+            label={t('formDialog.documentNumber')}
             automationId="FormDialog-document-number"
             value={drafts.document_number}
             onChange={(value) => setDraft('document_number', value)}
           />
           <label className="flex flex-col gap-1 text-sm font-medium">
-            <span className="text-slate-700">Category</span>
+            <span className="text-slate-700">{t('formDialog.category')}</span>
             <select
               className={INPUT_CLASS}
               value={drafts.category}
               onChange={(event) => setDraft('category', event.target.value)}
               data-automation-id="FormDialog-category"
             >
-              <option value="">Select a category</option>
+              <option value="">{t('formDialog.selectCategory')}</option>
               {(categoriesQuery.data?.forms ?? []).map((option) => (
                 <option key={option.key} value={option.key}>
                   {option.label}
@@ -311,7 +296,7 @@ function FormDefinitionForm({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">
-            <span className="text-slate-700">Document type</span>
+            <span className="text-slate-700">{t('formDialog.documentType')}</span>
             <select
               className={INPUT_CLASS}
               value={drafts.document_type}
@@ -319,23 +304,23 @@ function FormDefinitionForm({
               onChange={(event) => setDraft('document_type', event.target.value)}
               data-automation-id="FormDialog-document-type"
             >
-              <option value="">Select a type</option>
-              <option value="form">Form</option>
-              <option value="register">Register</option>
+              <option value="">{t('formDialog.selectType')}</option>
+              <option value="form">{t('formDialog.typeForm')}</option>
+              <option value="register">{t('formDialog.typeRegister')}</option>
             </select>
             {form !== null && (
               <span className="text-xs font-normal text-slate-500">
-                Fixed once a form is created.
+                {t('formDialog.typeFixed')}
               </span>
             )}
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
-            <span className="text-slate-700">Tags</span>
+            <span className="text-slate-700">{t('formDialog.tags')}</span>
             <input
               type="text"
               className={INPUT_CLASS}
               value={drafts.tags}
-              placeholder="comma, separated, tags"
+              placeholder={t('formDialog.tagsPlaceholder')}
               onChange={(event) => setDraft('tags', event.target.value)}
               data-automation-id="FormDialog-tags"
             />
@@ -344,7 +329,7 @@ function FormDefinitionForm({
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm font-medium">
-            <span className="text-slate-700">Schema (JSON)</span>
+            <span className="text-slate-700">{t('formDialog.schema')}</span>
             <textarea
               className={`${INPUT_CLASS} min-h-64 font-mono text-xs`}
               value={drafts.schemaText}
@@ -359,7 +344,7 @@ function FormDefinitionForm({
             )}
           </label>
           <div className="flex flex-col gap-1 text-sm font-medium">
-            <span className="text-slate-700">Preview</span>
+            <span className="text-slate-700">{t('formDialog.preview')}</span>
             {/* The real EntryForm, disabled — what a staff member sees
                 filling this form, not a schema editor's guess at it. */}
             <div
@@ -368,10 +353,12 @@ function FormDefinitionForm({
             >
               {!parsedSchema.ok ? (
                 <span className="text-xs font-normal text-slate-500">
-                  Fix the JSON to preview fields.
+                  {t('formDialog.previewFixJson')}
                 </span>
               ) : previewFields.length === 0 ? (
-                <span className="text-xs font-normal text-slate-500">No fields yet.</span>
+                <span className="text-xs font-normal text-slate-500">
+                  {t('formDialog.previewNoFields')}
+                </span>
               ) : (
                 <EntryForm
                   schema={previewFields}
@@ -413,7 +400,7 @@ function FormDefinitionForm({
               onChange={(event) => setDraft('status', event.target.checked ? 'archived' : 'active')}
               data-automation-id="FormDialog-archived"
             />
-            <span className="text-slate-700">Archived</span>
+            <span className="text-slate-700">{t('formDialog.archived')}</span>
           </label>
         )}
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
@@ -423,14 +410,14 @@ function FormDefinitionForm({
             onClick={() => onOpenChange(false)}
             data-automation-id="FormDialog-cancel"
           >
-            Cancel
+            {t('formDialog.cancel')}
           </Button>
           <Button
             disabled={saving}
             onClick={() => void save()}
             data-automation-id="FormDialog-submit"
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('formDialog.saving') : t('formDialog.save')}
           </Button>
         </div>
       </DialogFooter>

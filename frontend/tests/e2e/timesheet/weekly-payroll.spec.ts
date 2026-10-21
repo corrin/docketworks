@@ -1,4 +1,9 @@
-import { getPostableWeek, getWeekPostingStatus, type StaffWeekPosting } from '../fixtures/api'
+import {
+  getPostableWeek,
+  getWeekPostingStatus,
+  getWorkshopStaff,
+  type StaffWeekPosting,
+} from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 // The app's own date helpers, not a spec-local reimplementation: the fourth
 // sibling copy of Monday arithmetic is how the three job pickers happened.
@@ -73,19 +78,18 @@ test.describe('weekly timesheets', () => {
     await page.waitForURL(`**/timesheets/daily**date=${day}**`)
     await expect(autoId(page, 'DailyOverview-date')).toHaveText(formatDateLong(day))
 
+    const staffId = (await getWorkshopStaff(page)).id
     await openWeek(page, week)
-    const firstCell = page.locator('[data-automation-id^="WeeklyOverview-cell-"]').first()
-    // The id is WeeklyOverview-cell-<staffId>-<YYYY-MM-DD>; the route carries both.
-    const cellId = (await firstCell.getAttribute('data-automation-id'))!
-    const staffId = cellId.replace('WeeklyOverview-cell-', '').slice(0, -'YYYY-MM-DD'.length - 1)
-    await firstCell.click()
+    // The workshop login's Monday; the route carries the staff member and the day.
+    await autoId(page, `WeeklyOverview-cell-${staffId}-${week}`).click()
     await page.waitForURL(`**/timesheets/entry**staffId=${staffId}**`)
   })
 
   test('a staff row expands into its payroll categories', async ({ authenticatedPage: page }) => {
+    const staffId = (await getWorkshopStaff(page)).id
     await openWeek(page, week)
 
-    const toggle = page.locator('[data-automation-id^="WeeklyOverview-expand-"]').first()
+    const toggle = autoId(page, `WeeklyOverview-expand-${staffId}`)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')

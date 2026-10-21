@@ -1,6 +1,5 @@
 import { useBlocker } from '@tanstack/react-router'
-
-export const UNSAVED_CHANGES_PROMPT = 'You have unsaved changes. Discard them and leave this page?'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The one unsaved-changes guard every settings screen arms (ADR 0039): three
@@ -9,8 +8,9 @@ export const UNSAVED_CHANGES_PROMPT = 'You have unsaved changes. Discard them an
  * calling the hook conditionally would break the rules of hooks.
  */
 export function useUnsavedChangesGuard(isDirty: boolean): void {
+  const { t } = useTranslation('shared')
   useBlocker({
-    shouldBlockFn: () => !window.confirm(UNSAVED_CHANGES_PROMPT),
+    shouldBlockFn: () => !window.confirm(t('unsavedChanges.prompt')),
     disabled: !isDirty,
     enableBeforeUnload: () => isDirty,
   })

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { EntryOut, FormFieldSchema } from '@/api'
 import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
@@ -51,15 +53,16 @@ export function EntriesTable({
   onLinks,
   onArchive,
 }: Props) {
+  const { t } = useTranslation('process')
   return (
     <ListTable
       isPending={isPending}
       isError={isError}
       onRetry={onRetry}
-      loadingLabel="Loading entries..."
-      errorLabel="Failed to load entries."
+      loadingLabel={t('entriesTable.loading')}
+      errorLabel={t('entriesTable.loadFailed')}
       rows={rows}
-      emptyLabel="No entries yet"
+      emptyLabel={t('entriesTable.empty')}
       automationId="EntriesTable-table"
       head={
         <tr>
@@ -68,12 +71,12 @@ export function EntriesTable({
               {field.label}
             </th>
           ))}
-          <th className={HEADER_CELL}>Date</th>
-          <th className={HEADER_CELL}>Staff</th>
-          <th className={HEADER_CELL}>Entered by</th>
-          <th className={HEADER_CELL}>Links</th>
+          <th className={HEADER_CELL}>{t('entriesTable.date')}</th>
+          <th className={HEADER_CELL}>{t('entriesTable.staff')}</th>
+          <th className={HEADER_CELL}>{t('entriesTable.enteredBy')}</th>
+          <th className={HEADER_CELL}>{t('entriesTable.links')}</th>
           <th className={HEADER_CELL}>
-            <span className="sr-only">Actions</span>
+            <span className="sr-only">{t('entriesTable.actions')}</span>
           </th>
         </tr>
       }
@@ -96,7 +99,7 @@ export function EntriesTable({
                 onClick={() => onEdit(entry)}
                 data-automation-id={`EntriesTable-edit-${entry.id}`}
               >
-                Edit
+                {t('entriesTable.edit')}
               </Button>
               <Button
                 variant="outline"
@@ -104,7 +107,7 @@ export function EntriesTable({
                 onClick={() => onHistory(entry)}
                 data-automation-id={`EntriesTable-history-${entry.id}`}
               >
-                History
+                {t('entriesTable.history')}
               </Button>
               <Button
                 variant="outline"
@@ -112,7 +115,7 @@ export function EntriesTable({
                 onClick={() => onLinks(entry)}
                 data-automation-id={`EntriesTable-links-${entry.id}`}
               >
-                Links
+                {t('entriesTable.links')}
               </Button>
               <Button
                 variant="outline"
@@ -121,7 +124,7 @@ export function EntriesTable({
                 onClick={() => onArchive(entry)}
                 data-automation-id={`EntriesTable-archive-${entry.id}`}
               >
-                {archivingId === entry.id ? 'Archiving…' : 'Archive'}
+                {archivingId === entry.id ? t('entriesTable.archiving') : t('entriesTable.archive')}
               </Button>
             </div>
           </td>

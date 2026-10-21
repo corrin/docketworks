@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, PencilLine, Trash2, Users } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -91,6 +92,7 @@ export function PersonSelectionModal({
   onPersonUpdated,
   onPersonDeleted,
 }: PersonSelectionModalProps) {
+  const { t } = useTranslation('shared')
   const queryClient = useQueryClient()
   const [form, setForm] = useState<PersonFormState>(EMPTY_FORM)
   const [editingPerson, setEditingPerson] = useState<CompanyPerson | null>(null)
@@ -155,11 +157,11 @@ export function PersonSelectionModal({
     }
     const email = form.email.trim()
     if (email && !EMAIL_PATTERN.test(email)) {
-      toast.error('Please enter a valid email address')
+      toast.error(t('personSelection.invalidEmail'))
       return
     }
 
-    toast.info('Updating person...', { id: 'save-person' })
+    toast.info(t('personSelection.updating'), { id: 'save-person' })
     try {
       await updatePerson.mutateAsync({
         path: { person_id: editingPerson.person_id },
@@ -167,11 +169,11 @@ export function PersonSelectionModal({
       })
     } catch (error) {
       toast.dismiss('save-person')
-      toast.error(apiErrorMessage(error, 'Failed to update person.'))
+      toast.error(apiErrorMessage(error, t('personSelection.updateFailed')))
       return
     }
     toast.dismiss('save-person')
-    toast.success('Person updated successfully!')
+    toast.success(t('personSelection.updated'))
 
     await invalidatePeople()
     onPersonUpdated?.({ ...editingPerson, person_name: name, person_email: email || null })
@@ -182,19 +184,19 @@ export function PersonSelectionModal({
     if (deleteTarget === null) {
       return
     }
-    toast.info('Deleting person...', { id: 'delete-person' })
+    toast.info(t('personSelection.deleting'), { id: 'delete-person' })
     try {
       await removeLink.mutateAsync({
         path: { person_id: deleteTarget.person_id, company_id: companyId },
       })
     } catch (error) {
       toast.dismiss('delete-person')
-      toast.error(apiErrorMessage(error, 'Failed to remove person.'))
+      toast.error(apiErrorMessage(error, t('personSelection.removeFailed')))
       setDeleteTarget(null)
       return
     }
     toast.dismiss('delete-person')
-    toast.success('Person removed successfully')
+    toast.success(t('personSelection.removed'))
 
     await invalidatePeople()
     onPersonDeleted?.(deleteTarget.person_id)
@@ -211,7 +213,7 @@ export function PersonSelectionModal({
 
     const email = form.email.trim()
     if (email && !EMAIL_PATTERN.test(email)) {
-      toast.error('Please enter a valid email address')
+      toast.error(t('personSelection.invalidEmail'))
       return
     }
 
@@ -224,7 +226,7 @@ export function PersonSelectionModal({
           body: { phone },
         })
       } catch (error) {
-        toast.error(apiErrorMessage(error, 'Failed to check phone ownership.'))
+        toast.error(apiErrorMessage(error, t('personSelection.phoneCheckFailed')))
         return
       }
       if (ownership.status !== 'available') {
@@ -245,7 +247,7 @@ export function PersonSelectionModal({
       phone: phone || undefined,
     }
 
-    toast.info('Creating person...', { id: 'save-person' })
+    toast.info(t('personSelection.creating'), { id: 'save-person' })
     let created: CompanyPerson
     try {
       created = await createPerson.mutateAsync({ path: { company_id: companyId }, body })
@@ -262,13 +264,11 @@ export function PersonSelectionModal({
           return
         }
       }
-      toast.error(
-        apiErrorMessage(error, 'Failed to create person. Please check the form and try again.'),
-      )
+      toast.error(apiErrorMessage(error, t('personSelection.createFailed')))
       return
     }
     toast.dismiss('save-person')
-    toast.success('Person created successfully!')
+    toast.success(t('personSelection.created'))
 
     await invalidatePeople()
     onSelectPerson(created)
@@ -278,17 +278,17 @@ export function PersonSelectionModal({
   const matchAction = (match: PhonePersonMatch): string => {
     const link = match.company_links.find((item) => item.company_id === companyId)
     if (link?.is_active) {
-      return 'Select person'
+      return t('personSelection.matchSelect')
     }
     if (link) {
-      return 'Restore company link'
+      return t('personSelection.matchRestore')
     }
-    return 'Link to this company'
+    return t('personSelection.matchLink')
   }
 
   const handleLinkMatch = async (match: PhonePersonMatch) => {
     const existingLink = match.company_links.find((item) => item.company_id === companyId)
-    toast.info('Linking person...', { id: 'save-person' })
+    toast.info(t('personSelection.linking'), { id: 'save-person' })
     try {
       if (!existingLink?.is_active) {
         // The PUT upserts the link, reactivates an inactive one, and
@@ -331,12 +331,12 @@ export function PersonSelectionModal({
         throw new Error('Linked person was not returned for the company')
       }
       toast.dismiss('save-person')
-      toast.success('Person linked successfully!')
+      toast.success(t('personSelection.linked'))
       onSelectPerson(linked)
       closeAndReset()
     } catch (error) {
       toast.dismiss('save-person')
-      toast.error(apiErrorMessage(error, 'Failed to link the existing person.'))
+      toast.error(apiErrorMessage(error, t('personSelection.linkFailed')))
     }
   }
 
@@ -351,16 +351,27 @@ export function PersonSelectionModal({
   // primary person.
   const conflictActionsDisabled = isSaving || checkPhoneOwnership.isPending || linkPerson.isPending
   const submitDisabled = conflictActionsDisabled || isLoadingPeople || !form.name.trim()
-  const submitLabel = isSaving ? 'Saving...' : editingPerson ? 'Update Person' : 'Create Person'
+  const submitLabel = isSaving
+    ? t('personSelection.saving')
+    : editingPerson
+      ? t('personSelection.update')
+      : t('personSelection.create')
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && closeAndReset()}>
       <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[950px]">
         <div data-automation-id="PersonSelectionModal-container" className="flex min-h-0 flex-col">
           <DialogHeader className="flex-shrink-0 border-b border-gray-200 pb-4">
-            <DialogTitle className="text-lg font-semibold">Select Person</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">
+              {t('personSelection.title')}
+            </DialogTitle>
             <DialogDescription className="text-sm text-gray-600">
-              Company: <span className="font-medium text-gray-900">{companyName}</span>
+              <Trans
+                t={t}
+                i18nKey="personSelection.company"
+                values={{ companyName }}
+                components={{ name: <span className="font-medium text-gray-900" /> }}
+              />
             </DialogDescription>
           </DialogHeader>
 
@@ -373,21 +384,21 @@ export function PersonSelectionModal({
               }`}
               data-automation-id="PersonSelectionModal-phone-conflict"
             >
-              <h4 className="font-semibold text-gray-900">This phone number is already in use</h4>
+              <h4 className="font-semibold text-gray-900">{t('personSelection.phoneInUse')}</h4>
               {phoneOwnership.status === 'people' ? (
                 <p className="mt-1 text-sm text-gray-700">
-                  Choose the matching person. Their identity and contact details will be preserved.
+                  {t('personSelection.phoneOwnedByPeople')}
                 </p>
               ) : phoneOwnership.status === 'company' ? (
                 <p className="mt-1 text-sm text-red-800">
-                  It belongs to{' '}
-                  {phoneOwnership.companies.map((company) => company.company_name).join(', ')} and
-                  cannot be assigned to a person.
+                  {t('personSelection.phoneOwnedByCompany', {
+                    companies: phoneOwnership.companies
+                      .map((company) => company.company_name)
+                      .join(', '),
+                  })}
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-red-800">
-                  It is an internal phone endpoint and cannot be assigned to a person.
-                </p>
+                <p className="mt-1 text-sm text-red-800">{t('personSelection.phoneInternal')}</p>
               )}
 
               {phoneOwnership.status === 'people' && (
@@ -400,14 +411,19 @@ export function PersonSelectionModal({
                     >
                       <div>
                         <p className="font-medium text-gray-900">{match.person_name}</p>
-                        <p className="text-xs text-gray-600">{match.person_email || 'No email'}</p>
+                        <p className="text-xs text-gray-600">
+                          {match.person_email || t('personSelection.noEmail')}
+                        </p>
                         <p className="mt-1 text-xs text-gray-500">
                           {match.company_links
-                            .map(
-                              (link) =>
-                                `${link.company_name}${link.is_active ? '' : ' (inactive)'}`,
+                            .map((link) =>
+                              link.is_active
+                                ? link.company_name
+                                : t('personSelection.inactiveCompany', {
+                                    companyName: link.company_name,
+                                  }),
                             )
-                            .join(', ') || 'No company links'}
+                            .join(', ') || t('personSelection.noCompanyLinks')}
                         </p>
                       </div>
                       <button
@@ -429,7 +445,7 @@ export function PersonSelectionModal({
                       disabled={conflictActionsDisabled}
                       onClick={() => void handleCreate(true)}
                     >
-                      Create a separate person with this shared number
+                      {t('personSelection.createSeparate')}
                     </button>
                   )}
                 </div>
@@ -445,14 +461,20 @@ export function PersonSelectionModal({
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                       <AlertTriangle className="h-6 w-6 text-red-600" />
                     </div>
-                    <h4 className="mb-2 text-lg font-semibold text-gray-900">Delete Person?</h4>
+                    <h4 className="mb-2 text-lg font-semibold text-gray-900">
+                      {t('personSelection.deleteTitle')}
+                    </h4>
                     <p className="mb-4 text-sm text-gray-600">
-                      Are you sure you want to remove <strong>{deleteTarget.person_name}</strong>?
-                      The person will be marked as inactive.
+                      <Trans
+                        t={t}
+                        i18nKey="personSelection.deleteConfirm"
+                        values={{ name: deleteTarget.person_name }}
+                        components={{ strong: <strong /> }}
+                      />
                     </p>
                     {deleteTarget.is_primary && (
                       <p className="mb-4 text-sm font-medium text-amber-600">
-                        This is the primary person for this company.
+                        {t('personSelection.deletePrimaryWarning')}
                       </p>
                     )}
                     <div className="flex justify-center gap-3">
@@ -462,7 +484,7 @@ export function PersonSelectionModal({
                         data-automation-id="PersonSelectionModal-cancel-delete"
                         onClick={() => setDeleteTarget(null)}
                       >
-                        Cancel
+                        {t('personSelection.cancelDelete')}
                       </button>
                       <button
                         type="button"
@@ -473,7 +495,7 @@ export function PersonSelectionModal({
                           void handleConfirmDelete()
                         }}
                       >
-                        Delete
+                        {t('personSelection.confirmDelete')}
                       </button>
                     </div>
                   </div>
@@ -481,12 +503,12 @@ export function PersonSelectionModal({
               )}
               {isLoadingPeople ? (
                 <div className="flex flex-1 items-center justify-center">
-                  <p className="text-sm text-gray-500">Loading people...</p>
+                  <p className="text-sm text-gray-500">{t('personSelection.loading')}</p>
                 </div>
               ) : isErrorPeople ? (
                 <div className="flex flex-1 items-center justify-center">
                   <p className="text-sm text-red-700">
-                    Could not load people.{' '}
+                    {t('personSelection.loadFailed')}{' '}
                     <button
                       type="button"
                       className="underline"
@@ -498,14 +520,14 @@ export function PersonSelectionModal({
                         })
                       }}
                     >
-                      Retry
+                      {t('personSelection.retry')}
                     </button>
                   </p>
                 </div>
               ) : people.length > 0 ? (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <h4 className="mb-3 flex-shrink-0 text-sm font-semibold text-gray-900">
-                    Existing People ({people.length})
+                    {t('personSelection.existingPeople', { total: people.length })}
                   </h4>
                   <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                     <div className="grid gap-3 pb-2">
@@ -523,7 +545,7 @@ export function PersonSelectionModal({
                           {person.is_primary && (
                             <div className="absolute -top-1 -right-1">
                               <span className="inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white shadow-sm">
-                                Primary
+                                {t('personSelection.primaryBadge')}
                               </span>
                             </div>
                           )}
@@ -554,21 +576,25 @@ export function PersonSelectionModal({
                               type="button"
                               className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
                               data-automation-id="PersonSelectionModal-select-button"
-                              title="Select this person"
-                              aria-label={`Select ${person.person_name}`}
+                              title={t('personSelection.selectTitle')}
+                              aria-label={t('personSelection.selectAria', {
+                                name: person.person_name,
+                              })}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 handleSelect(person)
                               }}
                             >
-                              Select
+                              {t('personSelection.select')}
                             </button>
                             <button
                               type="button"
                               className="rounded-md bg-gray-600 p-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700"
                               data-automation-id="PersonSelectionModal-edit-button"
-                              title="Edit person"
-                              aria-label={`Edit ${person.person_name}`}
+                              title={t('personSelection.editTitle')}
+                              aria-label={t('personSelection.editAria', {
+                                name: person.person_name,
+                              })}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 startEdit(person)
@@ -580,8 +606,10 @@ export function PersonSelectionModal({
                               type="button"
                               className="rounded-md bg-red-600 p-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-red-700"
                               data-automation-id="PersonSelectionModal-delete-button"
-                              title="Delete person"
-                              aria-label={`Delete ${person.person_name}`}
+                              title={t('personSelection.deleteButtonTitle')}
+                              aria-label={t('personSelection.deleteAria', {
+                                name: person.person_name,
+                              })}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 setDeleteTarget(person)
@@ -599,8 +627,8 @@ export function PersonSelectionModal({
                 <div className="flex flex-1 items-center justify-center">
                   <div className="text-center text-gray-500">
                     <Users className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-                    <p className="font-medium">No existing people</p>
-                    <p className="mt-1 text-xs">Create a new person to get started</p>
+                    <p className="font-medium">{t('personSelection.empty')}</p>
+                    <p className="mt-1 text-xs">{t('personSelection.emptyHint')}</p>
                   </div>
                 </div>
               )}
@@ -609,7 +637,9 @@ export function PersonSelectionModal({
             <div className="w-full flex-shrink-0 border-t border-gray-200 pt-4 xl:w-80 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6 2xl:w-96">
               <div className="mb-4 flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-gray-900">
-                  {editingPerson ? 'Edit Person' : 'Create New Person'}
+                  {editingPerson
+                    ? t('personSelection.editHeading')
+                    : t('personSelection.createHeading')}
                 </h4>
                 {editingPerson && (
                   <button
@@ -620,7 +650,7 @@ export function PersonSelectionModal({
                       setForm(EMPTY_FORM)
                     }}
                   >
-                    Cancel edit
+                    {t('personSelection.cancelEdit')}
                   </button>
                 )}
               </div>
@@ -631,7 +661,7 @@ export function PersonSelectionModal({
                     htmlFor={`${fieldIdPrefix}-name`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Name <span className="text-red-500">*</span>
+                    {t('personSelection.nameLabel')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -640,7 +670,7 @@ export function PersonSelectionModal({
                     value={form.name}
                     data-automation-id="PersonSelectionModal-name-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                    placeholder="Person name"
+                    placeholder={t('personSelection.namePlaceholder')}
                     onChange={(event) => updateForm({ name: event.target.value })}
                   />
                 </div>
@@ -650,16 +680,16 @@ export function PersonSelectionModal({
                     htmlFor={`${fieldIdPrefix}-position`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Position
+                    {t('personSelection.positionLabel')}
                   </label>
                   <input
                     type="text"
                     id={`${fieldIdPrefix}-position`}
                     value={form.position}
                     disabled={editingPerson !== null || checkingPhone}
-                    title={editingPerson ? 'Editing changes name and email only' : undefined}
+                    title={editingPerson ? t('personSelection.editOnlyNameEmail') : undefined}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-                    placeholder="Job title/position"
+                    placeholder={t('personSelection.positionPlaceholder')}
                     onChange={(event) => updateForm({ position: event.target.value })}
                   />
                 </div>
@@ -669,17 +699,17 @@ export function PersonSelectionModal({
                     htmlFor={`${fieldIdPrefix}-phone`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Phone
+                    {t('personSelection.phoneLabel')}
                   </label>
                   <input
                     type="tel"
                     id={`${fieldIdPrefix}-phone`}
                     value={form.phone}
                     disabled={editingPerson !== null || checkingPhone}
-                    title={editingPerson ? 'Editing changes name and email only' : undefined}
+                    title={editingPerson ? t('personSelection.editOnlyNameEmail') : undefined}
                     data-automation-id="PersonSelectionModal-phone-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-                    placeholder="Phone number"
+                    placeholder={t('personSelection.phonePlaceholder')}
                     onChange={(event) => {
                       updateForm({ phone: event.target.value })
                       setPhoneOwnership(null)
@@ -692,7 +722,7 @@ export function PersonSelectionModal({
                     htmlFor={`${fieldIdPrefix}-email`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Email
+                    {t('personSelection.emailLabel')}
                   </label>
                   <input
                     type="email"
@@ -701,7 +731,7 @@ export function PersonSelectionModal({
                     disabled={checkingPhone}
                     data-automation-id="PersonSelectionModal-email-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                    placeholder="Email address"
+                    placeholder={t('personSelection.emailPlaceholder')}
                     onChange={(event) => updateForm({ email: event.target.value })}
                   />
                 </div>
@@ -711,16 +741,16 @@ export function PersonSelectionModal({
                     htmlFor={`${fieldIdPrefix}-notes`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    Notes
+                    {t('personSelection.notesLabel')}
                   </label>
                   <textarea
                     id={`${fieldIdPrefix}-notes`}
                     value={form.notes}
                     rows={2}
                     disabled={editingPerson !== null || checkingPhone}
-                    title={editingPerson ? 'Editing changes name and email only' : undefined}
+                    title={editingPerson ? t('personSelection.editOnlyNameEmail') : undefined}
                     className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-                    placeholder="Additional notes"
+                    placeholder={t('personSelection.notesPlaceholder')}
                     onChange={(event) => updateForm({ notes: event.target.value })}
                   />
                 </div>
@@ -735,11 +765,13 @@ export function PersonSelectionModal({
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       onChange={(event) => updateForm({ isPrimary: event.target.checked })}
                     />
-                    <span className="ml-2 text-xs text-gray-700">Set as primary person</span>
+                    <span className="ml-2 text-xs text-gray-700">
+                      {t('personSelection.setPrimary')}
+                    </span>
                   </label>
                   {people.length === 0 && (
                     <p className="mt-1 text-xs font-medium text-green-600">
-                      Automatically set for first person
+                      {t('personSelection.autoPrimary')}
                     </p>
                   )}
                 </div>
@@ -753,7 +785,7 @@ export function PersonSelectionModal({
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               onClick={closeAndReset}
             >
-              Cancel
+              {t('personSelection.cancel')}
             </button>
             <button
               type="button"

@@ -25,7 +25,7 @@ from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.services import hour_categories
+from apps.timesheet.services import hour_categories, xero_hours
 from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
 logger = logging.getLogger(__name__)
@@ -194,11 +194,10 @@ def _leave_type(
     return None
 
 
-def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the day needs; the catalogue is passed rather than loaded so a week costs one read, not one per staff-day
+def _process_daily_lines(
     staff_member: Staff,
     day: date,
     cost_lines: list[CostLine],
-    loading_multiplier: Decimal,
     catalogue: hour_categories.LeaveCatalogue,
     *,
     weekend_enabled: bool,
@@ -214,10 +213,14 @@ def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the d
     daily_hours = categories.total
     leave_type = _leave_type(cost_lines, catalogue)
 
-    # v1 rounds the base cost to cents FIRST and applies the labour cost loading to the
-    # rounded figure, so an operator can reconcile daily_base_cost * loading
-    # against daily_cost. Loading the unrounded sum drifts by a cent.
-    daily_base_cost = _total(line.total_cost for line in cost_lines).quantize(CENTS)
+    # Opus: a time line's cost is already priced at the loaded wage, so it IS the
+    # day's cost; loading it again counted paid leave twice (v1 9ba98661 flipped
+    # 179a403b's correct pair). The base cost is what payroll pays in cash: the
+    # hours at the base rate Xero holds, as the payroll reconciliation reckons it.
+    daily_cost = _total(line.total_cost for line in cost_lines).quantize(CENTS)
+    daily_base_cost = _total(
+        xero_hours.line_base_pay(line, staff_member) for line in cost_lines
+    ).quantize(CENTS)
 
     return {
         "day": day.strftime("%Y-%m-%d"),
@@ -238,7 +241,7 @@ def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the d
         "bereavement_leave_hours": categories.bereavement_leave,
         "other_leave_hours": categories.other_leave,
         "daily_base_cost": daily_base_cost,
-        "daily_cost": (daily_base_cost * loading_multiplier).quantize(CENTS),
+        "daily_cost": daily_cost,
     }
 
 
@@ -259,7 +262,7 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
     return grouped
 
 
-def _total(values: "Iterable[Decimal]") -> Decimal:
+def _total(values: Iterable[Decimal]) -> Decimal:
     """Sum a column of Decimals, starting from Decimal rather than int 0.
 
     Opus: Named rather than inlined because the sums it replaces were the aggregation
@@ -271,11 +274,10 @@ def _total(values: "Iterable[Decimal]") -> Decimal:
     return sum(values, Decimal("0"))
 
 
-def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs; the catalogue is threaded so a week costs one read
+def _staff_week(
     staff_member: Staff,
     days: list[date],
     grouped: dict[tuple[str, date], list[CostLine]],
-    loading_multiplier: Decimal,
     catalogue: hour_categories.LeaveCatalogue,
     *,
     weekend_enabled: bool,
@@ -287,7 +289,6 @@ def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs;
             staff_member,
             day,
             grouped.get((staff_id, day), []),
-            loading_multiplier,
             catalogue,
             weekend_enabled=weekend_enabled,
         )
@@ -421,7 +422,6 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     """
     company_defaults = CompanyDefaults.get_solo()
     weekend_enabled = company_defaults.weekend_timesheets_enabled
-    loading_multiplier = Decimal("1") + company_defaults.labour_cost_loading / Decimal("100")
 
     # Opus: Built over the PAYROLL week regardless of the flag, so nothing that will
     # be posted can be missing from what is reviewed.
@@ -441,7 +441,6 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
             staff_member,
             days,
             grouped,
-            loading_multiplier,
             catalogue,
             weekend_enabled=weekend_enabled,
         )

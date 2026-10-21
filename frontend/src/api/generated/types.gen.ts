@@ -783,7 +783,7 @@ export type CompanyDefaultsOut = {
     /**
      * Accounting Provider
      *
-     * Active accounting integration: 'xero' or 'myob'
+     * Which accounting system DocketWorks works with: Xero or MYOB.
      */
     accounting_provider: string;
     /**
@@ -871,7 +871,7 @@ export type CompanyDefaultsOut = {
     /**
      * Enable Xero Sync
      *
-     * Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.
+     * Lets DocketWorks update from and send to Xero. On for a live site. A development copy starts with it off and turns it on once it is linked to its own test Xero organisation.
      */
     enable_xero_sync: boolean;
     /**
@@ -925,6 +925,12 @@ export type CompanyDefaultsOut = {
      */
     gdrive_sops_folder_id: string | null;
     /**
+     * General Work Job
+     *
+     * Internal job that clocked time on no job is booked to at approval.
+     */
+    general_work_job: string | null;
+    /**
      * Google Place Id
      */
     google_place_id: string | null;
@@ -947,7 +953,7 @@ export type CompanyDefaultsOut = {
     /**
      * Job Delta Soft Fail
      *
-     * When enabled, job delta checksum mismatches are logged and recorded without blocking the save. Disable to reject stale updates.
+     * When on, a job saved from a screen that was out of date is still saved and the mismatch is recorded. When off, that save is refused and the person must reload the job.
      */
     job_delta_soft_fail: boolean;
     /**
@@ -965,15 +971,9 @@ export type CompanyDefaultsOut = {
     /**
      * Daily GP (amber)
      *
-     * Daily gross profit above which the day is amber
+     * Daily gross profit from which a day on the KPI calendar is amber. It is green from the daily gross profit target, and red below this.
      */
     kpi_daily_gp_amber: string;
-    /**
-     * Daily GP (green)
-     *
-     * Daily gross profit above which the day is green
-     */
-    kpi_daily_gp_green: string;
     /**
      * Daily gross profit target
      *
@@ -1001,13 +1001,13 @@ export type CompanyDefaultsOut = {
     /**
      * Last Xero Deep Sync
      *
-     * The last time a deep Xero sync was performed (looking back 90 days)
+     * When DocketWorks last did a full update from Xero (looking back 90 days)
      */
     last_xero_deep_sync: string | null;
     /**
      * Last Xero Sync
      *
-     * The last time Xero data was synchronized
+     * When DocketWorks last finished updating from Xero
      */
     last_xero_sync: string | null;
     /**
@@ -1191,13 +1191,13 @@ export type CompanyDefaultsOut = {
     /**
      * Xero Automated Day Floor
      *
-     * Reserve this many Xero daily API calls for user-initiated work. Automated sync aborts when the active Xero app reports remaining daily calls at or below this value.
+     * How many of Xero's daily request allowance to keep for people working in DocketWorks. Automatic updates from Xero stop when this many or fewer requests are left for the day.
      */
     xero_automated_day_floor: number;
     /**
      * Xero Payroll Calendar Id
      *
-     * Cached Xero Payroll calendar ID (set by xero --setup command)
+     * Filled in by Xero setup from the payroll calendar name above.
      */
     xero_payroll_calendar_id: string | null;
     /**
@@ -1215,7 +1215,7 @@ export type CompanyDefaultsOut = {
     /**
      * Xero quote terms
      *
-     * Terms sent on every quote created by DocketWorks. Required — Xero does not apply its own Terms (Quotes) default to quotes created through the API. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
+     * Terms sent on every quote created by DocketWorks. Required — Xero does not add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
      */
     xero_quote_terms: string;
     /**
@@ -1227,13 +1227,13 @@ export type CompanyDefaultsOut = {
     /**
      * Xero Shortcode
      *
-     * Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+     * Xero's short code for this organisation, used to open documents straight in Xero (e.g. '!8-5Xl').
      */
     xero_shortcode: string | null;
     /**
      * Xero Tenant Id
      *
-     * The Xero tenant ID to use for this company
+     * The Xero organisation this DocketWorks is connected to. Filled in when Xero is connected.
      */
     xero_tenant_id: string | null;
 };
@@ -1247,7 +1247,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Accounting Provider
      *
-     * Active accounting integration: 'xero' or 'myob'
+     * Which accounting system DocketWorks works with: Xero or MYOB.
      */
     accounting_provider?: string | null;
     /**
@@ -1331,7 +1331,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Enable Xero Sync
      *
-     * Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.
+     * Lets DocketWorks update from and send to Xero. On for a live site. A development copy starts with it off and turns it on once it is linked to its own test Xero organisation.
      */
     enable_xero_sync?: boolean | null;
     /**
@@ -1385,6 +1385,12 @@ export type CompanyDefaultsPatchIn = {
      */
     gdrive_sops_folder_id?: string | null;
     /**
+     * General Work Job
+     *
+     * Internal job that clocked time on no job is booked to at approval.
+     */
+    general_work_job_id?: string | null;
+    /**
      * Google Place Id
      */
     google_place_id?: string | null;
@@ -1403,7 +1409,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Job Delta Soft Fail
      *
-     * When enabled, job delta checksum mismatches are logged and recorded without blocking the save. Disable to reject stale updates.
+     * When on, a job saved from a screen that was out of date is still saved and the mismatch is recorded. When off, that save is refused and the person must reload the job.
      */
     job_delta_soft_fail?: boolean | null;
     /**
@@ -1421,15 +1427,9 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Daily GP (amber)
      *
-     * Daily gross profit above which the day is amber
+     * Daily gross profit from which a day on the KPI calendar is amber. It is green from the daily gross profit target, and red below this.
      */
     kpi_daily_gp_amber?: number | string | null;
-    /**
-     * Daily GP (green)
-     *
-     * Daily gross profit above which the day is green
-     */
-    kpi_daily_gp_green?: number | string | null;
     /**
      * Daily gross profit target
      *
@@ -1457,13 +1457,13 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Last Xero Deep Sync
      *
-     * The last time a deep Xero sync was performed (looking back 90 days)
+     * When DocketWorks last did a full update from Xero (looking back 90 days)
      */
     last_xero_deep_sync?: string | null;
     /**
      * Last Xero Sync
      *
-     * The last time Xero data was synchronized
+     * When DocketWorks last finished updating from Xero
      */
     last_xero_sync?: string | null;
     /**
@@ -1635,13 +1635,13 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Xero Automated Day Floor
      *
-     * Reserve this many Xero daily API calls for user-initiated work. Automated sync aborts when the active Xero app reports remaining daily calls at or below this value.
+     * How many of Xero's daily request allowance to keep for people working in DocketWorks. Automatic updates from Xero stop when this many or fewer requests are left for the day.
      */
     xero_automated_day_floor?: number | null;
     /**
      * Xero Payroll Calendar Id
      *
-     * Cached Xero Payroll calendar ID (set by xero --setup command)
+     * Filled in by Xero setup from the payroll calendar name above.
      */
     xero_payroll_calendar_id?: string | null;
     /**
@@ -1659,7 +1659,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Xero quote terms
      *
-     * Terms sent on every quote created by DocketWorks. Required — Xero does not apply its own Terms (Quotes) default to quotes created through the API. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
+     * Terms sent on every quote created by DocketWorks. Required — Xero does not add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
      */
     xero_quote_terms?: string | null;
     /**
@@ -1671,13 +1671,13 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Xero Shortcode
      *
-     * Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+     * Xero's short code for this organisation, used to open documents straight in Xero (e.g. '!8-5Xl').
      */
     xero_shortcode?: string | null;
     /**
      * Xero Tenant Id
      *
-     * The Xero tenant ID to use for this company
+     * The Xero organisation this DocketWorks is connected to. Filled in when Xero is connected.
      */
     xero_tenant_id?: string | null;
 };
@@ -5980,10 +5980,6 @@ export type KpiThresholdsOut = {
      * Kpi Daily Gp Amber
      */
     kpi_daily_gp_amber: number;
-    /**
-     * Kpi Daily Gp Green
-     */
-    kpi_daily_gp_green: number;
     /**
      * Kpi Daily Gp Target
      */
@@ -11033,7 +11029,7 @@ export type SettingsFieldOut = {
     type: SettingsFieldType;
 };
 
-export type SettingsFieldType = 'image' | 'email' | 'url' | 'text' | 'textarea' | 'number' | 'boolean' | 'time' | 'datetime' | 'date' | 'company' | 'xero_branding_theme';
+export type SettingsFieldType = 'image' | 'email' | 'url' | 'text' | 'textarea' | 'number' | 'boolean' | 'time' | 'datetime' | 'date' | 'company' | 'job' | 'xero_branding_theme';
 
 export type SettingsSectionKey = 'company' | 'working_hours' | 'finances' | 'kpi' | 'setup' | 'xero';
 
@@ -11101,6 +11097,10 @@ export type StaffApprovalOut = {
      * State
      */
     state: 'waiting' | 'nothing_entered' | 'nothing_waiting' | 'not_rostered';
+    /**
+     * Unallocated Hours
+     */
+    unallocated_hours: number | null;
     /**
      * Waiting Hours
      */
@@ -12861,6 +12861,70 @@ export type SupplierSearchResult = {
      * Xero Contact Id
      */
     xero_contact_id: string;
+};
+
+/**
+ * SweepIn
+ *
+ * The days to sweep, for one person or, without ``staff_id``, everyone on them.
+ */
+export type SweepIn = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * SweepOut
+ *
+ * What the sweep put on General work, and the worker entries it approved with the days.
+ */
+export type SweepOut = {
+    /**
+     * Approved Count
+     */
+    approved_count: number;
+    /**
+     * Skipped
+     */
+    skipped: Array<SweepSkipOut>;
+    /**
+     * Swept Hours
+     */
+    swept_hours: number;
+};
+
+/**
+ * SweepSkipOut
+ *
+ * A day the sweep left alone: there was no clocked time to sweep.
+ */
+export type SweepSkipOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Reason
+     */
+    reason: 'still_clocked_in' | 'no_clock_times';
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
 };
 
 /**
@@ -20014,6 +20078,22 @@ export type TimesheetsApprovalsRetrieveResponses = {
 
 export type TimesheetsApprovalsRetrieveResponse = TimesheetsApprovalsRetrieveResponses[keyof TimesheetsApprovalsRetrieveResponses];
 
+export type TimesheetsApprovalsSweepData = {
+    body: SweepIn;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/approvals/sweep/';
+};
+
+export type TimesheetsApprovalsSweepResponses = {
+    /**
+     * OK
+     */
+    200: SweepOut;
+};
+
+export type TimesheetsApprovalsSweepResponse = TimesheetsApprovalsSweepResponses[keyof TimesheetsApprovalsSweepResponses];
+
 export type TimesheetsApprovalsApproveDayData = {
     body?: never;
     path: {
@@ -20871,6 +20951,10 @@ export type XeroDeleteInvoiceData = {
          * Xero Invoice Id
          */
         xero_invoice_id: string;
+        /**
+         * Void Approved
+         */
+        void_approved?: boolean;
     };
     url: '/api/xero/delete_invoice/{job_id}';
 };

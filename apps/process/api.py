@@ -100,8 +100,10 @@ office_auth = OfficeStaffCookieJWTAuth()
 def process_categories_retrieve(request: HttpRequest) -> dict[str, object]:
     """Return the fixed key/label choice lists both category pickers use."""
     return {
-        "forms": [{"key": key, "label": label} for key, label in Form.Category.choices],
-        "procedures": [{"key": key, "label": label} for key, label in Procedure.Category.choices],
+        "forms": [{"key": key, "label": str(label)} for key, label in Form.Category.choices],
+        "procedures": [
+            {"key": key, "label": str(label)} for key, label in Procedure.Category.choices
+        ],
     }
 
 

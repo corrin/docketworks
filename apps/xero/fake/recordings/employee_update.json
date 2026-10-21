@@ -1,0 +1,83 @@
+{
+  "recorded_at": "2026-10-18T08:00:33+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "PUT",
+    "path": "/payroll.xro/2.0/Employees/c41e2d0e-2606-4598-b199-0aa532058aee",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "886",
+      "X-MinLimit-Remaining": "46"
+    }
+  },
+  "body": {
+    "id": "cc32b25f-c6aa-4bf5-aa08-bb187bfca3b6",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-10-18T08:00:54.301336",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "employee": {
+      "employeeID": "c41e2d0e-2606-4598-b199-0aa532058aee",
+      "firstName": "firstName-scrubbed",
+      "lastName": "lastName-scrubbed",
+      "otherGivenNames": null,
+      "dateOfBirth": "1990-01-01T00:00:00",
+      "gender": null,
+      "email": "email-scrubbed",
+      "phoneNumber": "phoneNumber-scrubbed",
+      "startDate": "2026-10-18T00:00:00",
+      "address": {
+        "addressLine1": "addressLine1-scrubbed",
+        "addressLine2": "addressLine2-scrubbed",
+        "city": "city-scrubbed",
+        "suburb": "suburb-scrubbed",
+        "countryName": "NEW ZEALAND",
+        "postCode": "postCode-scrubbed"
+      },
+      "payrollCalendarID": "31f2c710-93a1-4732-ac28-5cc8c49ba0ae",
+      "updatedDateUTC": "2026-10-18T08:00:54",
+      "createdDateUTC": "2026-10-18T08:00:35",
+      "engagementType": null,
+      "fixedTermEndDate": null,
+      "endDate": null,
+      "employmentType": "Employee",
+      "jobTitle": "Recording c7d97d1b"
+    }
+  }
+}

@@ -24,12 +24,24 @@ specs exist to catch — and are re-aligned on every run for that reason.
 The office staff user is office staff and nothing more: not a superuser. The
 approve-time spec signs in as it, because a screen any office staff member
 may use is only proven by a login that is not also allowed everything.
+
+All three are created employed from ``E2E_EMPLOYMENT_START``. A timesheet only
+lists staff employed on its date who are linked to a payroll employee, and specs
+book time on past weekdays for the workshop login, so that login must be a proper
+payroll employee. On a dev restore the seed's employees phase makes it one, from
+this start date. Where no seed runs (``verify-instance.sh --e2e``, against the
+fake), ``--payroll`` does the same through the seed's own ``sync_staff``, once the
+organisation is reachable. A plain run never calls Xero: on a restore it runs
+before Xero is reconnected, while the data still names production's tenant.
+Once linked, Xero owns the start date and the wage (each sync copies them back),
+so they are set only when a row is created, never re-aligned.
 """
 
 import os
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 from django.utils import timezone
 
@@ -38,11 +50,15 @@ from apps.company.models import Company
 from apps.core.environment import ProductionDatabaseError, assert_not_production_database
 from apps.core.models import CompanyDefaults, loaded_wage_rate
 from apps.core.test_data import TEST_COMPANY_NAME
+from apps.timesheet.services import payroll_employee_sync
+from apps.xero.auth import get_tenant_id
 
 #: The costing wage job-cost-entry-data.spec.ts pins as its environment prerequisite.
 E2E_USER_WAGE_RATE = Decimal("45.00")
 #: No spec pins the workshop user's wage; it only has to be a real hourly rate.
 E2E_WORKSHOP_BASE_WAGE_RATE = Decimal("30.00")
+#: Before any date a spec books time on.
+E2E_EMPLOYMENT_START = date(2020, 1, 1)
 
 
 def _credentials(username_key: str, password_key: str) -> tuple[str, str]:
@@ -73,7 +89,18 @@ class Command(BaseCommand):
 
     help = "Create or align the E2E users and the test company the suite assumes (idempotent)."
 
-    def handle(self, *_args: object, **_options: object) -> None:
+    def add_arguments(self, parser: CommandParser) -> None:
+        """``--payroll``: also make the workshop login a payroll employee."""
+        parser.add_argument(
+            "--payroll",
+            action="store_true",
+            help=(
+                "Also make the workshop login a payroll employee in the connected "
+                "organisation; only once Xero (or the fake) is reachable."
+            ),
+        )
+
+    def handle(self, *_args: object, **options: object) -> None:
         """Ensure both fixtures, reporting what each ended as."""
         try:
             assert_not_production_database(
@@ -107,6 +134,10 @@ class Command(BaseCommand):
             workshop_user = self._ensure_workshop_user(workshop_username, workshop_password)
             office_user = self._ensure_office_staff_user(office_username, office_password)
             company = self._ensure_test_company()
+        # Outside the transaction: it calls Xero, and a refused call must not
+        # roll back the logins it has nothing to do with.
+        if options["payroll"]:
+            self._ensure_on_payroll(workshop_user)
         self.stdout.write(
             f"E2E user {user.office_email}: office staff, superuser, wage {user.wage_rate}"
         )
@@ -132,6 +163,7 @@ class Command(BaseCommand):
                 is_office_staff=True,
                 is_superuser=True,
                 base_wage_rate=base_wage,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         else:
             user.set_password(password)
@@ -157,14 +189,36 @@ class Command(BaseCommand):
                 is_workshop_staff=True,
                 is_superuser=False,
                 base_wage_rate=E2E_WORKSHOP_BASE_WAGE_RATE,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         user.set_password(password)
         user.is_office_staff = False
         user.is_workshop_staff = True
         user.is_superuser = False
-        user.base_wage_rate = E2E_WORKSHOP_BASE_WAGE_RATE
         user.save()
         return user
+
+    def _ensure_on_payroll(self, workshop_user: Staff) -> None:
+        """Make the workshop login a payroll employee in the connected organisation.
+
+        Specs book, approve and post its time, so it must be on every timesheet.
+        The seed's own path creates the employee (employment, pay calendar,
+        wages, working pattern, tax, payment method, leave) or links one that
+        already holds its address.
+        """
+        tenant_id = get_tenant_id()
+        if workshop_user.xero_user_id is not None and workshop_user.xero_tenant_id == tenant_id:
+            return
+        payroll_employee_sync.sync_staff([workshop_user], tenant_id=tenant_id, allow_create=True)
+        workshop_user.refresh_from_db()
+        if workshop_user.xero_user_id is None or workshop_user.xero_tenant_id != tenant_id:
+            raise CommandError(
+                f"The E2E workshop user {workshop_user.office_email} is still not a payroll "
+                "employee in the connected Xero organisation."
+            )
+        self.stdout.write(
+            f"E2E workshop user linked to payroll employee {workshop_user.xero_user_id}"
+        )
 
     def _ensure_office_staff_user(self, username: str, password: str) -> Staff:
         user = Staff.objects.filter(office_email__iexact=username).first()
@@ -177,6 +231,7 @@ class Command(BaseCommand):
                 is_office_staff=True,
                 is_superuser=False,
                 base_wage_rate=E2E_WORKSHOP_BASE_WAGE_RATE,
+                employment_start_date=E2E_EMPLOYMENT_START,
             )
         user.set_password(password)
         user.is_office_staff = True

@@ -84,7 +84,7 @@ def seed_docketworks_prereqs() -> None:
     seed_pay_items()
 
 
-def ordinary_time_pay_item() -> "Model":
+def ordinary_time_pay_item() -> Model:
     """The default earnings rate, which every installation carries.
 
     Reads; never creates. ``seed_docketworks_prereqs`` has already run via the
@@ -200,8 +200,20 @@ def make_bill(company: Company) -> Bill:
     return Bill.objects.create(**_invoice_fields(company))
 
 
-def make_credit_note(company: Company) -> CreditNote:
-    return CreditNote.objects.create(**_invoice_fields(company))
+def make_credit_note(
+    company: Company,
+    *,
+    status: str | None = None,
+    total_excl_tax: Decimal | None = None,
+    xero_type: str = "ACCRECCREDIT",
+) -> CreditNote:
+    fields = _invoice_fields(company)
+    fields["raw_json"] = {"_type": xero_type}
+    if status is not None:
+        fields["status"] = status
+    if total_excl_tax is not None:
+        fields["total_excl_tax"] = total_excl_tax
+    return CreditNote.objects.create(**fields)
 
 
 def make_quote(company: Company, *, job: Job | None = None, number: str | None = None) -> Quote:

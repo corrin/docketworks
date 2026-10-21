@@ -1,6 +1,6 @@
 import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
@@ -137,7 +137,7 @@ describe('TimesheetEntryPage', () => {
     renderPage({ date: FRIDAY, staffId: 'ghost-staff' })
     await waitFor(() =>
       expect(document.body.textContent).toContain(
-        'Staff ghost-staff is not available for timesheet entry',
+        "This staff member can't have timesheets entered",
       ),
     )
   })

@@ -17,6 +17,7 @@ from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
 from django.utils import timezone
+from django.utils.translation import gettext, gettext_lazy
 from solo.models import SingletonModel
 
 from apps.core.audit import AuditEvent
@@ -54,27 +55,27 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
         null=True,
         blank=True,
         related_name="purchase_orders",
-        help_text="Delivery/pickup address for this purchase order",
+        help_text=gettext_lazy("Delivery/pickup address for this purchase order"),
     )
     job = models.ForeignKey(
         "job.Job",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Primary job this PO is for",
+        help_text=gettext_lazy("Primary job this PO is for"),
     )
     created_by = models.ForeignKey(
         "accounts.Staff",
         on_delete=models.PROTECT,
         related_name="created_purchase_orders",
-        help_text="Staff member who created this purchase order",
+        help_text=gettext_lazy("Staff member who created this purchase order"),
     )
     po_number = models.CharField(max_length=50, unique=True)
     reference = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
-        help_text="Optional reference for the purchase order",
+        help_text=gettext_lazy("Optional reference for the purchase order"),
     )
     order_date = models.DateField(default=timezone.now)
     expected_delivery = models.DateField(null=True, blank=True)
@@ -85,11 +86,11 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     status = models.CharField(
         max_length=20,
         choices=[
-            ("draft", "Draft"),
-            ("submitted", "Submitted to Supplier"),
-            ("partially_received", "Partially Received"),
-            ("fully_received", "Fully Received"),
-            ("deleted", "Deleted"),
+            ("draft", gettext_lazy("Draft")),
+            ("submitted", gettext_lazy("Submitted to Supplier")),
+            ("partially_received", gettext_lazy("Partially Received")),
+            ("fully_received", gettext_lazy("Fully Received")),
+            ("deleted", gettext_lazy("Deleted")),
         ],
         default="draft",
     )
@@ -101,7 +102,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
         max_length=20,
         null=True,
         blank=True,
-        help_text=(
+        help_text=gettext_lazy(
             "Xero's own word for this order (DRAFT, SUBMITTED, AUTHORISED, BILLED, VOIDED). "
             "Separate from `status` because that one answers a different question: whether the "
             "goods arrived and were costed to a job, which only Docketworks knows. Xero saying "
@@ -111,7 +112,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     )
     xero_push_due = models.BooleanField(
         default=False,
-        help_text=(
+        help_text=gettext_lazy(
             "Xero is owed a call about this order. Set when the status moves, which is the "
             "only thing Xero needs to hear about: the order leaving draft, and the receipt "
             "that settles its total. Cleared when the push lands. A field edit never sets it "
@@ -125,7 +126,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     raw_json = models.JSONField(
         null=True,
         blank=True,
-        help_text="Raw JSON data from Xero for this purchase order",
+        help_text=gettext_lazy("Raw JSON data from Xero for this purchase order"),
     )
 
     class Meta:
@@ -205,7 +206,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
         null=True,
         blank=True,
         related_name="purchase_order_lines",
-        help_text="The job this purchase line is for",
+        help_text=gettext_lazy("The job this purchase line is for"),
     )
     description = models.CharField(max_length=200)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
@@ -213,27 +214,27 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
         max_length=255,
         blank=True,
         null=True,
-        help_text="Dimensions such as length, width, height, etc.",
+        help_text=gettext_lazy("Dimensions such as length, width, height, etc."),
     )
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_tbc = models.BooleanField(
         default=False,
-        help_text="If true, the price is to be confirmed and unit cost will be None",
+        help_text=gettext_lazy("If true, the price is to be confirmed and unit cost will be None"),
     )
     supplier_item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
-        max_length=50, blank=True, null=True, help_text="Supplier's own item code/SKU"
+        max_length=50, blank=True, null=True, help_text=gettext_lazy("Supplier's own item code/SKU")
     )
     item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         null=True,
         blank=True,
-        help_text="Internal item code for Xero integration",
+        help_text=gettext_lazy("Internal item code for Xero integration"),
     )
     received_quantity = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        help_text="Total quantity received against this line",
+        help_text=gettext_lazy("Total quantity received against this line"),
     )
     metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
@@ -245,30 +246,30 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
         max_length=50,
         blank=True,
         null=True,
-        help_text="Alloy specification (e.g., 304, 6061)",
+        help_text=gettext_lazy("Alloy specification (e.g., 304, 6061)"),
     )
     specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
-        help_text="Specific details (e.g., m8 countersunk socket screw)",
+        help_text=gettext_lazy("Specific details (e.g., m8 countersunk socket screw)"),
     )
     location = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
-        help_text="Where this item will be stored",
+        help_text=gettext_lazy("Where this item will be stored"),
     )
     raw_line_data = models.JSONField(
         null=True,
         blank=True,
-        help_text="Raw JSON data from the source system or document",
+        help_text=gettext_lazy("Raw JSON data from the source system or document"),
     )
     xero_line_item_id = models.UUIDField(
         null=True,
         blank=True,
         db_index=True,
-        help_text="Xero's unique identifier for this line item (from line_item_id)",
+        help_text=gettext_lazy("Xero's unique identifier for this line item (from line_item_id)"),
     )
 
     class Meta:
@@ -327,11 +328,11 @@ class PurchaseOrderSupplierQuote(models.Model):  # noqa: DJ008 -- Quote files ha
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     extracted_data = models.JSONField(
-        null=True, blank=True, help_text="Extracted data from the quote"
+        null=True, blank=True, help_text=gettext_lazy("Extracted data from the quote")
     )
     status = models.CharField(
         max_length=20,
-        choices=[("active", "Active"), ("deleted", "Deleted")],
+        choices=[("active", gettext_lazy("Active")), ("deleted", gettext_lazy("Deleted"))],
         default="active",
     )
 
@@ -385,7 +386,7 @@ class Stock(models.Model):
         null=True,
         blank=True,
         related_name="stock_items",
-        help_text="The job this stock item is assigned to",
+        help_text=gettext_lazy("The job this stock item is assigned to"),
     )
 
     item_code = models.CharField(
@@ -393,18 +394,22 @@ class Stock(models.Model):
         blank=True,
         null=True,
         unique=True,
-        help_text="Xero Item Code",
+        help_text=gettext_lazy("Xero Item Code"),
     )
 
-    description = models.CharField(max_length=255, help_text="Description of the stock item")
+    description = models.CharField(
+        max_length=255, help_text=gettext_lazy("Description of the stock item")
+    )
 
     quantity = models.DecimalField(
-        max_digits=11, decimal_places=3, help_text="Current quantity of the stock item"
+        max_digits=11,
+        decimal_places=3,
+        help_text=gettext_lazy("Current quantity of the stock item"),
     )
     inventory_version = models.PositiveBigIntegerField(default=0)
 
     unit_cost = models.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Cost per unit of the stock item"
+        max_digits=10, decimal_places=2, help_text=gettext_lazy("Cost per unit of the stock item")
     )
 
     unit_revenue = models.DecimalField(
@@ -412,20 +417,22 @@ class Stock(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Revenue per unit (what customer pays)",
+        help_text=gettext_lazy("Revenue per unit (what customer pays)"),
     )
 
-    date = models.DateTimeField(default=timezone.now, help_text="Date the stock item was created")
+    date = models.DateTimeField(
+        default=timezone.now, help_text=gettext_lazy("Date the stock item was created")
+    )
 
     source = models.CharField(
         max_length=50,
         choices=[
-            ("purchase_order", "Purchase Order Receipt"),
-            ("split_from_stock", "Split/Offcut from Stock"),
-            ("manual", "Manual Adjustment/Stocktake"),
-            ("product_catalog", "Product Catalog"),
+            ("purchase_order", gettext_lazy("Purchase Order Receipt")),
+            ("split_from_stock", gettext_lazy("Split/Offcut from Stock")),
+            ("manual", gettext_lazy("Manual Adjustment/Stocktake")),
+            ("product_catalog", gettext_lazy("Product Catalog")),
         ],
-        help_text="Origin of this stock item",
+        help_text=gettext_lazy("Origin of this stock item"),
     )
 
     source_purchase_order_line = models.ForeignKey(
@@ -434,7 +441,9 @@ class Stock(models.Model):
         null=True,
         blank=True,
         related_name="stock_generated",
-        help_text="The PO line this stock originated from (if source='purchase_order')",
+        help_text=gettext_lazy(
+            "The PO line this stock originated from (if source='purchase_order')"
+        ),
     )
     source_parent_stock = models.ForeignKey(
         "self",
@@ -442,34 +451,38 @@ class Stock(models.Model):
         null=True,
         blank=True,
         related_name="child_stock_splits",
-        help_text="The parent stock item this was split from (if source='split_from_stock')",
+        help_text=gettext_lazy(
+            "The parent stock item this was split from (if source='split_from_stock')"
+        ),
     )
     location = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
-        blank=True, null=True, help_text="Where we are keeping this"
+        blank=True, null=True, help_text=gettext_lazy("Where we are keeping this")
     )
     metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         choices=MetalType.choices,
         blank=True,
         null=True,
-        help_text="Type of metal",
+        help_text=gettext_lazy("Type of metal"),
     )
     alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
-        help_text="Alloy specification (e.g., 304, 6061)",
+        help_text=gettext_lazy("Alloy specification (e.g., 304, 6061)"),
     )
     specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
-        help_text="Specific details (e.g., m8 countersunk socket screw)",
+        help_text=gettext_lazy("Specific details (e.g., m8 countersunk socket screw)"),
     )
     is_active = models.BooleanField(
         default=True,
         db_index=True,
-        help_text="False when quantity reaches zero or item is fully consumed/transformed",
+        help_text=gettext_lazy(
+            "False when quantity reaches zero or item is fully consumed/transformed"
+        ),
     )
 
     xero_id = models.CharField(
@@ -477,44 +490,44 @@ class Stock(models.Model):
         unique=True,
         null=True,
         blank=True,
-        help_text="Unique ID from Xero for this item",
+        help_text=gettext_lazy("Unique ID from Xero for this item"),
     )
     xero_last_modified = models.DateTimeField(
-        null=True, blank=True, help_text="Last modified date from Xero for this item"
+        null=True, blank=True, help_text=gettext_lazy("Last modified date from Xero for this item")
     )
     xero_last_synced = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When this item was last synced with Xero (None = never synced)",
+        help_text=gettext_lazy("When this item was last synced with Xero (None = never synced)"),
     )
     raw_json = models.JSONField(
-        null=True, blank=True, help_text="Raw JSON data from Xero for this item"
+        null=True, blank=True, help_text=gettext_lazy("Raw JSON data from Xero for this item")
     )
     xero_inventory_tracked = models.BooleanField(
-        default=False, help_text="Whether this item is inventory-tracked in Xero"
+        default=False, help_text=gettext_lazy("Whether this item is inventory-tracked in Xero")
     )
 
     # Parser tracking fields
     parser_attempted_at = models.DateTimeField(
         blank=True,
         null=True,
-        help_text="When this inventory item was last attempted by the LLM parser",
+        help_text=gettext_lazy("When this inventory item was last attempted by the LLM parser"),
     )
     parsed_at = models.DateTimeField(
-        blank=True, null=True, help_text="When this inventory item was parsed by LLM"
+        blank=True, null=True, help_text=gettext_lazy("When this inventory item was parsed by LLM")
     )
     parser_version = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
-        help_text="Version of parser used for this data",
+        help_text=gettext_lazy("Version of parser used for this data"),
     )
     parser_confidence = models.DecimalField(
         max_digits=3,
         decimal_places=2,
         blank=True,
         null=True,
-        help_text="Parser confidence score 0.00-1.00",
+        help_text=gettext_lazy("Parser confidence score 0.00-1.00"),
     )
 
     # Not indexed: Stock is < 10k rows at our scale and the freshness query also
@@ -523,7 +536,7 @@ class Stock(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
         null=True,
-        help_text=(
+        help_text=gettext_lazy(
             "Auto-bumped on every save(); feeds the /api/data-versions/ "
             "freshness signal so the frontend stockStore can detect catalogue "
             "changes (e.g. Xero unit_cost updates) and refetch."
@@ -539,7 +552,7 @@ class Stock(models.Model):
 
     # Stock holding job name
     STOCK_HOLDING_JOB_NAME = "Worker Admin"
-    _stock_holding_job: ClassVar["Job | None"] = None
+    _stock_holding_job: ClassVar[Job | None] = None
 
     class Meta:
         constraints: ClassVar = [
@@ -602,14 +615,14 @@ class Stock(models.Model):
         # a message naming the field, rather than letting the negative-check
         # raise "'<' not supported between NoneType and int" (ADR 0015/0038).
         if self.unit_cost is None:
-            raise ValueError("Stock requires a unit cost")
+            raise ValueError(gettext("Stock requires a unit cost"))
 
         # Validate unit cost is not negative
         if self.unit_cost < 0:
             logger.warning(
                 "Attempted to save stock item with negative unit cost: %s", self.unit_cost
             )
-            raise ValueError("Unit cost cannot be negative")
+            raise ValueError(gettext("Unit cost cannot be negative"))
 
         super().save(*args, **kwargs)
         logger.info("Saved stock item: %s", self.description)
@@ -619,7 +632,9 @@ class Stock(models.Model):
         """Calculate markup rate from unit_cost and unit_revenue."""
         if self.unit_cost and self.unit_cost > 0 and self.unit_revenue:
             return (self.unit_revenue - self.unit_cost) / self.unit_cost
-        raise ValueError("Unit cost must be set and greater than zero to calculate retail rate")
+        raise ValueError(
+            gettext("Unit cost must be set and greater than zero to calculate retail rate")
+        )
 
     @retail_rate.setter
     def retail_rate(self, value: Any) -> None:
@@ -636,10 +651,12 @@ class Stock(models.Model):
                     f"Invalid retail rate value: {value} (type: {type(value)}). Error: {e}"
                 ) from e
         else:
-            raise ValueError("Unit cost must be set and greater than zero to set retail rate")
+            raise ValueError(
+                gettext("Unit cost must be set and greater than zero to set retail rate")
+            )
 
     @classmethod
-    def get_stock_holding_job(cls) -> "Job":
+    def get_stock_holding_job(cls) -> Job:
         """Return the job designated for holding general stock.
 
         This is a utility method to avoid repeating the job lookup across the
@@ -762,14 +779,17 @@ class StocktakeLine(models.Model):
 class StockMovementKind(models.TextChoices):
     """Live postings and the three historical cutover observations."""
 
-    OPENING = "opening", "Opening balance"
-    JOB_OPENING = "job_opening", "Job position at cutover"
-    DELIVERY = "delivery", "Delivery"
-    DELIVERY_OPENING = "delivery_opening", "Delivered allocation at cutover"
-    DELIVERY_REVERSAL = "delivery_reversal", "Delivery reversal"
-    ISSUE = "issue", "Job issue"
-    RETURN = "return", "Job return"
-    STOCKTAKE = "stocktake", "Stocktake"
+    OPENING = "opening", gettext_lazy("Opening balance")
+    JOB_OPENING = "job_opening", gettext_lazy("On the job when stock tracking started")
+    DELIVERY = "delivery", gettext_lazy("Delivery")
+    DELIVERY_OPENING = (
+        "delivery_opening",
+        gettext_lazy("Delivered to the job before stock tracking started"),
+    )
+    DELIVERY_REVERSAL = "delivery_reversal", gettext_lazy("Delivery reversal")
+    ISSUE = "issue", gettext_lazy("Job issue")
+    RETURN = "return", gettext_lazy("Job return")
+    STOCKTAKE = "stocktake", gettext_lazy("Stocktake")
 
 
 class StockMovement(models.Model):

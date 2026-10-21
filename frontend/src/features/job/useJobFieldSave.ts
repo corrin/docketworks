@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from '@/api'
+import {
+  apiErrorMessage,
+  getFullJobOptions,
+  jobJobsPartialUpdateMutation,
+  type JobDetail,
+} from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
 import { useLatest } from '@/lib/useLatest'
@@ -14,6 +20,8 @@ interface UseJobFieldSaveOptions {
    * caller's own baseline must advance on both paths or later edits diff
    * against pre-conflict values and 412 forever. */
   onSaved?: (changes: JobFieldValues) => void
+  /** Re-enter a confirmed action with fresh data instead of replaying it blindly. */
+  onRetry?: (job: JobDetail, changes: JobFieldValues) => void
 }
 
 /**
@@ -23,6 +31,7 @@ interface UseJobFieldSaveOptions {
  * against the refreshed server baseline when the user clicks it.
  */
 export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const patch = useMutation(jobJobsPartialUpdateMutation())
   // mutateAsync is referentially stable across renders; the mutation RESULT
@@ -31,6 +40,10 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
   const { mutateAsync } = patch
   const rejectedChanges = useRef<JobFieldValues | null>(null)
   const onSavedRef = useLatest(options?.onSaved)
+  const onRetryRef = useLatest(options?.onRetry)
+  const discardChanges = useCallback(() => {
+    rejectedChanges.current = null
+  }, [])
 
   const save = useCallback(
     async (baseline: JobFieldValues, changes: JobFieldValues): Promise<void> => {
@@ -81,14 +94,19 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
         const fresh = await queryClient.ensureQueryData(
           getFullJobOptions({ path: { job_id: jobId } }),
         )
+        if (onRetryRef.current !== undefined) {
+          rejectedChanges.current = null
+          onRetryRef.current(fresh.data.job, changes)
+          return
+        }
         await save(snapshotJob(fresh.data.job), changes)
       })().catch((error: unknown) => {
         if (!isConcurrencyError(error)) {
-          toast.error(apiErrorMessage(error, 'Retrying the save failed.'))
+          toast.error(apiErrorMessage(error, t('fieldSave.retryFailed')))
         }
       })
     })
-  }, [jobId, queryClient, save])
+  }, [jobId, onRetryRef, queryClient, save, t])
 
-  return { save, isSaving: patch.isPending }
+  return { save, isSaving: patch.isPending, discardChanges }
 }

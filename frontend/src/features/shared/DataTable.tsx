@@ -7,6 +7,8 @@ import type { RowExitBlurEvent } from './useDraftRows'
 export interface DataTableColumnLayout {
   widthClassName?: string
   headerClassName?: string
+  /** The header cell's tooltip: what the column counts (ADR 0068). */
+  headerTitle?: string
 }
 
 interface RowExitHandlers {
@@ -78,6 +80,7 @@ export function DataTable<TRow extends RowData>({
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
+                  title={columnLayout?.[header.column.id]?.headerTitle}
                   className={cn(
                     'px-2 py-2 text-left text-xs font-semibold text-slate-600',
                     columnLayout?.[header.column.id]?.headerClassName,

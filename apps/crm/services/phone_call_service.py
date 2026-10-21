@@ -34,6 +34,7 @@ import requests
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
+from django.utils.translation import gettext
 from tinytag import TinyTag, TinyTagException
 
 from apps.company.models import Company, ContactMethod, Person
@@ -152,7 +153,7 @@ def sync_call_history(
 
 def _ingest_recording(
     *,
-    client: "PhoneProviderPortalClient",
+    client: PhoneProviderPortalClient,
     call: PhoneCallRecord,
     payload: ProviderPayload,
     account_code: str,
@@ -284,7 +285,7 @@ def link_phone_call_to_job(
     *,
     call_id: UUID,
     job_id: UUID,
-    linked_by: "Staff",
+    linked_by: Staff,
 ) -> PhoneCallRecord:
     """Link a company-matched call to a job of the same company.
 
@@ -296,18 +297,20 @@ def link_phone_call_to_job(
         try:
             call = PhoneCallRecord.objects.select_for_update().get(id=call_id)
         except PhoneCallRecord.DoesNotExist as exc:
-            raise ValueError("Phone call not found") from exc
+            raise ValueError(gettext("Phone call not found")) from exc
 
         if not call.company_id:
-            raise ValueError("Phone call must be assigned to a company before linking a job")
+            raise ValueError(
+                gettext("Phone call must be assigned to a company before linking a job")
+            )
 
         try:
             job = Job.objects.select_for_update().get(id=job_id)
         except Job.DoesNotExist as exc:
-            raise ValueError("Job not found") from exc
+            raise ValueError(gettext("Job not found")) from exc
 
         if job.company_id != call.company_id:
-            raise ValueError("Phone call can only be linked to a job for the same company")
+            raise ValueError(gettext("Phone call can only be linked to a job for the same company"))
 
         call.job = job
         call.job_linked_by = linked_by
@@ -328,7 +331,7 @@ def unlink_phone_call_job(*, call_id: UUID) -> PhoneCallRecord:
     try:
         call = PhoneCallRecord.objects.get(id=call_id)
     except PhoneCallRecord.DoesNotExist as exc:
-        raise ValueError("Phone call not found") from exc
+        raise ValueError(gettext("Phone call not found")) from exc
 
     call.job = None
     call.job_linked_by = None
@@ -356,10 +359,10 @@ def assign_phone_number_from_call(
     try:
         call = PhoneCallRecord.objects.get(id=call_id)
     except PhoneCallRecord.DoesNotExist as exc:
-        raise ValueError("Phone call not found") from exc
+        raise ValueError(gettext("Phone call not found")) from exc
 
     if not call.external_number:
-        raise ValueError("Phone call has no external number to assign")
+        raise ValueError(gettext("Phone call has no external number to assign"))
 
     assign_phone_number(
         phone_number=call.external_number,
@@ -375,7 +378,7 @@ def assign_phone_number_from_call(
 class PhoneProviderPortalClient:
     """Session-authenticated client for the provider portal (see module docstring)."""
 
-    def __init__(self, config: "PhoneProviderConfig"):
+    def __init__(self, config: PhoneProviderConfig):
         """Bind the provider config and prepare an anonymous portal session."""
         self.config = config
         self.session = requests.Session()
@@ -570,7 +573,7 @@ def upsert_call_record(
     *,
     payload: ProviderPayload,
     account_code: str,
-    matcher: "PhoneMatcher",
+    matcher: PhoneMatcher,
 ) -> tuple[PhoneCallRecord, bool]:
     """Create or update the call row for a provider payload; True when created."""
     provider_call_id = _provider_call_id(payload, account_code)
@@ -949,18 +952,20 @@ def assign_phone_number(
     """
     normalized = normalize_phone(phone_number)
     if not normalized:
-        raise ValueError("phone number is required")
+        raise ValueError(gettext("phone number is required"))
     if normalized in configured_own_numbers():
-        raise ValueError("internal phone endpoint cannot be assigned to a company")
+        raise ValueError(
+            gettext("This is one of our own phone numbers, so it can't be given to a company.")
+        )
 
     owner_filter: dict[str, Company | Person | None]
     if person_id:
         try:
             person = Person.objects.get(id=person_id, is_active=True)
         except Person.DoesNotExist as exc:
-            raise ValueError("Person not found") from exc
+            raise ValueError(gettext("Person not found")) from exc
         if not person.company_links.filter(company_id=company_id, is_active=True).exists():
-            raise ValueError("Person is not linked to the selected company")
+            raise ValueError(gettext("Person is not linked to the selected company"))
         owner_filter = {
             "person": person,
             "company": None,
@@ -974,7 +979,7 @@ def assign_phone_number(
         try:
             company = Company.objects.get(id=company_id)
         except Company.DoesNotExist as exc:
-            raise ValueError("Company not found") from exc
+            raise ValueError(gettext("Company not found")) from exc
         owner_filter = {"company": company, "person": None}
         existing_primary = ContactMethod.objects.filter(
             company=company,
@@ -986,7 +991,10 @@ def assign_phone_number(
     should_be_primary = is_primary or not existing_primary
     conflict = ContactMethod.conflicting_company(normalized, {company_id})
     if conflict:
-        raise ValueError(f"phone number already belongs to {conflict.owner_display_name()}")
+        raise ValueError(
+            gettext("phone number already belongs to %(owner)s")
+            % {"owner": conflict.owner_display_name()}
+        )
 
     method, created = ContactMethod.objects.get_or_create(
         **owner_filter,
@@ -1092,7 +1100,7 @@ def _decimal_or_none(value: object) -> Decimal | None:
     try:
         return Decimal(str(value))
     # deliberate-swallow: unparseable charge is unset; backlog 9 covers the is_finite gap
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
 
 

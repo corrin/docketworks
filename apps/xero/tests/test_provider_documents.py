@@ -18,7 +18,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload, QuotePayload
-from apps.core.models import CompanyDefaults
+from apps.core.models import AppError, CompanyDefaults
 from apps.xero.models import XeroAccount
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
@@ -137,7 +137,7 @@ def _provider_with_api() -> tuple[XeroAccountingProvider, Mock]:
 
 
 @pytest.fixture(autouse=True)
-def _stop_patches() -> "Iterator[None]":
+def _stop_patches() -> Iterator[None]:
     yield
     patch.stopall()
 
@@ -207,7 +207,7 @@ class TestCreateInvoice:
         result = provider.create_invoice(_invoice_payload())
 
         assert not result.success
-        assert result.error is not None and "no invoices" in result.error
+        assert result.error is not None and "sent back no invoice" in result.error
 
     def test_api_exception_becomes_error_result(self) -> None:
         provider, api = _provider_with_api()
@@ -223,21 +223,55 @@ class TestCreateInvoice:
 
 
 class TestDeleteInvoice:
-    def test_pre_reads_then_upserts_deleted(self) -> None:
+    @pytest.mark.parametrize(("void", "status"), [(False, "DELETED"), (True, "VOIDED")])
+    def test_one_write_and_no_read_back(self, void: bool, status: str) -> None:
+        """Every Xero call costs; the caller has already decided from its copy."""
         provider, api = _provider_with_api()
         external_id = str(uuid.uuid4())
-        api.get_invoice.return_value = SimpleNamespace(
-            invoices=[SimpleNamespace(contact=SimpleNamespace(contact_id="c-1"), date="2026-08-01")]
+        api.update_or_create_invoices.return_value = SimpleNamespace(
+            invoices=[SimpleNamespace(status=status)]
         )
-        api.update_or_create_invoices.return_value = SimpleNamespace(invoices=[])
 
-        result = provider.delete_invoice(external_id)
+        result = provider.delete_invoice(
+            external_id, contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=void
+        )
 
         assert result.success
-        assert result.external_id == external_id
+        assert result.document_status == status
+        api.get_invoice.assert_not_called()
         posted = api.update_or_create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
-        assert posted["Status"] == "DELETED"
+        assert posted["Status"] == status
         assert posted["InvoiceID"] == external_id
+
+    def test_the_status_reported_is_the_one_xero_answers(self) -> None:
+        """Guards delete_invoice: the manager's disagreement check reads this, not the request."""
+        provider, api = _provider_with_api()
+        api.update_or_create_invoices.return_value = SimpleNamespace(
+            invoices=[SimpleNamespace(status="AUTHORISED")]
+        )
+
+        result = provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=True
+        )
+
+        assert result.document_status == "AUTHORISED"
+
+
+class TestDeleteInvoiceRefusal:
+    def test_a_refusal_is_persisted_and_returned_unread(self) -> None:
+        """A refusal means Xero and Docketworks disagree: on record, never interpreted."""
+        provider, api = _provider_with_api()
+        api.update_or_create_invoices.side_effect = _FakeApiError(
+            body='{"Message": "A validation exception occurred"}', status=400
+        )
+
+        result = provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=False
+        )
+
+        assert not result.success
+        assert result.error == "A validation exception occurred"
+        assert AppError.objects.count() == 1
 
 
 class TestPurchaseOrders:
@@ -482,7 +516,7 @@ class TestCreateQuote:
         result = provider.create_quote(_quote_payload())
 
         assert not result.success
-        assert result.error is not None and "no quotes" in result.error
+        assert result.error is not None and "sent back no quote" in result.error
 
     def test_api_exception_becomes_error_result(self) -> None:
         provider, api = _provider_with_api()
@@ -566,7 +600,7 @@ class TestDownloadQuotePdf:
             quotes=[SimpleNamespace(quote_id=quote_id, branding_theme_id=theme_id)]
         )
 
-    def test_returns_document_with_theme_and_path(self, tmp_path: "Path") -> None:
+    def test_returns_document_with_theme_and_path(self, tmp_path: Path) -> None:
         provider, api = _provider_with_api()
         quote_id = str(uuid.uuid4())
         theme_id = str(uuid.uuid4())
@@ -588,7 +622,7 @@ class TestDownloadQuotePdf:
         with pytest.raises(ValueError, match="quote"):
             provider.download_quote_pdf(str(uuid.uuid4()))
 
-    def test_missing_pdf_file_raises(self, tmp_path: "Path") -> None:
+    def test_missing_pdf_file_raises(self, tmp_path: Path) -> None:
         provider, api = _provider_with_api()
         quote_id = str(uuid.uuid4())
         api.get_quote.return_value = self._quote_response(quote_id, None)
@@ -650,7 +684,9 @@ class TestReadonlyDocumentStubs:
 
     def test_delete_stubs_succeed_without_pre_read(self) -> None:
         provider = XeroReadOnlyProvider()
-        assert provider.delete_invoice(str(uuid.uuid4())).success
+        assert provider.delete_invoice(
+            str(uuid.uuid4()), contact_external_id="c-1", invoice_date=date(2026, 8, 1), void=True
+        ).success
         assert provider.delete_purchase_order(str(uuid.uuid4())).success
 
     def test_attach_and_notes_report_success(self) -> None:

@@ -9,32 +9,49 @@ The Approve time screen is for office staff who are not shown pay, so nothing
 this module returns carries a rate, a cost or a revenue figure.
 """
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Literal, TypedDict
+from uuid import UUID
+
+from django.db import transaction
+from django.db.models import QuerySet
+from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
+from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay
+from apps.timesheet.models import SWEPT_GENERAL_WORK, AttendanceDay, LeaveType
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
+    Window,
     attendance_data,
+    break_job_id,
     day_breaks,
     duration_words,
     fill_figures,
+    hours_for,
     split_breaks,
     standard_day,
+    unallocated_windows,
 )
 from apps.timesheet.services.location import saved_remotely
-from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.timesheet_events import (
+    record_day_event,
+    record_timesheet_event,
+    snapshot_if_entry,
+)
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
+    create_entry,
+    day_time_lines,
     default_entry_start,
     entered_late,
     entry_data,
@@ -72,6 +89,9 @@ class StaffApprovalData(TypedDict):
     #: Whether the person was here, a separate question from whether their
     #: time is approved: every pairing of the two is an ordinary day.
     clock: AttendanceData
+    #: Clocked time on no job and no paid break: what a sweep would put on
+    #: General work (KAN-380). None until both clock times are known.
+    unallocated_hours: float | None
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
     #: Where an entry the office adds for this person starts: after their
@@ -128,14 +148,10 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     person is not an error. Leave and other workflow-managed lines are not
     touched; they are approved when they are made.
     """
-    waiting = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        staff=worker,
-        accounting_date=day,
-        approved=False,
-        managed_by=None,
-    )
+    # The person first, then the jobs: the order the sweep and every write to
+    # his day take them in, so none of them waits on another in a circle.
+    Staff.objects.select_for_update().filter(pk=worker.pk).first()
+    waiting = _waiting(worker, day)
     lock_costing_jobs(set(waiting.values_list("cost_set__job_id", flat=True)))
     # Locked on the line alone: the snapshot's joins are nullable, which
     # Postgres refuses under FOR UPDATE. Read again under the locks, so a line
@@ -148,6 +164,18 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     for line in locked:
         approve_line(line, actor)
     return len(locked)
+
+
+def _waiting(worker: Staff, day: date) -> QuerySet[CostLine]:
+    """His entries for the day the office has still to approve; leave is approved when made."""
+    return CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        staff=worker,
+        accounting_date=day,
+        approved=False,
+        managed_by=None,
+    )
 
 
 def _staff_day(
@@ -167,11 +195,15 @@ def _staff_day(
     fill = fill_figures(
         attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
     )
+    unallocated = unallocated_windows(day, attendance, entries, break_lines)
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
         over = duration_words(Decimal(str(-fill["to_go_hours"])))
-        clock = {**clock, "cautions": [*clock["cautions"], f"Over by {over}"]}
+        clock = {
+            **clock,
+            "cautions": [*clock["cautions"], gettext("Over by %(over)s") % {"over": over}],
+        }
     state: ApprovalState
     if not entries and (rostered or attendance is not None):
         # Expected and no job in: the person the office phones. His paid
@@ -193,6 +225,7 @@ def _staff_day(
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
+        "unallocated_hours": None if unallocated is None else float(_hours_in(unallocated)),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
         if attendance is not None
         else [],
@@ -251,3 +284,208 @@ def day_summary(rows: list[StaffApprovalData]) -> DaySummaryData:
     else:
         standing = "in_progress"
     return {"expected": len(expected), "approved": approved, "standing": standing}
+
+
+# ── Sweep (KAN-380) ─────────────────────────────────────────────────────
+
+#: Why a person's day was not swept. Both mean there is no clocked time to
+#: speak of: the sweep reads clock times as they stand and never sets one.
+SweepSkipReason = Literal["still_clocked_in", "no_clock_times"]
+
+
+class SweepSkipData(TypedDict):
+    """A day the sweep left alone, for the office to deal with."""
+
+    staff_id: str
+    staff_name: str
+    date: date
+    reason: SweepSkipReason
+
+
+class SweepData(TypedDict):
+    """What a sweep moved onto General work and approved."""
+
+    swept_hours: float
+    #: The worker's own entries the sweep approved with the day.
+    approved_count: int
+    skipped: list[SweepSkipData]
+
+
+class GeneralWorkNotSetUpError(ConflictError):
+    """The instance has no usable General work job, so there is nowhere to sweep to."""
+
+
+def _general_work_job_id() -> UUID:
+    """Return the job the sweep books to, refusing one that is not worked time.
+
+    Pointed at Break, swept time would read as breaks; pointed at a leave job,
+    it would post to Xero as leave and draw down balances. Company Defaults
+    cannot refuse either when it is saved: the core app knows nothing of
+    breaks or leave, so the sweep refuses before it writes anything.
+    """
+    general_work = CompanyDefaults.get_solo().general_work_job
+    if general_work is None:
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work isn't set up: there is no General work job yet. Ask an administrator "
+                "to choose it in Company Defaults > Working Hours."
+            )
+        )
+    if general_work.id == break_job_id() or LeaveType.objects.filter(job=general_work).exists():
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work is set to %(job)s, which is for breaks or leave, not worked time. "
+                "Ask an administrator to choose another job in Company Defaults > Working Hours."
+            )
+            % {"job": general_work.name}
+        )
+    return general_work.id
+
+
+#: The longest stretch one sweep takes: the weekly overview's week.
+SWEEP_MOST_DAYS = 7
+
+
+def sweep_days(start: date, end: date) -> list[date]:
+    """Return the days from ``start`` to ``end``, refusing a range the sweep must not take.
+
+    A day after today has not been worked: sweeping it would approve office-set
+    clock times as paid time nobody has done yet. Today is allowed, since a
+    person who has clocked out is done. A week is the most a sweep holds its
+    lock on everyone's day for.
+    """
+    if end < start:
+        raise InvalidInputError(gettext("The end date is before the start date."))
+    if end > timezone.localdate():
+        raise InvalidInputError(
+            gettext("Days after today haven't been worked yet, so they can't be swept.")
+        )
+    if (end - start).days >= SWEEP_MOST_DAYS:
+        raise InvalidInputError(gettext("A sweep covers one week at most."))
+    return [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
+
+
+@transaction.atomic
+def sweep_person(worker: Staff, days: list[date], actor: Staff) -> SweepData:
+    """Sweep one person's days: their clocked time on no job goes onto General work."""
+    return _sweep({day: [worker] for day in days}, actor)
+
+
+@transaction.atomic
+def sweep_everyone(days: list[date], actor: Staff) -> SweepData:
+    """Sweep the days of everyone who clocked or has time on them."""
+    return _sweep({day: _people_on(day) for day in days}, actor)
+
+
+def _people_on(day: date) -> list[Staff]:
+    """Return the people who clocked or have time on the day.
+
+    Someone with neither has nothing to sweep and nothing to approve, so they
+    are not reported as skipped.
+    """
+    present = set(AttendanceDay.objects.filter(date=day).values_list("staff_id", flat=True))
+    present |= set(
+        CostLine.objects.filter(
+            cost_set__kind="actual", kind="time", accounting_date=day
+        ).values_list("staff_id", flat=True)
+    )
+    return [person for person in get_displayable_staff(target_date=day) if person.id in present]
+
+
+def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
+    """Sweep each person's day, approving what it sweeps; skip days with no clocked time.
+
+    Sweeping is approving (owner, 2026-10-17): the office saw the day and
+    accepted it, so the worker's own waiting entries are approved with it.
+    """
+    general_work_id = _general_work_job_id()
+    # Two offices sweeping the same person would both read the same stretches
+    # before either writes, and pay them twice; the second waits here and
+    # reads the first's entries. Ordered by pk so two sweeps never deadlock.
+    # Every write to a person's day takes his lock first, so his entries and
+    # clock times stand still until the sweep commits.
+    staff_ids = {person.pk for people in people_by_day.values() for person in people}
+    list(Staff.objects.select_for_update().filter(pk__in=staff_ids).order_by("pk"))
+    # Every job the sweep will write to, at once and in id order: taken one
+    # call at a time they could cross another writer's order and deadlock.
+    job_ids = {general_work_id}
+    for day, people in people_by_day.items():
+        for person in people:
+            job_ids |= set(_waiting(person, day).values_list("cost_set__job_id", flat=True))
+    lock_costing_jobs(job_ids)
+    swept = Decimal(0)
+    approved = 0
+    skipped: list[SweepSkipData] = []
+    for day, people in people_by_day.items():
+        for person in people:
+            row = AttendanceDay.objects.filter(staff=person, date=day).first()
+            entries, break_lines = split_breaks(day_time_lines(person, day))
+            windows = unallocated_windows(day, row, entries, break_lines)
+            if row is None or windows is None:
+                skipped.append(
+                    {
+                        "staff_id": str(person.id),
+                        "staff_name": person.get_display_full_name(),
+                        "date": day,
+                        "reason": "no_clock_times" if row is None else "still_clocked_in",
+                    }
+                )
+            else:
+                swept += _put_on_general_work(person, day, windows, general_work_id, actor)
+                approved += approve_day(person, day, actor)
+                _send_for_him(person, row, actor)
+    return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
+
+
+def _send_for_him(worker: Staff, row: AttendanceDay, actor: Staff) -> None:
+    """Mark a swept day sent, as the office has now filled and accepted it.
+
+    Left unsent, his app asks him to finish the day, and the rows he sent
+    would be laid out after the General work and paid on top of it.
+    """
+    if row.submitted_at is not None:
+        return
+    row.submitted_at = timezone.now()
+    row.save(update_fields=["submitted_at", "updated_at"])
+    record_day_event(
+        staff=actor,
+        worker=worker,
+        day=row.date,
+        event_type="day_sent",
+        before=None,
+        after=None,
+        trusted=True,
+    )
+
+
+def _put_on_general_work(
+    worker: Staff, day: date, windows: list[Window], general_work_id: UUID, actor: Staff
+) -> Decimal:
+    """Make a General work entry in each stretch on no job; return the hours they hold.
+
+    One entry per stretch, ending where a break or a real entry starts and
+    starting again where it ends. Entered by the office, so each starts
+    approved. No stretches (his entries cover the day, or more) moves nothing,
+    and the day is still approved.
+    """
+    for window in windows:
+        create_entry(
+            actor,
+            worker,
+            {
+                "job_id": general_work_id,
+                "accounting_date": day,
+                "hours": hours_for(window.start, window.end, []),
+                "start_time": window.start,
+                "end_time": window.end,
+                # A shop job's time is billed to nobody; the model refuses otherwise.
+                "is_billable": False,
+            },
+            source=SWEPT_GENERAL_WORK,
+        )
+    return _hours_in(windows)
+
+
+def _hours_in(windows: list[Window]) -> Decimal:
+    """Return the hours the stretches hold: each one's stop less its start."""
+    return sum((hours_for(window.start, window.end, []) for window in windows), Decimal(0))

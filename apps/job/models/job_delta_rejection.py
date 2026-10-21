@@ -70,14 +70,14 @@ class JobDeltaRejection(models.Model):
         change_part = str(self.change_id) if self.change_id else "no-change-id"
         return f"Delta rejection {self.id} ({job_part} / {change_part})"
 
-    def mark_resolved(self, staff_member: "Staff") -> None:
+    def mark_resolved(self, staff_member: Staff) -> None:
         """Mark this rejection as resolved by the given staff member."""
         self.resolved = True
         self.resolved_by = staff_member
         self.resolved_timestamp = timezone.now()
         self.save(update_fields=["resolved", "resolved_by", "resolved_timestamp"])
 
-    def mark_unresolved(self, staff_member: "Staff") -> None:  # noqa: ARG002 -- Actor parameter keeps resolve/reopen calls symmetric.
+    def mark_unresolved(self, staff_member: Staff) -> None:  # noqa: ARG002 -- Actor parameter keeps resolve/reopen calls symmetric.
         """Clear the resolved state of this rejection."""
         self.resolved = False
         self.resolved_by = None

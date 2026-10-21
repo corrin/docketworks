@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import { QueryState } from '@/features/shared/QueryState'
 import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { PoLinesTable } from './PoLinesTable'
@@ -10,6 +12,7 @@ interface PoDetailPageProps {
 }
 
 export function PoDetailPage({ poId }: PoDetailPageProps) {
+  const { t } = useTranslation('purchasing')
   const { poQuery, patchHeader, patchLine, createLine, deleteLine } = usePoLines(poId)
   const po = poQuery.data
 
@@ -21,8 +24,8 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
         // PO with no lines. Background refetch errors keep the working
         // page — the write paths toast their own failures.
         isError={poQuery.isError && po === undefined}
-        loadingLabel="Loading purchase order…"
-        errorLabel="Could not load the purchase order."
+        loadingLabel={t('poDetail.loading')}
+        errorLabel={t('poDetail.loadFailed')}
       >
         {po && (
           <>
@@ -32,9 +35,9 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
               <EntryGridSection
                 title={
                   <>
-                    Line Items{' '}
+                    {t('poDetail.lineItems')}{' '}
                     <span className="ml-2 text-xs font-normal text-slate-500">
-                      {po.lines.length} {po.lines.length === 1 ? 'line' : 'lines'}
+                      {t('poDetail.lineCount', { count: po.lines.length })}
                     </span>
                   </>
                 }

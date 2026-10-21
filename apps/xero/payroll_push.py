@@ -38,6 +38,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from django.utils.translation import gettext, gettext_noop
 from xero_python.payrollnz import (
     PayrollNzApi,
     PayRun,
@@ -87,7 +88,9 @@ STATUS_APPROVED = "Approved"
 #: Fable: Shared with the read-only provider, whose fake results must carry the
 #: real provider's wording — a second copy of this sentence is how the fake's
 #: shape drifts from the shape it claims to mirror.
-SALARY_SKIP_REASON = "Salary is paid from Xero regular earnings; leave was reconciled."
+SALARY_SKIP_REASON = gettext_noop(
+    "Salary is paid from Xero regular earnings; leave was reconciled."
+)
 
 
 @dataclass(frozen=True)
@@ -131,7 +134,7 @@ class _WeekWindow:
     end: date
 
     @classmethod
-    def of(cls, week_start_date: date) -> "_WeekWindow":
+    def of(cls, week_start_date: date) -> _WeekWindow:
         """Build the Monday-to-Sunday window, refusing any other start day."""
         require_payroll_week_start(week_start_date)
         return cls(start=week_start_date, end=week_start_date + timedelta(days=6))
@@ -168,9 +171,12 @@ def require_dispatched_tenant(connection_id: str) -> None:
     connected = payroll_sdk.connected_tenant()
     if connected != connection_id:
         raise WrongPayrollTenantError(
-            f"This payroll run was dispatched for Xero organisation {connection_id}, "
-            f"but the connected organisation is now {connected}. Nothing was posted. "
-            "Re-run it against the organisation you intend to pay."
+            gettext(
+                "This payroll run was dispatched for Xero organisation %(dispatched)s, "
+                "but the connected organisation is now %(connected)s. Nothing was posted. "
+                "Re-run it against the organisation you intend to pay."
+            )
+            % {"dispatched": connection_id, "connected": connected}
         )
 
 
@@ -227,15 +233,18 @@ def validate_pay_items_for_week(staff_ids: Sequence[UUID], week_start_date: date
     # line that lost it. So the only failure left to report is one whose pay
     # item was never linked to this organisation.
     problems = [
-        f"CostLine {line.id} has XeroPayItem {require_pay_item(line).name!r} with no xero_id"
+        gettext("CostLine %(line_id)s has XeroPayItem %(pay_item)s with no xero_id")
+        % {"line_id": line.id, "pay_item": repr(require_pay_item(line).name)}
         for line in postable
         if not require_pay_item(line).xero_id
     ]
     if problems:
         raise ValueError(
-            "Payroll pay items are not linked to Xero — run "
-            "'python manage.py xero --configure-payroll' first:\n"
-            + "\n".join(f"  - {problem}" for problem in problems)
+            gettext(
+                "Payroll pay items are not linked to Xero — run "
+                "'python manage.py xero --configure-payroll' first:\n%(problems)s"
+            )
+            % {"problems": "\n".join(f"  - {problem}" for problem in problems)}
         )
 
 
@@ -251,7 +260,7 @@ class _SurfaceSplit:
 
 
 def _split_by_surface(
-    lines: Sequence[CostLine], catalogue: "hour_categories.LeaveCatalogue"
+    lines: Sequence[CostLine], catalogue: hour_categories.LeaveCatalogue
 ) -> _SurfaceSplit:
     """Group lines by the payroll surface their category reaches.
 
@@ -388,12 +397,16 @@ def post_timesheet(
     )
     time.sleep(PAYROLL_SLEEP_SECONDS)
     if not created or not created.timesheet:
-        raise ValueError(f"Xero returned no timesheet when creating one for {employee_id}")
+        raise ValueError(
+            gettext("Xero returned no timesheet when creating one for %(employee_id)s")
+            % {"employee_id": employee_id}
+        )
 
     timesheet_id = created.timesheet.timesheet_id
     if not timesheet_id:
         raise ValueError(
-            f"Xero returned a timesheet without an id when creating one for {employee_id}"
+            gettext("Xero returned a timesheet without an id when creating one for %(employee_id)s")
+            % {"employee_id": employee_id}
         )
     api.approve_timesheet(xero_tenant_id=tenant_id, timesheet_id=str(timesheet_id))
     time.sleep(PAYROLL_SLEEP_SECONDS)
@@ -424,8 +437,11 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimeshe
         # Opus: Paid is the case that matters: the money has left, so silently
         # replacing the record would hide a discrepancy rather than fix one.
         raise ValueError(
-            f"Timesheet {timesheet_id} is {existing.status!r} and cannot be modified — "
-            "it has already been paid. Correct it in Xero."
+            gettext(
+                "Timesheet %(timesheet_id)s is %(status)s and cannot be modified — "
+                "it has already been paid. Correct it in Xero."
+            )
+            % {"timesheet_id": timesheet_id, "status": repr(existing.status)}
         )
     api.delete_timesheet(xero_tenant_id=tenant_id, timesheet_id=timesheet_id)
     time.sleep(PAYROLL_SLEEP_SECONDS)
@@ -447,7 +463,10 @@ def existing_timesheets_for_week(
         end_date=week.end,
     )
     if response is None:
-        raise ValueError(f"Xero returned no timesheets for the week of {week.start}")
+        raise ValueError(
+            gettext("Xero returned no timesheets for the week of %(week_start)s")
+            % {"week_start": week.start}
+        )
     found: dict[str, PostedTimesheet] = {}
     for timesheet in response.timesheets or []:
         start_date = as_date(timesheet.start_date)
@@ -463,9 +482,16 @@ def existing_timesheets_for_week(
         # code takes, so seeing two means something else wrote one.
         if employee_id in found:
             raise ValueError(
-                f"Xero holds two timesheets for employee {employee_id} in the week of "
-                f"{week.start}: {found[employee_id].timesheet_id} and "
-                f"{timesheet.timesheet_id}. Resolve it in Xero before posting."
+                gettext(
+                    "Xero holds two timesheets for employee %(employee_id)s in the week of "
+                    "%(week_start)s: %(first)s and %(second)s. Resolve it in Xero before posting."
+                )
+                % {
+                    "employee_id": employee_id,
+                    "week_start": week.start,
+                    "first": found[employee_id].timesheet_id,
+                    "second": timesheet.timesheet_id,
+                }
             )
         found[employee_id] = PostedTimesheet(
             timesheet_id=str(timesheet.timesheet_id),
@@ -499,7 +525,10 @@ def timesheet_lines(timesheet_id: str, *, tenant_id: str) -> list[TimesheetLineP
     )
     timesheet = response.timesheet if response else None
     if timesheet is None:
-        raise ValueError(f"Xero returned no timesheet for {timesheet_id}")
+        raise ValueError(
+            gettext("Xero returned no timesheet for %(timesheet_id)s")
+            % {"timesheet_id": timesheet_id}
+        )
     lines = timesheet.timesheet_lines or []
     incomplete = [
         line
@@ -508,15 +537,21 @@ def timesheet_lines(timesheet_id: str, *, tenant_id: str) -> list[TimesheetLineP
     ]
     if incomplete:
         raise ValueError(
-            f"Xero returned {len(incomplete)} incomplete line(s) on timesheet "
-            f"{timesheet_id}. Xero does that for a DELETED timesheet, so the hours it "
-            "holds cannot be read from this response."
+            gettext(
+                "Xero returned %(count)s incomplete line(s) on timesheet "
+                "%(timesheet_id)s. Xero does that for a DELETED timesheet, so the hours it "
+                "holds cannot be read from this response."
+            )
+            % {"count": len(incomplete), "timesheet_id": timesheet_id}
         )
     payloads: list[TimesheetLinePayload] = []
     for line in lines:
         line_date = as_date(line.date)
         if line_date is None:
-            raise ValueError(f"Xero returned an unreadable line date on timesheet {timesheet_id}")
+            raise ValueError(
+                gettext("Xero returned an unreadable line date on timesheet %(timesheet_id)s")
+                % {"timesheet_id": timesheet_id}
+            )
         payloads.append(
             TimesheetLinePayload(
                 date=line_date,
@@ -535,7 +570,10 @@ def _calendar_id() -> UUID:
     calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
     if not calendar_id:
         raise ValueError(
-            "xero_payroll_calendar_id is not configured. Run 'python manage.py xero --setup' first."
+            gettext(
+                "DocketWorks doesn't know which Xero pay calendar to use yet. "
+                "Ask an administrator to finish Xero setup first."
+            )
         )
     return calendar_id
 
@@ -559,14 +597,18 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     defaults = CompanyDefaults.get_solo()
     calendar_name = defaults.xero_payroll_calendar_name
     if not calendar_name:
-        raise ValueError("xero_payroll_calendar_name is not configured in CompanyDefaults")
+        raise ValueError(
+            gettext(
+                "No Xero payroll calendar name is entered. Enter it in Company Defaults > Xero."
+            )
+        )
 
     calendars = get_payroll_calendars(tenant_id=tenant_id)
     calendar = next((c for c in calendars if c.name == calendar_name), None)
     if calendar is None:
         raise ValueError(
-            f"Payroll calendar {calendar_name!r} was not found in Xero. "
-            f"Available: {sorted(c.name for c in calendars)}"
+            gettext("Payroll calendar %(calendar)s was not found in Xero. Available: %(available)s")
+            % {"calendar": repr(calendar_name), "available": sorted(c.name for c in calendars)}
         )
 
     response = payroll_sdk.payroll_api().create_pay_run(
@@ -581,7 +623,10 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
         ),
     )
     if not response or not response.pay_run:
-        raise ValueError(f"Xero returned no pay run when creating one for week {week.start}")
+        raise ValueError(
+            gettext("Xero returned no pay run when creating one for week %(week_start)s")
+            % {"week_start": week.start}
+        )
 
     created = response.pay_run
     actual_start, actual_end = as_date(created.period_start_date), as_date(created.period_end_date)
@@ -593,9 +638,18 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
         # why.
         transform_pay_run(created, str(created.pay_run_id), tenant_id=tenant_id)
         raise ValueError(
-            f"Xero created a pay run for {actual_start} to {actual_end} on calendar "
-            f"{calendar_name!r} instead of the requested {week.start} to {week.end}. "
-            "Posting requires the calendar period to match the selected week exactly."
+            gettext(
+                "Xero created a pay run for %(actual_start)s to %(actual_end)s on calendar "
+                "%(calendar)s instead of the requested %(week_start)s to %(week_end)s. "
+                "Posting requires the calendar period to match the selected week exactly."
+            )
+            % {
+                "actual_start": actual_start,
+                "actual_end": actual_end,
+                "calendar": repr(calendar_name),
+                "week_start": week.start,
+                "week_end": week.end,
+            }
         )
 
     detail = payroll_sdk.payroll_api().get_pay_run(
@@ -603,7 +657,10 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     )
     fetched = detail.pay_run if detail else None
     if fetched is None:
-        raise ValueError(f"Xero created pay run {created.pay_run_id} but did not return its detail")
+        raise ValueError(
+            gettext("Xero created pay run %(pay_run_id)s but did not return its detail")
+            % {"pay_run_id": created.pay_run_id}
+        )
     mirrored, _ = transform_pay_run(fetched, str(created.pay_run_id), tenant_id=tenant_id)
     return _pay_run_ref(mirrored, str(created.pay_run_id))
 
@@ -655,18 +712,29 @@ def find_live_pay_run_for_week(week_start_date: date, *, tenant_id: str) -> PayR
             as_date(pay_run.period_end_date),
         )
         if period_start is None or period_end is None:
-            raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no period dates")
+            raise ValueError(
+                gettext("Xero pay run %(pay_run_id)s has no period dates")
+                % {"pay_run_id": pay_run.pay_run_id}
+            )
         if period_start.weekday() != 0:
             raise ValueError(
-                f"Xero pay run {pay_run.pay_run_id} covers "
-                f"{period_start.strftime('%A %Y-%m-%d')} to {period_end}, which does not "
-                "start on a Monday. Docketworks requires a Monday-start weekly payroll "
-                "calendar; re-run `python manage.py xero --setup`."
+                gettext(
+                    "The Xero pay run covers %(period_start)s to %(period_end)s, which does "
+                    "not start on a Monday. DocketWorks needs a weekly pay calendar that starts "
+                    "on Monday: ask an administrator to finish Xero setup with one."
+                )
+                % {
+                    "period_start": period_start.strftime("%A %Y-%m-%d"),
+                    "period_end": period_end,
+                }
             )
         if period_start == week.start:
             payment_date = as_date(pay_run.payment_date)
             if payment_date is None:
-                raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no payment date")
+                raise ValueError(
+                    gettext("Xero pay run %(pay_run_id)s has no payment date")
+                    % {"pay_run_id": pay_run.pay_run_id}
+                )
             # Opus: Built straight from the response, NOT through
             # transform_pay_run: that mirrors the run into XeroPayRun, and this
             # runs on a GET.
@@ -751,9 +819,17 @@ def require_no_blocking_draft(week_start_date: date, *, tenant_id: str) -> None:
     )
     if blocking is not None:
         raise ValueError(
-            f"A draft pay run for {blocking.period_start_date} to {blocking.period_end_date} "
-            f"is already open on the payroll calendar, and Xero allows only one. Post or "
-            f"delete it in Xero, then refresh, before posting {week.start} to {week.end}."
+            gettext(
+                "A draft pay run for %(draft_start)s to %(draft_end)s "
+                "is already open on the payroll calendar, and Xero allows only one. Post or "
+                "delete it in Xero, then refresh, before posting %(week_start)s to %(week_end)s."
+            )
+            % {
+                "draft_start": blocking.period_start_date,
+                "draft_end": blocking.period_end_date,
+                "week_start": week.start,
+                "week_end": week.end,
+            }
         )
 
 
@@ -889,7 +965,8 @@ def post_payroll_week(
     missing = [staff_id for staff_id in staff_ids if staff_id not in staff_by_id]
     if missing:
         raise ValueError(
-            "Staff member(s) not found: " + ", ".join(str(staff_id) for staff_id in missing)
+            gettext("Staff member(s) not found: %(staff_ids)s")
+            % {"staff_ids": ", ".join(str(staff_id) for staff_id in missing)}
         )
     staff_to_post = list(dict.fromkeys(staff_ids))
     if len(staff_to_post) != len(staff_ids):
@@ -975,18 +1052,21 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
     lines: Sequence[CostLine],
     week: _WeekWindow,
     existing: dict[str, PostedTimesheet],
-    catalogue: "hour_categories.LeaveCatalogue",
+    catalogue: hour_categories.LeaveCatalogue,
     *,
     tenant_id: str,
 ) -> StaffWeekPostResult:
     """Post one staff member's week, converting any failure into their own result."""
     if not staff.is_active_between(week.start, week.end):
-        return _skip_result(staff, "Not employed during this week", bool(lines))
+        return _skip_result(staff, gettext("Not employed during this week"), bool(lines))
     if not staff.xero_user_id:
         return _failure_result(
             staff,
-            f"{staff.get_display_full_name()} is not linked to a Xero employee. "
-            "Ask an administrator to link them, then post again.",
+            gettext(
+                "%(staff_name)s is not linked to a Xero employee. "
+                "Ask an administrator to link them, then post again."
+            )
+            % {"staff_name": staff.get_display_full_name()},
             bool(lines),
         )
 
@@ -1006,7 +1086,7 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
             staff_name=staff.get_display_full_name(),
             success=True,
             skipped=True,
-            reason=SALARY_SKIP_REASON,
+            reason=gettext(SALARY_SKIP_REASON),
             work_hours=sum((line.quantity for line in timesheet_lines), Decimal("0")),
             leave_hours=sum((line.quantity for line in leave_lines), Decimal("0")),
             has_entries=bool(lines),

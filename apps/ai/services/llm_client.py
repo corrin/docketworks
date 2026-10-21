@@ -24,6 +24,7 @@ from agents.extensions.models.litellm_model import LitellmModel
 from agents.items import ModelResponse as AgentModelResponse
 from agents.items import TResponseInputItem
 from asgiref.sync import sync_to_async
+from django.utils.translation import gettext
 from litellm import ModelResponse
 
 from apps.ai.enums import AIProviderTypes
@@ -100,17 +101,25 @@ def _select_provider(provider_type: str | None) -> AIProvider:
         )
         if provider is None:
             raise LLMConfigurationError(
-                f"No AI provider of type {provider_type} is configured in the database"
+                gettext("No AI provider of type %(provider_type)s is configured in the database")
+                % {"provider_type": provider_type}
             )
         return provider
     provider = catalogue.filter(default=True).first()
     if provider is not None:
         return provider
     if not catalogue.exists():
-        raise LLMConfigurationError("No AI provider configured in the database")
+        raise LLMConfigurationError(
+            gettext(
+                "The quoting chat isn't set up yet: no AI provider has been added. Ask an "
+                "administrator to add one under Admin > Integrations."
+            )
+        )
     raise LLMConfigurationError(
-        "AI providers are configured but none is marked default; "
-        "select the application default in Admin > Integrations"
+        gettext(
+            "The quoting chat has AI providers but no default one. Ask an administrator "
+            "to choose the default under Admin > Integrations."
+        )
     )
 
 
@@ -130,16 +139,27 @@ def resolve_target(
 
     api_key = provider.api_key
     if not api_key:
-        raise LLMConfigurationError(f"{provider.name} AI provider is missing an API key")
+        raise LLMConfigurationError(
+            gettext("%(name)s AI provider is missing an API key") % {"name": provider.name}
+        )
     model_name = provider.model_name
     if not model_name:
-        raise LLMConfigurationError(f"{provider.name} AI provider is missing a model name")
+        raise LLMConfigurationError(
+            gettext("%(name)s AI provider is missing a model name") % {"name": provider.name}
+        )
     prefix = LITELLM_PROVIDER_PREFIXES.get(provider.provider_type)
     if prefix is None:
         raise LLMConfigurationError(
-            f"{provider.name} AI provider has unsupported provider_type "
-            f"{provider.provider_type!r}; known types are "
-            f"{sorted(LITELLM_PROVIDER_PREFIXES)}"
+            gettext(
+                "%(name)s AI provider has unsupported provider_type "
+                "%(provider_type)s; known types are "
+                "%(known_types)s"
+            )
+            % {
+                "name": provider.name,
+                "provider_type": repr(provider.provider_type),
+                "known_types": sorted(LITELLM_PROVIDER_PREFIXES),
+            }
         )
     return LLMTarget(model=f"{prefix}{model_name}", api_key=api_key, provider_name=provider.name)
 

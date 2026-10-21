@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
 import {
@@ -41,6 +42,7 @@ export function OfficeClosureDialog({
   onSaved,
   publicHolidayName,
 }: OfficeClosureDialogProps) {
+  const { t } = useTranslation('timesheet')
   const [saving, setSaving] = useState(false)
 
   return (
@@ -53,9 +55,9 @@ export function OfficeClosureDialog({
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Office closed</DialogTitle>
+          <DialogTitle>{t('officeClosure.title')}</DialogTitle>
           <DialogDescription>
-            Add {publicHolidayName} leave for every active employee scheduled in this range.
+            {t('officeClosure.description', { publicHolidayName })}
           </DialogDescription>
         </DialogHeader>
         <OfficeClosureForm
@@ -78,9 +80,10 @@ function OfficeClosureForm({
   saving: boolean
   setSaving: (saving: boolean) => void
 }) {
+  const { t } = useTranslation('timesheet')
   const [startDate, setStartDate] = useState(localIsoDate())
   const [endDate, setEndDate] = useState(localIsoDate())
-  const [note, setNote] = useState('Office closed')
+  const [note, setNote] = useState(t('officeClosure.defaultNote'))
   const [preview, setPreview] = useState<OfficeClosurePreviewOut | null>(null)
   const [error, setError] = useState<string | null>(null)
   const previewMutation = useMutation(timesheetsLeaveOfficeClosurePreviewCreateMutation())
@@ -93,7 +96,7 @@ function OfficeClosureForm({
     try {
       setPreview(await previewMutation.mutateAsync({ body }))
     } catch (caught) {
-      setError(apiErrorMessage(caught, 'Could not preview the office closure.'))
+      setError(apiErrorMessage(caught, t('officeClosure.previewFailed')))
     }
   }
 
@@ -105,7 +108,7 @@ function OfficeClosureForm({
       await onSaved()
       onOpenChange(false)
     } catch (caught) {
-      setError(apiErrorMessage(caught, 'Could not create the office closure.'))
+      setError(apiErrorMessage(caught, t('officeClosure.createFailed')))
     } finally {
       setSaving(false)
     }
@@ -115,7 +118,7 @@ function OfficeClosureForm({
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm font-medium text-slate-700">
-          <span>Start date</span>
+          <span>{t('officeClosure.startDate')}</span>
           <input
             type="date"
             className={INPUT_CLASS}
@@ -128,7 +131,7 @@ function OfficeClosureForm({
           />
         </label>
         <label className="space-y-1 text-sm font-medium text-slate-700">
-          <span>End date</span>
+          <span>{t('officeClosure.endDate')}</span>
           <input
             type="date"
             className={INPUT_CLASS}
@@ -142,7 +145,7 @@ function OfficeClosureForm({
         </label>
       </div>
       <label className="space-y-1 text-sm font-medium text-slate-700">
-        <span>Note</span>
+        <span>{t('officeClosure.note')}</span>
         <input
           className={INPUT_CLASS}
           data-automation-id="OfficeClosureDialog-note"
@@ -156,7 +159,7 @@ function OfficeClosureForm({
         data-automation-id="OfficeClosureDialog-preview"
         onClick={() => void loadPreview()}
       >
-        {previewMutation.isPending ? 'Previewing…' : 'Preview affected staff'}
+        {previewMutation.isPending ? t('officeClosure.previewing') : t('officeClosure.preview')}
       </Button>
       {preview && (
         <div
@@ -164,13 +167,16 @@ function OfficeClosureForm({
           data-automation-id="OfficeClosureDialog-preview-result"
         >
           <p className="font-medium text-slate-900">
-            {preview.available_staff} staff · {preview.available_hours} hours
+            {t('officeClosure.previewTotals', {
+              staff: preview.available_staff,
+              hours: preview.available_hours,
+            })}
           </p>
           <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-slate-600">
             {preview.staff.map((staff) => (
               <li key={staff.staff_id} className="flex justify-between">
                 <span>{staff.staff_name}</span>
-                <span>{staff.available_hours}h</span>
+                <span>{t('officeClosure.staffHours', { hours: staff.available_hours })}</span>
               </li>
             ))}
           </ul>
@@ -188,14 +194,14 @@ function OfficeClosureForm({
           disabled={saving}
           onClick={() => onOpenChange(false)}
         >
-          Cancel
+          {t('officeClosure.cancel')}
         </Button>
         <Button
           disabled={!preview || saving || preview.available_staff === 0}
           data-automation-id="OfficeClosureDialog-submit"
           onClick={() => void save()}
         >
-          {saving ? 'Creating…' : 'Create office closure'}
+          {saving ? t('officeClosure.creating') : t('officeClosure.create')}
         </Button>
       </DialogFooter>
     </>

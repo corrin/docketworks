@@ -65,3 +65,6 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings |
 | [0063](0063-test-suite-conventions.md) | A test asserts over what it created, takes its actors from the root conftest, and an E2E wait never filters on status |
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
+| [0067](0067-show-everything-and-say-why.md) | Show everything, and say why when it can't be used |
+| [0068](0068-words-a-shop-manager-would-use.md) | Every word on a screen is one a sheet metal shop manager would use |
+| [0069](0069-screen-words-live-in-catalogues.md) | The words on a screen live in the English catalogues |

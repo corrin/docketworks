@@ -115,10 +115,10 @@ class _PayRunRow(Protocol):
 class _PayRunQuery(Protocol):
     """The queryset surface the hours extraction needs."""
 
-    def prefetch_related(self, *names: str) -> "_PayRunQuery":
+    def prefetch_related(self, *names: str) -> _PayRunQuery:
         """Return the rows with the named relations prefetched."""
 
-    def order_by(self, *fields: str) -> "_PayRunQuery":
+    def order_by(self, *fields: str) -> _PayRunQuery:
         """Return the rows re-ordered by the given fields."""
 
     def __iter__(self) -> Iterator[_PayRunRow]:
@@ -340,3 +340,27 @@ def build_staff_lookup() -> dict[str, Staff]:
         for staff in Staff.objects.filter(xero_user_id__isnull=False)
         if staff.xero_user_id is not None
     }
+
+
+def line_base_pay(line: CostLine, staff: Staff) -> Decimal:
+    """Return what payroll owes for one line, at the rate Xero was given.
+
+    Reconstructed from the same two inputs Xero holds — the employee's base
+    wage rate, which ``payroll_employee_sync`` sends as their hourly rate, and
+    the line's units and multiplier — rather than by taking the annual leave
+    loading back off ``total_cost``.
+
+    Dividing was the earlier approach and it was wrong: ``unit_cost`` is
+    denormalised at write time and frozen, while the loading is a setting that
+    can change, so every line written under a different loading came out
+    skewed. The restored data carries 1.08 while the column reads 20.00, which
+    put every reconciled employee about 10% out.
+    """
+    multiplier = line.meta.get("wage_rate_multiplier")
+    if multiplier is None:
+        raise ValueError(
+            f"CostLine {line.id} has no wage_rate_multiplier; it is denormalised at "
+            "write time, so a missing one means the line was not written by the "
+            "pricing pipeline."
+        )
+    return line.quantity * Decimal(str(multiplier)) * staff.base_wage_rate

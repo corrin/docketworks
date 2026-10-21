@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
+import { delay } from 'msw/utils/delay'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PhoneCallRecordOut, TimelineEntryOut } from '@/api'
@@ -115,7 +116,7 @@ function phoneCall(): PhoneCallRecordOut {
 }
 
 describe('JobHistoryTab — who may write', () => {
-  it('offers workshop staff the timeline alone: no calls, no Add Event, no Undo', async () => {
+  it('offers workshop staff the timeline alone: no calls, no Add Note, no Undo', async () => {
     mockUser({ is_office_staff: false })
     serveTimeline([undoableEntry])
     const calls = servePhoneCalls([phoneCall()])
@@ -124,7 +125,7 @@ describe('JobHistoryTab — who may write', () => {
 
     await waitFor(() => expect(queryAutoId(`JobHistoryTab-entry-event-event-2`)).not.toBeNull())
     // The three write surfaces are all office_auth on the backend; v1 showed
-    // Add Event and Undo to everyone and let the request 403.
+    // Add Note and Undo to everyone and let the request 403.
     expect(queryAutoId('JobHistoryTab-add-event-toggle')).toBeNull()
     expect(queryAutoId('JobHistoryTab-undo-toggle-event-2')).toBeNull()
     expect(queryAutoId('JobHistoryTab-phone-calls')).toBeNull()
@@ -246,13 +247,11 @@ describe('JobHistoryTab — the timeline', () => {
     expect(event).toHaveTextContent('Alex Smith')
 
     const created = autoId('JobHistoryTab-entry-costline_created-line-1')
-    expect(created).toHaveTextContent('Costline Created')
-    expect(created).toHaveTextContent('Estimate - time')
+    expect(created).toHaveTextContent('Line added')
+    expect(created).toHaveTextContent('Estimate - Labour')
 
     // The v1 defect: an updated cost line rendered as a "General" job event.
-    expect(autoId('JobHistoryTab-entry-costline_updated-line-1')).toHaveTextContent(
-      'Costline Updated',
-    )
+    expect(autoId('JobHistoryTab-entry-costline_updated-line-1')).toHaveTextContent('Line changed')
     expect(queryAutoId('JobHistoryTab-empty')).toBeNull()
   })
 
@@ -263,7 +262,7 @@ describe('JobHistoryTab — the timeline', () => {
 
     renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
 
-    expect(await screen.findByText('No events recorded yet')).toBeInTheDocument()
+    expect(await screen.findByText('No notes or changes yet')).toBeInTheDocument()
     expect(autoId('JobHistoryTab-empty')).toBeInTheDocument()
   })
 
@@ -344,7 +343,7 @@ describe('JobHistoryTab — adding an event', () => {
     expect(submit).toBeEnabled()
     await user.click(submit)
 
-    expect(await screen.findByText('Event added')).toBeInTheDocument()
+    expect(await screen.findByText('Note added')).toBeInTheDocument()
     expect(posted).toEqual([{ description: 'Customer called back' }])
     await waitFor(() => expect(timeline.calls).toBe(2))
     // The form closes and empties, so the next event does not start half-typed.

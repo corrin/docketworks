@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Final, TypedDict, cast
 
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.company.models import Company, ContactMethod, SupplierSearchAlias
 
@@ -74,13 +75,13 @@ class SupplierSearchPage(TypedDict):
 
 @dataclass(frozen=True, slots=True)
 class _CandidateScore:
-    company: "_AnnotatedSupplier"
+    company: _AnnotatedSupplier
     score: float
     name_score: float
     recent_purchase_count: int
 
 
-def annotated_supplier(company: Company) -> "_AnnotatedSupplier":
+def annotated_supplier(company: Company) -> _AnnotatedSupplier:
     """Vouch that the search annotations are present on a fetched Company."""
     missing = {"recent_purchase_count", "primary_phone"} - set(company.__dict__)
     if missing:
@@ -236,7 +237,10 @@ def _score_candidates(companies: list[Company], score_query_norm: str) -> list[_
 def list_suppliers(*, query: str | None, page: int = 1, page_size: int = 50) -> SupplierSearchPage:
     """List supplier candidates for the PO supplier picker."""
     if query is not None and len(query) > MAX_SEARCH_QUERY_LENGTH:
-        raise ValueError(f"Search query must be {MAX_SEARCH_QUERY_LENGTH} characters or fewer")
+        raise ValueError(
+            gettext("Search query must be %(max_length)s characters or fewer")
+            % {"max_length": MAX_SEARCH_QUERY_LENGTH}
+        )
 
     page = max(1, page)
     page_size = max(1, min(page_size, MAX_PAGE_SIZE))

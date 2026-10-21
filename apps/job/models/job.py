@@ -11,6 +11,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
+from django.utils.functional import Promise
+from django.utils.translation import gettext, gettext_lazy
 
 from apps.core.audit import JsonScalar, json_safe
 from apps.core.data_events import notify_data_changed
@@ -38,7 +40,7 @@ class JobQuerySet(models.QuerySet["Job"]):
     fields, use .untracked_update().
     """
 
-    def create(self, **kwargs: Any) -> "Job":
+    def create(self, **kwargs: Any) -> Job:
         """Create a Job, routing through save(staff=...) like every other path.
 
         Job.save() requires staff, so Manager.create()'s default implementation
@@ -120,6 +122,22 @@ def _handle_boolean_change(
         return None
 
     return handler
+
+
+#: Module level so ``Job.Meta`` can name it: a nested class does not see the
+#: enclosing class's attributes.
+_JOB_STATUS_CHOICES: list[tuple[str, Promise]] = [
+    # Main kanban columns (visible)
+    ("draft", gettext_lazy("Draft")),
+    ("awaiting_approval", gettext_lazy("Awaiting Approval")),
+    ("approved", gettext_lazy("Approved")),
+    ("in_progress", gettext_lazy("In Progress")),
+    ("unusual", gettext_lazy("Unusual")),
+    ("recently_completed", gettext_lazy("Recently Completed")),
+    # Hidden statuses (maintained but not shown on kanban)
+    ("special", gettext_lazy("Special")),
+    ("archived", gettext_lazy("Archived")),
+]
 
 
 class Job(models.Model):
@@ -215,18 +233,7 @@ class Job(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, null=False, blank=False)
-    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        # Main kanban columns (visible)
-        ("draft", "Draft"),
-        ("awaiting_approval", "Awaiting Approval"),
-        ("approved", "Approved"),
-        ("in_progress", "In Progress"),
-        ("unusual", "Unusual"),
-        ("recently_completed", "Recently Completed"),
-        # Hidden statuses (maintained but not shown on kanban)
-        ("special", "Special"),
-        ("archived", "Archived"),
-    ]
+    JOB_STATUS_CHOICES: ClassVar[list[tuple[str, Promise]]] = _JOB_STATUS_CHOICES
 
     STATUS_TOOLTIPS: ClassVar[dict[str, str]] = {
         # Main kanban statuses
@@ -262,13 +269,13 @@ class Job(models.Model):
         null=True,
         blank=True,
         related_name="jobs",
-        help_text="The person for this job",
+        help_text=gettext_lazy("The person for this job"),
     )
     job_number = models.IntegerField(unique=True)  # Job 1234
     description = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
-        help_text="This becomes the first line item on the invoice",
+        help_text=gettext_lazy("This becomes the first line item on the invoice"),
     )
 
     quote_acceptance_date = models.DateTimeField(
@@ -279,14 +286,18 @@ class Job(models.Model):
     completed_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Set automatically when job moves to recently_completed or archived",
+        help_text=gettext_lazy(
+            "Set automatically when job moves to recently_completed or archived"
+        ),
     )
     status = models.CharField(max_length=30, choices=JOB_STATUS_CHOICES, default="draft")
 
     # Flag to track jobs that were rejected
     rejected_flag = models.BooleanField(
         default=False,
-        help_text="Indicates if this job was rejected (shown in Archived with rejected styling)",
+        help_text=gettext_lazy(
+            "Indicates if this job was rejected (shown in Archived with rejected styling)"
+        ),
     )
 
     rdti_type = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
@@ -294,19 +305,21 @@ class Job(models.Model):
         choices=RDTIType.choices,
         null=True,
         blank=True,
-        help_text="R&D Tax Incentive classification for this job",
+        help_text=gettext_lazy("R&D Tax Incentive classification for this job"),
     )
 
-    PRICING_METHODOLOGY_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        ("time_materials", "Time & Materials"),
-        ("fixed_price", "Fixed Price"),
+    PRICING_METHODOLOGY_CHOICES: ClassVar[list[tuple[str, Promise]]] = [
+        ("time_materials", gettext_lazy("Time & Materials")),
+        ("fixed_price", gettext_lazy("Fixed Price")),
     ]
 
     pricing_methodology = models.CharField(
         max_length=20,
         choices=PRICING_METHODOLOGY_CHOICES,
         default="time_materials",
-        help_text=("Determines whether job uses quotes or time and materials pricing type."),
+        help_text=(
+            gettext_lazy("Determines whether job uses quotes or time and materials pricing type.")
+        ),
     )
 
     price_cap = models.DecimalField(
@@ -315,8 +328,10 @@ class Job(models.Model):
         null=True,
         blank=True,
         help_text=(
-            "Maximum amount to invoice for T&M jobs (do not exceed). "
-            "For quoted jobs it is set to the quote."
+            gettext_lazy(
+                "Maximum amount to invoice for T&M jobs (do not exceed). "
+                "For quoted jobs it is set to the quote."
+            )
         ),
     )
 
@@ -324,7 +339,7 @@ class Job(models.Model):
         max_length=20,
         choices=SpeedQualityTradeoff.choices,
         default=SpeedQualityTradeoff.NORMAL,
-        help_text="Speed vs quality tradeoff for workshop execution",
+        help_text=gettext_lazy("Speed vs quality tradeoff for workshop execution"),
     )
 
     # Decided not to bother with parent for now since we don't have a hierarchy of jobs.
@@ -344,11 +359,15 @@ class Job(models.Model):
     customer_called = models.BooleanField(default=False)
     released = models.BooleanField(
         default=False,
-        help_text="The job has left our possession, by collection, delivery or on-site install.",
+        help_text=gettext_lazy(
+            "The job has left our possession, by collection, delivery or on-site install."
+        ),
     )
     fully_invoiced = models.BooleanField(
         default=False,
-        help_text="The total value of invoices for this job matches the total value of the job.",
+        help_text=gettext_lazy(
+            "The total value of invoices for this job matches the total value of the job."
+        ),
     )
     # Charge-out rates live in JobLabourRate, one row per labour subtype.
 
@@ -359,13 +378,13 @@ class Job(models.Model):
 
     is_urgent = models.BooleanField(
         default=False,
-        help_text="Whether this job requires urgent rates and priority handling",
+        help_text=gettext_lazy("Whether this job requires urgent rates and priority handling"),
     )
 
     notes = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
-        help_text="Internal notes about the job. Not shown on the invoice.",
+        help_text=gettext_lazy("Internal notes about the job. Not shown on the invoice."),
     )
 
     # blank=True for the same reason as company above: jobs predating
@@ -381,7 +400,7 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest estimate cost set snapshot",
+        help_text=gettext_lazy("Latest estimate cost set snapshot"),
     )
 
     latest_quote = models.OneToOneField(
@@ -390,7 +409,7 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest quote cost set snapshot",
+        help_text=gettext_lazy("Latest quote cost set snapshot"),
     )
 
     latest_actual = models.OneToOneField(
@@ -399,23 +418,27 @@ class Job(models.Model):
         null=False,
         blank=False,
         related_name="+",
-        help_text="Latest actual cost set snapshot",
+        help_text=gettext_lazy("Latest actual cost set snapshot"),
     )
 
     PRIORITY_INCREMENT = 200
 
     priority = models.FloatField(
         default=0.0,
-        help_text="Priority of the job, higher numbers are higher priority.",
+        help_text=gettext_lazy("Priority of the job, higher numbers are higher priority."),
     )
 
     min_people = models.IntegerField(
         default=1,
-        help_text="Minimum number of workshop staff required to work on this job simultaneously",
+        help_text=gettext_lazy(
+            "Minimum number of workshop staff required to work on this job simultaneously"
+        ),
     )
     max_people = models.IntegerField(
         default=1,
-        help_text="Maximum number of workshop staff that can work on this job simultaneously",
+        help_text=gettext_lazy(
+            "Maximum number of workshop staff that can work on this job simultaneously"
+        ),
     )
 
     # Xero Projects sync fields
@@ -424,7 +447,7 @@ class Job(models.Model):
         max_length=255,
         null=True,
         blank=True,
-        help_text="Xero task ID for the default Labor task used for time entries",
+        help_text=gettext_lazy("Xero task ID for the default Labor task used for time entries"),
         # TODO: This won't work long term - need proper task management system
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
@@ -437,14 +460,16 @@ class Job(models.Model):
         "xero.XeroPayItem",
         on_delete=models.PROTECT,
         related_name="jobs",
-        help_text="Default pay item for time entry. Prepopulates dropdown, can be overridden.",
+        help_text=gettext_lazy(
+            "Default pay item for time entry. Prepopulates dropdown, can be overridden."
+        ),
     )
 
     objects = JobManager()
 
     class Meta:
-        verbose_name = "Job"
-        verbose_name_plural = "Jobs"
+        verbose_name = gettext_lazy("Job")
+        verbose_name_plural = gettext_lazy("Jobs")
         ordering: ClassVar[list[str]] = ["-priority", "-created_at"]
         indexes: ClassVar[list[Index]] = [
             Index(fields=["status", "priority"], name="job_priority_status_idx"),
@@ -464,6 +489,12 @@ class Job(models.Model):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_project_id=""), name="xero_project_id_not_blank"
+            ),
+            # Every reader maps the status to a kanban column and a label and
+            # has no answer for any other value.
+            models.CheckConstraint(
+                condition=models.Q(status__in=[code for code, _ in _JOB_STATUS_CHOICES]),
+                name="job_job_status_valid",
             ),
         ]
 
@@ -520,8 +551,11 @@ class Job(models.Model):
             ordinary_time = XeroPayItem.get_ordinary_time()
             if not ordinary_time:
                 raise ValueError(
-                    "Cannot create Job: 'Ordinary Time' XeroPayItem not found. "
-                    "Run Xero sync or check database seed data."
+                    gettext(
+                        "Can't create the job: Xero's 'Ordinary Time' pay item hasn't come "
+                        "across to DocketWorks. Ask an administrator to update from Xero on "
+                        "the Xero page, or to check the site's setup."
+                    )
                 )
             self.default_xero_pay_item = ordinary_time
 
@@ -532,7 +566,7 @@ class Job(models.Model):
             self.job_number = self.generate_job_number()
             if not self.job_number:
                 logger.error("Failed to generate a job number. Cannot save job.")
-                raise ValueError("Job number generation failed.")
+                raise ValueError(gettext("Job number generation failed."))
             logger.debug("Saving new job with job number: %s", self.job_number)
 
             # To assure all jobs have a priority
@@ -723,11 +757,11 @@ class Job(models.Model):
 
         errors = {}
         if self.min_people < 1:
-            errors["min_people"] = "min_people must be at least 1"
+            errors["min_people"] = gettext("min_people must be at least 1")
         if self.max_people < 1:
-            errors["max_people"] = "max_people must be at least 1"
+            errors["max_people"] = gettext("max_people must be at least 1")
         if self.max_people < self.min_people:
-            errors["max_people"] = "max_people must be >= min_people"
+            errors["max_people"] = gettext("max_people must be >= min_people")
         if errors:
             raise ValidationError(errors)
 
@@ -751,7 +785,7 @@ class Job(models.Model):
 
         return getattr(self, field_mapping[kind], None)
 
-    def set_latest(self, kind: str, cost_set: CostSet, staff: "Staff") -> None:
+    def set_latest(self, kind: str, cost_set: CostSet, staff: Staff) -> None:
         """Update the latest-cost-set pointer and save.
 
         Args:
@@ -820,7 +854,7 @@ class Job(models.Model):
 
     def _detect_field_changes(
         self,
-        original_job: "Job",
+        original_job: Job,
         update_fields: Iterable[str] | None = None,
         *,
         track_priority: bool = False,
@@ -898,7 +932,7 @@ class Job(models.Model):
         changes_after: dict[str, JsonScalar],
         detail_changes: list[dict[str, str]],
         event_types: list[str],
-        staff: "Staff",
+        staff: Staff,
         enrichment: dict[str, Any],
     ) -> None:
         """Create the single JobEvent for a batch of detected field changes."""
@@ -927,6 +961,14 @@ class Job(models.Model):
                 return
             detail["position"] = priority_position
 
+        delta_meta = enrichment.get("delta_meta")
+        if delta_meta is not None:
+            # Undo reverses each field named here from delta_before, so a field
+            # the delta named but this save did not change is not named.
+            delta_meta = {
+                **delta_meta,
+                "fields": [name for name in delta_meta["fields"] if name in changes_before],
+            }
         JobEvent.objects.create(
             job=self,
             event_type=event_type,
@@ -936,7 +978,7 @@ class Job(models.Model):
             delta_after=changes_after,
             schema_version=enrichment.get("schema_version", 0),
             change_id=enrichment.get("change_id"),
-            delta_meta=enrichment.get("delta_meta"),
+            delta_meta=delta_meta,
             delta_checksum=enrichment.get("delta_checksum") or None,
         )
 
@@ -1001,7 +1043,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_status_change(
-        _self_job: "Job", old_status: str, new_status: str
+        _self_job: Job, old_status: str, new_status: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(Job.JOB_STATUS_CHOICES).get(old_status, old_status)
         new_display = dict(Job.JOB_STATUS_CHOICES).get(new_status, new_status)
@@ -1016,7 +1058,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_company_change(
-        self_job: "Job", old_company_id: uuid.UUID | None, new_company_id: uuid.UUID | None
+        self_job: Job, old_company_id: uuid.UUID | None, new_company_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         # Future home: apps.company.models.Company (not yet ported to v2).
         from apps.company.models import Company  # noqa: PLC0415
@@ -1042,7 +1084,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_person_change(
-        self_job: "Job", old_person_id: uuid.UUID | None, new_person_id: uuid.UUID | None
+        self_job: Job, old_person_id: uuid.UUID | None, new_person_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         old_person = "None"
         new_person = "None"
@@ -1068,7 +1110,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_xero_pay_item_change(
-        self_job: "Job", old_pay_item_id: uuid.UUID | None, new_pay_item_id: uuid.UUID | None
+        self_job: Job, old_pay_item_id: uuid.UUID | None, new_pay_item_id: uuid.UUID | None
     ) -> tuple[str, dict[str, str]]:
         # Future home: apps.xero.models.XeroPayItem (v1: apps.workflow.models;
         # not yet ported to v2).
@@ -1098,11 +1140,11 @@ class Job(models.Model):
     @staticmethod
     def _handle_text_field_change(
         event_type: str, field_display_name: str
-    ) -> "Callable[[Job, str | None, str | None], tuple[str, dict[str, str]] | None]":
+    ) -> Callable[[Job, str | None, str | None], tuple[str, dict[str, str]] | None]:
         """Return a handler for text field changes (factory)."""
 
         def handler(
-            _self_job: "Job", old_value: str | None, new_value: str | None
+            _self_job: Job, old_value: str | None, new_value: str | None
         ) -> tuple[str, dict[str, str]] | None:
             if old_value or new_value:
                 return (
@@ -1120,11 +1162,11 @@ class Job(models.Model):
     @staticmethod
     def _handle_date_change(
         event_type: str, field_display_name: str
-    ) -> "Callable[[Job, date | None, date | None], tuple[str, dict[str, str]]]":
+    ) -> Callable[[Job, date | None, date | None], tuple[str, dict[str, str]]]:
         """Return a handler for date field changes (factory)."""
 
         def handler(
-            _self_job: "Job", old_date: date | None, new_date: date | None
+            _self_job: Job, old_date: date | None, new_date: date | None
         ) -> tuple[str, dict[str, str]]:
             old_str = old_date.strftime("%Y-%m-%d") if old_date else "None"
             new_str = new_date.strftime("%Y-%m-%d") if new_date else "None"
@@ -1141,7 +1183,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_quote_acceptance_change(
-        _self_job: "Job", old_date: datetime | None, new_date: datetime | None
+        _self_job: Job, old_date: datetime | None, new_date: datetime | None
     ) -> tuple[str, dict[str, str]] | None:
         if not old_date and new_date:
             return (
@@ -1165,7 +1207,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_pricing_methodology_change(
-        _self_job: "Job", old_method: str, new_method: str
+        _self_job: Job, old_method: str, new_method: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(Job.PRICING_METHODOLOGY_CHOICES).get(old_method, old_method)
         new_display = dict(Job.PRICING_METHODOLOGY_CHOICES).get(new_method, new_method)
@@ -1180,7 +1222,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_speed_quality_tradeoff_change(
-        _self_job: "Job", old_tradeoff: str, new_tradeoff: str
+        _self_job: Job, old_tradeoff: str, new_tradeoff: str
     ) -> tuple[str, dict[str, str]]:
         old_display = dict(SpeedQualityTradeoff.choices).get(old_tradeoff, old_tradeoff)
         new_display = dict(SpeedQualityTradeoff.choices).get(new_tradeoff, new_tradeoff)
@@ -1195,7 +1237,7 @@ class Job(models.Model):
 
     @staticmethod
     def _handle_rdti_type_change(
-        _self_job: "Job", old_type: str | None, new_type: str | None
+        _self_job: Job, old_type: str | None, new_type: str | None
     ) -> tuple[str, dict[str, str]]:
         # Equivalent to v1's `.get(old_type, old_type or "None")`: a falsy key
         # can never be in choices, so it always resolved to "None".
@@ -1257,6 +1299,11 @@ class Job(models.Model):
             "payment_received",
             "payment_updated",
             "Paid",
+        ),
+        "rejected_flag": _handle_boolean_change(
+            "job_rejected",
+            "job_updated",
+            "Rejected",
         ),
         "foreman_signed_off": _handle_boolean_change(
             "completion_checklist_updated",

@@ -119,7 +119,7 @@ test.describe('Xero connection page', () => {
     await expect(refresh).toBeDisabled()
     await expect(
       autoId(page, 'XeroPage-progress').locator(`[data-task-id="${taskId}"]`, {
-        hasText: 'Completed sync of employees',
+        hasText: 'Finished updating employees from Xero',
       }),
     ).toBeVisible({ timeout: 210_000 })
     await completed

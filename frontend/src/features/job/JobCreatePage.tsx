@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -39,6 +40,7 @@ function filterNumericInput(event: React.KeyboardEvent<HTMLInputElement>) {
 }
 
 export function JobCreatePage() {
+  const { t } = useTranslation('job')
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
@@ -78,7 +80,7 @@ export function JobCreatePage() {
       return
     }
 
-    toast.info('Creating job…', { id: 'create-job' })
+    toast.info(t('createPage.creatingToast'), { id: 'create-job' })
 
     const body: JobCreateRequest = {
       name: name.trim(),
@@ -101,19 +103,19 @@ export function JobCreatePage() {
       result = await createJob.mutateAsync({ body })
     } catch (error) {
       toast.dismiss('create-job')
-      toast.error(apiErrorMessage(error, 'Failed to create job'))
+      toast.error(apiErrorMessage(error, t('createPage.createFailed')))
       return
     }
 
     if (!result.success || !result.job_id) {
       toast.dismiss('create-job')
-      toast.error(result.message || 'Failed to create job')
+      toast.error(result.message || t('createPage.createFailed'))
       return
     }
 
     setJobCreated(true)
     toast.dismiss('create-job')
-    toast.success('Job created!')
+    toast.success(t('createPage.created'))
 
     const defaultTab = pricingMethodology === 'fixed_price' ? 'quote' : 'estimate'
     try {
@@ -123,9 +125,7 @@ export function JobCreatePage() {
         search: { new: 'true', tab: defaultTab },
       })
     } catch {
-      toast.error(
-        `Job #${result.job_number} was created but the page did not open — find it on the jobs list.`,
-      )
+      toast.error(t('createPage.navigateFailed', { jobNumber: result.job_number }))
     }
   }
 
@@ -133,7 +133,7 @@ export function JobCreatePage() {
     try {
       await navigate({ to: '/kanban' })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not return to the kanban. Please try again.'))
+      toast.error(apiErrorMessage(error, t('createPage.cancelFailed')))
     }
   }
 
@@ -141,7 +141,7 @@ export function JobCreatePage() {
     <div className="flex min-h-screen flex-col">
       <div className="flex-shrink-0 border-b border-gray-200 p-4">
         <h1 className="text-xl font-bold text-gray-900" data-automation-id="JobCreateView-title">
-          Create New Job
+          {t('createPage.title')}
         </h1>
       </div>
 
@@ -152,7 +152,7 @@ export function JobCreatePage() {
               <div className="space-y-6">
                 <CompanyLookup
                   id="company"
-                  label="Company"
+                  label={t('createPage.company')}
                   required
                   selectedCompany={selectedCompany}
                   onSelectCompany={handleCompanySelection}
@@ -163,7 +163,7 @@ export function JobCreatePage() {
                     htmlFor="name"
                     className={`mb-2 block text-sm font-medium ${name.trim() ? 'text-gray-700' : 'text-red-600'}`}
                   >
-                    Job Name *
+                    {t('createPage.jobName')}
                   </label>
                   <input
                     id="name"
@@ -174,14 +174,14 @@ export function JobCreatePage() {
                     className={`w-full rounded-md border px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
                       name.trim() ? 'border-gray-300' : 'border-red-300 bg-red-50'
                     }`}
-                    placeholder="Enter job name"
+                    placeholder={t('createPage.jobNamePlaceholder')}
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
 
                 <PersonSelector
                   id="person"
-                  label="Person"
+                  label={t('createPage.person')}
                   companyId={selectedCompany?.id ?? ''}
                   companyName={selectedCompany?.name ?? ''}
                   selectedPerson={selectedPerson}
@@ -194,7 +194,7 @@ export function JobCreatePage() {
                       htmlFor="estimated_materials"
                       className={`mb-2 block text-sm font-medium ${hasValidMaterials ? 'text-gray-700' : 'text-red-600'}`}
                     >
-                      Ballpark materials retail ($) *
+                      {t('createPage.estimatedMaterials')}
                     </label>
                     <input
                       id="estimated_materials"
@@ -206,7 +206,7 @@ export function JobCreatePage() {
                       className={`w-full rounded-md border px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
                         hasValidMaterials ? 'border-gray-300' : 'border-red-300 bg-red-50'
                       }`}
-                      placeholder="Enter retail price for materials"
+                      placeholder={t('createPage.estimatedMaterialsPlaceholder')}
                       onChange={(event) => setEstimatedMaterials(event.target.value)}
                       onKeyDown={filterNumericInput}
                     />
@@ -216,7 +216,7 @@ export function JobCreatePage() {
                       htmlFor="estimated_time"
                       className={`mb-2 block text-sm font-medium ${hasValidTime ? 'text-gray-700' : 'text-red-600'}`}
                     >
-                      Ballpark workshop time (hours) *
+                      {t('createPage.estimatedTime')}
                     </label>
                     <input
                       id="estimated_time"
@@ -228,7 +228,7 @@ export function JobCreatePage() {
                       className={`w-full rounded-md border px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
                         hasValidTime ? 'border-gray-300' : 'border-red-300 bg-red-50'
                       }`}
-                      placeholder="Enter estimated workshop hours"
+                      placeholder={t('createPage.estimatedTimePlaceholder')}
                       onChange={(event) => setEstimatedTime(event.target.value)}
                       onKeyDown={filterNumericInput}
                     />
@@ -240,7 +240,7 @@ export function JobCreatePage() {
                     htmlFor="pricing_methodology"
                     className="mb-2 block text-sm font-medium text-gray-700"
                   >
-                    Pricing Method
+                    {t('createPage.pricingMethod')}
                   </label>
                   <select
                     id="pricing_methodology"
@@ -249,8 +249,8 @@ export function JobCreatePage() {
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                     onChange={(event) => setPricingMethodology(event.target.value)}
                   >
-                    <option value="fixed_price">Fixed Price</option>
-                    <option value="time_materials">Time &amp; Materials</option>
+                    <option value="fixed_price">{t('createPage.fixedPrice')}</option>
+                    <option value="time_materials">{t('createPage.timeMaterials')}</option>
                   </select>
                 </div>
               </div>
@@ -261,14 +261,14 @@ export function JobCreatePage() {
                     htmlFor="description"
                     className="mb-2 block text-sm font-medium text-gray-700"
                   >
-                    Description (for invoice)
+                    {t('createPage.description')}
                   </label>
                   <textarea
                     id="description"
                     rows={3}
                     value={description}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Job description for invoice"
+                    placeholder={t('createPage.descriptionPlaceholder')}
                     onChange={(event) => setDescription(event.target.value)}
                   />
                 </div>
@@ -278,21 +278,21 @@ export function JobCreatePage() {
                     htmlFor="order_number"
                     className="mb-2 block text-sm font-medium text-gray-700"
                   >
-                    Order Number
+                    {t('createPage.orderNumber')}
                   </label>
                   <input
                     id="order_number"
                     type="text"
                     value={orderNumber}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    placeholder="PO/Order number"
+                    placeholder={t('createPage.orderNumberPlaceholder')}
                     onChange={(event) => setOrderNumber(event.target.value)}
                   />
                 </div>
 
                 <div>
                   <label htmlFor="notes" className="mb-2 block text-sm font-medium text-gray-700">
-                    Job Notes
+                    {t('createPage.notes')}
                   </label>
                   {/* Plain textarea for now: the rich-text editor arrives with
                       the specs that assert on .ql-editor. */}
@@ -301,7 +301,7 @@ export function JobCreatePage() {
                     rows={5}
                     value={notes}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    placeholder="Internal notes about the job"
+                    placeholder={t('createPage.notesPlaceholder')}
                     onChange={(event) => setNotes(event.target.value)}
                   />
                 </div>
@@ -315,7 +315,7 @@ export function JobCreatePage() {
                 disabled={createJob.isPending}
                 onClick={() => void handleCancel()}
               >
-                Cancel
+                {t('createPage.cancel')}
               </button>
               <button
                 type="submit"
@@ -323,7 +323,7 @@ export function JobCreatePage() {
                 data-automation-id="JobCreateView-submit"
                 className="rounded-md bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {createJob.isPending ? 'Creating...' : 'Create Job'}
+                {createJob.isPending ? t('createPage.creating') : t('createPage.create')}
               </button>
             </div>
           </form>

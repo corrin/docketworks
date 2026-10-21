@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { AddressCandidate, SettingsFieldOut } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { AddressAutocompleteInput } from '@/features/shared/address/AddressAutocompleteInput'
@@ -5,6 +7,7 @@ import { AddressAutocompleteInput } from '@/features/shared/address/AddressAutoc
 import { BrandingThemeSelect } from './BrandingThemeSelect'
 import { CompanySelect } from './CompanySelect'
 import { fieldAutomationId } from './fieldAutomationId'
+import { JobSelect } from './JobSelect'
 import { LogoField } from './LogoField'
 import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from './snapshot'
 
@@ -52,7 +55,7 @@ export interface SettingsFieldInputProps extends SettingsFieldControlProps {
 // exhaustiveness buys out (Decision 6).
 type GenericFieldType = Exclude<
   SettingsFieldOut['type'],
-  'boolean' | 'textarea' | 'company' | 'xero_branding_theme' | 'image'
+  'boolean' | 'textarea' | 'company' | 'job' | 'xero_branding_theme' | 'image'
 >
 const INPUT_TYPE: Record<GenericFieldType, string> = {
   email: 'email',
@@ -71,6 +74,7 @@ export function SettingsFieldInput({
   onApplyMany,
   section,
 }: SettingsFieldInputProps) {
+  const { t } = useTranslation('admin')
   const automationId = fieldAutomationId(section, field.key)
 
   if (field.key === ADDRESS_STREET_KEY) {
@@ -99,6 +103,10 @@ export function SettingsFieldInput({
   // lookup would break the exhaustiveness check above.
   if (field.type === 'company') {
     return <CompanySelect field={field} value={value} onChange={onChange} section={section} />
+  }
+
+  if (field.type === 'job') {
+    return <JobSelect field={field} value={value} onChange={onChange} section={section} />
   }
 
   if (field.type === 'xero_branding_theme') {
@@ -148,7 +156,7 @@ export function SettingsFieldInput({
               rel="noopener noreferrer"
               className="font-medium text-indigo-600 hover:underline"
             >
-              Open Xero Invoice Settings
+              {t('quoteTerms.openXeroSettings')}
             </a>
             <span
               className={
@@ -158,14 +166,13 @@ export function SettingsFieldInput({
               }
               data-automation-id={`${automationId}-count`}
             >
-              {count.toLocaleString()} / {XERO_QUOTE_TERMS_MAX_LENGTH.toLocaleString()} characters
+              {t('quoteTerms.characterCount', {
+                used: count.toLocaleString(),
+                max: XERO_QUOTE_TERMS_MAX_LENGTH.toLocaleString(),
+              })}
             </span>
           </div>
-          {isBlank && (
-            <p className="text-xs text-red-700">
-              Enter quote terms before creating quotes in Xero.
-            </p>
-          )}
+          {isBlank && <p className="text-xs text-red-700">{t('quoteTerms.blank')}</p>}
         </div>
       )
     }

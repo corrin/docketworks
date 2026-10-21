@@ -89,7 +89,7 @@ def _uuid(value: Json, where: str) -> UUID | None:
 
 
 #: The parser for each column type, most specific first (a DateTimeField is a DateField).
-_PARSERS: "tuple[tuple[type[models.Field[object, object]], Callable[[Json, str], object]], ...]" = (
+_PARSERS: tuple[tuple[type[models.Field[object, object]], Callable[[Json, str], object]], ...] = (
     (models.DateTimeField, parse_wire_datetime),
     (models.DateField, parse_wire_date),
     (models.DecimalField, _number),
@@ -589,7 +589,7 @@ class Document(AccountingRecord):
         return wire
 
     @property
-    def lines(self) -> models.QuerySet["DocumentLine"]:
+    def lines(self) -> models.QuerySet[DocumentLine]:
         """The document's lines; each concrete document names its own line table."""
         raise NotImplementedError
 
@@ -632,7 +632,7 @@ class FakeInvoice(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeInvoiceLine"]:
+    def lines(self) -> models.QuerySet[FakeInvoiceLine]:
         """The invoice's lines."""
         return self.invoice_lines.all()
 
@@ -665,7 +665,7 @@ class FakeCreditNote(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeCreditNoteLine"]:
+    def lines(self) -> models.QuerySet[FakeCreditNoteLine]:
         """The creditnote's lines."""
         return self.creditnote_lines.all()
 
@@ -701,7 +701,7 @@ class FakeQuote(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakeQuoteLine"]:
+    def lines(self) -> models.QuerySet[FakeQuoteLine]:
         """The quote's lines."""
         return self.quote_lines.all()
 
@@ -734,7 +734,7 @@ class FakePurchaseOrder(Document):
         ]
 
     @property
-    def lines(self) -> models.QuerySet["FakePurchaseOrderLine"]:
+    def lines(self) -> models.QuerySet[FakePurchaseOrderLine]:
         """The purchaseorder's lines."""
         return self.purchaseorder_lines.all()
 
@@ -1053,6 +1053,61 @@ class FakeLeaveBalance(PayrollRecord):
         ]
 
 
+class FakeEmployeeLeaveType(PayrollRecord):
+    """GET /Employees/{id}/LeaveTypes (recordings/employee_leave_types.json).
+
+    A leave type the employee is eligible for and the rule it accrues by.
+    Keyed, like a balance, by the leave type: the row id is minted.
+    """
+
+    UPDATED_KEY = None
+    WIRE: ClassVar[Mapping[str, str]] = {"leaveTypeID": "leave_type_id"}
+
+    employee = models.ForeignKey(FakeEmployee, on_delete=models.CASCADE, related_name="leave_types")
+    leave_type_id = models.UUIDField()
+
+    class Meta(PayrollRecord.Meta):
+        db_table = "xero_fake_employeeleavetype"
+        # The inherited "%(class)s_tenant_upd" is past Django's 30-character index name limit.
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(
+                fields=["tenant_id", "updated_date_utc"], name="fakeemplleavetype_tenant_upd"
+            ),
+        ]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["employee", "leave_type_id"], name="employeeleavetype_type_unique"
+            ),
+        ]
+
+
+class FakeEmployeeTax(PayrollRecord):
+    """POST /Employees/{id}/Tax (recordings/employee_tax_update.json): one per employee.
+
+    Nothing reads it back but a pay run, so every field is an attribute.
+    """
+
+    UPDATED_KEY = None
+
+    employee = models.OneToOneField(FakeEmployee, on_delete=models.CASCADE, related_name="tax")
+
+    class Meta(PayrollRecord.Meta):
+        db_table = "xero_fake_employeetax"
+
+
+class FakePaymentMethod(PayrollRecord):
+    """POST /Employees/{id}/PaymentMethods (recordings/payment_method_create.json): one each."""
+
+    UPDATED_KEY = None
+
+    employee = models.OneToOneField(
+        FakeEmployee, on_delete=models.CASCADE, related_name="payment_method"
+    )
+
+    class Meta(PayrollRecord.Meta):
+        db_table = "xero_fake_paymentmethod"
+
+
 class FakeEarningsRate(PayrollRecord):
     """GET /EarningsRates (recordings/earnings_rates.json)."""
 
@@ -1188,6 +1243,9 @@ RESOURCES: tuple[type[XeroRecord], ...] = (
     FakeWorkingPattern,
     FakeLeaveType,
     FakeLeaveBalance,
+    FakeEmployeeLeaveType,
+    FakeEmployeeTax,
+    FakePaymentMethod,
     FakeEarningsRate,
     FakePayRun,
     FakePaySlip,

@@ -12,6 +12,7 @@ import json
 
 import django
 import yaml
+from django.core.serializers.json import DjangoJSONEncoder
 
 from scripts import REPO_ROOT
 from scripts.django_settings import pin_settings
@@ -54,7 +55,9 @@ def build_spec() -> dict[str, object]:
     # normalises every node without losing information.
     # json.loads is Any-typed; the cast records what the round-trip actually
     # produces rather than letting Any leak into every caller (ADR 0028).
-    plain: dict[str, object] = json.loads(json.dumps(spec))
+    # DjangoJSONEncoder renders the lazy gettext labels and help text models
+    # carry (ADR 0069) as the text they stand for.
+    plain: dict[str, object] = json.loads(json.dumps(spec, cls=DjangoJSONEncoder))
     return plain
 
 

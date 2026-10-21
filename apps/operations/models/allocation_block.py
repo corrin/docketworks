@@ -4,6 +4,7 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 from apps.operations.models.scheduler_run import SchedulerRun
 
@@ -33,11 +34,11 @@ class AllocationBlock(models.Model):
     )
     allocation_date = models.DateField()
     allocated_hours = models.FloatField(
-        help_text="Hours allocated to this job for this staff member on this date",
+        help_text=gettext_lazy("Hours allocated to this job for this staff member on this date"),
     )
     sequence = models.IntegerField(
         default=0,
-        help_text="Ordering within the run for reconstructing the schedule",
+        help_text=gettext_lazy("Ordering within the run for reconstructing the schedule"),
     )
 
     class Meta:

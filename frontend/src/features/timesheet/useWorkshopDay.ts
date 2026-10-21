@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -159,6 +160,7 @@ function report(error: unknown, fallback: string): void {
  * `ownerId` is whose time a new entry is, when it is not the caller's own.
  */
 export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const createMutation = useMutation(jobWorkshopTimesheetsCreateMutation())
   const updateMutation = useMutation(jobWorkshopTimesheetsPartialUpdateMutation())
@@ -181,10 +183,10 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
         body: { ...body, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
       })
     } catch (error) {
-      report(error, 'The entry could not be saved.')
+      report(error, t('myDay.entrySaveFailed'))
       return false
     }
-    toast.success('Time saved.')
+    toast.success(t('myDay.timeSaved'))
     invalidateDays()
     return true
   }
@@ -194,10 +196,10 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
       const location = await writeLocation(sendLocation)
       await updateMutation.mutateAsync({ body: { ...body, location } })
     } catch (error) {
-      report(error, 'The entry could not be updated.')
+      report(error, t('myDay.entryUpdateFailed'))
       return false
     }
-    toast.success('Time saved.')
+    toast.success(t('myDay.timeSaved'))
     invalidateDays()
     return true
   }
@@ -207,10 +209,10 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
       const location = await writeLocation(sendLocation)
       await deleteMutation.mutateAsync({ query: { entry_id: entryId, ...location } })
     } catch (error) {
-      report(error, 'The entry could not be deleted.')
+      report(error, t('myDay.entryDeleteFailed'))
       return false
     }
-    toast.success('Entry deleted.')
+    toast.success(t('myDay.entryDeleted'))
     invalidateDays()
     return true
   }
@@ -229,6 +231,7 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
  * success; a refusal toasts the server's own words.
  */
 export function useClocking(sendLocation: boolean, ownerId?: string) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const clockMutation = useMutation(timesheetsMyDayClockMutation())
   const timesMutation = useMutation(timesheetsMyDayTimesMutation())
@@ -244,10 +247,10 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
       const location = await writeLocation(sendLocation)
       await clockMutation.mutateAsync({ body: { action, location } })
     } catch (error) {
-      report(error, action === 'in' ? 'Clocking in failed.' : 'Clocking out failed.')
+      report(error, action === 'in' ? t('myDay.clockInFailed') : t('myDay.clockOutFailed'))
       return false
     }
-    toast.success(action === 'in' ? 'Clocked in.' : 'Clocked out.')
+    toast.success(action === 'in' ? t('myDay.clockedIn') : t('myDay.clockedOut'))
     refresh()
     return true
   }
@@ -259,10 +262,10 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
         body: { ...body, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
       })
     } catch (error) {
-      report(error, 'The clock times could not be saved.')
+      report(error, t('myDay.clockTimesFailed'))
       return false
     }
-    toast.success('Clock times saved.')
+    toast.success(t('myDay.clockTimesSaved'))
     refresh()
     return true
   }
@@ -275,7 +278,7 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
         body: { date, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
       })
     } catch (error) {
-      report(error, 'The standard hours could not be recorded.')
+      report(error, t('myDay.standardHoursFailed'))
       return false
     }
     refresh()
@@ -295,6 +298,7 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
  * time, the day of the person the office is correcting (`ownerId`).
  */
 export function useBreaks(sendLocation: boolean, ownerId?: string) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const createMutation = useMutation(timesheetsMyDayBreaksCreateMutation())
   const updateMutation = useMutation(timesheetsMyDayBreaksUpdateMutation())
@@ -331,8 +335,8 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
               ...(ownerId === undefined ? {} : { staff_id: ownerId }),
             },
           }),
-        'Break added.',
-        'The break could not be added.',
+        t('myDay.breakAdded'),
+        t('myDay.breakAddFailed'),
       ),
     changeBreak: (breakId: string, start: string, end: string) =>
       settle(
@@ -341,15 +345,15 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
             path: { break_id: breakId },
             body: { start, end, location },
           }),
-        'Break saved.',
-        'The break could not be saved.',
+        t('myDay.breakSaved'),
+        t('myDay.breakSaveFailed'),
       ),
     removeBreak: (breakId: string) =>
       settle(
         (location) =>
           deleteMutation.mutateAsync({ path: { break_id: breakId }, query: { ...location } }),
-        'Break removed.',
-        'The break could not be removed.',
+        t('myDay.breakRemoved'),
+        t('myDay.breakRemoveFailed'),
       ),
     savingBreak: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
   }
@@ -361,6 +365,7 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
  * the rows become is judged by where it was sent from.
  */
 export function useSubmitDay(sendLocation: boolean) {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const submitMutation = useMutation(timesheetsMyDaySubmitMutation())
 
@@ -369,10 +374,10 @@ export function useSubmitDay(sendLocation: boolean) {
       const location = await writeLocation(sendLocation)
       await submitMutation.mutateAsync({ body: { date, rows, location } })
     } catch (error) {
-      report(error, 'The day could not be sent.')
+      report(error, t('myDay.sendFailed'))
       return false
     }
-    toast.success('Day sent to the office.')
+    toast.success(t('myDay.sent'))
     void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
     return true
   }

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from django.utils import timezone
+from django.utils.translation import gettext
 
 _EMPTY_TIMESTAMP = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -23,7 +24,7 @@ class KanbanDatasetVersion:
         updated_at: datetime | None,
         created_at: datetime | None,
         count: int,
-    ) -> "KanbanDatasetVersion":
+    ) -> KanbanDatasetVersion:
         """Build a version from raw values, validating awareness and count."""
         if count < 0:
             raise ValueError("Kanban version count cannot be negative")
@@ -45,7 +46,7 @@ class KanbanDatasetVersion:
         return f"{updated}|{created}|{self.count}"
 
     @classmethod
-    def decode(cls, value: str) -> "KanbanDatasetVersion":
+    def decode(cls, value: str) -> KanbanDatasetVersion:
         """Decode and validate a previously emitted version."""
         try:
             updated_value, created_value, count_value = value.split("|")
@@ -55,4 +56,4 @@ class KanbanDatasetVersion:
                 count=int(count_value),
             )
         except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid Kanban version") from exc
+            raise ValueError(gettext("Invalid Kanban version")) from exc

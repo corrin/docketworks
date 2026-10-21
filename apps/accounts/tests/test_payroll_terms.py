@@ -85,7 +85,7 @@ class TestUnsyncedSalariedStaff:
         Opus: ``salary_cost_rate`` already refused this staff member, so the two
         surfaces disagreed about whether they were usable at all.
         """
-        with pytest.raises(ValidationError, match="not synced from Xero"):
+        with pytest.raises(ValidationError, match="haven't come across from Xero"):
             contracted_hours_on(salaried, WORK_DATE)
 
     def test_the_roster_still_answers_for_an_hourly_staff_member(self, hourly: Staff) -> None:

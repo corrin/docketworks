@@ -20,6 +20,7 @@ import re
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
@@ -90,11 +91,13 @@ def mirror_purchase_order(po: PurchaseOrder, staff: Staff) -> None:
         # The mirror is a document addressed to a supplier, so there is nothing
         # to send. Raised here rather than left to the provider, which would
         # surface a missing supplier as a 500.
-        raise InvalidInputError("A purchase order needs a supplier before it can reach Xero")
+        raise InvalidInputError(
+            gettext("A purchase order needs a supplier before it can reach Xero")
+        )
     result = get_provider().push_purchase_order(po, staff)
     if result.success:
         return
-    message = result.error or "The accounting system refused this purchase order."
+    message = result.error or gettext("The accounting system refused this purchase order.")
     if result.status_code == 400:
         raise InvalidInputError(message)
     raise UpstreamRefusedError(message)

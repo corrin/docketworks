@@ -1,0 +1,131 @@
+{
+  "notFound": {
+    "title": "Page not found",
+    "message": "There is no page at this address.",
+    "toKanban": "Go to the kanban board"
+  },
+  "recovery": {
+    "logoAlt": "Company Logo",
+    "errorReference": "Error reference: {{errorId}}",
+    "retry": "Retry",
+    "checking": "Checking…"
+  },
+  "routeError": {
+    "unavailableTitle": "Connection interrupted",
+    "unavailableMessage": "DocketWorks could not reach the server. Your work has not been discarded.",
+    "failedTitle": "Something went wrong",
+    "failedMessage": "DocketWorks could not finish loading this page.",
+    "retryFallback": "Please try again."
+  },
+  "navbar": {
+    "brand": "DocketWorks",
+    "createJob": "Create Job",
+    "formsMenu": "Forms",
+    "timesheetsMenu": "Timesheets",
+    "crmMenu": "CRM",
+    "purchasesMenu": "Purchases",
+    "reportsMenu": "Reports",
+    "adminMenu": "Admin",
+    "formsSafety": "Safety",
+    "formsTraining": "Training",
+    "formsIncident": "Incident",
+    "formsMeeting": "Meeting",
+    "formsRegister": "Register",
+    "myTime": "My time",
+    "approveTime": "Approve time",
+    "dailyTimesheets": "Daily",
+    "weeklyTimesheets": "Weekly",
+    "leave": "Leave",
+    "companies": "Companies",
+    "people": "People",
+    "calls": "Calls",
+    "purchaseOrders": "Purchase Orders",
+    "useStock": "Use Stock",
+    "stocktake": "Stocktake",
+    "jobMovement": "Job Movement",
+    "kpiCalendar": "KPI Calendar",
+    "salesForecast": "Sales Forecast",
+    "wip": "WIP Report",
+    "payrollReconciliation": "Payroll (Xero)",
+    "leaveSettings": "Leave settings",
+    "companyDefaults": "Company Defaults",
+    "integrations": "Integrations",
+    "staff": "Staff",
+    "replays": "Screen recordings",
+    "xero": "Xero",
+    "changePassword": "Change password",
+    "logout": "Log out",
+    "managementHeading": "Management",
+    "reconciliationHeading": "Reconciliation",
+    "welcome": "Welcome, {{name}}!"
+  },
+  "kanbanSearch": {
+    "placeholder": "Search jobs..."
+  },
+  "login": {
+    "logoAlt": "Company Logo",
+    "welcome": "Welcome back! Sign in to your account",
+    "emailLabel": "E-mail",
+    "emailPlaceholder": "Enter your email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signingIn": "Signing in...",
+    "signIn": "Sign In",
+    "forgotPassword": "Forgot password?",
+    "footer": "DocketWorks System"
+  },
+  "sessionCheck": {
+    "title": "Connection interrupted",
+    "message": "DocketWorks could not reach the server. Check your connection, then try again."
+  },
+  "xeroRoute": {
+    "connectionFailed": "Xero connection failed: {{error}}"
+  },
+  "changePassword": {
+    "allRequired": "All fields are required.",
+    "mismatch": "The new passwords do not match.",
+    "failed": "The password could not be changed.",
+    "title": "Change password",
+    "forcedCopy": "You must change your password before continuing.",
+    "voluntaryCopy": "Choose a new password for your account.",
+    "currentLabel": "Current password",
+    "newLabel": "New password",
+    "confirmLabel": "Confirm new password",
+    "cancel": "Cancel",
+    "submitting": "Changing…",
+    "submit": "Change password",
+    "forgot": "Forgot your current password?",
+    "signOut": "Sign out"
+  },
+  "forgotPassword": {
+    "emailRequired": "An email address is required.",
+    "failed": "The reset email could not be sent. Please try again.",
+    "title": "Reset your password",
+    "sent": "If that address has an account, a reset email has been sent. Follow the link in it to choose a new password.",
+    "backToSignIn": "Back to sign in",
+    "intro": "Enter your login email and we will send you a link to reset your password.",
+    "emailLabel": "Email",
+    "cancel": "Back to sign in",
+    "submitting": "Sending…",
+    "submit": "Send reset email"
+  },
+  "resetPassword": {
+    "allRequired": "Both fields are required.",
+    "mismatch": "The passwords do not match.",
+    "succeeded": "Password reset. Sign in with your new password.",
+    "failed": "The password could not be reset.",
+    "title": "Choose a new password",
+    "incompleteLink": "This reset link is incomplete. Use the full link from your email, or request a new one.",
+    "requestAgain": "Request a new reset email",
+    "newLabel": "New password",
+    "confirmLabel": "Confirm new password",
+    "submitting": "Resetting…",
+    "submit": "Reset password"
+  },
+  "loginError": {
+    "unexpected": "An unexpected login error occurred.",
+    "wrongCredentials": "Wrong e-mail or password, please try again.",
+    "server": "Server error. Please try again later.",
+    "network": "Network error. Please check your internet connection."
+  }
+}

@@ -14,6 +14,7 @@ import {
 } from './db-backup-utils'
 import { openSyncWindow } from './e2e-sync-windows'
 import { ensureXeroConnected } from './xero-login'
+import { z } from 'zod'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -26,11 +27,17 @@ function mintRunId(): string {
 }
 
 /**
- * The pickup-address spec validates addresses against Google for real, so the
- * E2E database must hold the Maps key (an IntegrationSettings column, never
- * env). Reported as a preflight issue naming the fix rather than left to fail
- * as a 503 inside the spec.
+ * Specs that reach a vendor for real need its configuration in the E2E
+ * database (IntegrationSettings columns, never env): the pickup-address spec
+ * validates against Google Maps, and the quoting-chat spec boots ChatKit with
+ * its domain key. Reported as preflight issues naming the fix rather than left
+ * to fail inside the spec.
  */
+const IntegrationSettingsPreflight = z.object({
+  has_google_maps_api_key: z.boolean(),
+  chatkit_domain_key: z.string().nullable(),
+})
+
 async function integrationSettingsIssues(): Promise<string[]> {
   const cookieValue = await getAuthCookie()
   const response = await fetch(`${getApplicationUrl()}/api/integration-settings/`, {
@@ -42,19 +49,19 @@ async function integrationSettingsIssues(): Promise<string[]> {
       `GET /api/integration-settings/ answered ${response.status}; the E2E account must be a superuser`,
     ]
   }
-  const body: unknown = await response.json()
-  const configured =
-    typeof body === 'object' && body !== null && 'has_google_maps_api_key' in body
-      ? body.has_google_maps_api_key === true
-      : false
-  if (!configured) {
-    return [
-      'No Google Maps API key on IntegrationSettings. Load one with ' +
-        '`uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json` ' +
-        '(copy the .example) or enter it on Admin > Integrations.',
-    ]
+  const settings = IntegrationSettingsPreflight.parse(await response.json())
+  const load =
+    'Load it with `uv run python manage.py load_integration_settings ' +
+    'apps/platform/integrations/fixtures/integration_settings.json` (copy the .example) ' +
+    'or enter it on Admin > Integrations.'
+  const issues: string[] = []
+  if (!settings.has_google_maps_api_key) {
+    issues.push(`No Google Maps API key on IntegrationSettings. ${load}`)
   }
-  return []
+  if (settings.chatkit_domain_key === null) {
+    issues.push(`No ChatKit domain key on IntegrationSettings. ${load}`)
+  }
+  return issues
 }
 
 async function getAuthCookie(): Promise<string> {

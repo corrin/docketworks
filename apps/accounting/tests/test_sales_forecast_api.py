@@ -57,7 +57,7 @@ class TestSalesForecastList:
         company = make_company("Forecast Co")
         job = make_job(company, staff)
         add_actual_line(job, on=date(2026, 6, 15), rev="800.00")
-        # AUTHORISED invoice counts at total_incl_tax; DRAFT is excluded here
+        # AUTHORISED invoice counts excl GST, like job revenue; DRAFT is excluded here
         # (opposite of the WIP report — recorded v1 divergence).
         make_invoice(
             company,
@@ -77,10 +77,10 @@ class TestSalesForecastList:
         months = authenticated_client.get(LIST_URL).json()["months"]
         row = next(m for m in months if m["month"] == JUNE_KEY)
         assert row["month_label"] == "Jun 2026"
-        assert row["xero_sales"] == 1150.0  # total_incl_tax of the AUTHORISED one
+        assert row["xero_sales"] == 1000.0  # total_excl_tax of the AUTHORISED one
         assert row["jm_sales"] == 800.0
-        assert row["variance"] == 350.0
-        assert row["variance_pct"] == round(350.0 / 1150.0 * 100, 2)
+        assert row["variance"] == 200.0
+        assert row["variance_pct"] == round(200.0 / 1000.0 * 100, 2)
 
     def test_months_before_app_adoption_are_hidden(
         self, authenticated_client: Client, staff: Staff
@@ -165,7 +165,7 @@ class TestSalesForecastList:
 
 
 class TestSalesForecastMonthDetail:
-    def detail(self, client: Client, month: str) -> "_MonkeyPatchedWSGIResponse":
+    def detail(self, client: Client, month: str) -> _MonkeyPatchedWSGIResponse:
         return client.get(f"/api/accounting/reports/sales-forecast/{month}/")
 
     def test_rows_classify_matched_xero_only_and_jm_only(
@@ -199,20 +199,20 @@ class TestSalesForecastMonthDetail:
         rows = body["rows"]
 
         matched_row = next(r for r in rows if r["job_id"] == str(matched.id))
-        assert matched_row["total_invoiced"] == 690.0  # incl tax
+        assert matched_row["total_invoiced"] == 600.0  # excl GST
         assert matched_row["job_revenue"] == 700.0
-        assert matched_row["variance"] == -10.0
-        assert matched_row["total_xero_all_time"] == 690.0
+        assert matched_row["variance"] == -100.0
+        assert matched_row["total_xero_all_time"] == 600.0
         assert matched_row["total_jm_all_time"] == 700.0
-        assert matched_row["variance_all_time"] == -10.0
+        assert matched_row["variance_all_time"] == -100.0
 
         xero_only_row = next(r for r in rows if r["job_id"] is None)
         assert xero_only_row["note"] == "Xero only"
-        assert xero_only_row["total_invoiced"] == 230.0
+        assert xero_only_row["total_invoiced"] == 200.0
         assert xero_only_row["job_revenue"] == 0.0
 
         jm_only_row = next(r for r in rows if r["job_id"] == str(jm_only.id))
-        assert jm_only_row["note"] == "JM only"
+        assert jm_only_row["note"] == "DocketWorks only"
         assert jm_only_row["invoice_numbers"] is None
         assert jm_only_row["job_revenue"] == 300.0
 

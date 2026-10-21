@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -15,10 +16,13 @@ import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatDateTime } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
-const failure = (error: unknown) => toast.error(apiErrorMessage(error, 'Unable to save stocktake.'))
+const failure = (error: unknown) =>
+  toast.error(apiErrorMessage(error, i18n.t('purchasing:stocktakeList.saveFailed')))
 
 export function StocktakeListPage() {
+  const { t } = useTranslation('purchasing')
   const navigate = useNavigate()
   const list = useInfiniteQuery({
     ...stocktakeListInfiniteOptions(),
@@ -35,7 +39,7 @@ export function StocktakeListPage() {
   return (
     <div className="space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Stocktake</h1>
+        <h1 className="text-2xl font-semibold">{t('stocktakeList.title')}</h1>
         <Button
           disabled={!configured || create.isPending}
           onClick={() =>
@@ -52,24 +56,22 @@ export function StocktakeListPage() {
             )
           }
         >
-          New stocktake
+          {t('stocktakeList.new')}
         </Button>
       </div>
       <QueryState
         isPending={setup.isPending}
         isError={setup.isError}
         onRetry={() => void setup.refetch()}
-        loadingLabel="Loading stocktake setup…"
-        errorLabel="Unable to load stocktake setup."
+        loadingLabel={t('stocktakeList.setupLoading')}
+        errorLabel={t('stocktakeList.setupLoadFailed')}
       >
         {!configured && (
           <div className="space-y-3">
-            <p>
-              Create the ongoing, non-billable Stocktake Adjustments job to record found and missing
-              material.
-            </p>
+            <p>{t('stocktakeList.setupExplanation')}</p>
             <Button
               disabled={configure.isPending}
+              title={t('stocktakeList.setUpTitle')}
               onClick={() =>
                 configure.mutate(
                   {},
@@ -80,7 +82,7 @@ export function StocktakeListPage() {
                 )
               }
             >
-              Set up stocktake
+              {t('stocktakeList.setUp')}
             </Button>
           </div>
         )}
@@ -89,24 +91,24 @@ export function StocktakeListPage() {
         isPending={list.isPending}
         isError={list.isError}
         onRetry={() => void list.refetch()}
-        loadingLabel="Loading counts…"
-        errorLabel="Unable to load counts."
-        emptyLabel="No stocktakes yet."
+        loadingLabel={t('stocktakeList.loading')}
+        errorLabel={t('stocktakeList.loadFailed')}
+        emptyLabel={t('stocktakeList.empty')}
         rows={rows}
         wrapperClassName="max-h-[65vh]"
         head={
           <tr>
-            <th scope="col" className="p-3 text-left">
-              Date
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.date')}>
+              {t('stocktakeList.header.date')}
             </th>
-            <th scope="col" className="p-3 text-left">
-              Counted by
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.countedBy')}>
+              {t('stocktakeList.header.countedBy')}
             </th>
-            <th scope="col" className="p-3 text-left">
-              Status
+            <th scope="col" className="p-3 text-left" title={t('stocktakeList.titles.status')}>
+              {t('stocktakeList.header.status')}
             </th>
-            <th scope="col" className="p-3 text-right">
-              Stock value difference
+            <th scope="col" className="p-3 text-right" title={t('stocktakeList.titles.difference')}>
+              {t('stocktakeList.header.difference')}
             </th>
           </tr>
         }
@@ -115,7 +117,7 @@ export function StocktakeListPage() {
           lastPage !== undefined && (
             <LoadMoreSentinel
               automationId="StocktakeList-load-more"
-              noun="stocktakes"
+              noun={t('stocktakeList.noun')}
               shown={rows.length}
               total={lastPage.count}
               hasNextPage={list.hasNextPage}
@@ -137,7 +139,9 @@ export function StocktakeListPage() {
               </Link>
             </td>
             <td className="p-3">{count.author}</td>
-            <td className="p-3">{count.posted_at === null ? 'Draft' : 'Posted'}</td>
+            <td className="p-3">
+              {count.posted_at === null ? t('stocktakeList.draft') : t('stocktakeList.posted')}
+            </td>
             <td className="p-3 text-right">{formatCurrency(count.discrepancy_value)}</td>
           </tr>
         )}

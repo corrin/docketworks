@@ -53,39 +53,46 @@ class AccountingProvider(Protocol):
         """Sever the connection: wipe stored token material."""
         ...
 
-    def create_contact(self, company: "Company") -> "ContactResult":
+    def create_contact(self, company: Company) -> ContactResult:
         """Create the company as a contact in the accounting system."""
         ...
 
-    def update_contact(self, company: "Company") -> "ContactResult":
+    def update_contact(self, company: Company) -> ContactResult:
         """Push the company's current details to its existing contact (upserts)."""
         ...
 
-    def search_contact_by_name(self, name: str) -> "ContactResult | None":
+    def search_contact_by_name(self, name: str) -> ContactResult | None:
         """Find a contact by exact name; None when the name is unknown."""
         ...
 
-    def list_document_themes(self) -> "list[DocumentTheme]":
+    def list_document_themes(self) -> list[DocumentTheme]:
         """Return the provider's document presentation themes, default first."""
         ...
 
-    def create_invoice(self, payload: "InvoicePayload") -> "DocumentResult":
+    def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
         """Create a sales invoice; the result carries id/number/raw payload."""
         ...
 
-    def delete_invoice(self, external_id: str) -> "DocumentResult":
-        """Void/delete the invoice identified by ``external_id``."""
+    def delete_invoice(
+        self, external_id: str, *, contact_external_id: str, invoice_date: datetime.date, void: bool
+    ) -> DocumentResult:
+        """Void the invoice when ``void``, else delete it (drafts only).
+
+        One write, decided by the caller from its own copy. A refusal comes
+        back as a failed result: the two systems disagree, and the caller
+        stops there (ADR 0015).
+        """
         ...
 
-    def create_quote(self, payload: "QuotePayload") -> "DocumentResult":
+    def create_quote(self, payload: QuotePayload) -> DocumentResult:
         """Create a sales quote; the result carries id/number/raw payload."""
         ...
 
-    def delete_quote(self, external_id: str) -> "DocumentResult":
+    def delete_quote(self, external_id: str) -> DocumentResult:
         """Void/delete the quote identified by ``external_id``."""
         ...
 
-    def download_quote_pdf(self, external_id: str) -> "QuotePdfDocument":
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
         """Render the quote to PDF on local disk; the caller owns the file.
 
         Raises rather than returning an error result: a missing PDF has no
@@ -94,21 +101,19 @@ class AccountingProvider(Protocol):
         """
         ...
 
-    def create_purchase_order(self, payload: "POPayload") -> "DocumentResult":
+    def create_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Create a purchase order."""
         ...
 
-    def update_purchase_order(self, payload: "POPayload") -> "DocumentResult":
+    def update_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Update the purchase order named by ``payload.external_id``."""
         ...
 
-    def delete_purchase_order(self, external_id: str) -> "DocumentResult":
+    def delete_purchase_order(self, external_id: str) -> DocumentResult:
         """Void/delete the purchase order identified by ``external_id``."""
         ...
 
-    def push_purchase_order(
-        self, purchase_order: "PurchaseOrder", staff: "Staff"
-    ) -> "DocumentResult":
+    def push_purchase_order(self, purchase_order: PurchaseOrder, staff: Staff) -> DocumentResult:
         """Make the provider's copy of ``purchase_order`` match ours.
 
         Takes the order, not a ``POPayload``, for the same reason
@@ -147,7 +152,7 @@ class AccountingProvider(Protocol):
     #: Opus: Whether this backend implements the payroll operations below.
     supports_payroll: bool
 
-    def payroll_calendar_anchor_week(self) -> "tuple[datetime.date, datetime.date] | None":
+    def payroll_calendar_anchor_week(self) -> tuple[datetime.date, datetime.date] | None:
         """Return the calendar's own first postable period, when it has no pay runs yet.
 
         Opus: Only reached in that one case; once any pay run exists the postable
@@ -155,7 +160,7 @@ class AccountingProvider(Protocol):
         """
         ...
 
-    def refresh_pay_runs(self) -> "PayRunSyncResult":
+    def refresh_pay_runs(self) -> PayRunSyncResult:
         """Re-sync the local pay-run mirror from the provider."""
         ...
 
@@ -163,20 +168,20 @@ class AccountingProvider(Protocol):
         """Return the payroll organisation identifier for an async task argument."""
         ...
 
-    def sync_payroll_mirror(self, connection_id: str, scope: "PayrollMirrorScope") -> None:
+    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
         """Refresh payroll through the provider's normal sync implementation."""
         ...
 
-    def week_posting_status(self, week_start_date: datetime.date) -> "list[StaffWeekPosting]":
+    def week_posting_status(self, week_start_date: datetime.date) -> list[StaffWeekPosting]:
         """Report what the provider currently holds for each staff member's week."""
         ...
 
     def post_payroll_week(
         self,
         connection_id: str,
-        staff_ids: "Sequence[UUID]",
+        staff_ids: Sequence[UUID],
         week_start_date: datetime.date,
-    ) -> "Iterator[StaffWeekPostResult]":
+    ) -> Iterator[StaffWeekPostResult]:
         """Post a week of hours for the given staff, yielding each one's result.
 
         Opus: A generator so the caller can report progress as it goes; the
@@ -199,15 +204,15 @@ class AccountingProvider(Protocol):
     # provider through here: apps.xero sits ABOVE the domain apps in the
     # import contract, so it cannot be called directly.
 
-    def list_payroll_employees(self) -> "list[PayrollEmployeeRef]":
+    def list_payroll_employees(self) -> list[PayrollEmployeeRef]:
         """Every payroll employee the connected organisation holds."""
         ...
 
-    def get_payroll_leave_balances(self, employee_external_id: str) -> "list[PayrollLeaveBalance]":
+    def get_payroll_leave_balances(self, employee_external_id: str) -> list[PayrollLeaveBalance]:
         """Return the employee's current leave balances from the provider."""
         ...
 
-    def get_pay_slips_for_week(self, week_start_date: "datetime.date") -> "list[PayrollSlip]":
+    def get_pay_slips_for_week(self, week_start_date: datetime.date) -> list[PayrollSlip]:
         """Every pay slip the provider computed for the week's pay run.
 
         Read live from the run rather than from the synced mirror, so the
@@ -221,7 +226,7 @@ class AccountingProvider(Protocol):
         """
         ...
 
-    def create_payroll_employee(self, spec: "NewPayrollEmployee") -> "PayrollEmployeeRef":
+    def create_payroll_employee(self, spec: NewPayrollEmployee) -> PayrollEmployeeRef:
         """Create a payroll employee, fully set up for a pay run.
 
         "Fully set up" is the contract, not a courtesy: an employee without

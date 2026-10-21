@@ -68,7 +68,7 @@ def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
 
 
 def _track_and_apply_changes(
-    instance: Any, fields: dict[str, Any], *, invented: "frozenset[str]" = frozenset()
+    instance: Any, fields: dict[str, Any], *, invented: frozenset[str] = frozenset()
 ) -> list[str]:
     """Compare fields against instance, apply changes, return changed field names.
 

@@ -1,26 +1,32 @@
 """The E2E fixtures command: idempotent, and exact on the wage the spec pins."""
 
+from datetime import date
 from decimal import Decimal
 from io import StringIO
 
 import pytest
 from django.core.management import CommandError, call_command
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.core.test_data import TEST_COMPANY_NAME
+from apps.diagnostics.management.commands import e2e_ensure_fixtures
+from apps.timesheet.services import payroll_employee_sync
 
 pytestmark = pytest.mark.django_db
+
+TENANT_ID = "e2e-test-tenant"
 
 E2E_EMAIL = "e2e@example.test"
 WORKSHOP_EMAIL = "e2e-workshop@example.test"
 OFFICE_STAFF_EMAIL = "e2e-office@example.test"
 
 
-def _run() -> str:
+def _run(*args: str) -> str:
     out = StringIO()
-    call_command("e2e_ensure_fixtures", stdout=out)
+    call_command("e2e_ensure_fixtures", *args, stdout=out)
     return out.getvalue()
 
 
@@ -32,6 +38,23 @@ def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("E2E_WORKSHOP_PASSWORD", "workshop-password")
     monkeypatch.setenv("E2E_OFFICE_STAFF_USERNAME", OFFICE_STAFF_EMAIL)
     monkeypatch.setenv("E2E_OFFICE_STAFF_PASSWORD", "office-password")
+
+
+@pytest.fixture(autouse=True)
+def payroll(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool]]:
+    """Stand in for the organisation: record each sync_staff call and link as it would."""
+    calls: list[tuple[str, bool]] = []
+
+    def sync_staff(staff_members: list[Staff], *, tenant_id: str, allow_create: bool) -> None:
+        for staff in staff_members:
+            calls.append((str(staff.office_email), allow_create))
+            Staff.objects.filter(pk=staff.pk).update(
+                xero_user_id=f"employee-{staff.pk}", xero_tenant_id=tenant_id
+            )
+
+    monkeypatch.setattr(e2e_ensure_fixtures, "get_tenant_id", lambda: TENANT_ID)
+    monkeypatch.setattr(payroll_employee_sync, "sync_staff", sync_staff)
+    return calls
 
 
 @pytest.mark.usefixtures("credentials")
@@ -127,6 +150,37 @@ def test_the_office_staff_user_is_office_staff_and_never_a_superuser() -> None:
 
 
 @pytest.mark.usefixtures("credentials")
+def test_the_workshop_login_becomes_a_payroll_employee_employed_since_2020(
+    payroll: list[tuple[str, bool]],
+) -> None:
+    """Specs book its time on past weekdays, which only a linked employee is listed on."""
+    _run("--payroll")
+
+    workshop = Staff.objects.get(office_email=WORKSHOP_EMAIL)
+    assert payroll == [(WORKSHOP_EMAIL, True)]
+    assert workshop.xero_tenant_id == TENANT_ID
+    assert workshop.employment_start_date == date(2020, 1, 1)
+
+
+@pytest.mark.usefixtures("credentials")
+def test_a_linked_login_keeps_the_start_date_xero_gave_it(
+    payroll: list[tuple[str, bool]],
+) -> None:
+    """Xero owns the start date once linked; a second run neither re-links nor rewrites it."""
+    _run("--payroll")
+    Staff.objects.filter(office_email=WORKSHOP_EMAIL).update(
+        employment_start_date=timezone.localdate()
+    )
+
+    _run("--payroll")
+
+    assert payroll == [(WORKSHOP_EMAIL, True)]
+    assert Staff.objects.get(office_email=WORKSHOP_EMAIL).employment_start_date == (
+        timezone.localdate()
+    )
+
+
+@pytest.mark.usefixtures("credentials")
 def test_refuses_without_the_workshop_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("E2E_WORKSHOP_PASSWORD")
     with pytest.raises(CommandError, match="E2E_WORKSHOP_PASSWORD is not set"):
@@ -154,3 +208,11 @@ def test_refuses_without_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("E2E_TEST_PASSWORD", raising=False)
     with pytest.raises(CommandError, match="E2E_TEST_USERNAME is not set"):
         _run()
+
+
+@pytest.mark.usefixtures("credentials")
+def test_a_plain_run_never_calls_xero(payroll: list[tuple[str, bool]]) -> None:
+    """A restore runs this before Xero is reconnected, with production's tenant still named."""
+    _run()
+
+    assert payroll == []

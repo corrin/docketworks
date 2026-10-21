@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import {
   accountingReportsCalendarRetrieveOptions,
@@ -59,6 +60,7 @@ function dayOf(data: KpiCalendarResponse, date: string): KpiDayDataOut {
  * v1 fired two per change (year then month) and raced them.
  */
 export function KpiCalendarPage({ month, target, decimals, onSearchChange }: KpiCalendarPageProps) {
+  const { t } = useTranslation('reports')
   const [opened, setOpened] = useState<OpenDialog | null>(null)
   const [yearPart, monthPart] = month.split('-')
   const report = useQuery({
@@ -85,25 +87,25 @@ export function KpiCalendarPage({ month, target, decimals, onSearchChange }: Kpi
           className="text-xl font-bold text-gray-900"
           data-automation-id="KpiCalendarReport-title"
         >
-          KPI Calendar
+          {t('calendarPage.title')}
         </h1>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="text-gray-500">Grade by</span>
+          <span className="text-gray-500">{t('calendarPage.gradeBy')}</span>
           <SegmentedToggle
             value={target}
             options={[
-              { value: 'hours', label: 'Billable hours' },
-              { value: 'dollars', label: 'Gross profit' },
+              { value: 'hours', label: t('calendarPage.billableHours') },
+              { value: 'dollars', label: t('calendarPage.grossProfit') },
             ]}
             automationPrefix="KpiCalendarReport-target"
             onChange={(next) => onSearchChange({ target: next })}
           />
-          <span className="text-gray-500">Show</span>
+          <span className="text-gray-500">{t('calendarPage.show')}</span>
           <SegmentedToggle
             value={decimals}
             options={[
-              { value: 0, label: 'Whole dollars' },
-              { value: 2, label: 'Cents' },
+              { value: 0, label: t('calendarPage.wholeDollars') },
+              { value: 2, label: t('calendarPage.cents') },
             ]}
             automationPrefix="KpiCalendarReport-decimals"
             onChange={(next) => onSearchChange({ decimals: next })}
@@ -115,7 +117,7 @@ export function KpiCalendarPage({ month, target, decimals, onSearchChange }: Kpi
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void report.refetch()}
           >
-            Refresh
+            {t('calendarPage.refresh')}
           </button>
         </div>
       </div>
@@ -127,9 +129,9 @@ export function KpiCalendarPage({ month, target, decimals, onSearchChange }: Kpi
         isPending={report.isPending}
         isError={report.isError}
         onRetry={() => void report.refetch()}
-        loadingLabel="Loading KPI calendar..."
+        loadingLabel={t('calendarPage.loading')}
         loadingAutomationId="KpiCalendarReport-loading"
-        errorLabel="Failed to load the KPI calendar."
+        errorLabel={t('calendarPage.loadError')}
       >
         {data !== undefined && (
           <div

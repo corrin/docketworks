@@ -1,5 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -126,7 +126,7 @@ describe('FormEntriesPage', () => {
     await renderPage({ form_schema: { fields: [] } }, [])
 
     expect(
-      screen.getByText('This document has no form schema defined. Entries cannot be added.'),
+      screen.getByText("This form has no fields set up yet, so entries can't be added."),
     ).toBeInTheDocument()
     expect(queryAutoId('FormEntries-add-entry')).toBeNull()
     expect(autoId('FormEntries-entries-count')).toHaveTextContent('Entries (0)')

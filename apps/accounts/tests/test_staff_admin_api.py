@@ -57,11 +57,11 @@ def superuser_client() -> Client:
     return client_for(make_staff("super@example.com", is_superuser=True, is_office_staff=True))
 
 
-def create(client: Client, **overrides: object) -> "_MonkeyPatchedWSGIResponse":
+def create(client: Client, **overrides: object) -> _MonkeyPatchedWSGIResponse:
     return client.post(URL, data={**CREATE_PAYLOAD, **overrides}, content_type="application/json")
 
 
-def patch(client: Client, staff_id: object, **fields: object) -> "_MonkeyPatchedWSGIResponse":
+def patch(client: Client, staff_id: object, **fields: object) -> _MonkeyPatchedWSGIResponse:
     return client.patch(
         DETAIL_URL.format(id=staff_id), data=fields, content_type="application/json"
     )

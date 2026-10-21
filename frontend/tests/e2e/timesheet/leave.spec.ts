@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 
+import { getWorkshopStaff } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { localIsoDate } from '../../../src/lib/format'
@@ -35,13 +36,14 @@ test.describe('leave management', () => {
   test('an admin creates upcoming leave employee-first, then cancels it', async ({
     authenticatedPage: page,
   }) => {
+    const workshop = await getWorkshopStaff(page)
     await openLeave(page)
     await autoId(page, 'LeavePage-new').click()
 
     const employee = page.getByLabel('Employee')
     const leaveType = page.getByLabel('Leave type')
     await expect(leaveType).toBeDisabled()
-    await employee.selectOption({ index: 1 })
+    await employee.selectOption(workshop.id)
     const employeeName = await employee.locator('option:checked').textContent()
     await expect(leaveType).toBeEnabled()
     await leaveType.selectOption({ index: 1 })

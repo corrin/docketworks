@@ -868,7 +868,7 @@ components:
         path it cannot resolve.'
       properties:
         accounting_provider:
-          description: 'Active accounting integration: ''xero'' or ''myob'''
+          description: 'Which accounting system DocketWorks works with: Xero or MYOB.'
           maxLength: 20
           title: Accounting Provider
           type: string
@@ -951,12 +951,11 @@ components:
         daily_approved_hours_target:
           description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
             Pipeline scoreboard
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily approved hours target
           type: string
         enable_xero_sync:
-          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
-            sets True after prod IDs are cleared.
+          description: Lets DocketWorks update from and send to Xero. On for a live site. A development
+            copy starts with it off and turns it on once it is linked to its own test Xero organisation.
           title: Enable Xero Sync
           type: boolean
         financial_year_start_month:
@@ -1013,6 +1012,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is booked to at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255
@@ -1030,7 +1036,6 @@ components:
           description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
             invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
             that exist.
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Gst Rate
           type: string
         id:
@@ -1039,45 +1044,35 @@ components:
           - type: 'null'
           title: ID
         job_delta_soft_fail:
-          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
-            the save. Disable to reject stale updates.
+          description: When on, a job saved from a screen that was out of date is still saved and the
+            mismatch is recorded. When off, that save is refused and the person must reload the job.
           title: Job Delta Soft Fail
           type: boolean
         kpi_daily_billable_hours_amber:
           description: Daily total billable hours across all staff above which the day is amber
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily billable hours (amber)
           type: string
         kpi_daily_billable_hours_green:
           description: Daily total billable hours across all staff above which the day is green
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily billable hours (green)
           type: string
         kpi_daily_gp_amber:
-          description: Daily gross profit above which the day is amber
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-          type: string
-        kpi_daily_gp_green:
-          description: Daily gross profit above which the day is green
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-          title: Daily GP (green)
           type: string
         kpi_daily_gp_target:
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
             month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
             weekends are owed none of it.'
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily gross profit target
           type: string
         kpi_daily_shop_hours_percentage:
           description: Target percentage of daily hours spent on shop (non-billable) jobs
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily shop hours percentage target
           type: string
         kpi_job_gp_target_percentage:
           description: Target gross profit percentage for individual jobs
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Target GP % per job
           type: string
         labour_cost_loading:
@@ -1085,7 +1080,6 @@ components:
             cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
             leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
             into $48.00).
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Labour Cost Loading
           type: string
         last_xero_deep_sync:
@@ -1093,19 +1087,18 @@ components:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time a deep Xero sync was performed (looking back 90 days)
+          description: When DocketWorks last did a full update from Xero (looking back 90 days)
           title: Last Xero Deep Sync
         last_xero_sync:
           anyOf:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time Xero data was synchronized
+          description: When DocketWorks last finished updating from Xero
           title: Last Xero Sync
         latitude:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Latitude
         logo_url:
@@ -1120,8 +1113,7 @@ components:
           title: Logo Wide Url
         longitude:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Longitude
         lunch_minutes:
@@ -1147,7 +1139,6 @@ components:
           description: URL to the master Google Sheets quote template
           title: Master Quote Template Url
         materials_markup:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Materials Markup
           type: string
         mon_end:
@@ -1238,7 +1229,6 @@ components:
           title: Thu Start
           type: string
         time_markup:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Time Markup
           type: string
         tue_end:
@@ -1254,7 +1244,6 @@ components:
           title: Updated At
           type: string
         wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
           type: string
         wed_end:
@@ -1275,12 +1264,11 @@ components:
           description: Fraction of clocked workshop hours that count as schedulable productive output
             (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
             in the workshop scheduler after subtracting booked time/leave.
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Workshop Efficiency Factor
           type: string
         xero_automated_day_floor:
-          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
-            aborts when the active Xero app reports remaining daily calls at or below this value.
+          description: How many of Xero's daily request allowance to keep for people working in DocketWorks.
+            Automatic updates from Xero stop when this many or fewer requests are left for the day.
           title: Xero Automated Day Floor
           type: integer
         xero_payroll_calendar_id:
@@ -1288,7 +1276,7 @@ components:
           - format: uuid
             type: string
           - type: 'null'
-          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          description: Filled in by Xero setup from the payroll calendar name above.
           title: Xero Payroll Calendar Id
         xero_payroll_calendar_name:
           description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
@@ -1304,9 +1292,9 @@ components:
           title: Xero Payroll Start Date
         xero_quote_terms:
           description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
-            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
-            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
-            \ the same terms."
+            \ add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to\
+            \ Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the\
+            \ same terms."
           maxLength: 4000
           title: Xero quote terms
           type: string
@@ -1323,14 +1311,16 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          description: Xero's short code for this organisation, used to open documents straight in Xero
+            (e.g. '!8-5Xl').
           title: Xero Shortcode
         xero_tenant_id:
           anyOf:
           - maxLength: 100
             type: string
           - type: 'null'
-          description: The Xero tenant ID to use for this company
+          description: The Xero organisation this DocketWorks is connected to. Filled in when Xero is
+            connected.
           title: Xero Tenant Id
       required:
       - accounting_provider
@@ -1358,6 +1348,7 @@ components:
       - gdrive_quotes_folder_url
       - gdrive_reference_library_folder_id
       - gdrive_sops_folder_id
+      - general_work_job
       - google_place_id
       - google_shared_drive_id
       - gst_rate
@@ -1366,7 +1357,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_billable_hours_green
       - kpi_daily_gp_amber
-      - kpi_daily_gp_green
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
       - kpi_job_gp_target_percentage
@@ -1426,7 +1416,7 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: 'Active accounting integration: ''xero'' or ''myob'''
+          description: 'Which accounting system DocketWorks works with: Xero or MYOB.'
           title: Accounting Provider
         address_line1:
           anyOf:
@@ -1511,8 +1501,7 @@ components:
         daily_approved_hours_target:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
             Pipeline scoreboard
@@ -1521,8 +1510,8 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
-            sets True after prod IDs are cleared.
+          description: Lets DocketWorks update from and send to Xero. On for a live site. A development
+            copy starts with it off and turns it on once it is linked to its own test Xero organisation.
           title: Enable Xero Sync
         financial_year_start_month:
           anyOf:
@@ -1584,6 +1573,13 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        general_work_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal job that clocked time on no job is booked to at approval.
+          title: General Work Job
         google_place_id:
           anyOf:
           - maxLength: 255
@@ -1600,8 +1596,7 @@ components:
         gst_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
             invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
@@ -1611,46 +1606,35 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
-            the save. Disable to reject stale updates.
+          description: When on, a job saved from a screen that was out of date is still saved and the
+            mismatch is recorded. When off, that save is refused and the person must reload the job.
           title: Job Delta Soft Fail
         kpi_daily_billable_hours_amber:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily total billable hours across all staff above which the day is amber
           title: Daily billable hours (amber)
         kpi_daily_billable_hours_green:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Daily total billable hours across all staff above which the day is green
           title: Daily billable hours (green)
         kpi_daily_gp_amber:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
-          description: Daily gross profit above which the day is amber
+          description: Daily gross profit from which a day on the KPI calendar is amber. It is green from
+            the daily gross profit target, and red below this.
           title: Daily GP (amber)
-        kpi_daily_gp_green:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          - type: 'null'
-          description: Daily gross profit above which the day is green
-          title: Daily GP (green)
         kpi_daily_gp_target:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
             month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
@@ -1659,24 +1643,21 @@ components:
         kpi_daily_shop_hours_percentage:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target percentage of daily hours spent on shop (non-billable) jobs
           title: Daily shop hours percentage target
         kpi_job_gp_target_percentage:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Target gross profit percentage for individual jobs
           title: Target GP % per job
         labour_cost_loading:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Percentage added to each base wage to recover paid non-worked time in the labour
             cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
@@ -1688,27 +1669,25 @@ components:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time a deep Xero sync was performed (looking back 90 days)
+          description: When DocketWorks last did a full update from Xero (looking back 90 days)
           title: Last Xero Deep Sync
         last_xero_sync:
           anyOf:
           - format: date-time
             type: string
           - type: 'null'
-          description: The last time Xero data was synchronized
+          description: When DocketWorks last finished updating from Xero
           title: Last Xero Sync
         latitude:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Latitude
         longitude:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Longitude
         lunch_minutes:
@@ -1740,8 +1719,7 @@ components:
         materials_markup:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Materials Markup
         mon_end:
@@ -1860,8 +1838,7 @@ components:
         time_markup:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Time Markup
         tue_end:
@@ -1879,8 +1856,7 @@ components:
         wage_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Wage Rate
         wed_end:
@@ -1906,8 +1882,7 @@ components:
         workshop_efficiency_factor:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           description: Fraction of clocked workshop hours that count as schedulable productive output
             (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
@@ -1917,15 +1892,15 @@ components:
           anyOf:
           - type: integer
           - type: 'null'
-          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
-            aborts when the active Xero app reports remaining daily calls at or below this value.
+          description: How many of Xero's daily request allowance to keep for people working in DocketWorks.
+            Automatic updates from Xero stop when this many or fewer requests are left for the day.
           title: Xero Automated Day Floor
         xero_payroll_calendar_id:
           anyOf:
           - format: uuid
             type: string
           - type: 'null'
-          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          description: Filled in by Xero setup from the payroll calendar name above.
           title: Xero Payroll Calendar Id
         xero_payroll_calendar_name:
           anyOf:
@@ -1946,9 +1921,9 @@ components:
           - type: string
           - type: 'null'
           description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
-            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
-            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
-            \ the same terms."
+            \ add its own Terms (Quotes) default to quotes DocketWorks creates. Copy the same text to\
+            \ Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the\
+            \ same terms."
           maxLength: 4000
           title: Xero quote terms
         xero_sales_branding_theme_id:
@@ -1964,14 +1939,16 @@ components:
           - maxLength: 20
             type: string
           - type: 'null'
-          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          description: Xero's short code for this organisation, used to open documents straight in Xero
+            (e.g. '!8-5Xl').
           title: Xero Shortcode
         xero_tenant_id:
           anyOf:
           - maxLength: 100
             type: string
           - type: 'null'
-          description: The Xero tenant ID to use for this company
+          description: The Xero organisation this DocketWorks is connected to. Filled in when Xero is
+            connected.
           title: Xero Tenant Id
       title: CompanyDefaultsPatchIn
       type: object
@@ -2572,8 +2549,7 @@ components:
           type: string
         remaining_quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Remaining Quantity
         success:
@@ -2618,8 +2594,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '1.000'
           title: Quantity
         staff:
@@ -2631,15 +2606,13 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0.00'
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0.00'
           title: Unit Rev
         xero_pay_item:
@@ -2703,7 +2676,6 @@ components:
           title: Meta
           type: object
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         staff:
@@ -2719,11 +2691,9 @@ components:
           title: Total Rev
           type: number
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_rev:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Rev
           type: string
         updated_at:
@@ -2834,8 +2804,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         staff:
           anyOf:
@@ -2846,14 +2815,12 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Unit Rev
         xero_pay_item:
           anyOf:
@@ -3167,14 +3134,12 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         retail_rate:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Retail Rate
       required:
@@ -3194,8 +3159,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Total Received
       required:
       - total_received
@@ -4054,8 +4018,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         job_id:
           format: uuid
@@ -4081,35 +4044,27 @@ components:
         rather than recomputes them (ADR 0046).'
       properties:
         job_value_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Job Value Excl Gst
           type: string
         outstanding_invoiced_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Outstanding Invoiced Incl Gst
           type: string
         over_invoiced_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Over Invoiced Excl Gst
           type: string
         remaining_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining Gst
           type: string
         remaining_to_invoice_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining To Invoice Excl Gst
           type: string
         remaining_to_invoice_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Remaining To Invoice Incl Gst
           type: string
         total_to_pay_incl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total To Pay Incl Gst
           type: string
         valid_invoiced_excl_gst:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Valid Invoiced Excl Gst
           type: string
       required:
@@ -5018,15 +4973,13 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Estimated Materials
         estimated_time:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Estimated Time
         is_urgent:
           default: false
@@ -5397,8 +5350,7 @@ components:
           title: Person Name
         price_cap:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Price Cap
         pricing_methodology:
@@ -5883,8 +5835,7 @@ components:
           title: Person Name
         price_cap:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Price Cap
         pricing_methodology:
@@ -6055,7 +6006,6 @@ components:
       description: Wire contract for JobLabourRateOut.
       properties:
         charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Charge Out Rate
           type: string
         id:
@@ -6087,8 +6037,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Charge Out Rate
         labour_subtype:
           format: uuid
@@ -6814,9 +6763,6 @@ components:
         kpi_daily_gp_amber:
           title: Kpi Daily Gp Amber
           type: number
-        kpi_daily_gp_green:
-          title: Kpi Daily Gp Green
-          type: number
         kpi_daily_gp_target:
           title: Kpi Daily Gp Target
           type: number
@@ -6828,7 +6774,6 @@ components:
       - kpi_daily_billable_hours_amber
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
-      - kpi_daily_gp_green
       - kpi_daily_gp_amber
       title: KPIThresholdsOut
       type: object
@@ -7211,8 +7156,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Default Charge Out Rate
         display_order:
           default: 0
@@ -7244,7 +7188,6 @@ components:
           title: Counts For Scheduling
           type: boolean
         default_charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Default Charge Out Rate
           type: string
         display_order:
@@ -7290,8 +7233,7 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Default Charge Out Rate
         display_order:
           minimum: 0
@@ -7314,7 +7256,6 @@ components:
       description: Wire contract for LabourSubtypeOut.
       properties:
         default_charge_out_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Default Charge Out Rate
           type: string
         display_order:
@@ -10606,14 +10547,12 @@ components:
           title: Mapped Specifics
         mapped_unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Mapped Unit Cost
         parser_confidence:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Parser Confidence
         parser_version:
@@ -10726,8 +10665,7 @@ components:
         mapped_unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Mapped Unit Cost
         validation_notes:
@@ -11245,8 +11183,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0'
           title: Quantity
         specifics:
@@ -11258,8 +11195,7 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
       title: PurchaseOrderLineCreateRequest
@@ -11429,8 +11365,7 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '0'
           title: Quantity
         specifics:
@@ -11442,8 +11377,7 @@ components:
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
       title: PurchaseOrderLineUpdateRequest
@@ -12495,6 +12429,7 @@ components:
       - datetime
       - date
       - company
+      - job
       - xero_branding_theme
       type: string
     SettingsSectionKey:
@@ -12572,6 +12507,11 @@ components:
           - not_rostered
           title: State
           type: string
+        unallocated_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Unallocated Hours
         waiting_hours:
           title: Waiting Hours
           type: number
@@ -12584,6 +12524,7 @@ components:
       - entered_late
       - remote_entry
       - clock
+      - unallocated_hours
       - breaks
       - entries
       - default_entry_start
@@ -13363,21 +13304,18 @@ components:
         quantity:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Quantity
         unit_cost:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Rev
       required:
@@ -13397,8 +13335,7 @@ components:
           title: Message
         remaining_quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Remaining Quantity
         success:
@@ -13464,7 +13401,6 @@ components:
           - type: 'null'
           title: Metal Type
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         source:
@@ -13479,13 +13415,11 @@ components:
           title: Times Used
           type: integer
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_revenue:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Revenue
       required:
@@ -14566,6 +14500,74 @@ components:
       - recent_purchase_count
       title: SupplierSearchResult
       type: object
+    SweepIn:
+      description: The days to sweep, for one person or, without ``staff_id``, everyone on them.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - start_date
+      - end_date
+      title: SweepIn
+      type: object
+    SweepOut:
+      description: What the sweep put on General work, and the worker entries it approved with the days.
+      properties:
+        approved_count:
+          title: Approved Count
+          type: integer
+        skipped:
+          items:
+            $ref: '#/components/schemas/SweepSkipOut'
+          title: Skipped
+          type: array
+        swept_hours:
+          title: Swept Hours
+          type: number
+      required:
+      - swept_hours
+      - approved_count
+      - skipped
+      title: SweepOut
+      type: object
+    SweepSkipOut:
+      description: 'A day the sweep left alone: there was no clocked time to sweep.'
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        reason:
+          enum:
+          - still_clocked_in
+          - no_clock_times
+          title: Reason
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+      required:
+      - staff_id
+      - staff_name
+      - date
+      - reason
+      title: SweepSkipOut
+      type: object
     TeamAveragesOut:
       description: Wire contract for TeamAveragesOut.
       properties:
@@ -14674,8 +14676,7 @@ components:
           type: string
         quantity:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Quantity
         schema_version:
@@ -14694,14 +14695,12 @@ components:
           type: string
         total_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Cost
         total_rev:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Rev
         undo_description:
@@ -14711,14 +14710,12 @@ components:
           title: Undo Description
         unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Cost
         unit_rev:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Unit Rev
         updated_at:
@@ -14825,7 +14822,6 @@ components:
           title: Meta
           type: object
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
           type: string
         staff:
@@ -14841,11 +14837,9 @@ components:
           title: Total Rev
           type: number
         unit_cost:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Cost
           type: string
         unit_rev:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Unit Rev
           type: string
         updated_at:
@@ -15219,7 +15213,6 @@ components:
           - type: 'null'
           title: Pay Basis
         wageRate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wagerate
           type: string
       required:
@@ -15851,8 +15844,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Bill Rate Multiplier
         description:
@@ -15872,8 +15864,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         is_billable:
           default: true
@@ -15904,8 +15895,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           default: '1.00'
           title: Wage Rate Multiplier
       required:
@@ -15929,8 +15919,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Bill Rate Multiplier
         description:
           anyOf:
@@ -15953,8 +15942,7 @@ components:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Hours
         is_billable:
           title: Is Billable
@@ -15978,8 +15966,7 @@ components:
           - exclusiveMaximum: 100.0
             minimum: 0.0
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           title: Wage Rate Multiplier
       required:
       - entry_id
@@ -16368,14 +16355,12 @@ components:
           type: boolean
         total_excl_tax:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Excl Tax
         total_incl_tax:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Total Incl Tax
         xero_id:
@@ -16409,8 +16394,7 @@ components:
         amount:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Amount
         mode:
@@ -16424,8 +16408,7 @@ components:
         percent:
           anyOf:
           - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Percent
       required:
@@ -20563,9 +20546,11 @@ paths:
       description: 'Return the job''s invoice mirror rows, with conditional GET support.
 
 
-        The invoice push busts the job ETag (its persistence path saves the job),
+        The ETag is the invoices'' own, not the job''s: Xero''s webhook and sync
 
-        so this cache key does move when an invoice is created locally.'
+        change an invoice''s status without touching its job, and a job ETag
+
+        answered 304 with the old status until something else edited the job.'
       operationId: job_jobs_invoices_retrieve
       parameters:
       - in: path
@@ -23589,6 +23574,29 @@ paths:
       summary: Everyone's day for the office to approve
       tags:
       - timesheets
+  /api/timesheets/approvals/sweep/:
+    post:
+      description: Sweep one person's days, or everyone's when no person is given (KAN-380).
+      operationId: timesheets_approvals_sweep
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SweepIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SweepOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Put clocked time that is on no job onto General work, approving the days
+      tags:
+      - timesheets
   /api/timesheets/approvals/{staff_id}/{target_date}/approve/:
     post:
       description: Approve a person's day; zero is an ordinary answer when nothing was waiting.
@@ -24051,8 +24059,7 @@ paths:
           - exclusiveMaximum: 100000.0
             minimum: 0.01
             type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: string
           - type: 'null'
           title: Hours
       - in: query
@@ -24681,8 +24688,12 @@ paths:
       - xero
   /api/xero/delete_invoice/{job_id}:
     delete:
-      description: 'Void the invoice in Xero and drop the local mirror row.
+      description: 'Delete a draft invoice, or void an approved one when ``void_approved``.
 
+
+        An approved invoice without ``void_approved`` is refused with
+
+        ``error_type`` "invoice_approved", so the screen can ask the user first.
 
         ``xero_invoice_id`` is a required query parameter (v1 contract): a job can
 
@@ -24703,6 +24714,13 @@ paths:
           format: uuid
           title: Xero Invoice Id
           type: string
+      - in: query
+        name: void_approved
+        required: false
+        schema:
+          default: false
+          title: Void Approved
+          type: boolean
       responses:
         '200':
           content:

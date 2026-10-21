@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useLatest } from '@/lib/useLatest'
 import { Check, Pencil, X } from 'lucide-react'
@@ -19,10 +20,12 @@ interface InlineEditTextProps {
 export function InlineEditText({
   value,
   onCommit,
-  placeholder = 'Click to edit',
+  placeholder: placeholderProp,
   required = false,
   displayClassName = '',
 }: InlineEditTextProps) {
+  const { t } = useTranslation('shared')
+  const placeholder = placeholderProp ?? t('inlineEditText.placeholder')
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)

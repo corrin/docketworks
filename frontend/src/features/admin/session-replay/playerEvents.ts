@@ -11,6 +11,7 @@
 import type { eventWithTime } from '@rrweb/types'
 
 import type { RecordingEventsOut } from '@/api'
+import { i18n } from '@/lib/i18n'
 
 /**
  * Narrows from ``unknown`` rather than from the wire type: rrweb's
@@ -43,7 +44,7 @@ export function toPlayerEvents(events: RecordingEventsOut['events']): eventWithT
   const playable: eventWithTime[] = []
   for (const event of events) {
     if (!isPlayerEvent(event)) {
-      throw new Error('Recording contains an event rrweb cannot replay')
+      throw new Error(i18n.t('admin:sessionReplay.unplayableEvent'))
     }
     playable.push(event)
   }

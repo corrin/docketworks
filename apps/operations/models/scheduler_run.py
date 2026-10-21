@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 
 class SchedulerRun(models.Model):
@@ -15,21 +16,21 @@ class SchedulerRun(models.Model):
     algorithm_version = models.CharField(
         max_length=50,
         default="v1",
-        help_text="Version identifier for the scheduling algorithm",
+        help_text=gettext_lazy("Version identifier for the scheduling algorithm"),
     )
     succeeded = models.BooleanField(default=False)
     failure_reason = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True,
         null=True,
-        help_text="Error message if the run failed",
+        help_text=gettext_lazy("Error message if the run failed"),
     )
     job_count = models.IntegerField(
         default=0,
-        help_text="Number of jobs processed in this run",
+        help_text=gettext_lazy("Number of jobs processed in this run"),
     )
     unscheduled_count = models.IntegerField(
         default=0,
-        help_text="Number of jobs that could not be scheduled in this run",
+        help_text=gettext_lazy("Number of jobs that could not be scheduled in this run"),
     )
 
     class Meta:

@@ -28,18 +28,26 @@ from xero_python.exceptions import ApiException
 from xero_python.payrollnz import PayrollNzApi
 from xero_python.rest import RESTResponse
 
+from apps.accounting.types import NewPayrollEmployee, PayrollAddress
 from apps.accounts.models import StaffPayrollTerm
+from apps.timesheet.services.demo_payroll_data import generate_ird_number, get_bank_account
+from apps.xero.auth import get_api_client
 from apps.xero.client import RateLimitedRESTClient
 from apps.xero.fake.http import query_dict
 from apps.xero.fake.wire import Json
+from apps.xero.payroll_employees import create_payroll_employee, update_employee_name
 
 # A recording keeps two elements of any top-level list: the shape of an
 # element is what the fake and the drift check read, and a full page of
 # contacts is a hundred copies of it. The reference lists are the exception:
 # the fake serves them whole (every tax rate prices a line; every theme is
-# selectable), so those recordings keep every element.
+# selectable), so those recordings keep every element. So does an employee's
+# leave types read straight after its leave setup: the whole list is what
+# that setup assigns, and the fake's leave setup assigns the same.
 LIST_ELEMENTS_KEPT = 2
-UNTRUNCATED = frozenset({"tax_rates", "branding_themes", "leave_types", "earnings_rates"})
+UNTRUNCATED = frozenset(
+    {"tax_rates", "branding_themes", "leave_types", "earnings_rates", "employee_leave_types"}
+)
 
 # Replaced before anything is written: the dev tenant is a restore of a real
 # business, and a shape needs none of these values. The organisation's own
@@ -107,6 +115,18 @@ RECORDED_HEADERS = (
 BURST_CALLS = 70
 
 
+@dataclass(frozen=True)
+class _Exchange:
+    """One request the tap saw and the raw answer to it."""
+
+    method: str
+    url: str
+    query: dict[str, str]
+    status: int
+    headers: dict[str, str]
+    data: bytes
+
+
 class _TransportTap(RateLimitedRESTClient):
     """The paced client, remembering the last request and its raw answer."""
 
@@ -115,9 +135,9 @@ class _TransportTap(RateLimitedRESTClient):
         self.last_method = ""
         self.last_url = ""
         self.last_query: dict[str, str] = {}
-        self.last_status = 0
-        self.last_headers: dict[str, str] = {}
-        self.last_data = b""
+        #: Every answer in order, for a pass that drives the application's own
+        #: function and records each of the several calls it makes.
+        self.exchanges: list[_Exchange] = []
         #: While a burst is being recorded the paced client's minute-limit
         #: retry must not run: the 429 IS the answer being captured.
         self.recording_a_refusal = False
@@ -157,14 +177,15 @@ class _TransportTap(RateLimitedRESTClient):
                 # Not an answer from Xero at all (the SDK raises the same
                 # class for a transport failure); nothing to record.
                 raise
-            self.last_status = exc.status
-            self.last_headers = dict(exc.headers) if exc.headers else {}
-            self.last_data = exc.body
+            self._keep(exc.status, dict(exc.headers) if exc.headers else {}, exc.body)
             raise
-        self.last_status = response.status
-        self.last_headers = dict(self._headers_of(response))
-        self.last_data = response.data
+        self._keep(response.status, dict(self._headers_of(response)), response.data)
         return response
+
+    def _keep(self, status: int, headers: dict[str, str], data: bytes) -> None:
+        self.exchanges.append(
+            _Exchange(self.last_method, self.last_url, self.last_query, status, headers, data)
+        )
 
 
 def capture_all(
@@ -180,7 +201,7 @@ def capture_all(
     accounting = AccountingApi(client)
     payroll = PayrollNzApi(client)
     remaining = None if only is None else set(only)
-    for capture in _capture_every_route(tap, accounting, payroll, tenant_id):
+    for capture in _capture_every_route(tap, accounting, payroll, tenant_id, only):
         if remaining is None:
             yield capture
         elif capture.name in remaining:
@@ -193,8 +214,18 @@ def capture_all(
 
 
 def _capture_every_route(
-    tap: "_TransportTap", accounting: AccountingApi, payroll: PayrollNzApi, tenant_id: str
+    tap: _TransportTap,
+    accounting: AccountingApi,
+    payroll: PayrollNzApi,
+    tenant_id: str,
+    only: frozenset[str] | None,
 ) -> Iterator[Capture]:
+    # First, so a pass asked for these alone spends only their dozen calls:
+    # they depend on no id an earlier capture finds. Skipped by a pass that
+    # asked for none of them: each run leaves an employee the Demo Company
+    # cannot delete.
+    if only is None or only & set(PAYROLL_WRITES.values()):
+        yield from _capture_payroll_writes(tap)
     yield from _capture_accounting(tap, accounting, tenant_id)
     yield from _capture_accounting_writes(tap, accounting, tenant_id)
     yield from _capture_payroll(tap, payroll, tenant_id)
@@ -202,7 +233,7 @@ def _capture_every_route(
 
 
 def _capture_accounting(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str
 ) -> Iterator[Capture]:
     yield _record(tap, "organisation", lambda: accounting.get_organisations(tenant_id))
     yield _record(tap, "tax_rates", lambda: accounting.get_tax_rates(tenant_id))
@@ -277,7 +308,7 @@ def _capture_accounting(
 
 
 def _capture_accounting_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str
 ) -> Iterator[Capture]:
     """Every write the application makes, and every refusal it handles, provoked on the tenant.
 
@@ -368,7 +399,7 @@ def _deletion(id_key: str, object_id: str, contact_id: str, today: str) -> dict[
 
 
 def _capture_invoice_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
 ) -> Iterator[Capture]:
     invoice = _record(
         tap,
@@ -392,7 +423,8 @@ def _capture_invoice_writes(
                         "DueDate": today,
                         "LineAmountTypes": "Exclusive",
                         "Reference": "recording",
-                        "Status": "AUTHORISED",
+                        # As Docketworks raises it; staff approve it in Xero.
+                        "Status": "DRAFT",
                     }
                 ]
             },
@@ -400,6 +432,9 @@ def _capture_invoice_writes(
     )
     yield invoice
     invoice_id = _text(_element(invoice, "Invoices"), "InvoiceID")
+    # Each update below is sent as Docketworks sends it (the provider's
+    # delete_invoice, approve_xero_invoice): errors summarised, so a refusal
+    # is Xero's 400, not a 200 carrying per-element errors.
     yield _record(
         tap,
         "invoice_history_create",
@@ -414,13 +449,30 @@ def _capture_invoice_writes(
             tenant_id, invoice_id, "recording.pdf", b"%PDF-1.4 recording", include_online=False
         ),
     )
+    # Docketworks adds its history note and PDF to the draft it has just
+    # raised; the approval staff make in Xero comes after, sent as the E2E
+    # harness sends it (approve_xero_invoice): id, status, contact and date.
+    yield _record(
+        tap,
+        "invoice_approve",
+        lambda: accounting.update_or_create_invoices(
+            tenant_id,
+            {
+                "Invoices": [
+                    {
+                        **_deletion("InvoiceID", invoice_id, contact_id, today),
+                        "Status": "AUTHORISED",
+                    }
+                ]
+            },
+        ),
+    )
     yield _record(
         tap,
         "invoice_delete_authorised",
         lambda: accounting.update_or_create_invoices(
             tenant_id,
             {"Invoices": [_deletion("InvoiceID", invoice_id, contact_id, today)]},
-            summarize_errors=False,
         ),
     )
     yield _record(
@@ -433,13 +485,49 @@ def _capture_invoice_writes(
                     {**_deletion("InvoiceID", invoice_id, contact_id, today), "Status": "VOIDED"}
                 ]
             },
-            summarize_errors=False,
+        ),
+    )
+
+    # Docketworks' everyday delete: a draft nobody approved, set to DELETED.
+    draft = accounting.create_invoices(
+        tenant_id,
+        {
+            "Invoices": [
+                {
+                    "Type": "ACCREC",
+                    "Contact": {"ContactID": contact_id},
+                    "LineItems": [
+                        {
+                            "Description": "Job: 1 - recording",
+                            "Quantity": 1,
+                            "UnitAmount": Decimal("10.50"),
+                            "AccountCode": "200",
+                        }
+                    ],
+                    "Date": today,
+                    "DueDate": today,
+                    "LineAmountTypes": "Exclusive",
+                    "Reference": "recording",
+                    "Status": "DRAFT",
+                }
+            ]
+        },
+    )
+    if not draft.invoices:
+        raise ValueError("Xero created no invoice for the draft-delete recording")
+    draft_id = str(draft.invoices[0].invoice_id)
+    yield _record(
+        tap,
+        "invoice_delete",
+        lambda: accounting.update_or_create_invoices(
+            tenant_id,
+            {"Invoices": [_deletion("InvoiceID", draft_id, contact_id, today)]},
         ),
     )
 
 
 def _capture_quote_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, contact_id: str, today: str
 ) -> Iterator[Capture]:
     def quote_body(status: str, quote_id: str | None = None) -> dict[str, Json]:
         body: dict[str, Json] = {
@@ -494,7 +582,7 @@ def _capture_quote_writes(
 
 
 def _capture_purchase_order_writes(  # noqa: PLR0913, PLR0917 -- the pass's shared state, named
-    tap: "_TransportTap",
+    tap: _TransportTap,
     accounting: AccountingApi,
     tenant_id: str,
     contact_id: str,
@@ -594,7 +682,7 @@ def _capture_purchase_order_writes(  # noqa: PLR0913, PLR0917 -- the pass's shar
 
 
 def _capture_item_writes(
-    tap: "_TransportTap", accounting: AccountingApi, tenant_id: str, stamp: str
+    tap: _TransportTap, accounting: AccountingApi, tenant_id: str, stamp: str
 ) -> Iterator[Capture]:
     code = f"REC-{stamp}"
 
@@ -630,7 +718,7 @@ def _capture_item_writes(
 
 
 def _capture_payroll(
-    tap: "_TransportTap", payroll: PayrollNzApi, tenant_id: str
+    tap: _TransportTap, payroll: PayrollNzApi, tenant_id: str
 ) -> Iterator[Capture]:
     employees = _record(tap, "employees_page", lambda: payroll.get_employees(tenant_id, page=1))
     yield employees
@@ -672,7 +760,86 @@ def _capture_payroll(
     )
 
 
-def _burst(tap: "_TransportTap", accounting: AccountingApi, tenant_id: str) -> None:
+#: The calls the employees phase makes, by verb and path with the id blanked;
+#: the first answer to each is the recording. The calendar listing and the
+#: employee read are made too, and recorded elsewhere.
+PAYROLL_WRITES: Mapping[tuple[str, str], str] = {
+    ("POST", "/Employees"): "employee_create",
+    ("POST", "/Employees/{id}/Employment"): "employment_create",
+    ("POST", "/Employees/{id}/SalaryAndWages"): "salary_and_wage_create",
+    ("POST", "/Employees/{id}/Working-Patterns"): "working_pattern_create",
+    ("POST", "/Employees/{id}/Tax"): "employee_tax_update",
+    ("POST", "/Employees/{id}/PaymentMethods"): "payment_method_create",
+    ("POST", "/Employees/{id}/LeaveSetup"): "leave_setup_create",
+    ("GET", "/Employees/{id}/LeaveTypes"): "employee_leave_types",
+    ("POST", "/Employees/{id}/LeaveTypes"): "employee_leave_type_create",
+    ("PUT", "/Employees/{id}"): "employee_update",
+}
+_PAYROLL_PREFIX = "https://api.xero.com/payroll.xro/2.0"
+_AN_ID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def _capture_payroll_writes(tap: _TransportTap) -> Iterator[Capture]:
+    """Create one employee and rename it, through the application's own functions.
+
+    The employees phase of the seed (sync_staff) makes these calls, in an
+    order Xero enforces and with bodies the payroll SDK fixes shape, so the
+    pass drives ``create_payroll_employee`` and ``update_employee_name``
+    rather than restating them. The payroll API has no delete: each pass
+    leaves one employee in the Demo Company, which exists for this.
+    """
+    if get_api_client().rest_client is not tap:
+        raise ValueError("the application's client is not the one being recorded")
+    stamp = uuid4().hex[:8]
+    first = len(tap.exchanges)
+    created = create_payroll_employee(
+        NewPayrollEmployee(
+            staff_id=uuid4(),
+            first_name="Recording",
+            last_name="Capture",
+            email=f"recording+{stamp}@example.test",
+            job_title=f"Recording {stamp}",
+            date_of_birth=date(1990, 1, 1),
+            start_date=date.today(),  # noqa: DTZ011 -- Xero's date is the organisation's day
+            end_date=None,
+            address=PayrollAddress(
+                address_line1="1 Recording Street",
+                address_line2=None,
+                suburb=None,
+                city="Wellington",
+                post_code="6011",
+                country_name="NEW ZEALAND",
+            ),
+            hours_per_week={
+                "monday": 8.0,
+                "tuesday": 8.0,
+                "wednesday": 8.0,
+                "thursday": 8.0,
+                "friday": 8.0,
+                "saturday": 0.0,
+                "sunday": 0.0,
+            },
+            hourly_rate=Decimal("30.00"),
+            # A position no seeded employee holds, so the IRD number is new.
+            ird_number=generate_ird_number(500 + int(stamp, 16) % 5000),
+            bank_account_number=get_bank_account(1),
+        )
+    )
+    update_employee_name(created.external_id, "Recording", "Renamed")
+    recorded: set[str] = set()
+    for exchange in tap.exchanges[first:]:
+        family = _AN_ID.sub("{id}", exchange.url.removeprefix(_PAYROLL_PREFIX))
+        name = PAYROLL_WRITES.get((exchange.method, family))
+        if name is None or name in recorded:
+            continue
+        recorded.add(name)
+        yield _capture(name, exchange)
+    missing = set(PAYROLL_WRITES.values()) - recorded
+    if missing:
+        raise ValueError(f"the employees phase made no {sorted(missing)} call")
+
+
+def _burst(tap: _TransportTap, accounting: AccountingApi, tenant_id: str) -> None:
     """Cross the minute limit so the 429 is what the tap holds."""
     # Unpaced: the paced client's 1s interval is exactly what keeps a real
     # run under the minute limit, and the point here is to cross it.
@@ -716,13 +883,13 @@ def _record(tap: _TransportTap, name: str, call: Callable[[], object]) -> Captur
     # serves too, and the tap has already kept the body the SDK raised on.
     with contextlib.suppress(ApiException):
         call()
-    return _capture(name, tap)
+    return _capture(name, tap.exchanges[-1])
 
 
-def _capture(name: str, tap: _TransportTap) -> Capture:
-    content_type = tap.last_headers.get("Content-Type", "")
+def _capture(name: str, exchange: _Exchange) -> Capture:
+    content_type = exchange.headers.get("Content-Type", "")
     if "application/json" in content_type:
-        body: Json = _scrub(json.loads(tap.last_data, parse_float=Decimal))
+        body: Json = _scrub(json.loads(exchange.data, parse_float=Decimal))
         truncated = False
         if name not in UNTRUNCATED:
             body, truncated = _truncate_lists(body)
@@ -731,16 +898,16 @@ def _capture(name: str, tap: _TransportTap) -> Capture:
         body, truncated = None, False
     return Capture(
         name=name,
-        method=tap.last_method,
-        path=tap.last_url.removeprefix("https://api.xero.com"),
-        query=tap.last_query,
-        status=tap.last_status,
+        method=exchange.method,
+        path=exchange.url.removeprefix("https://api.xero.com"),
+        query=exchange.query,
+        status=exchange.status,
         content_type=content_type,
-        content_disposition=tap.last_headers.get("Content-Disposition"),
+        content_disposition=exchange.headers.get("Content-Disposition"),
         body=body,
         truncated=truncated,
         headers={
-            name: tap.last_headers[name] for name in RECORDED_HEADERS if name in tap.last_headers
+            name: exchange.headers[name] for name in RECORDED_HEADERS if name in exchange.headers
         },
     )
 

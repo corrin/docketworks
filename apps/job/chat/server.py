@@ -14,6 +14,7 @@ from chatkit.types import (
     UserMessageItem,
     UserMessageTextContent,
 )
+from django.utils.translation import gettext
 
 from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import (
@@ -49,11 +50,13 @@ def selected_target(model_id: str | None, context: ChatContext) -> LLMTarget:
     try:
         provider_id = int(model_id)
     except ValueError as exc:
-        raise LLMConfigurationError("Select a configured AI provider") from exc
+        raise LLMConfigurationError(gettext("Select a configured AI provider")) from exc
     try:
         provider = AIProvider.objects.get(pk=provider_id)
     except AIProvider.DoesNotExist as exc:
-        raise LLMConfigurationError("The selected AI provider was removed; select another") from exc
+        raise LLMConfigurationError(
+            gettext("The selected AI provider was removed; select another")
+        ) from exc
     return resolve_target(provider=provider)
 
 
@@ -68,7 +71,7 @@ class QuotingChatServer(ChatKitServer[ChatContext]):
     ) -> AsyncIterator[ThreadStreamEvent]:
         """Stream a bounded agent run, persisting unexpected failures with the job."""
         if input_user_message is not None and input_user_message.attachments:
-            raise CustomStreamError("Quoting chat attachments are not enabled")
+            raise CustomStreamError(gettext("Quoting chat attachments are not enabled"))
         if input_user_message is not None and thread.title is None:
             text = " ".join(
                 part.text
@@ -76,7 +79,7 @@ class QuotingChatServer(ChatKitServer[ChatContext]):
                 if isinstance(part, UserMessageTextContent)
             ).strip()
             if not text:
-                raise CustomStreamError("Enter a message to start the conversation")
+                raise CustomStreamError(gettext("Enter a message to start the conversation"))
             thread.title = text[:80]
             await self.store.save_thread(thread, context)
         try:
@@ -97,7 +100,7 @@ class QuotingChatServer(ChatKitServer[ChatContext]):
             (item for item in page.data if isinstance(item, UserMessageItem)), None
         )
         if latest_message is None:
-            raise LLMConfigurationError("Send a message to start the conversation")
+            raise LLMConfigurationError(gettext("Send a message to start the conversation"))
         target = await sync_to_async(selected_target)(
             latest_message.inference_options.model, context
         )

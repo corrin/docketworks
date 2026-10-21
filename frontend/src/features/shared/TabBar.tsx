@@ -3,6 +3,8 @@ import { useRef } from 'react'
 export interface TabBarItem<TKey extends string> {
   key: TKey
   label: string
+  /** The tab's tooltip: what the tab lists (ADR 0068). */
+  title?: string
 }
 
 interface TabBarProps<TKey extends string> {
@@ -87,6 +89,7 @@ export function TabBar<TKey extends string>({
           id={`${idPrefix}-${tab.key}`}
           type="button"
           role="tab"
+          title={tab.title}
           aria-selected={activeKey === tab.key}
           aria-controls={panelId}
           // Roving tabindex: the tab strip is one stop in the page's Tab order

@@ -66,7 +66,7 @@ sudo ./scripts/server/server-setup.sh
 The Dreamhost key and cert-domain list are persisted on first install at
 `/etc/letsencrypt/dreamhost-api-key.txt` and `/etc/letsencrypt/cert-domains.txt`
 respectively. Re-runs read both from disk, so `deploy.sh` can
-re-invoke `server-setup.sh` with no flags on every deploy.
+invoke `server-setup.sh` with no flags when provisioning inputs differ.
 
 To add or remove a single cert-domain on an already-configured server,
 edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
@@ -108,11 +108,18 @@ and writes a manifest of installed software to `/opt/docketworks/server-manifest
 
 It is **idempotent** — safe to re-run on an already-configured server.
 
+`deploy.sh` compares a hash of the provisioning inputs with
+`/opt/docketworks/.server-setup-hash`. The inputs include `.python-version`,
+provisioning scripts and configuration templates. A differing hash runs setup;
+the stamp is written only after setup succeeds.
+
 ### What it installs
 
 - etckeeper (tracks /etc changes in git)
-- Python 3.12 + dev packages
-- Node.js 22 (NodeSource)
+- Python 3.14 through uv for the `docketworks` account, following `.python-version`; OS tools retain the distro Python
+- Node.js, the major in `frontend/.nvmrc` (NodeSource), for host tools; each release builds
+  and runs its E2E with the exact `frontend/.nvmrc` version, installed on first use under
+  `/opt/docketworks/.local/node/`
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
   private port behind its own password; the stock service on 6379 serves only the v1 demo).
@@ -120,7 +127,7 @@ It is **idempotent** — safe to re-run on an already-configured server.
   and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
-- pnpm (via corepack) and pm2 (for marketing website)
+- pnpm and pm2, through npm (for marketing website)
 - Claude Code CLI
 - Build dependencies (build-essential, libpq-dev, pkg-config)
 - uv (for the `docketworks` system user; release builds run `uv sync --frozen`)
@@ -665,5 +672,5 @@ curl -sI https://docketworks.site/
   restart the instance's gunicorn service.
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
-- All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds
+- All packages (Python, Node, PostgreSQL, etc.) have aarch64/ARM builds
 - The wildcard cert auto-renews via certbot with Dreamhost DNS hooks

@@ -8,6 +8,7 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class Form(models.Model):
@@ -18,30 +19,30 @@ class Form(models.Model):
     """
 
     DOCUMENT_TYPES: ClassVar = [
-        ("form", "Form"),
-        ("register", "Register"),
+        ("form", gettext_lazy("Form")),
+        ("register", gettext_lazy("Register")),
     ]
 
     STATUS_CHOICES: ClassVar = [
-        ("active", "Active"),
-        ("archived", "Archived"),
+        ("active", gettext_lazy("Active")),
+        ("archived", gettext_lazy("Archived")),
     ]
 
     class Category(models.TextChoices):
         """One home per document; a form lists in exactly one category."""
 
-        SAFETY = "safety", "Safety"
-        TRAINING = "training", "Training"
-        INCIDENT = "incident", "Incident"
-        MEETING = "meeting", "Meeting"
-        REGISTER = "register", "Register"
+        SAFETY = "safety", gettext_lazy("Safety")
+        TRAINING = "training", gettext_lazy("Training")
+        INCIDENT = "incident", gettext_lazy("Incident")
+        MEETING = "meeting", gettext_lazy("Meeting")
+        REGISTER = "register", gettext_lazy("Register")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     document_type = models.CharField(
         max_length=20,
         choices=DOCUMENT_TYPES,
-        help_text="Document type: form or register",
+        help_text=gettext_lazy("Document type: form or register"),
     )
 
     category = models.CharField(max_length=20, choices=Category.choices)
@@ -55,7 +56,7 @@ class Form(models.Model):
     tags = models.JSONField(
         default=list,
         blank=True,
-        help_text='Free-text tags, e.g. ["safety", "inspection"]',
+        help_text=gettext_lazy('Free-text tags, e.g. ["safety", "inspection"]'),
     )
 
     status = models.CharField(
@@ -67,7 +68,7 @@ class Form(models.Model):
     form_schema = models.JSONField(
         default=dict,
         blank=True,
-        help_text="JSON schema defining entry fields for form templates",
+        help_text=gettext_lazy("JSON schema defining entry fields for form templates"),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -75,8 +76,8 @@ class Form(models.Model):
 
     class Meta:
         ordering: ClassVar = ["-created_at"]
-        verbose_name = "Form"
-        verbose_name_plural = "Forms"
+        verbose_name = gettext_lazy("Form")
+        verbose_name_plural = gettext_lazy("Forms")
         constraints: ClassVar = [
             models.CheckConstraint(
                 condition=~models.Q(document_number=""),

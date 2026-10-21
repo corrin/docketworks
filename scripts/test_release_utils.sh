@@ -310,4 +310,14 @@ if [[ ! -d "$RELEASES_DIR/$RECENT_SHA" ]]; then
     exit 1
 fi
 
+# Guards node_version_from_nvmrc: a release builds with exactly the Node it names.
+assert_eq "v26.12.0" "$(node_version_from_nvmrc "26.12.0")" "an exact .nvmrc version is the Node a release uses"
+assert_eq "v26.12.0" "$(node_version_from_nvmrc $'v26.12.0\n')" "a leading v and trailing newline are the same version"
+assert_failure "a version that is no version is refused" node_version_from_nvmrc "lts/*" 2>/dev/null
+
+# Guards latest_node_of_major: a release naming only a major builds with its newest.
+INDEX='[{"version":"v26.12.0"},{"version":"v22.21.1"},{"version":"v22.21.0"},{"version":"v2.0.0"}]'
+assert_eq "v22.21.1" "$(latest_node_of_major 22 "$INDEX")" "a major resolves to its newest release"
+assert_failure "a major nodejs.org does not list is refused" latest_node_of_major 21 "$INDEX" 2>/dev/null
+
 echo "release-utils tests passed"

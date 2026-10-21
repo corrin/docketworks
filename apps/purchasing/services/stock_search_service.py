@@ -19,6 +19,7 @@ from uuid import UUID
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 from django.db.models import Count, Q, QuerySet
 from django.db.models.expressions import CombinedExpression
+from django.utils.translation import gettext
 
 from apps.core.pagination import paginate
 from apps.job.models.costing import CostLine
@@ -166,7 +167,7 @@ def apply_text_search(
 def _normalize_search_query(query: str) -> str:
     normalized = query.strip()
     if len(normalized) > MAX_SEARCH_QUERY_LENGTH:
-        raise ValueError("Search query too long.")
+        raise ValueError(gettext("Search query too long."))
     return normalized
 
 

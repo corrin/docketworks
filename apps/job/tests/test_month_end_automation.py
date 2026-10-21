@@ -1,7 +1,8 @@
 """Paid-flag and auto-archive automation.
 
-The tests guard the six-day ``completed_at`` threshold and paid-or-rejected
-eligibility gate. Both services are beat-scheduled in ``config/celery.py``.
+The tests guard the six-day ``completed_at`` threshold, the paid-or-rejected
+eligibility gate and ``_invoice_counts`` leaving voided invoices out. Both
+services are beat-scheduled in ``config/celery.py``.
 """
 
 import uuid
@@ -90,6 +91,22 @@ class TestPaidFlagService:
         assert result.jobs_updated == 1
         paid_job.refresh_from_db()
         assert paid_job.paid is True
+
+    def test_voided_invoice_does_not_hold_job_unpaid(
+        self, company: Company, office_staff: Staff
+    ) -> None:
+        """A job re-invoiced after a void is paid once the replacement is."""
+        reinvoiced = _completed_job(company, office_staff, "Re-invoiced Job")
+        _invoice(company, reinvoiced, "VOIDED")
+        _invoice(company, reinvoiced, "PAID")
+        only_voided = _completed_job(company, office_staff, "Voided Only Job")
+        _invoice(company, only_voided, "VOIDED")
+
+        result = update_paid_flags(dry_run=True)
+
+        assert result.processed_jobs == [reinvoiced]
+        assert result.unpaid_invoices == 0
+        assert result.missing_invoices == 1
 
 
 class TestAutoArchiveService:

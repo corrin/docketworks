@@ -16,6 +16,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useLatest } from '@/lib/useLatest'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -43,7 +44,8 @@ import { fallbackColumnLabel, OFFICE_COLUMN_IDS, type OfficeColumnId } from './c
 export interface KanbanColumnView {
   id: OfficeColumnId
   label: string
-  tooltip: string
+  /** What the column means: its title's tooltip (ADR 0068). */
+  title: string
   /** Render order, already filtered — never re-sort this. */
   jobs: KanbanJobOut[]
   /** v1's jobCountDisplay: "N", or "X of Y" when filtered or truncated. */
@@ -62,6 +64,8 @@ export interface MoveJobRequest {
 export interface StatusOption {
   key: string
   label: string
+  /** What choosing the status does: the option's tooltip. */
+  title?: string
 }
 
 export interface KanbanBoardModel {
@@ -131,6 +135,7 @@ export function useKanbanBoard(
   searchTerm: string,
   { movePendingRef, onMoveSettled }: KanbanBoardOptions,
 ): KanbanBoardModel {
+  const { t } = useTranslation('kanban')
   const queryClient = useQueryClient()
   const [activeStaffIds, setActiveStaffIds] = useState<string[]>([])
   const onMoveSettledRef = useLatest(onMoveSettled)
@@ -148,6 +153,10 @@ export function useKanbanBoard(
     enabled: isSearchActive,
   })
 
+  // The column's heading, used wherever the board names a column.
+  const columnLabel = (columnId: OfficeColumnId): string =>
+    statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId)
+
   // useQueries mirrors the array it was handed, so a missing entry is a bug
   // in this file rather than anything a user can cause — fail here instead of
   // rendering a column with no query behind it.
@@ -164,13 +173,27 @@ export function useKanbanBoard(
   // One toast per distinct failure. The E2E console guard fails a spec on any
   // console.error, so a failed board load has to surface as a toast or not at
   // all — and the board mounts under every spec's login.
-  const loadErrors: Array<{ label: string; error: Error | null }> = columnStates.map(
-    ({ columnId, query }) => ({ label: `the ${columnId} column`, error: query.error }),
+  // Keyed by what failed, not by its label: a column's label changes when the
+  // status vocabulary lands, which must not re-toast the same failure.
+  const loadErrors: Array<{ key: string; label: string; error: Error | null }> = columnStates.map(
+    ({ columnId, query }) => ({
+      key: columnId,
+      label: t('board.loadTarget.column', { column: columnLabel(columnId) }),
+      error: query.error,
+    }),
   )
-  loadErrors.push({ label: 'the board columns', error: statusValues.error })
-  loadErrors.push({ label: 'search results', error: search.error })
+  loadErrors.push({
+    key: 'boardColumns',
+    label: t('board.loadTarget.boardColumns'),
+    error: statusValues.error,
+  })
+  loadErrors.push({
+    key: 'searchResults',
+    label: t('board.loadTarget.searchResults'),
+    error: search.error,
+  })
   const loadErrorSignature = loadErrors
-    .map((entry) => `${entry.label}:${entry.error?.message ?? ''}`)
+    .map((entry) => `${entry.key}:${entry.error?.message ?? ''}`)
     .join('|')
   // Runs after every render and toasts only when the set of failures changed:
   // the signature compare is the whole cost, and it is the one already paid
@@ -181,7 +204,7 @@ export function useKanbanBoard(
     toastedSignatureRef.current = loadErrorSignature
     for (const entry of loadErrors) {
       if (entry.error) {
-        toast.error(apiErrorMessage(entry.error, `Failed to load ${entry.label}`))
+        toast.error(apiErrorMessage(entry.error, t('board.loadFailed', { target: entry.label })))
       }
     }
   })
@@ -226,17 +249,20 @@ export function useKanbanBoard(
     const total = query.data?.total ?? null
     let countDisplay: string
     if (isSearchActive && jobs.length !== loadedCount) {
-      countDisplay = `${jobs.length} of ${loadedCount.toLocaleString()}`
+      countDisplay = t('board.countOf', {
+        shown: jobs.length,
+        total: loadedCount.toLocaleString(),
+      })
     } else if (query.data?.has_more === true && total !== null) {
-      countDisplay = `${jobs.length} of ${total.toLocaleString()}`
+      countDisplay = t('board.countOf', { shown: jobs.length, total: total.toLocaleString() })
     } else {
       countDisplay = String(jobs.length)
     }
 
     return {
       id: columnId,
-      label: statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId),
-      tooltip: statusValues.data?.tooltips[columnId] ?? `Status: ${fallbackColumnLabel(columnId)}`,
+      label: columnLabel(columnId),
+      title: t(`board.statusTitles.${columnId}`),
       jobs,
       countDisplay,
       isLoading: query.isPending || (isSearchActive && search.isPending),
@@ -294,7 +320,7 @@ export function useKanbanBoard(
         },
         {
           onError: (error) => {
-            toast.error(apiErrorMessage(error, 'Failed to move the job'))
+            toast.error(apiErrorMessage(error, t('board.moveFailed')))
             restoreSnapshot(queryClient, snapshot)
             for (const columnId of affected) {
               void queryClient.invalidateQueries({ queryKey: columnQueryKey(columnId) })
@@ -328,14 +354,24 @@ export function useKanbanBoard(
         },
       )
     },
-    [movePendingRef, onMoveSettledRef, queryClient, reorder, searchTerm],
+    [movePendingRef, onMoveSettledRef, queryClient, reorder, searchTerm, t],
   )
 
   // Ordered per the API response: get_status_choices() builds the six office
   // columns then archived, so Object.entries (insertion order, per spec for
   // string keys) reproduces that order without a second taxonomy table here.
+  const statusMeanings = new Map<string, string>(
+    OFFICE_COLUMN_IDS.map((columnId) => [columnId, t(`board.statusTitles.${columnId}`)]),
+  )
   const statusOptions: StatusOption[] = statusValues.data
-    ? Object.entries(statusValues.data.statuses).map(([key, label]) => ({ key, label }))
+    ? Object.entries(statusValues.data.statuses).map(([key, label]) => {
+        const meaning = statusMeanings.get(key)
+        return {
+          key,
+          label,
+          title: meaning === undefined ? undefined : t('statusDrawer.optionTitle', { meaning }),
+        }
+      })
     : []
 
   const updateStatusMutation = useMutation(jobJobsUpdateStatusCreateMutation())
@@ -368,7 +404,7 @@ export function useKanbanBoard(
           { path: { job_id: jobId }, body: { status } },
           {
             onError: (error) => {
-              toast.error(apiErrorMessage(error, 'Failed to update job status'))
+              toast.error(apiErrorMessage(error, t('board.statusUpdateFailed')))
               restoreSnapshot(queryClient, snapshot)
               resolve(false)
             },
@@ -394,7 +430,7 @@ export function useKanbanBoard(
         )
       })
     },
-    [movePendingRef, queryClient, updateStatusMutation, searchTerm],
+    [movePendingRef, queryClient, updateStatusMutation, searchTerm, t],
   )
 
   // Server truth for the reorders deliberately not invalidated above arrives

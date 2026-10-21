@@ -15,7 +15,7 @@ import { autoId } from '../helpers'
 const DEFAULTS_PATH = '/api/company-defaults/'
 const THEME_FIELD_ID = 'CompanyDefaultsPage-xero-field-xero_sales_branding_theme_id'
 /** BrandingThemeSelect's label for an id Xero no longer offers — never a save target. */
-const UNAVAILABLE_THEME_PREFIX = 'Unavailable theme'
+const UNAVAILABLE_THEME_PREFIX = 'A branding theme that is no longer in Xero'
 
 test.describe('company defaults', () => {
   test('sections render from the schema and an edit round-trips', async ({
@@ -259,7 +259,7 @@ test.describe('company defaults', () => {
             .map((option) => option.value),
         UNAVAILABLE_THEME_PREFIX,
       )
-    // BrandingThemeSelect renders the `Unavailable theme (…)` option only while
+    // BrandingThemeSelect renders the `A branding theme that is no longer in Xero` option only while
     // the stale id is still selected, so saving anything else deletes the only
     // way back — the restore below could never re-select it and the tenant would
     // be stranded on the test's theme.
@@ -315,6 +315,48 @@ test.describe('company defaults', () => {
           await expect(save).toBeDisabled({ timeout: 10000 })
         }
       }
+    }
+  })
+
+  test('the General work job is chosen from the special jobs and saves', async ({
+    authenticatedPage: page,
+  }) => {
+    // KAN-380: the job the office sweeps clocked time onto. Installed by
+    // create_shop_jobs as "General work"; the setting lets an admin choose another.
+    const picker = 'CompanyDefaultsPage-working_hours-field-general_work_job'
+    const trigger = autoId(page, `${picker}-trigger`)
+    const save = autoId(page, 'CompanyDefaultsPage-save-button')
+    const choose = async (name: string) => {
+      await trigger.click()
+      await page.getByRole('option', { name: new RegExp(name) }).click()
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === DEFAULTS_PATH &&
+          response.request().method() === 'PATCH',
+      )
+      await save.click()
+      return saved
+    }
+
+    await page.goto('/admin/company-defaults/company')
+    await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+    await autoId(page, 'CompanyDefaultsPage-section-link-working_hours').click()
+    await expect(trigger).toHaveText('General work')
+
+    try {
+      const patch = await choose('Bench - busy work')
+      expect(patch.ok()).toBe(true)
+      // Only the setting goes on the wire, under the FK's write key.
+      expect(
+        Object.keys(z.record(z.string(), z.unknown()).parse(patch.request().postDataJSON())),
+      ).toEqual(['general_work_job_id'])
+      await page.reload()
+      await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+      await autoId(page, 'CompanyDefaultsPage-section-link-working_hours').click()
+      await expect(trigger).toHaveText('Bench - busy work')
+    } finally {
+      expect((await choose('General work')).ok()).toBe(true)
+      await expect(trigger).toHaveText('General work')
     }
   })
 })

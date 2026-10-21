@@ -46,7 +46,7 @@ def _post_receipt(
     allocations: Mapping[str, Mapping[str, object]],
     *,
     if_match: str | None,
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     headers = {"If-Match": if_match} if if_match is not None else {}
     return api.post(
         RECEIPTS_URL,

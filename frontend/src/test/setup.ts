@@ -1,6 +1,8 @@
 // This side-effect import is required because jest-dom augments Vitest's expect at runtime.
 // oxlint-disable-next-line import/no-unassigned-import
 import '@testing-library/jest-dom/vitest'
+// Initialises the screen catalogues (ADR 0069), as main.tsx does.
+import '@/lib/i18n'
 
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
@@ -25,7 +27,7 @@ window.ResizeObserver = window.ResizeObserver ?? ResizeObserverStub
 window.IntersectionObserver = window.IntersectionObserver ?? FakeIntersectionObserver
 Element.prototype.scrollIntoView = () => undefined
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 
 afterEach(() => {
   cleanup()

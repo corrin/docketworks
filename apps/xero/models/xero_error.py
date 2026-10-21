@@ -6,6 +6,7 @@ parent tables retain their existing names through explicit ``db_table`` pins.
 """
 
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 from apps.core.models import AppError
 
@@ -19,5 +20,5 @@ class XeroError(AppError):
 
     class Meta:
         db_table = "workflow_xeroerror"  # v1 home was the workflow app
-        verbose_name = "Xero Error"
-        verbose_name_plural = "Xero Errors"
+        verbose_name = gettext_lazy("Xero Error")
+        verbose_name_plural = gettext_lazy("Xero Errors")

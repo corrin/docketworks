@@ -29,7 +29,9 @@ Not reused from the normal push paths, and why:
   name is the only join available across two orgs.
 - ``apps.xero.documents.invoice.XeroInvoiceManager`` creates a NEW invoice for
   a job from current job state. The seed re-creates EXISTING invoices with
-  their stored numbers, dates and line totals, AUTHORISED and in batches of 50.
+  their stored numbers, dates and line totals, AUTHORISED and in batches of
+  ``XERO_BATCH_SIZE`` (50, to stay under Xero's request limit; see
+  ``apps/xero/constants.py``).
 
 Purchase orders are the exception: the order row IS the document, so the seed
 sends the body a push would send for it (``XeroPurchaseOrderManager``), fifty
@@ -221,7 +223,9 @@ def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
     tenant_id = get_tenant_id()
     total_created = 0
 
-    for batch_number, batch in enumerate(batched(companies, XERO_BATCH_SIZE), start=1):
+    for batch_number, batch in enumerate(
+        batched(companies, XERO_BATCH_SIZE, strict=False), start=1
+    ):
         contact_batch = []
         for company in batch:
             if not company.validate_for_xero():
@@ -465,7 +469,7 @@ def _job_description(job: Job) -> str:
 
 
 def _numbered_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
-    kind: "_DocumentKind[TDocument, TPayload, TRemote]",
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
     documents: Sequence[TDocument],
 ) -> list[tuple[str, TDocument]]:
     """Pair each document with its number, refusing any that lack one.
@@ -925,7 +929,9 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
     by_number = dict(documents)
     created = 0
 
-    for batch_number, batch in enumerate(batched(documents, XERO_BATCH_SIZE), start=1):
+    for batch_number, batch in enumerate(
+        batched(documents, XERO_BATCH_SIZE, strict=False), start=1
+    ):
         payloads = kind.build_payloads([document for _number, document in batch])
 
         logger.info("Sending batch %d of %d %s", batch_number, len(payloads), kind.entity)

@@ -8,13 +8,21 @@ interface SummaryCardProps {
       card is a div the keyboard cannot reach, and a button cannot wrap the
       block content below. */
   action?: ReactNode
+  /** The card's tooltip: what the figure counts (ADR 0068). */
+  title?: string
   children: ReactNode
 }
 
 /** One stat card in a report's summary grid. */
-export function SummaryCard({ label, valueAutomationId, action, children }: SummaryCardProps) {
+export function SummaryCard({
+  label,
+  valueAutomationId,
+  action,
+  title,
+  children,
+}: SummaryCardProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" title={title}>
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-medium text-gray-500">{label}</div>
         {action}

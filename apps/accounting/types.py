@@ -10,6 +10,8 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
+from django.utils.translation import gettext
+
 from apps.core.errors import InvalidInputError
 
 
@@ -23,7 +25,7 @@ class NotAPayrollWeekError(InvalidInputError):
     """
 
 
-def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.date":
+def require_payroll_week_start(week_start_date: datetime.date) -> datetime.date:
     """Refuse a week that does not start on a Monday — the one implementation.
 
     Opus: Xero pay periods are Monday-anchored, and this rule was written out four
@@ -33,7 +35,7 @@ def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.da
     call the other's. Both sides import this module, so it lives here.
     """
     if week_start_date.weekday() != 0:
-        raise NotAPayrollWeekError("week_start_date must be a Monday")
+        raise NotAPayrollWeekError(gettext("week_start_date must be a Monday"))
     return week_start_date
 
 
@@ -74,8 +76,8 @@ class InvoicePayload:
     client_external_id: str
     company_name: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
-    due_date: "datetime.date"
+    date: datetime.date
+    due_date: datetime.date
     document_theme_external_id: str
     currency_code: str = "NZD"
     reference: str | None = None
@@ -96,8 +98,8 @@ class QuotePayload:
     client_external_id: str
     company_name: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
-    expiry_date: "datetime.date"
+    date: datetime.date
+    expiry_date: datetime.date
     document_theme_external_id: str
     terms: str
     currency_code: str = "NZD"
@@ -123,11 +125,16 @@ class POPayload:
     supplier_name: str
     po_number: str
     line_items: list[DocumentLineItem]
-    date: "datetime.date"
+    date: datetime.date
     status: str = "DRAFT"
-    delivery_date: "datetime.date | None" = None
+    delivery_date: datetime.date | None = None
     reference: str | None = None
     external_id: str | None = None
+
+
+#: The ``error_type`` of a delete refused because the invoice is approved; the
+#: screen asks the user whether to void it instead.
+INVOICE_APPROVED = "invoice_approved"
 
 
 @dataclass
@@ -176,9 +183,9 @@ class PayRunRef:
 
     pay_run_id: str
     payroll_calendar_id: str
-    period_start_date: "datetime.date"
-    period_end_date: "datetime.date"
-    payment_date: "datetime.date"
+    period_start_date: datetime.date
+    period_end_date: datetime.date
+    payment_date: datetime.date
     pay_run_status: str
     pay_run_type: str
 
@@ -387,9 +394,9 @@ class NewPayrollEmployee:
     last_name: str
     email: str
     job_title: str
-    date_of_birth: "datetime.date"
-    start_date: "datetime.date"
-    end_date: "datetime.date | None"
+    date_of_birth: datetime.date
+    start_date: datetime.date
+    end_date: datetime.date | None
     address: PayrollAddress
     hours_per_week: dict[str, float]
     hourly_rate: Decimal

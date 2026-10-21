@@ -5,6 +5,7 @@ import {
   formatPercentage,
   formatWholeCurrency,
 } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 /** The day's grade, straight off the wire: three rungs plus the ungraded weekend. */
 export type DayCategory = KpiDayDataOut['color_hours']
@@ -63,11 +64,8 @@ export function monthColor(totals: KpiMonthlyTotalsOut, target: KpiTarget): DayC
  * What a grade means, in words. Colour never carries state alone
  * (docs/design-language.md): every tinted surface also says this.
  */
-export const GRADE_WORDING: Record<DayCategory, string> = {
-  green: 'On target',
-  amber: 'Close',
-  red: 'Behind',
-  weekend: 'Weekend',
+export function gradeWording(category: DayCategory): string {
+  return i18n.t(`reports:grade.${category}`)
 }
 
 /** Surface, border and ink for a graded cell or card. A Record over the

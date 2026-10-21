@@ -173,7 +173,7 @@ class TestUpdate:
 
     def _update(
         self, client: Client, company: Company, payload: dict[str, object]
-    ) -> "_MonkeyPatchedWSGIResponse":
+    ) -> _MonkeyPatchedWSGIResponse:
         return client.patch(
             f"/api/companies/{company.id}/update/",
             payload,
@@ -502,14 +502,23 @@ class TestCompanyJobs:
         make_invoice(
             company, job=job, invoice_date=date(2024, 6, 1), total_excl_tax=Decimal("55.00")
         )
+        # A voided invoice stays listed on the job but was never billed.
+        make_invoice(
+            company,
+            job=job,
+            invoice_date=date(2024, 5, 1),
+            status="VOIDED",
+            total_excl_tax=Decimal("900.00"),
+        )
 
         response = client.get(f"/api/companies/{company.id}/jobs/")
 
         assert response.status_code == 200
         (row,) = response.json()["results"]
         assert row["invoiced_total_excl_tax"] == 55.0
-        assert [(inv["date"], inv["total_excl_tax"]) for inv in row["invoices"]] == [
-            ("2024-06-01", 55.0)
+        assert [(inv["date"], inv["status"]) for inv in row["invoices"]] == [
+            ("2024-05-01", "VOIDED"),
+            ("2024-06-01", "DRAFT"),
         ]
 
     def test_company_jobs_returns_header_rows(self, client: Client, office_staff: Staff) -> None:
@@ -578,7 +587,7 @@ class TestSupplierAliases:
 class TestPickupAddresses:
     def _create(
         self, client: Client, company: Company, **overrides: object
-    ) -> "_MonkeyPatchedWSGIResponse":
+    ) -> _MonkeyPatchedWSGIResponse:
         payload: dict[str, object] = {
             "company": str(company.id),
             "name": "Main Warehouse",

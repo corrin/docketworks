@@ -24,7 +24,7 @@ def _is_valid_uuid(value: str) -> bool:
     try:
         UUID(value)
     # deliberate-swallow: a malformed id is not a valid one — that IS the answer
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return False
     return True
 

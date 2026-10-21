@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -32,6 +33,7 @@ const ID = 'PhoneCallsPage'
  * the only flow that starts from a call.
  */
 export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelProps) {
+  const { t } = useTranslation('crm')
   const queryClient = useQueryClient()
   const [company, setCompany] = useState<CompanySearchResult | null>(null)
   const [person, setPerson] = useState<SelectedPerson | null>(null)
@@ -44,10 +46,10 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
       // Assigning a number rematches every OTHER call on it, so the refetched
       // list is the only accurate row set — the mutation's single call is not.
       void queryClient.invalidateQueries({ queryKey: crmPhoneCallsListQueryKey() })
-      toast.success('Phone number assigned')
+      toast.success(t('assignPanel.assigned'))
       onClose()
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Failed to assign phone number')),
+    onError: (error) => toast.error(apiErrorMessage(error, t('assignPanel.assignFailed'))),
   })
 
   return (
@@ -57,9 +59,12 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Assign Call Number</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t('assignPanel.title')}</h2>
           <p className="text-sm text-gray-500">
-            {call.external_number} from {formatDateTime(call.call_datetime)}
+            {t('assignPanel.callFrom', {
+              number: call.external_number,
+              when: formatDateTime(call.call_datetime),
+            })}
           </p>
         </div>
         <Button
@@ -69,14 +74,14 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
           data-automation-id={`${ID}-assign-cancel`}
           onClick={onClose}
         >
-          Cancel
+          {t('assignPanel.cancel')}
         </Button>
       </div>
 
       <div className="mt-4 grid max-w-2xl gap-4">
         <CompanyLookup
           id="assign-call-number-company"
-          label="Company"
+          label={t('assignPanel.company')}
           required
           selectedCompany={company}
           onSelectCompany={(next) => {
@@ -89,7 +94,7 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
         {company !== null && (
           <PersonSelector
             id="assign-call-number-person"
-            label="Person"
+            label={t('assignPanel.person')}
             optional
             companyId={company.id}
             companyName={company.name}
@@ -106,12 +111,13 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
           htmlFor="assign-call-number-label"
           className="flex flex-col gap-1 text-sm font-medium text-gray-700"
         >
-          Label <span className="text-xs font-normal text-gray-500">(Optional)</span>
+          {t('assignPanel.label')}{' '}
+          <span className="text-xs font-normal text-gray-500">{t('assignPanel.optional')}</span>
           <input
             id="assign-call-number-label"
             type="text"
             className={INPUT_CLASS}
-            placeholder="Mobile, Reception, ..."
+            placeholder={t('assignPanel.labelPlaceholder')}
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             data-automation-id={`${ID}-assign-label`}
@@ -125,7 +131,7 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
             onChange={(event) => setIsPrimary(event.target.checked)}
             data-automation-id={`${ID}-assign-primary`}
           />
-          Primary number for this contact
+          {t('assignPanel.primary')}
         </label>
         <div>
           <Button
@@ -149,7 +155,7 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
               })
             }}
           >
-            {assign.isPending ? 'Assigning...' : 'Assign'}
+            {assign.isPending ? t('assignPanel.assigning') : t('assignPanel.assign')}
           </Button>
         </div>
       </div>

@@ -4,6 +4,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from django.db.models import Q, QuerySet
+from django.utils.translation import gettext
 
 from apps.core.errors import InvalidInputError
 from apps.job.models import Job
@@ -37,7 +38,7 @@ def job_options(status: str) -> list[JobOptionData]:
     would be an unbounded list of the whole table wearing a picker's clothes.
     """
     if status not in dict(Job.JOB_STATUS_CHOICES):
-        raise ValueError(f"Unknown job status {status!r}.")
+        raise ValueError(gettext("Unknown job status %(status)s.") % {"status": repr(status)})
 
     jobs = Job.objects.filter(status=status).select_related("company").order_by("name")
     return [
@@ -73,10 +74,11 @@ def search_jobs(
         # modules that called this each carried an identical try/except — down to
         # the comment — to say what this can say once (ADR 0039).
         raise InvalidInputError(
-            f"A job search term needs at least {MIN_SEARCH_TERM_LENGTH} characters."
+            gettext("A job search term needs at least %(min_length)s characters.")
+            % {"min_length": MIN_SEARCH_TERM_LENGTH}
         )
     if limit <= 0:
-        raise InvalidInputError("A job search limit must be positive.")
+        raise InvalidInputError(gettext("A job search limit must be positive."))
 
     return queryset.filter(
         Q(name__icontains=cleaned)

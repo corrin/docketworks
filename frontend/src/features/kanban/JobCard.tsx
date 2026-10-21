@@ -13,6 +13,7 @@
 import { DollarSign, Receipt, Settings2, XCircle } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { KanbanJobOut } from '@/api'
 import { formatDate, localIsoDate } from '@/lib/format'
@@ -55,6 +56,7 @@ export function JobCard({
   onTapAssign,
   onStatusChange,
 }: JobCardProps) {
+  const { t } = useTranslation('kanban')
   const navigate = useNavigate()
   const { ref, isDragging, shouldSuppressClick } = useJobCardDrag(
     job.id,
@@ -116,12 +118,13 @@ export function JobCard({
     >
       {armedStaffId && (
         <div className="absolute inset-x-0 top-0 z-10 rounded-t-lg bg-blue-600/90 py-1 text-center text-[0.7rem] font-semibold text-white lg:hidden">
-          Tap to assign
+          {t('jobCard.tapToAssign')}
         </div>
       )}
 
       <div className="mb-1 flex items-center justify-between gap-2">
         <span
+          title={t('jobCard.overBudgetTitle')}
           className={`inline-flex items-center rounded-md px-2 py-1 text-[0.82rem] font-semibold tracking-wide text-white tabular-nums ${
             job.over_budget ? 'bg-red-600' : 'bg-blue-600'
           }`}
@@ -131,6 +134,7 @@ export function JobCard({
 
         <div className="flex items-center gap-1">
           <div
+            title={job.people.length === 0 ? t('jobCard.noStaffTitle') : undefined}
             className={`flex min-h-5 items-center gap-1 rounded p-1 ${
               job.people.length === 0 ? 'border border-dashed border-gray-300 bg-gray-50' : ''
             }`}
@@ -144,8 +148,8 @@ export function JobCard({
           {/* Mobile-only: opens the status drawer for this job. */}
           <button
             type="button"
-            aria-label="Change job status"
-            title="Change job status"
+            aria-label={t('jobCard.changeStatus')}
+            title={t('jobCard.changeStatus')}
             className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-sm lg:hidden"
             onClick={(event) => {
               event.stopPropagation()
@@ -170,29 +174,48 @@ export function JobCard({
       </p>
 
       {job.person_name && (
-        <div className="truncate text-[0.8rem] font-medium text-gray-600">
-          <span className="font-semibold">Person:</span> {job.person_name}
+        <div
+          className="truncate text-[0.8rem] font-medium text-gray-600"
+          title={t('jobCard.personTitle')}
+        >
+          <span className="font-semibold">{t('jobCard.person')}</span> {job.person_name}
         </div>
       )}
 
       {showDueDate && job.delivery_date !== null && (
-        <div className={`truncate text-[0.8rem] font-bold ${dueDateColor(job.delivery_date)}`}>
-          Due: {formatDate(job.delivery_date)}
+        <div
+          className={`truncate text-[0.8rem] font-bold ${dueDateColor(job.delivery_date)}`}
+          title={t('jobCard.dueTitle')}
+        >
+          {t('jobCard.due', { date: formatDate(job.delivery_date) })}
         </div>
       )}
 
       {hasStatusIcons && (
         <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1">
           {job.is_urgent && (
-            <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
-              URGENT
+            <span
+              className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600"
+              title={t('jobCard.urgentTitle')}
+            >
+              {t('jobCard.urgent')}
             </span>
           )}
           {job.fully_invoiced && (
-            <Receipt className="h-4 w-4 text-green-600" aria-label="Fully invoiced" />
+            <span title={t('jobCard.fullyInvoicedTitle')}>
+              <Receipt className="h-4 w-4 text-green-600" aria-label={t('jobCard.fullyInvoiced')} />
+            </span>
           )}
-          {job.paid && <DollarSign className="h-4 w-4 text-green-600" aria-label="Paid" />}
-          {job.rejected_flag && <XCircle className="h-4 w-4 text-red-500" aria-label="Rejected" />}
+          {job.paid && (
+            <span title={t('jobCard.paidTitle')}>
+              <DollarSign className="h-4 w-4 text-green-600" aria-label={t('jobCard.paid')} />
+            </span>
+          )}
+          {job.rejected_flag && (
+            <span title={t('jobCard.rejectedTitle')}>
+              <XCircle className="h-4 w-4 text-red-500" aria-label={t('jobCard.rejected')} />
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { xeroPayItemsListOptions, type CompanySearchResult, type JobDetail } from '@/api'
 import { RichTextEditor } from '@/components/RichTextEditor'
@@ -21,6 +22,7 @@ interface JobSettingsTabProps {
  * owns the values, and refreshed queries must not clobber typing.
  */
 export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
+  const { t } = useTranslation('job')
   const payItems = useQuery(xeroPayItemsListOptions())
   const autosave = useJobAutosave(jobId, job)
 
@@ -50,7 +52,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
 
   return (
     <div className="max-w-3xl p-6" data-initialized={String(payItems.isSuccess)}>
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">Job Settings</h2>
+      <h2 className="mb-4 text-lg font-semibold text-gray-900">{t('settingsTab.title')}</h2>
 
       {/* Only the pay-item select depends on the Xero pay-items query; a
           Xero outage must not hold the rest of the job's settings hostage. */}
@@ -60,7 +62,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
             htmlFor="settings-job-name"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
-            Job Name
+            {t('settingsTab.jobName')}
           </label>
           <input
             id="settings-job-name"
@@ -81,7 +83,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
             htmlFor="settings-company-name"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
-            Company
+            {t('settingsTab.company')}
           </label>
           <div className="flex space-x-2">
             <input
@@ -101,7 +103,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
                 setPendingCompany(null)
               }}
             >
-              Change Company
+              {t('settingsTab.changeCompany')}
             </button>
           </div>
           {changingCompany && (
@@ -111,7 +113,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
             >
               <CompanyLookup
                 id="settings-company-lookup"
-                label="New company"
+                label={t('settingsTab.newCompany')}
                 selectedCompany={pendingCompany}
                 onSelectCompany={setPendingCompany}
               />
@@ -137,7 +139,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
                     autosave.flush()
                   }}
                 >
-                  Confirm
+                  {t('settingsTab.confirm')}
                 </button>
                 <button
                   type="button"
@@ -145,7 +147,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm transition-colors hover:bg-gray-50"
                   onClick={() => setChangingCompany(false)}
                 >
-                  Cancel
+                  {t('settingsTab.cancel')}
                 </button>
               </div>
             </div>
@@ -154,7 +156,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
 
         <PersonSelector
           id="settings-person"
-          label="Person"
+          label={t('settingsTab.person')}
           companyId={companyId}
           companyName={companyName}
           selectedPerson={selectedPerson}
@@ -173,7 +175,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
             htmlFor="settings-description"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
-            Description
+            {t('settingsTab.description')}
           </label>
           <textarea
             id="settings-description"
@@ -195,7 +197,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               htmlFor="settings-delivery-date"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Delivery Date
+              {t('settingsTab.deliveryDate')}
             </label>
             <input
               id="settings-delivery-date"
@@ -215,7 +217,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               htmlFor="settings-order-number"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Order Number
+              {t('settingsTab.orderNumber')}
             </label>
             {/* No blur flush here: v1's order-number saves on the debounce
                   alone, and the spec's blur() is decorative. */}
@@ -239,7 +241,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               htmlFor="settings-pricing-method"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Pricing Method
+              {t('settingsTab.pricingMethod')}
             </label>
             <select
               id="settings-pricing-method"
@@ -252,8 +254,8 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               }}
               onBlur={handleBlur}
             >
-              <option value="fixed_price">Fixed Price</option>
-              <option value="time_materials">Time &amp; Materials</option>
+              <option value="fixed_price">{t('settingsTab.fixedPrice')}</option>
+              <option value="time_materials">{t('settingsTab.timeMaterials')}</option>
             </select>
           </div>
           <div>
@@ -261,7 +263,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               htmlFor="settings-speed-quality"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Speed vs Quality
+              {t('settingsTab.speedVsQuality')}
             </label>
             <select
               id="settings-speed-quality"
@@ -274,9 +276,9 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               }}
               onBlur={handleBlur}
             >
-              <option value="fast">Fast</option>
-              <option value="normal">Normal</option>
-              <option value="quality">Quality</option>
+              <option value="fast">{t('settingsTab.speed.fast')}</option>
+              <option value="normal">{t('settingsTab.speed.normal')}</option>
+              <option value="quality">{t('settingsTab.speed.quality')}</option>
             </select>
           </div>
         </div>
@@ -286,18 +288,18 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
             htmlFor="settings-default-pay-item"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
-            Default pay item
+            {t('settingsTab.defaultPayItem')}
           </label>
           {payItems.isPending ? (
             <p role="status" className="text-sm text-gray-600">
-              Loading pay items…
+              {t('settingsTab.loadingPayItems')}
             </p>
           ) : payItems.isError ? (
             <div
               role="alert"
               className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
             >
-              <p>Pay items could not be loaded.</p>
+              <p>{t('settingsTab.payItemsFailed')}</p>
               <button
                 type="button"
                 className="mt-2 underline"
@@ -305,7 +307,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
                   void payItems.refetch()
                 }}
               >
-                Try again
+                {t('settingsTab.tryAgain')}
               </button>
             </div>
           ) : (
@@ -320,7 +322,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
               }}
               onBlur={handleBlur}
             >
-              <option value="">Select a pay item...</option>
+              <option value="">{t('settingsTab.selectPayItem')}</option>
               {payItems.data.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -331,7 +333,9 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
         </div>
 
         <div>
-          <span className="mb-1 block text-sm font-medium text-gray-700">Internal Notes</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700">
+            {t('settingsTab.internalNotes')}
+          </span>
           <RichTextEditor
             automationId="JobSettingsTab-internal-notes"
             initialHtml={job.notes ?? ''}

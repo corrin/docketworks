@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SettingsFieldOut, XeroBrandingThemeOut } from '@/api'
@@ -115,7 +115,7 @@ describe('BrandingThemeSelect', () => {
     renderSelect('deleted-theme')
     await waitFor(() => expect(autoId(AUTOMATION_ID)).not.toBeDisabled())
     expect(
-      screen.getByRole('option', { name: 'Unavailable theme (deleted-theme)' }),
+      screen.getByRole('option', { name: 'A branding theme that is no longer in Xero' }),
     ).toBeInTheDocument()
     expect(autoId(AUTOMATION_ID)).toHaveValue('deleted-theme')
   })

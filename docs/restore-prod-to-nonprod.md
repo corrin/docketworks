@@ -401,6 +401,14 @@ The same command creates the company named by
 `CompanyDefaults.test_company_name` when it is missing, setting the name first
 if the load left it unset; the Xero seed fails without it.
 
+The three logins are created employed from 1 January 2020, because specs book
+time on past weekdays and a timesheet lists only staff employed that day. The
+workshop login is the specs' worker: the seed's employees phase below makes it a
+payroll employee in the demo organisation from that date, so it is on every
+timesheet. Xero owns the start date and wage after that; this command never
+rewrites them on an existing login. (`verify-instance.sh --e2e`, which runs no
+seed, does the same with `e2e_ensure_fixtures --payroll` against the fake.)
+
 **Check:** the output shows the E2E user's email with `office staff, superuser,
 wage 45.00`, and `Test company: <name> (ID: …)`.
 
@@ -501,8 +509,8 @@ print('configured:', configured, 'present:', configured in live)
 "
 ```
 
-**If that command answers at all, skip the consent and go on to the next
-section** — an answer means the preserved `workflow_xeroapp` row still holds
+**If that command answers with an organisation in `connected:`, skip the
+consent and go on to the next section** — an answer means the preserved `workflow_xeroapp` row still holds
 working token material, which is the normal outcome, because preserving that row
 across the load is a step of this runbook. Whether `present:` says True or False
 does not change that: a configured id missing from the list is tenant drift, and
@@ -510,10 +518,11 @@ does not change that: a configured id missing from the list is tenant drift, and
 Consenting again anyway would throw away the row the earlier step went out of its
 way to keep.
 
-Consent is for one case only: the call fails to authenticate, raising
-`NoValidXeroTokenError` or failing its token refresh with a 401. Then the stored
-refresh token is genuinely dead and a browser round trip is the only way to get a
-new one.
+Consent is for two cases only: the call fails to authenticate, raising
+`NoValidXeroTokenError` or failing its token refresh with a 401, so the stored
+refresh token is genuinely dead; or it answers `connected: {}`, because the demo
+organisation expired and took its connection with it. Either way a browser round
+trip is the only way forward.
 
 Do it in this order, because both halves depend on the ngrok domain:
 
@@ -545,9 +554,9 @@ connections command above now prints the organisation.
 
 Payroll needs no activation step and no browser visit: `--seed-xero` below
 creates the calendar, leave types and earnings rates through the ordinary API,
-like everything else that syncs. So a 403 there is a connection fault, almost
-always tenant drift — diagnosed and repaired under "Demo organisation lifecycle"
-in [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
+like everything else that syncs. So a 403 there is a just-created organisation
+or a connection fault — told apart and repaired under "Demo organisation
+lifecycle" in [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
 
 ## Configure the Xero connection
 

@@ -10,6 +10,8 @@ interface SortHeaderProps<TColumn extends string> {
   sortDir: SortDir
   align: 'left' | 'right'
   onSort: (column: TColumn) => void
+  /** The header's tooltip: what the column counts (ADR 0068). */
+  title?: string
 }
 
 /**
@@ -30,12 +32,14 @@ export function SortHeader<TColumn extends string>({
   sortDir,
   align,
   onSort,
+  title,
 }: SortHeaderProps<TColumn>) {
   const active = sortBy === column
   return (
     <th
       scope="col"
       data-automation-id={automationId}
+      title={title}
       aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
       className="p-0"
     >

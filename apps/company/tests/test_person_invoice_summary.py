@@ -94,3 +94,18 @@ def test_invoice_summary_properties_require_annotation() -> None:
 
     with pytest.raises(RuntimeError, match="with_invoice_summary"):
         _ = person.total_spend
+
+
+def test_person_spend_skips_voided_and_deleted_invoices() -> None:
+    """A voided invoice was never money the contact spent."""
+    staff = make_staff("voided-staff@example.com")
+    company = make_company("Voided Co")
+    person = Person.objects.create(name="Voided")
+    job = make_job(company, staff, name="Voided job", person=person)
+    make_invoice(company, job=job, status="DRAFT", total_excl_tax=Decimal("40.00"))
+    make_invoice(company, job=job, status="VOIDED", total_excl_tax=Decimal("900.00"))
+    make_invoice(company, job=job, status="DELETED", total_excl_tax=Decimal("800.00"))
+
+    annotated = Person.objects.with_invoice_summary().get(id=person.id)
+
+    assert annotated.total_spend == Decimal("40.00")

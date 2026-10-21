@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Trash2, Upload } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -26,6 +27,7 @@ interface PendingUpload {
  * which a custom modal would leave dangling.
  */
 export function JobAttachmentsTab({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const filesQuery = useQuery(listJobFilesOptions({ path: { job_id: jobId } }))
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([])
@@ -68,7 +70,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
         },
       })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to upload the attachment.'))
+      toast.error(apiErrorMessage(error, t('attachments.uploadFailed')))
       setPendingUploads((current) => current.filter((upload) => !batchKeys.has(upload.key)))
       return
     }
@@ -92,20 +94,20 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
             throwOnError: true,
           })
         ).data,
-      'attachment',
+      t('attachments.blobLabel'),
       { print: true, downloadName: filename },
     )
   }
 
   const handleDelete = async (fileId: string, filename: string) => {
     // Native confirm, not a modal: the E2E contract answers a browser dialog.
-    if (!window.confirm(`Delete ${filename}?`)) {
+    if (!window.confirm(t('attachments.confirmDelete', { filename }))) {
       return
     }
     try {
       await deleteJobFile({ path: { job_id: jobId, file_id: fileId }, throwOnError: true })
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to delete the attachment.'))
+      toast.error(apiErrorMessage(error, t('attachments.deleteFailed')))
       return
     }
     setRemovedIds((current) => new Set([...current, fileId]))
@@ -116,11 +118,11 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
 
   return (
     <div className="max-w-3xl p-6">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">Job Attachments</h2>
+      <h2 className="mb-4 text-lg font-semibold text-gray-900">{t('attachments.title')}</h2>
 
       <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 px-3 py-2 text-sm transition-colors hover:bg-gray-50">
         <Upload className="mr-2 h-4 w-4" />
-        Upload files
+        {t('attachments.upload')}
         <input
           type="file"
           multiple
@@ -144,7 +146,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
           >
             <span className="text-sm font-medium text-gray-900">{upload.filename}</span>
             <span className="text-xs text-blue-700">
-              {upload.status === 'uploading' ? 'Uploading...' : 'Saving...'}
+              {upload.status === 'uploading' ? t('attachments.uploading') : t('attachments.saving')}
             </span>
           </div>
         ))}
@@ -161,7 +163,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
                 type="button"
                 data-automation-id={`JobAttachmentsTab-download-${file.id}`}
                 className="p-1.5 text-gray-500 transition-colors hover:text-blue-600"
-                title={`Download ${file.filename}`}
+                title={t('attachments.download', { filename: file.filename })}
                 onClick={() => {
                   void handleDownload(file.id, file.filename)
                 }}
@@ -172,7 +174,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
                 type="button"
                 data-automation-id={`JobAttachmentsTab-delete-${file.id}`}
                 className="p-1.5 text-gray-500 transition-colors hover:text-red-600"
-                title={`Delete ${file.filename}`}
+                title={t('attachments.delete', { filename: file.filename })}
                 onClick={() => {
                   void handleDelete(file.id, file.filename)
                 }}
@@ -185,7 +187,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
 
         {filesQuery.isError && (
           <div className="text-sm text-red-600">
-            Failed to load attachments.
+            {t('attachments.loadFailed')}
             <button
               type="button"
               className="ml-2 underline"
@@ -193,13 +195,13 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
                 void filesQuery.refetch()
               }}
             >
-              Retry
+              {t('attachments.retry')}
             </button>
           </div>
         )}
 
         {pendingUploads.length === 0 && files.length === 0 && filesQuery.isSuccess && (
-          <p className="text-sm text-gray-500">No attachments yet.</p>
+          <p className="text-sm text-gray-500">{t('attachments.empty')}</p>
         )}
       </div>
     </div>

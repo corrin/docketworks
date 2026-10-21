@@ -1,3 +1,4 @@
+import { i18n } from '@/lib/i18n'
 import { generateDeliveryDocketRest, jobJobsWorkshopPdfRetrieve } from '@/api'
 import { openBlobInNewTab } from './open-blob'
 
@@ -11,7 +12,7 @@ export async function printWorkshopPdf(jobId: string): Promise<void> {
           throwOnError: true,
         })
       ).data,
-    'workshop PDF',
+    i18n.t('job:print.workshopPdf'),
     { print: true },
   )
 }
@@ -26,7 +27,7 @@ export async function printDeliveryDocket(jobId: string): Promise<void> {
           throwOnError: true,
         })
       ).data,
-    'delivery docket',
+    i18n.t('job:print.deliveryDocket'),
     { print: true },
   )
 }

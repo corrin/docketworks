@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { ChevronDown, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -25,6 +26,7 @@ import {
   costlineDescription,
   COSTLINE_KIND_CLASS,
   costlineKind,
+  costlineKindLabel,
   formatDelta,
   timelineKind,
   timelineTypeLabel,
@@ -59,6 +61,7 @@ interface JobHistoryTabProps {
  * request 403.
  */
 export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const isOfficeStaff = user.is_office_staff
@@ -84,12 +87,12 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
       // version moved with the write, so the detail cache the header's inline
       // edits read is re-fetched rather than left behind a stale ETag.
       void invalidateJobViews(queryClient, jobId)
-      toast.success('Event added')
+      toast.success(t('historyTab.eventAdded'))
     },
     onError: (error) => {
       // The concurrency interceptor already toasts 412/428 with a Retry.
       if (!isConcurrencyError(error)) {
-        toast.error(apiErrorMessage(error, 'Failed to add event.'))
+        toast.error(apiErrorMessage(error, t('historyTab.addEventFailed')))
       }
     },
   })
@@ -102,14 +105,14 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
       // tab's cache to refresh the header; invalidating the job's two views is
       // the same refresh without the round trip.
       void invalidateJobViews(queryClient, jobId)
-      toast.success('Change undone successfully')
+      toast.success(t('historyTab.undone'))
     },
     onError: (error) => {
       // A refused undo means this timeline no longer describes the job — a 412
       // says so outright — so the entries are re-read either way.
       void queryClient.invalidateQueries({ queryKey: timelineKey })
       if (!isConcurrencyError(error)) {
-        toast.error(apiErrorMessage(error, 'Failed to undo change.'))
+        toast.error(apiErrorMessage(error, t('historyTab.undoFailed')))
       }
     },
   })
@@ -141,10 +144,8 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Job History</h2>
-            <p className="text-sm text-gray-600">
-              View and manage the history of events for this job.
-            </p>
+            <h2 className="text-xl font-semibold text-gray-900">{t('historyTab.title')}</h2>
+            <p className="text-sm text-gray-600">{t('historyTab.intro')}</p>
           </div>
           {isOfficeStaff && (
             <Button
@@ -153,7 +154,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
               onClick={() => setIsAddEventOpen(!isAddEventOpen)}
             >
               <ChevronDown className={isAddEventOpen ? 'rotate-180' : undefined} />
-              Add Event
+              {t('historyTab.addEvent')}
             </Button>
           )}
         </div>
@@ -164,22 +165,29 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-medium text-gray-900">Linked Phone Calls</h3>
+              <h3 className="text-lg font-medium text-gray-900">{t('historyTab.linkedCalls')}</h3>
               <div className="flex items-center gap-2">
                 <QueryState
                   isPending={phoneCalls.isPending}
                   isError={phoneCalls.isError}
                   // The table below owns the Retry; a second one beside the
                   // count would offer the same refetch twice.
-                  loadingNode={<span className="text-xs text-gray-500">Counting…</span>}
-                  errorNode={<span className="text-xs text-red-600">Count unavailable</span>}
+                  loadingNode={
+                    <span className="text-xs text-gray-500">{t('historyTab.counting')}</span>
+                  }
+                  errorNode={
+                    <span className="text-xs text-red-600">{t('historyTab.countUnavailable')}</span>
+                  }
                 >
                   {callsPage !== undefined && (
                     <span
                       data-automation-id={`${ID}-phone-calls-count`}
                       className="text-xs text-gray-500"
                     >
-                      Showing {callsPage.results.length} of {callsPage.count}
+                      {t('historyTab.showingCount', {
+                        shown: callsPage.results.length,
+                        total: callsPage.count,
+                      })}
                     </span>
                   )}
                 </QueryState>
@@ -192,7 +200,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                   onClick={() => void phoneCalls.refetch()}
                 >
                   <RefreshCw className={phoneCalls.isFetching ? 'animate-spin' : undefined} />
-                  Refresh
+                  {t('historyTab.refresh')}
                 </Button>
               </div>
             </div>
@@ -204,26 +212,28 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
               isError={phoneCalls.isError}
               onRetry={() => void phoneCalls.refetch()}
               rows={callsPage === undefined ? undefined : callsPage.results}
-              emptyLabel="No linked phone calls"
+              emptyLabel={t('historyTab.noLinkedCalls')}
             />
           </section>
         )}
 
         {isOfficeStaff && isAddEventOpen && (
           <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-medium text-gray-900">Add New Event</h3>
+            <h3 className="mb-4 text-lg font-medium text-gray-900">
+              {t('historyTab.addNewEvent')}
+            </h3>
             <label
               className="mb-2 block text-sm font-medium text-gray-700"
               htmlFor={`${ID}-event-description`}
             >
-              Event Description
+              {t('historyTab.eventDescription')}
             </label>
             <textarea
               id={`${ID}-event-description`}
               data-automation-id={`${ID}-event-description`}
               rows={3}
               className={INPUT_CLASS}
-              placeholder="Describe what happened..."
+              placeholder={t('historyTab.eventPlaceholder')}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
@@ -237,7 +247,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                   setIsAddEventOpen(false)
                 }}
               >
-                Cancel
+                {t('historyTab.cancel')}
               </Button>
               <Button
                 type="button"
@@ -250,32 +260,32 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                   })
                 }
               >
-                {addEvent.isPending ? 'Adding...' : 'Add Event'}
+                {addEvent.isPending ? t('historyTab.adding') : t('historyTab.addEvent')}
               </Button>
             </div>
           </section>
         )}
 
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-6 text-lg font-medium text-gray-900">Event Timeline</h3>
+          <h3 className="mb-6 text-lg font-medium text-gray-900">{t('historyTab.timeline')}</h3>
           <QueryState
             isPending={timeline.isPending}
             isError={timeline.isError}
             onRetry={() => void timeline.refetch()}
-            errorLabel="Failed to load the job timeline."
+            errorLabel={t('historyTab.timelineLoadFailed')}
             loadingNode={
               <div className="py-12 text-center">
                 <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-                <p className="text-gray-500">Loading events...</p>
+                <p className="text-gray-500">{t('historyTab.loadingEvents')}</p>
               </div>
             }
           >
             {entries.length === 0 ? (
               <div data-automation-id={`${ID}-empty`} className="py-12 text-center">
-                <h4 className="mb-1 text-sm font-medium text-gray-900">No events recorded yet</h4>
-                <p className="text-sm text-gray-500">
-                  Get started by adding the first event to this job.
-                </p>
+                <h4 className="mb-1 text-sm font-medium text-gray-900">
+                  {t('historyTab.emptyTitle')}
+                </h4>
+                <p className="text-sm text-gray-500">{t('historyTab.emptyHint')}</p>
               </div>
             ) : (
               <div data-automation-id={`${ID}-timeline`} className="space-y-6">
@@ -314,9 +324,9 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                               <>
                                 <span>•</span>
                                 <span
-                                  className={`rounded-full px-2 py-1 capitalize ${COSTLINE_KIND_CLASS[costlineKind(entry.costline_kind)]}`}
+                                  className={`rounded-full px-2 py-1 ${COSTLINE_KIND_CLASS[costlineKind(entry.costline_kind)]}`}
                                 >
-                                  {entry.costline_kind}
+                                  {costlineKindLabel(entry.costline_kind)}
                                 </span>
                               </>
                             )}
@@ -337,21 +347,25 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                               <ChevronDown
                                 className={`h-3 w-3 ${isExpanded ? 'rotate-180' : ''}`}
                               />
-                              {isExpanded ? 'Hide' : 'Undo'}
+                              {isExpanded ? t('historyTab.hide') : t('historyTab.undo')}
                             </button>
                           )}
                         </div>
                         {changeId !== null && isExpanded && (
                           <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                            <h5 className="mb-3 text-sm font-medium text-gray-900">Undo Change</h5>
+                            <h5 className="mb-3 text-sm font-medium text-gray-900">
+                              {t('historyTab.undoChange')}
+                            </h5>
                             <p className="text-xs text-gray-600">
                               {entry.undo_description === null
-                                ? 'Revert this change'
+                                ? t('historyTab.revertThisChange')
                                 : entry.undo_description}
                             </p>
                             <div className="mt-3 grid grid-cols-2 gap-4">
                               <div>
-                                <span className="text-xs font-medium text-red-700">Before:</span>
+                                <span className="text-xs font-medium text-red-700">
+                                  {t('historyTab.before')}
+                                </span>
                                 <pre
                                   data-automation-id={`${ID}-undo-before-${entry.id}`}
                                   className="mt-1 rounded border bg-red-50 p-2 text-xs whitespace-pre-wrap text-gray-600"
@@ -360,7 +374,9 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                                 </pre>
                               </div>
                               <div>
-                                <span className="text-xs font-medium text-green-700">After:</span>
+                                <span className="text-xs font-medium text-green-700">
+                                  {t('historyTab.after')}
+                                </span>
                                 <pre
                                   data-automation-id={`${ID}-undo-after-${entry.id}`}
                                   className="mt-1 rounded border bg-green-50 p-2 text-xs whitespace-pre-wrap text-gray-600"
@@ -377,7 +393,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                                 data-automation-id={`${ID}-undo-cancel-${entry.id}`}
                                 onClick={() => toggleExpanded(entry.id)}
                               >
-                                Cancel
+                                {t('historyTab.cancel')}
                               </Button>
                               <Button
                                 type="button"
@@ -392,7 +408,9 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                                   })
                                 }
                               >
-                                {pendingUndoChangeId === changeId ? 'Undoing...' : 'Confirm Undo'}
+                                {pendingUndoChangeId === changeId
+                                  ? t('historyTab.undoing')
+                                  : t('historyTab.confirmUndo')}
                               </Button>
                             </div>
                           </div>

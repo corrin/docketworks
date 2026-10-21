@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -34,6 +35,7 @@ const CELL = 'border-b border-slate-100 px-3 py-2'
  * fixes v1's defect of never loading or saving `form_schema`.
  */
 export function ProcessFormsPage({ category }: { category: string }) {
+  const { t } = useTranslation('process')
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -72,10 +74,10 @@ export function ProcessFormsPage({ category }: { category: string }) {
       // stale for this row too, regardless of which category/status/search
       // variant is currently mounted.
       await queryClient.invalidateQueries({ queryKey: processFormsListQueryKey() })
-      toast.success('Entry saved')
+      toast.success(t('formsPage.entrySaved'))
       setFilling(null)
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Could not save the entry.'))
+      toast.error(apiErrorMessage(error, t('formsPage.entrySaveFailed')))
     }
   }
 
@@ -124,21 +126,13 @@ export function ProcessFormsPage({ category }: { category: string }) {
   function fillDialogBody(form: FormOut): ReactNode {
     const fields = extractFields(form.form_schema)
     if (fields.length === 0) {
-      return (
-        <p className="text-sm text-slate-600">
-          This document has no form schema defined. Entries cannot be added.
-        </p>
-      )
+      return <p className="text-sm text-slate-600">{t('formsPage.noSchema')}</p>
     }
     if (staffOptionsQuery.isError) {
-      return (
-        <p className="text-sm font-medium text-red-700">
-          Could not load the staff list. Reload the page.
-        </p>
-      )
+      return <p className="text-sm font-medium text-red-700">{t('formsPage.staffFailed')}</p>
     }
     if (staffOptionsQuery.data === undefined) {
-      return <p className="text-sm text-slate-500">Loading the staff list…</p>
+      return <p className="text-sm text-slate-500">{t('formsPage.staffLoading')}</p>
     }
     return (
       <EntryForm
@@ -155,9 +149,9 @@ export function ProcessFormsPage({ category }: { category: string }) {
   return (
     <div className="min-h-screen p-6" data-automation-id="ProcessFormsPage-root">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Forms</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t('formsPage.heading')}</h1>
         <Button onClick={openCreate} data-automation-id="ProcessFormsPage-new-form">
-          New Form
+          {t('formsPage.newForm')}
         </Button>
       </div>
 
@@ -165,9 +159,9 @@ export function ProcessFormsPage({ category }: { category: string }) {
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search forms..."
+          placeholder={t('formsPage.searchPlaceholder')}
           automationId="ProcessFormsPage-search"
-          label="Search forms"
+          label={t('formsPage.searchLabel')}
         />
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
@@ -176,7 +170,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
             onChange={(event) => setShowArchived(event.target.checked)}
             data-automation-id="ProcessFormsPage-show-archived"
           />
-          Show archived
+          {t('formsPage.showArchived')}
         </label>
       </div>
 
@@ -184,20 +178,20 @@ export function ProcessFormsPage({ category }: { category: string }) {
         isPending={formsQuery.isPending}
         isError={formsQuery.isError}
         onRetry={() => void formsQuery.refetch()}
-        loadingLabel="Loading forms..."
-        errorLabel="Failed to load forms."
+        loadingLabel={t('formsPage.loading')}
+        errorLabel={t('formsPage.loadFailed')}
         rows={rows}
-        emptyLabel="No forms found"
+        emptyLabel={t('formsPage.empty')}
         automationId="ProcessFormsPage-table"
         head={
           <tr>
-            <th className={HEADER_CELL}>Title</th>
-            <th className={HEADER_CELL}>Doc #</th>
-            <th className={HEADER_CELL}>Tags</th>
-            <th className={HEADER_CELL}>Entries</th>
-            <th className={HEADER_CELL}>Updated</th>
+            <th className={HEADER_CELL}>{t('formsPage.columns.title')}</th>
+            <th className={HEADER_CELL}>{t('formsPage.columns.documentNumber')}</th>
+            <th className={HEADER_CELL}>{t('formsPage.columns.tags')}</th>
+            <th className={HEADER_CELL}>{t('formsPage.columns.entries')}</th>
+            <th className={HEADER_CELL}>{t('formsPage.columns.updated')}</th>
             <th className={HEADER_CELL}>
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t('formsPage.columns.actions')}</span>
             </th>
           </tr>
         }
@@ -240,7 +234,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
                   onClick={() => setFilling(form)}
                   data-automation-id={`ProcessFormsPage-fill-${form.id}`}
                 >
-                  Fill
+                  {t('formsPage.fill')}
                 </Button>
                 {/* Office-only: process_forms_partial_update uses
                     OfficeStaffCookieJWTAuth, matching this gate. The API
@@ -252,7 +246,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
                     onClick={() => openEdit(form)}
                     data-automation-id={`ProcessFormsPage-edit-${form.id}`}
                   >
-                    Edit
+                    {t('formsPage.edit')}
                   </Button>
                 )}
               </div>
@@ -271,7 +265,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
         >
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Fill {filling.title}</DialogTitle>
+              <DialogTitle>{t('formsPage.fillTitle', { title: filling.title })}</DialogTitle>
             </DialogHeader>
             {fillDialogBody(filling)}
           </DialogContent>

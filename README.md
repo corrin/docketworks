@@ -12,8 +12,8 @@ Django 6 + django-ninja backend, React/Vite frontend, PostgreSQL, Redis, Celery.
 
 ## Requirements
 
-- **Python 3.12** (managed with [uv](https://docs.astral.sh/uv/))
-- **Node.js 22+** (frontend)
+- **Python 3.14** (managed with [uv](https://docs.astral.sh/uv/))
+- **Node.js** at the version in `frontend/.nvmrc` (frontend)
 - **PostgreSQL 16+**
 - **Redis** (Celery broker + Django cache)
 - **ngrok** — required for Xero OAuth callbacks (a free static domain is enough)
@@ -55,7 +55,7 @@ ngrok start dev --config ngrok.yml
 cd frontend && npm run preview:e2e                     # compiled build :4173
 ```
 
-To run Playwright against an already-running environment, set `E2E_BASE_URL` (see
+Playwright runs against the already-running environment at `FRONT_END_URL` (see
 [docs/development_session.md](docs/development_session.md)).
 
 For an unattended clean run that owns and stops the whole five-service stack:

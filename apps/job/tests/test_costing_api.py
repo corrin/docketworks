@@ -928,7 +928,7 @@ class TestCopyEstimateToQuote:
             company, office_staff, name="Fixture Job", pricing_methodology="fixed_price"
         )
 
-    def _copy(self, client: Client, job: Job, **body: object) -> "_MonkeyPatchedWSGIResponse":
+    def _copy(self, client: Client, job: Job, **body: object) -> _MonkeyPatchedWSGIResponse:
         return client.post(
             f"/api/job/jobs/{job.id}/cost_sets/quote/copy_from_estimate/",
             data=body,

@@ -19,6 +19,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.core.models import CompanyDefaults
@@ -51,15 +52,20 @@ def salary_term_on(staff: Staff, target_date: date) -> StaffPayrollTerm:
     term = _term_on(staff, target_date)
     if term is None:
         raise ValidationError(
-            f"Payroll terms are not synced from Xero for "
-            f"{staff.get_display_full_name()} on {target_date.isoformat()}. "
-            "Sync the employee from Xero before costing their time."
+            gettext(
+                "%(staff)s's pay details for %(date)s haven't come across from Xero yet. "
+                "Update from Xero before costing their time."
+            )
+            % {"staff": staff.get_display_full_name(), "date": target_date.isoformat()}
         )
     if term.pay_basis != "salary":
         raise ValidationError(
-            f"{staff.get_display_full_name()} was not salaried on "
-            f"{target_date.isoformat()}; their terms record "
-            f"{term.pay_basis or 'no pay basis'}."
+            gettext("%(staff)s was not salaried on %(date)s; their terms record %(pay_basis)s.")
+            % {
+                "staff": staff.get_display_full_name(),
+                "date": target_date.isoformat(),
+                "pay_basis": term.pay_basis or gettext("no pay basis"),
+            }
         )
     return term
 
@@ -77,7 +83,8 @@ def _working_weeks(term: StaffPayrollTerm) -> list[dict[str, Decimal]]:
     weeks = term.working_weeks
     if not isinstance(weeks, list) or not weeks:
         raise ValidationError(
-            f"Xero working pattern is not configured for {term.staff.get_display_full_name()}."
+            gettext("Xero working pattern is not configured for %(staff)s.")
+            % {"staff": term.staff.get_display_full_name()}
         )
     validated: list[dict[str, Decimal]] = []
     for week in weeks:
@@ -86,8 +93,8 @@ def _working_weeks(term: StaffPayrollTerm) -> list[dict[str, Decimal]]:
         missing = [day for day in WEEKDAYS if day not in week]
         if missing:
             raise ValidationError(
-                f"Xero working pattern for {term.staff.get_display_full_name()} is missing "
-                f"{', '.join(missing)}."
+                gettext("Xero working pattern for %(staff)s is missing %(days)s.")
+                % {"staff": term.staff.get_display_full_name(), "days": ", ".join(missing)}
             )
         validated.append({day: Decimal(str(week[day])) for day in WEEKDAYS})
     return validated
@@ -100,9 +107,11 @@ def contracted_hours_on(staff: Staff, target_date: date) -> Decimal:
         # Opus: Salaried with nothing synced: the roster is not an answer to this
         # question, it is a different question that happens to return a number.
         raise ValidationError(
-            f"Payroll terms are not synced from Xero for "
-            f"{staff.get_display_full_name()}, so their contracted hours on "
-            f"{target_date.isoformat()} are unknown. Sync the employee from Xero."
+            gettext(
+                "%(staff)s's pay details haven't come across from Xero yet, so their "
+                "contracted hours on %(date)s are unknown. Update from Xero."
+            )
+            % {"staff": staff.get_display_full_name(), "date": target_date.isoformat()}
         )
     if term is None or term.pay_basis != "salary":
         return staff.get_scheduled_hours(target_date)
@@ -119,8 +128,8 @@ def average_weekly_hours(term: StaffPayrollTerm) -> Decimal:
     average = sum(totals, Decimal("0")) / Decimal(len(totals))
     if average <= 0:
         raise ValidationError(
-            "Xero working pattern has no contracted hours for "
-            f"{term.staff.get_display_full_name()}."
+            gettext("Xero working pattern has no contracted hours for %(staff)s.")
+            % {"staff": term.staff.get_display_full_name()}
         )
     return average
 
@@ -134,8 +143,11 @@ def salary_cost_rate(term: StaffPayrollTerm, *, loaded: bool = True) -> Decimal:
     """
     if not term.annual_salary:
         raise ValidationError(
-            f"Xero holds no annual salary for {term.staff.get_display_full_name()} "
-            f"from {term.effective_from.isoformat()}."
+            gettext("Xero holds no annual salary for %(staff)s from %(date)s.")
+            % {
+                "staff": term.staff.get_display_full_name(),
+                "date": term.effective_from.isoformat(),
+            }
         )
     rate = term.annual_salary / Decimal("52") / average_weekly_hours(term)
     if loaded:

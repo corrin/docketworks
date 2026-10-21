@@ -1,0 +1,379 @@
+{
+  "staffList": {
+    "title": "Staff",
+    "newStaff": "New staff",
+    "tabs": {
+      "current": "Current",
+      "past": "Past"
+    },
+    "status": {
+      "active": "Active",
+      "leaving": "Leaving {{date}}",
+      "left": "Left {{date}}"
+    },
+    "searchPlaceholder": "Search staff...",
+    "searchLabel": "Search staff",
+    "loadingLabel": "staff",
+    "errorLabel": "staff",
+    "empty": {
+      "current": "No current staff.",
+      "past": "No past staff."
+    },
+    "noMatch": {
+      "current": "No current staff match \"{{term}}\".",
+      "past": "No past staff match \"{{term}}\"."
+    },
+    "columns": {
+      "name": "Name",
+      "officeEmail": "Office email",
+      "started": "Started",
+      "costingRate": "Costing rate",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "edit": "Edit"
+  },
+  "secretField": {
+    "status": {
+      "willClear": "Will be cleared on save",
+      "willReplace": "Will be replaced on save",
+      "willSet": "Will be set on save",
+      "configured": "Saved",
+      "notConfigured": "Not entered"
+    },
+    "replacePlaceholder": "Enter a new value to replace the stored one",
+    "notSetPlaceholder": "Not set",
+    "clear": "Clear",
+    "keep": "Keep it"
+  },
+  "companySelect": {
+    "loadFailed": "Could not load companies."
+  },
+  "jobSelect": {
+    "loadFailed": "Could not load jobs.",
+    "placeholder": "Select special Job"
+  },
+  "brandingTheme": {
+    "notConnected": "Xero is not connected.",
+    "loadFailed": "Could not load branding themes from Xero.",
+    "empty": "No branding themes are available in the connected Xero organisation.",
+    "setupIncomplete": "Xero setup incomplete — select a branding theme",
+    "loading": "Loading Xero branding themes…",
+    "unavailable": "A branding theme that is no longer in Xero",
+    "xeroDefault": " (Xero default)"
+  },
+  "logo": {
+    "uploaded": "Logo uploaded",
+    "uploadFailed": "Failed to upload logo",
+    "removed": "Logo removed",
+    "removeFailed": "Failed to remove logo",
+    "noImage": "No image",
+    "upload": "Upload",
+    "uploadAria": "Upload {{label}}",
+    "remove": "Remove"
+  },
+  "logoAspect": {
+    "unreadable": "Could not read image file. Please try a different image.",
+    "invalidDimensions": "Image has invalid dimensions.",
+    "wrongRatio": "This image is {{ratio}}:1 (width:height). Expected {{expected}} for the {{label}} field. {{hint}}",
+    "square": {
+      "label": "square logo",
+      "expected": "approximately 1:1 (square)",
+      "hint": "Please upload a square image."
+    },
+    "wide": {
+      "label": "wide letterhead logo",
+      "expected": "between 2.5:1 and 8:1 (wide)",
+      "hint": "Please upload a wide letterhead-style image (around 4× wider than tall)."
+    }
+  },
+  "quoteTerms": {
+    "openXeroSettings": "Open Xero Invoice Settings",
+    "characterCount": "{{used}} / {{max}} characters",
+    "blank": "Enter quote terms before creating quotes in Xero."
+  },
+  "companyDefaults": {
+    "title": "Company Defaults",
+    "loading": "Loading company defaults…",
+    "loadFailed": "Could not load company defaults.",
+    "sectionsNav": "Settings sections",
+    "unknownSection": "Unknown section: <code>{{section}}</code>",
+    "saved": "{{section}} saved",
+    "saveFailed": "Could not save {{section}}.",
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday"
+    },
+    "start": "Start",
+    "end": "End",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save"
+  },
+  "leaveSettings": {
+    "title": "Leave settings",
+    "intro": "Map each fixed Docketworks leave type to its special Job and Xero payroll item.",
+    "loading": "Loading leave settings…",
+    "loadFailed": "Could not load leave settings.",
+    "saved": "Leave settings saved",
+    "saveFailed": "Could not save leave settings.",
+    "columns": {
+      "leaveType": "Docketworks leave type",
+      "job": "Docketworks Job",
+      "payItem": "Xero payroll item",
+      "status": "Status"
+    },
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save",
+    "row": {
+      "displayNameAria": "{{code}} display name",
+      "jobAria": "{{code}} job",
+      "jobPlaceholder": "Select special Job",
+      "xeroComputed": "Paid by Xero’s own calculation. Docketworks records these hours and posts nothing for them.",
+      "payItemAria": "{{code}} Xero item",
+      "payItemPlaceholder": "Select Xero leave type",
+      "configured": "Job and Xero item set",
+      "needsConfiguration": "Job or Xero item missing",
+      "incompleteJob": "Select a Job before saving.",
+      "incompleteJobAndPayItem": "Select a Job and a Xero payroll item before saving.",
+      "builtInType": "Built-in type: {{type}}"
+    },
+    "builtInTypes": {
+      "annual_leave": "Annual Leave",
+      "sick_leave": "Sick Leave",
+      "unpaid_leave": "Unpaid Leave",
+      "bereavement_leave": "Bereavement Leave",
+      "public_holiday": "Public Holiday"
+    }
+  },
+  "integrations": {
+    "title": "Integrations",
+    "intro": "How this installation reaches external services. Stored values are never shown again; enter a new one to replace it, or clear it.",
+    "loadingLabel": "integration settings",
+    "errorLabel": "integration settings",
+    "saved": "Integrations saved",
+    "saveFailed": "Could not save integration settings.",
+    "chatkit": {
+      "title": "Quoting chat",
+      "description": "Register this site in OpenAI ChatKit and enter its public domain key. Enter the AI provider keys in the AI providers section above.",
+      "domainKey": "ChatKit domain key"
+    },
+    "google": {
+      "title": "Google",
+      "description": "Checks pickup addresses and places companies on the map (uses Google's Address Validation service).",
+      "mapsApiKey": "Maps API key"
+    },
+    "phone": {
+      "title": "Phone provider",
+      "description": "Fetches calls into the CRM from the phone provider's portal.",
+      "enabled": "Enabled",
+      "portalUrl": "Portal web address",
+      "accountCode": "Account code",
+      "username": "Username",
+      "password": "Password",
+      "deleteRecordings": "Delete archived recordings from the provider"
+    },
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save"
+  },
+  "aiProviders": {
+    "confirmDelete": "Delete {{name}}?",
+    "confirmDeleteDefault": "Delete {{name}}? DocketWorks will then have no default AI provider.",
+    "deleted": "AI provider deleted",
+    "madeDefault": "{{name}} is the application default",
+    "testSucceeded": "AI provider test worked: {{model}} answered",
+    "actionFailed": "The change to the AI provider did not go through.",
+    "title": "AI providers",
+    "intro": "Set up the AI services the quoting chat can use, and pick the default. People using the chat can switch between the ones set up here.",
+    "providerCount": "{{total}} providers",
+    "noDefault": " · No application default selected",
+    "add": "Add provider",
+    "loading": "Loading AI providers…",
+    "loadFailed": "Could not load AI providers.",
+    "empty": "No AI providers set up yet. Add one so the quoting chat can work.",
+    "columns": {
+      "name": "Name",
+      "vendor": "Vendor",
+      "model": "Model",
+      "apiKey": "API key",
+      "default": "Default",
+      "actions": "Actions"
+    },
+    "notConfigured": "No key saved",
+    "configured": "Key saved",
+    "useAsDefaultAria": "Use {{name}} as application default",
+    "edit": "Edit",
+    "test": "Test provider",
+    "delete": "Delete",
+    "testHint": "Test provider sends a small question that the AI provider charges for, using the saved key and model."
+  },
+  "aiProviderDialog": {
+    "confirmDiscard": "Discard unsaved provider changes?",
+    "newRequiresKeyAndModel": "A new provider requires an API key and model name.",
+    "saved": "AI provider saved",
+    "saveFailed": "Could not save the AI provider.",
+    "addTitle": "Add AI provider",
+    "editTitle": "Edit AI provider",
+    "description": "Enter the model name exactly as your AI provider lists it for your account. A saved API key is never shown again.",
+    "name": "Name",
+    "vendor": "Vendor",
+    "model": "Model",
+    "apiKey": "API key",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save provider"
+  },
+  "xeroPage": {
+    "tokenRefreshFailed": "Lost the Xero login. Connect to Xero again.",
+    "syncComplete": "Finished updating from Xero",
+    "syncAborted": "Stopped updating from Xero before it finished",
+    "syncFailed": "Updating from Xero failed",
+    "syncStarted": "Started updating from Xero",
+    "syncAlreadyRunning": "DocketWorks is already updating from Xero",
+    "startSyncFailed": "Could not start updating from Xero.",
+    "disconnected": "Xero disconnected",
+    "disconnectFailed": "Failed to disconnect Xero.",
+    "title": "Xero",
+    "checkingConnection": "Checking the Xero connection...",
+    "checkConnectionFailed": "Failed to check the Xero connection.",
+    "connected": "Connected to Xero",
+    "readOnly": "read-only",
+    "notConnected": "Not connected to Xero.",
+    "refreshFailedBanner": "Lost the Xero login: {{message}} (error reference {{errorId}}). Connect to Xero again to fix it.",
+    "connect": "Connect to Xero",
+    "syncRunning": "Updating from Xero…",
+    "startSync": "Update from Xero",
+    "refreshDetails": "Refresh Xero details",
+    "confirmDisconnect": "Disconnect Xero? DocketWorks stops updating from Xero and stops sending anything to Xero until someone connects again.",
+    "disconnect": "Disconnect",
+    "loadingSyncStatus": "Loading when DocketWorks last updated from Xero…",
+    "syncStatusFailed": "Could not load when DocketWorks last updated from Xero.",
+    "refreshDetailsHint": "Refresh Xero details refreshes employee pay and working patterns.",
+    "lastDetailRefresh": "Last successful detail refresh: {{when}}",
+    "never": "never",
+    "lastSyncPerEntity": "Last updated from Xero",
+    "syncWindow": "What it fetches: {{range}}",
+    "columns": {
+      "entity": "What",
+      "lastSynced": "When"
+    },
+    "syncProgress": "Updating from Xero",
+    "logErrorId": "(error reference {{errorId}})",
+    "entities": {
+      "accounts": "Accounts",
+      "contacts": "Companies (Xero contacts)",
+      "employees": "Employees",
+      "invoices": "Invoices",
+      "quotes": "Quotes",
+      "purchase_orders": "Purchase orders",
+      "bills": "Bills",
+      "stock": "Stock items",
+      "credit_notes": "Credit notes",
+      "pay_runs": "Pay runs",
+      "pay_slips": "Pay slips",
+      "pay_items": "Pay items",
+      "purchase_orders_local_to_xero": "Sending purchase orders to Xero",
+      "stock_local_to_xero": "Sending stock items to Xero",
+      "sync": "Update from Xero"
+    }
+  },
+  "sessionReplay": {
+    "cannotReplay": "This recording cannot be replayed.",
+    "unplayableEvent": "Part of this screen recording can't be played back.",
+    "title": "Screen recordings",
+    "refresh": "Refresh",
+    "loading": "Loading screen recordings…",
+    "loadFailed": "Could not load the screen recordings.",
+    "empty": "No recordings found.",
+    "columns": {
+      "started": "Started",
+      "user": "User",
+      "events": "Recorded actions"
+    },
+    "noDataTitle": "Recorded on another server. Its listing came across with a copy of the database, but the recording itself comes across only when the production files are copied.",
+    "noData": "Not on this server",
+    "noun": "recordings",
+    "selectPrompt": "Select a recording to see its details.",
+    "summary": "{{email}} · {{events}} recorded actions · {{size}} · {{span}}",
+    "noPayloadTitle": "This screen recording isn't on this server.",
+    "noPayloadBody": "The listing came across with a copy of the database. The recording itself stays on the server that made it, and comes across only when the production files are copied.",
+    "loadReplay": "Download recording ({{size}})",
+    "loadHint": "Nothing is downloaded until you load it.",
+    "loadingReplay": "Downloading recording…",
+    "eventsFailed": "Could not download this screen recording."
+  },
+  "staffForm": {
+    "newTitle": "New Staff",
+    "editTitle": "Edit Staff",
+    "days": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "validation": {
+      "nameRequired": "First and last name are required.",
+      "emailRequired": "At least one email is required.",
+      "passwordRequired": "A password is required.",
+      "passwordMismatch": "The passwords do not match.",
+      "wageRequired": "A base wage rate is required.",
+      "wageNegative": "The base wage rate cannot be negative.",
+      "hoursRequired": "Working hours are required for {{day}} (0 for a non-working day).",
+      "hoursNegative": "Working hours for {{day}} cannot be negative.",
+      "startDateRequired": "An employment start date is required."
+    },
+    "photoUploadFailed": "Staff member saved, but the photo could not be uploaded.",
+    "saved": "Staff member saved successfully",
+    "saveFailed": "Could not save the staff member.",
+    "sections": {
+      "personal": "Personal",
+      "workingHours": "Working hours",
+      "permissions": "Permissions"
+    },
+    "firstName": "First name",
+    "lastName": "Last name",
+    "preferredName": "Preferred name",
+    "officeEmail": "Office email",
+    "payrollEmail": "Payroll email",
+    "xeroUserId": "Xero employee ID",
+    "xeroUserIdHint": "Without their Xero payroll employee linked, this person is left out of timesheets and payroll.",
+    "password": "Password",
+    "newPassword": "New password (leave blank to keep)",
+    "confirmPassword": "Confirm password",
+    "requirePasswordChange": "Require password change at next login",
+    "baseWageRate": "Base wage rate",
+    "costingRate": "Costing rate",
+    "costingRateHint": "Computed from the base rate with labour cost loading.",
+    "startDate": "Employment start date",
+    "dateLeft": "Date left",
+    "dateLeftHint": "Leave blank for current employees.",
+    "payBasis": "Pay basis",
+    "payBasisOptions": {
+      "notSet": "Not set",
+      "hourly": "Hourly",
+      "salary": "Salary"
+    },
+    "photo": "Photo",
+    "photoPreviewAlt": "Staff icon preview",
+    "noPhoto": "No photo",
+    "changePhoto": "Change photo",
+    "choosePhoto": "Choose photo",
+    "uploadPhotoAria": "Upload staff photo",
+    "uploadedOnSave": "Uploaded on save.",
+    "officeStaff": "Office staff",
+    "workshopStaff": "Workshop staff",
+    "superuser": "Superuser",
+    "staffManager": "Staff manager",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save"
+  }
+}

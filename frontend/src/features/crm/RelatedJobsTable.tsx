@@ -1,8 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
-import { companiesJobsRetrieveOptions, peopleJobsRetrieveOptions, type CrmJobRow } from '@/api'
+import {
+  companiesJobsRetrieveOptions,
+  jobJobsStatusChoicesRetrieveOptions,
+  peopleJobsRetrieveOptions,
+  type CrmJobRow,
+} from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
+import { isRemovedInvoiceStatus, xeroInvoiceStatusLabel } from '@/features/shared/xeroInvoiceStatus'
 import { formatCurrency, formatDate } from '@/lib/format'
 
 /** Whose jobs the table lists. The two lists share one wire shape and one endpoint family. */
@@ -81,47 +88,64 @@ function JobsTable({
   automationId,
   showCompany,
 }: JobsTableProps) {
+  const { t } = useTranslation('crm')
+  // The full status vocabulary (special and archived included), the same
+  // endpoint JobPicker reads: the jobs here can be in any status.
+  const statuses = useQuery({ ...jobJobsStatusChoicesRetrieveOptions(), staleTime: Infinity })
   const total = rows?.reduce((sum, job) => sum + job.invoiced_total_excl_tax, 0)
 
   return (
     <ListTable
-      isPending={isPending}
-      isError={isError}
-      onRetry={onRetry}
-      loadingLabel="Loading jobs..."
-      errorLabel="Failed to load jobs."
+      isPending={isPending || statuses.isPending}
+      isError={isError || statuses.isError}
+      onRetry={() => {
+        onRetry()
+        void statuses.refetch()
+      }}
+      loadingLabel={t('relatedJobs.loading')}
+      errorLabel={t('relatedJobs.loadFailed')}
       rows={rows}
-      emptyLabel="No jobs"
+      emptyLabel={t('relatedJobs.empty')}
       automationId={automationId}
       wrapperClassName="max-h-[32rem]"
       head={
         <tr className="border-b border-gray-200 text-gray-500">
           <th scope="col" className="px-3 py-2 text-left">
-            Job
+            {t('relatedJobs.columns.job')}
           </th>
           {showCompany && (
             <th scope="col" className="px-3 py-2 text-left">
-              Company
+              {t('relatedJobs.columns.company')}
             </th>
           )}
           <th scope="col" className="px-3 py-2 text-left">
-            Status
+            {t('relatedJobs.columns.status')}
           </th>
-          <th scope="col" className="px-3 py-2 text-left">
-            Invoices
+          <th
+            scope="col"
+            className="px-3 py-2 text-left"
+            title={t('relatedJobs.columnTitles.invoices')}
+          >
+            {t('relatedJobs.columns.invoices')}
           </th>
           <th scope="col" className="px-3 py-2 text-right">
-            Invoiced (excl. GST)
+            {t('relatedJobs.columns.invoiced')}
           </th>
         </tr>
       }
       renderRow={(job) => (
-        <JobRow key={job.job_id} job={job} automationId={automationId} showCompany={showCompany} />
+        <JobRow
+          key={job.job_id}
+          job={job}
+          statusLabels={statuses.data?.statuses}
+          automationId={automationId}
+          showCompany={showCompany}
+        />
       )}
       footer={
         total !== undefined && (
           <div className="flex justify-end border-t border-gray-200 px-3 py-2 text-sm">
-            <span className="mr-3 text-gray-500">Total invoiced</span>
+            <span className="mr-3 text-gray-500">{t('relatedJobs.totalInvoiced')}</span>
             <span data-automation-id={`${automationId}-total`} className="font-semibold">
               {formatCurrency(total)}
             </span>
@@ -132,15 +156,30 @@ function JobsTable({
   )
 }
 
+/** A job status as the job screen names it. Throws on a status the vocabulary
+    does not hold: both come from Job.JOB_STATUS_CHOICES, so a miss is a defect. */
+function statusLabel(labels: Record<string, string> | undefined, status: string): string {
+  const label = labels?.[status]
+  if (label === undefined) {
+    throw new Error(`Job status '${status}' is not in the status vocabulary`)
+  }
+  return label
+}
+
 function JobRow({
   job,
+  statusLabels,
   automationId,
   showCompany,
 }: {
   job: CrmJobRow
+  /** Undefined only while the vocabulary loads, when the table shows its
+      loading state instead of rows. */
+  statusLabels: Record<string, string> | undefined
   automationId: string
   showCompany: boolean
 }) {
+  const { t } = useTranslation('crm')
   return (
     <tr
       data-automation-id={`${automationId}-row-${job.job_id}`}
@@ -148,7 +187,7 @@ function JobRow({
     >
       <td className="px-3 py-2 font-medium text-gray-900">
         <Link to="/jobs/$jobId" params={{ jobId: job.job_id }} className="hover:underline">
-          #{job.job_number} {job.name}
+          {t('relatedJobs.jobLabel', { number: job.job_number, name: job.name })}
         </Link>
       </td>
       {showCompany && (
@@ -166,10 +205,10 @@ function JobRow({
           )}
         </td>
       )}
-      <td className="px-3 py-2">{job.status}</td>
+      <td className="px-3 py-2">{statusLabel(statusLabels, job.status)}</td>
       <td className="px-3 py-2">
         {job.invoices.length === 0 ? (
-          <span className="text-gray-500">Not invoiced</span>
+          <span className="text-gray-500">{t('relatedJobs.notInvoiced')}</span>
         ) : (
           <ul className="space-y-0.5">
             {job.invoices.map((invoice) => (
@@ -189,6 +228,13 @@ function JobRow({
                   </a>
                 )}{' '}
                 <span className="text-gray-500">{formatDate(invoice.date)}</span>
+                {/* Kept in the list so the job's history is whole, but owed
+                    nothing: the total beside it leaves it out. */}
+                {isRemovedInvoiceStatus(invoice.status) && (
+                  <span className="ml-1 text-xs text-gray-500">
+                    ({xeroInvoiceStatusLabel(invoice.status)})
+                  </span>
+                )}
               </li>
             ))}
           </ul>

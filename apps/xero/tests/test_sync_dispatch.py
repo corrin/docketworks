@@ -249,7 +249,7 @@ class TestXeroSyncWorker:
             xero_sync_task("t-readonly")
 
         marker = events[-1]
-        assert marker["message"] == "Sync skipped: XERO_READONLY is set"
+        assert marker["message"] == "Did not update from Xero: this site is in Xero read-only mode."
         assert marker["sync_status"] == "aborted"
         assert _shared.get(SYNC_STATUS_KEY) is None
 
@@ -271,7 +271,7 @@ class TestXeroSyncWorker:
 
         marker = events[-1]
         assert marker["sync_status"] == "aborted"
-        assert "enable_xero_sync is False" in str(marker["message"])
+        assert "Updating from Xero is switched off" in str(marker["message"])
         assert AppError.objects.count() == before
         assert _shared.get(SYNC_STATUS_KEY) is None
 
@@ -324,7 +324,7 @@ class TestXeroSyncWorker:
 
         assert msgs[-1]["sync_status"] == "aborted"
         abort_message = msgs[-2]
-        assert "Sync aborted" in str(abort_message["message"])
+        assert "Stopped updating from Xero" in str(abort_message["message"])
         assert "error_id" not in abort_message
         assert AppError.objects.count() == before
         assert _shared.get(SYNC_STATUS_KEY) is None
@@ -380,7 +380,7 @@ class TestLockRenewal:
     def test_require_stops_the_run_when_renewal_refuses(self) -> None:
         _shared.set(SYNC_STATUS_KEY, "newer-run", timeout=60)
 
-        with pytest.raises(XeroSyncLockLost, match="no longer holds the lock"):
+        with pytest.raises(XeroSyncLockLost, match="Another update from Xero took over"):
             require_sync_lock("stale-run")
 
     def test_renewal_extends_the_lease_for_the_owner(self) -> None:

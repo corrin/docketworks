@@ -1,75 +1,15 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import type { JobDetail, JobFinishResponse } from '@/api'
+import { finishPayload, jobDetail } from '@/test/job'
 import { autoId } from '@/test/auto-id'
 import { seedJobViews } from '@/test/jobViews'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { JobFinishTab } from './JobFinishTab'
 
-const baseJob: JobDetail = {
-  company_id: null,
-  company_name: null,
-  created_at: '2026-08-08T00:00:00Z',
-  default_xero_pay_item_id: null,
-  default_xero_pay_item_name: null,
-  delivery_date: null,
-  description: null,
-  fully_invoiced: false,
-  id: 'job-1',
-  invoices: [],
-  is_urgent: false,
-  job_files: [],
-  job_is_valid: true,
-  job_number: 1,
-  job_status: 'draft',
-  latest_actual: null,
-  latest_estimate: null,
-  latest_quote: null,
-  max_people: 1,
-  min_people: 1,
-  name: 'Test job',
-  notes: null,
-  order_number: null,
-  paid: false,
-  person_id: null,
-  person_name: null,
-  price_cap: null,
-  pricing_methodology: 'fixed_price',
-  quote: null,
-  quote_acceptance_date: null,
-  quote_sheet: null,
-  quoted: false,
-  rdti_type: null,
-  rejected_flag: false,
-  shop_job: false,
-  speed_quality_tradeoff: 'normal',
-  updated_at: '2026-08-08T00:00:00Z',
-  xero_invoices: [],
-  xero_quote: null,
-}
-
-const finishPayload: JobFinishResponse = {
-  summary: {
-    job_value_excl_gst: '1000.00',
-    valid_invoiced_excl_gst: '0.00',
-    outstanding_invoiced_incl_gst: '0.00',
-    remaining_to_invoice_excl_gst: '1000.00',
-    remaining_gst: '150.00',
-    remaining_to_invoice_incl_gst: '1150.00',
-    total_to_pay_incl_gst: '1150.00',
-    over_invoiced_excl_gst: '0.00',
-  },
-  checklist: {
-    foreman_signed_off: false,
-    timesheets_collected: false,
-    materials_checked: false,
-    customer_called: false,
-    released: false,
-  },
-}
+const baseJob = jobDetail()
 
 function stubQuietEndpoints() {
   server.use(
@@ -163,5 +103,134 @@ describe('JobFinishTab', () => {
 
     await waitFor(() => expect(patched).toEqual({ customer_called: true }))
     await waitFor(() => expect(checkbox).toBeChecked())
+  })
+
+  describe('deleting an approved invoice', () => {
+    const approved = {
+      id: 'invoice-1',
+      xero_id: 'xero-invoice-1',
+      number: 'INV-0101',
+      status: 'AUTHORISED',
+      date: '2026-10-01',
+      due_date: null,
+      total_excl_tax: 100,
+      total_incl_tax: 115,
+      amount_due: 115,
+      tax: 15,
+      online_url: null,
+    }
+    const reason =
+      'INV-0101 is already approved so cannot be simply deleted. Would you like to void it, or just add a second invoice? Be very careful voiding it if it has been sent.'
+
+    it('offers the void, and voids only when the user says so', async () => {
+      stubQuietEndpoints()
+      const voidFlags: (string | null)[] = []
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+        http.get('*/api/job/jobs/*/invoices/', () => HttpResponse.json({ invoices: [approved] })),
+        http.delete('*/api/xero/delete_invoice/*', ({ request }) => {
+          const flag = new URL(request.url).searchParams.get('void_approved')
+          voidFlags.push(flag)
+          return flag === 'true'
+            ? HttpResponse.json({
+                success: true,
+                xero_id: 'xero-invoice-1',
+                message: 'Invoice voided.',
+              })
+            : HttpResponse.json(
+                { success: false, error: reason, error_type: 'invoice_approved' },
+                { status: 400 },
+              )
+        }),
+      )
+
+      const { user } = renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+      await user.click(await screen.findByRole('button', { name: 'Delete invoice INV-0101' }))
+
+      expect(await screen.findByText(reason)).toBeInTheDocument()
+      expect(voidFlags).toEqual(['false'])
+
+      await user.click(autoId('JobInvoiceCard-void-offer-void'))
+
+      await waitFor(() => expect(voidFlags).toEqual(['false', 'true']))
+    })
+
+    it('shows any other refusal as it came, with no void offer', async () => {
+      stubQuietEndpoints()
+      const requests: (string | null)[] = []
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+        http.get('*/api/job/jobs/*/invoices/', () => HttpResponse.json({ invoices: [approved] })),
+        http.delete('*/api/xero/delete_invoice/*', ({ request }) => {
+          requests.push(new URL(request.url).searchParams.get('void_approved'))
+          return HttpResponse.json(
+            { success: false, error: 'Invoice not of valid status for modification' },
+            { status: 400 },
+          )
+        }),
+      )
+
+      const { user } = renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+      await user.click(await screen.findByRole('button', { name: 'Delete invoice INV-0101' }))
+
+      expect(await screen.findByText('Invoice not of valid status for modification')).toBeVisible()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(requests).toEqual(['false'])
+    })
+
+    it('cancelling the offer sends nothing, and says why a second invoice is unavailable', async () => {
+      stubQuietEndpoints()
+      const requests: (string | null)[] = []
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () =>
+          HttpResponse.json({
+            ...finishPayload,
+            summary: { ...finishPayload.summary, remaining_to_invoice_excl_gst: '0.00' },
+          }),
+        ),
+        http.get('*/api/job/jobs/*/invoices/', () => HttpResponse.json({ invoices: [approved] })),
+        http.delete('*/api/xero/delete_invoice/*', ({ request }) => {
+          requests.push(new URL(request.url).searchParams.get('void_approved'))
+          return HttpResponse.json(
+            { success: false, error: reason, error_type: 'invoice_approved' },
+            { status: 400 },
+          )
+        }),
+      )
+
+      const { user } = renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+      await user.click(await screen.findByRole('button', { name: 'Delete invoice INV-0101' }))
+      await screen.findByText(reason)
+
+      expect(autoId('JobInvoiceCard-void-offer-second-invoice')).toBeDisabled()
+      expect(autoId('JobInvoiceCard-void-offer-second-invoice')).toHaveAttribute(
+        'title',
+        'Everything on this job is already invoiced, so there is nothing left for a second invoice.',
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByText(reason)).not.toBeInTheDocument())
+      expect(requests).toEqual(['false'])
+    })
+
+    it('keeps a voided invoice on the job with its delete button off', async () => {
+      stubQuietEndpoints()
+      server.use(
+        http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+        http.get('*/api/job/jobs/*/invoices/', () =>
+          HttpResponse.json({ invoices: [{ ...approved, status: 'VOIDED' }] }),
+        ),
+      )
+
+      renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+
+      const remove = await screen.findByRole('button', { name: 'Delete invoice INV-0101' })
+      expect(remove).toBeDisabled()
+      expect(remove).toHaveAttribute(
+        'title',
+        'Already voided in Xero. It stays on the job so its history is complete.',
+      )
+    })
   })
 })

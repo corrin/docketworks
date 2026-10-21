@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { accountsStaffListOptions, type StaffListItemOut } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { SearchInput } from '@/features/shared/SearchInput'
 import { TabBar, type TabBarItem } from '@/features/shared/TabBar'
 import { StaffAvatar } from '@/features/shared/StaffAvatar'
 import { formatCurrency, formatDate } from '@/lib/format'
+import { i18n } from '@/lib/i18n'
 
 import { StaffFormDialog } from './StaffFormDialog'
 
@@ -16,19 +18,17 @@ const CELL = 'border-b border-slate-100 px-3 py-2'
 
 type StaffTab = 'current' | 'past'
 
-const STAFF_TABS: readonly TabBarItem<StaffTab>[] = [
-  { key: 'current', label: 'Current' },
-  { key: 'past', label: 'Past' },
-]
+const STAFF_TAB_KEYS: readonly StaffTab[] = ['current', 'past']
 
 /** Opus: is_currently_active, not `date_left === null` — the server carries the
     rule (Staff.is_currently_active) precisely so this screen cannot fork it.
     Someone serving out notice has a leaving date and is still employed, so
     "has a date" and "has left" are different questions. */
 function staffStatusLabel(row: StaffListItemOut): string {
-  if (row.date_left === null) return 'Active'
-  if (row.is_currently_active) return `Leaving ${formatDate(row.date_left)}`
-  return `Left ${formatDate(row.date_left)}`
+  if (row.date_left === null) return i18n.t('admin:staffList.status.active')
+  if (row.is_currently_active)
+    return i18n.t('admin:staffList.status.leaving', { date: formatDate(row.date_left) })
+  return i18n.t('admin:staffList.status.left', { date: formatDate(row.date_left) })
 }
 
 /** Opus: Local rather than a shared matcher. The three existing client-side
@@ -56,6 +56,11 @@ function matchesSearch(row: StaffListItemOut, needle: string): boolean {
  * Superuser surface — the navbar gate and every endpoint behind it agree.
  */
 export function StaffAdminPage() {
+  const { t } = useTranslation('admin')
+  const staffTabs: readonly TabBarItem<StaffTab>[] = STAFF_TAB_KEYS.map((key) => ({
+    key,
+    label: t(`staffList.tabs.${key}`),
+  }))
   const staffQuery = useQuery(accountsStaffListOptions())
   const [tab, setTab] = useState<StaffTab>('current')
   const [search, setSearch] = useState('')
@@ -101,13 +106,13 @@ export function StaffAdminPage() {
       data-automation-id="StaffAdminPage-root"
     >
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Staff</h1>
+        <h1 className="text-2xl font-semibold">{t('staffList.title')}</h1>
         <Button onClick={openCreate} data-automation-id="StaffAdminPage-new-staff">
-          New staff
+          {t('staffList.newStaff')}
         </Button>
       </div>
       <TabBar
-        tabs={STAFF_TABS}
+        tabs={staffTabs}
         activeKey={tab}
         onChange={setTab}
         idPrefix="StaffAdminPage-tab"
@@ -117,30 +122,32 @@ export function StaffAdminPage() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search staff..."
+          placeholder={t('staffList.searchPlaceholder')}
           automationId="StaffAdminPage-search"
-          label="Search staff"
+          label={t('staffList.searchLabel')}
         />
         <ListTable
           isPending={staffQuery.isPending}
           isError={staffQuery.isError}
           onRetry={() => void staffQuery.refetch()}
-          loadingLabel="staff"
-          errorLabel="staff"
+          loadingLabel={t('staffList.loadingLabel')}
+          errorLabel={t('staffList.errorLabel')}
           rows={rows}
           emptyLabel={
-            search.trim() === '' ? `No ${tab} staff.` : `No ${tab} staff match "${search.trim()}".`
+            search.trim() === ''
+              ? t(`staffList.empty.${tab}`)
+              : t(`staffList.noMatch.${tab}`, { term: search.trim() })
           }
           automationId="StaffAdminPage-table"
           head={
             <tr>
-              <th className={HEADER_CELL}>Name</th>
-              <th className={HEADER_CELL}>Office email</th>
-              <th className={HEADER_CELL}>Started</th>
-              <th className={HEADER_CELL}>Costing rate</th>
-              <th className={HEADER_CELL}>Status</th>
+              <th className={HEADER_CELL}>{t('staffList.columns.name')}</th>
+              <th className={HEADER_CELL}>{t('staffList.columns.officeEmail')}</th>
+              <th className={HEADER_CELL}>{t('staffList.columns.started')}</th>
+              <th className={HEADER_CELL}>{t('staffList.columns.costingRate')}</th>
+              <th className={HEADER_CELL}>{t('staffList.columns.status')}</th>
               <th className={HEADER_CELL}>
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t('staffList.columns.actions')}</span>
               </th>
             </tr>
           }
@@ -167,7 +174,7 @@ export function StaffAdminPage() {
                   onClick={() => openEdit(row)}
                   data-automation-id={`StaffAdminPage-edit-staff-${row.id}`}
                 >
-                  Edit
+                  {t('staffList.edit')}
                 </Button>
               </td>
             </tr>

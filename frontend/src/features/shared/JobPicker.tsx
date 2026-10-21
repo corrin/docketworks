@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
@@ -166,6 +167,7 @@ export function JobPicker<T extends JobPickerOption>({
   searchOptions,
   onSelect,
 }: JobPickerProps<T>) {
+  const { t } = useTranslation('shared')
   const statusLabels = useStatusLabels()
   // The jobs and the words that describe them are one readiness, not two.
   const listPending = loading || statusLabels === undefined
@@ -365,7 +367,7 @@ export function JobPicker<T extends JobPickerOption>({
           <input
             ref={searchRef}
             value={search}
-            placeholder="Search jobs… (job number, name, or company)"
+            placeholder={t('jobPicker.searchPlaceholder')}
             className="h-8 w-full rounded border border-slate-200 px-2 text-sm"
             data-automation-id={`${automationIdPrefix}-search`}
             role="combobox"
@@ -386,12 +388,14 @@ export function JobPicker<T extends JobPickerOption>({
           className="max-h-[300px] overflow-y-auto"
           data-automation-id={`${automationIdPrefix}-list`}
         >
-          {listPending && <div className="px-3 py-2 text-sm text-slate-500">Jobs are loading…</div>}
+          {listPending && (
+            <div className="px-3 py-2 text-sm text-slate-500">{t('jobPicker.loading')}</div>
+          )}
           {/* Held back while the background search is still running: "no jobs
               found" would be a claim the picker cannot yet make. */}
           {!listPending && filtered.length === 0 && !background.isFetching && (
             <div className="px-3 py-2 text-sm italic text-slate-500">
-              {search.trim() !== '' ? `No jobs found for "${search}"` : 'No jobs available'}
+              {search.trim() !== '' ? t('jobPicker.noMatches', { search }) : t('jobPicker.noJobs')}
             </div>
           )}
           {statusLabels !== undefined &&
@@ -405,7 +409,7 @@ export function JobPicker<T extends JobPickerOption>({
                     className="border-b border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
                     data-automation-id={`${automationIdPrefix}-other-jobs`}
                   >
-                    Other jobs
+                    {t('jobPicker.otherJobs')}
                   </div>
                 )}
                 <div
@@ -429,7 +433,9 @@ export function JobPicker<T extends JobPickerOption>({
                     {job.name}
                   </div>
                   <div className="text-xs leading-tight text-slate-500">
-                    Company: {job.company_name ?? 'No Company'}
+                    {t('jobPicker.company', {
+                      companyName: job.company_name ?? t('jobPicker.noCompany'),
+                    })}
                   </div>
                   {renderOptionDetail?.(job)}
                 </div>
@@ -440,7 +446,7 @@ export function JobPicker<T extends JobPickerOption>({
               className="px-3 py-2 text-xs italic text-slate-500"
               data-automation-id={`${automationIdPrefix}-searching`}
             >
-              Searching all jobs…
+              {t('jobPicker.searching')}
             </div>
           )}
           {background.isError && (
@@ -450,7 +456,7 @@ export function JobPicker<T extends JobPickerOption>({
               className="px-3 py-2 text-xs text-red-700"
               data-automation-id={`${automationIdPrefix}-search-failed`}
             >
-              Could not search beyond this screen&rsquo;s jobs.
+              {t('jobPicker.searchFailed')}
             </div>
           )}
         </div>

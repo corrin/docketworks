@@ -516,6 +516,10 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
             ("FakeLeaveType", "tenant_id"),
             ("FakeLeaveBalance", "tenant_id"),
             ("FakeLeaveBalance", "leave_type_id"),
+            ("FakeEmployeeLeaveType", "tenant_id"),
+            ("FakeEmployeeLeaveType", "leave_type_id"),
+            ("FakeEmployeeTax", "tenant_id"),
+            ("FakePaymentMethod", "tenant_id"),
             ("FakeEarningsRate", "tenant_id"),
             ("FakePayRun", "tenant_id"),
             ("FakePayRun", "payroll_calendar_id"),
@@ -1135,7 +1139,7 @@ def _drive_error_reasons(exc: HttpError) -> set[str]:
         body = json.loads(exc.content.decode("utf-8"))
     # deliberate-swallow: a non-JSON body (an HTML error page from a proxy)
     # carries no reason codes, which the caller reports as such.
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return set()
     if not isinstance(body, dict) or not isinstance(body.get("error"), dict):
         return set()

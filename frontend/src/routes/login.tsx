@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   type LoginSearch,
@@ -58,6 +59,7 @@ function EyeIcon({ off }: { off: boolean }) {
 }
 
 function LoginPage() {
+  const { t } = useTranslation('shell')
   const search = Route.useSearch()
   const router = useRouter()
   const login = useLogin()
@@ -116,7 +118,7 @@ function LoginPage() {
             <div className="relative">
               <img
                 src="/logo.png"
-                alt="Company Logo"
+                alt={t('login.logoAlt')}
                 className="animate-logo-entrance h-32 w-auto"
               />
               <div className="animate-glow absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/20 to-indigo-500/20 blur-xl"></div>
@@ -126,7 +128,7 @@ function LoginPage() {
             {APP_NAME}
           </h1>
           <p className="animate-fade-in-up animation-delay-500 mt-3 text-gray-600">
-            Welcome back! Sign in to your account
+            {t('login.welcome')}
           </p>
         </div>
 
@@ -135,7 +137,7 @@ function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="animate-fade-in-up animation-delay-900">
               <label htmlFor="username" className="mb-2 block text-sm font-semibold text-gray-700">
-                E-mail
+                {t('login.emailLabel')}
               </label>
               <div className="relative">
                 <input
@@ -145,7 +147,7 @@ function LoginPage() {
                   onChange={(event) => setUsername(event.target.value)}
                   type="email"
                   className={`w-full rounded-xl border bg-white/50 px-4 py-3 placeholder-gray-400 transition-all duration-200 focus:border-transparent focus:ring-2 ${inputStateClasses(username)}`}
-                  placeholder="Enter your email"
+                  placeholder={t('login.emailPlaceholder')}
                   required
                   autoComplete="username"
                 />
@@ -155,7 +157,7 @@ function LoginPage() {
 
             <div className="animate-fade-in-up animation-delay-1000">
               <label htmlFor="password" className="mb-2 block text-sm font-semibold text-gray-700">
-                Password
+                {t('login.passwordLabel')}
               </label>
               <div className="relative">
                 <input
@@ -165,7 +167,7 @@ function LoginPage() {
                   onChange={(event) => setPassword(event.target.value)}
                   type={showPassword ? 'text' : 'password'}
                   className={`w-full rounded-xl border bg-white/50 px-4 py-3 pr-12 placeholder-gray-400 transition-all duration-200 focus:border-transparent focus:ring-2 ${inputStateClasses(password)}`}
-                  placeholder="Enter your password"
+                  placeholder={t('login.passwordPlaceholder')}
                   required
                   autoComplete="current-password"
                 />
@@ -217,10 +219,10 @@ function LoginPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Signing in...
+                  {t('login.signingIn')}
                 </span>
               ) : (
-                <span>Sign In</span>
+                <span>{t('login.signIn')}</span>
               )}
             </button>
           </form>
@@ -231,13 +233,13 @@ function LoginPage() {
               className="text-sm text-blue-600 hover:underline"
               data-automation-id="login-forgot-password"
             >
-              Forgot password?
+              {t('login.forgotPassword')}
             </Link>
           </div>
 
           {/* Footer */}
           <div className="animate-fade-in-up animation-delay-1200 mt-8 text-center">
-            <p className="text-xs text-gray-500">DocketWorks System</p>
+            <p className="text-xs text-gray-500">{t('login.footer')}</p>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { server } from '@/test/msw'
@@ -124,7 +124,7 @@ describe('LeaveSettingsPage', () => {
     await queryClient.refetchQueries()
 
     // The refetch really did land — read-only status reflects the new payload…
-    expect(await screen.findByText('Needs configuration')).toBeInTheDocument()
+    expect(await screen.findByText('Job or Xero item missing')).toBeInTheDocument()
     // …while the edit in flight survived it.
     expect(nameField()).toHaveValue('Holiday Leave')
     expect(save()).toBeEnabled()

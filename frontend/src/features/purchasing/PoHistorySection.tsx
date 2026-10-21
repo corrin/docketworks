@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -19,6 +20,7 @@ interface PoHistorySectionProps {
 }
 
 export function PoHistorySection({ poId }: PoHistorySectionProps) {
+  const { t } = useTranslation('purchasing')
   const queryClient = useQueryClient()
   const history = useQuery(listPurchaseOrderEventsOptions({ path: { po_id: poId } }))
   const [isAdding, setIsAdding] = useState(false)
@@ -31,14 +33,14 @@ export function PoHistorySection({ poId }: PoHistorySectionProps) {
       void queryClient.invalidateQueries({
         queryKey: listPurchaseOrderEventsQueryKey({ path: { po_id: poId } }),
       })
-      toast.success('Note added')
+      toast.success(t('poHistory.noteAdded'))
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Failed to add the note.')),
+    onError: (error) => toast.error(apiErrorMessage(error, t('poHistory.addFailed'))),
   })
 
   return (
     <EntryGridSection
-      title="Notes & History"
+      title={t('poHistory.title')}
       actions={
         <Button
           type="button"
@@ -48,7 +50,7 @@ export function PoHistorySection({ poId }: PoHistorySectionProps) {
           disabled={addNote.isPending}
           onClick={() => setIsAdding(!isAdding)}
         >
-          Add note
+          {t('poHistory.addNote')}
         </Button>
       }
     >
@@ -63,7 +65,7 @@ export function PoHistorySection({ poId }: PoHistorySectionProps) {
           }}
         >
           <label htmlFor="po-note-description" className="block text-sm font-medium text-gray-700">
-            Note
+            {t('poHistory.note')}
           </label>
           <textarea
             id="po-note-description"
@@ -80,34 +82,34 @@ export function PoHistorySection({ poId }: PoHistorySectionProps) {
               disabled={addNote.isPending}
               onClick={() => setIsAdding(false)}
             >
-              Cancel
+              {t('poHistory.cancel')}
             </Button>
             <Button type="submit" disabled={addNote.isPending || description.trim() === ''}>
-              {addNote.isPending ? 'Saving…' : 'Save note'}
+              {addNote.isPending ? t('poHistory.saving') : t('poHistory.saveNote')}
             </Button>
           </div>
         </form>
       )}
       {history.isError && history.data !== undefined && (
         <p role="alert" className="mb-3 text-sm text-red-600">
-          Could not refresh notes.{' '}
+          {t('poHistory.refreshFailed')}{' '}
           <button className="underline" onClick={() => void history.refetch()}>
-            Retry
+            {t('poHistory.retry')}
           </button>
         </p>
       )}
       <QueryState
         isPending={history.isPending}
         isError={history.isError && history.data === undefined}
-        loadingLabel="Loading notes…"
-        errorLabel="Could not load notes."
+        loadingLabel={t('poHistory.loading')}
+        errorLabel={t('poHistory.loadFailed')}
         onRetry={() => void history.refetch()}
       >
         {history.data && (
           <AuditEventList
             events={history.data.events}
             automationIdPrefix="PoHistorySection"
-            emptyLabel="No notes yet."
+            emptyLabel={t('poHistory.empty')}
           />
         )}
       </QueryState>

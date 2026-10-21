@@ -267,6 +267,32 @@ class TestInvoices:
         again = accounting.get_invoice(TENANT, created[0].invoice_id).invoices
         assert again[0].status == "DELETED"
 
+    def test_approving_a_draft_invoice_is_a_status_change(self, accounting: AccountingApi) -> None:
+        """recordings/invoice_approve.json: what staff do in Xero, sent through the API."""
+        contact_id = _contact(accounting, "[TEST] Client")
+        created = accounting.create_invoices(
+            TENANT, invoices={"Invoices": [_invoice_payload(contact_id, status="DRAFT")]}
+        ).invoices
+        assert created is not None
+        response = accounting.update_or_create_invoices(
+            TENANT,
+            invoices={
+                "Invoices": [
+                    {
+                        "InvoiceID": created[0].invoice_id,
+                        "Status": "AUTHORISED",
+                        "Contact": {"ContactID": contact_id},
+                        "Date": "2026-09-09",
+                    }
+                ]
+            },
+            summarize_errors=False,
+        )
+        assert response.invoices is not None
+        assert not response.invoices[0].validation_errors
+        again = accounting.get_invoice(TENANT, created[0].invoice_id).invoices
+        assert again[0].status == "AUTHORISED"
+
     def test_history_and_attachments_answer_as_written(self, accounting: AccountingApi) -> None:
         contact_id = _contact(accounting, "[TEST] Client")
         created = accounting.create_invoices(

@@ -158,6 +158,12 @@ if [[ "$E2E" == "true" ]]; then
     fi
 
     in_window() { DW_ENV_FILE="$E2E_ENV" "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" "$@"; }
+    # The suite runs on the Node its release was built with, ahead of the
+    # venv's PATH that dw-run sets up, not on whatever the host last installed.
+    ensure_release_node "$(cat "$RELEASE_DIR/.release-sha")"
+    NODE_BIN="$(release_node_bin "$(cat "$RELEASE_DIR/.release-sha")")"
+    # shellcheck disable=SC2016  # $0 and $PATH expand in the instance user's shell
+    in_window_node() { in_window bash -c 'PATH="$0:$PATH"; exec "$@"' "$NODE_BIN" "$@"; }
 
     E2E_RESTORED=false
     e2e_restore_instance() {
@@ -211,9 +217,10 @@ if [[ "$E2E" == "true" ]]; then
     # the releases, shared and readable by every instance user.
     if [[ ! -d "$RELEASE_DIR/frontend/node_modules" ]]; then
         echo "E2E: installing the release's frontend dev dependencies..."
-        sudo -u docketworks npm ci --prefix "$RELEASE_DIR/frontend" --include=dev --cache "$BASE_DIR/.npm-cache"
+        sudo -u docketworks env PATH="$NODE_BIN:/usr/bin:/bin" \
+            npm ci --prefix "$RELEASE_DIR/frontend" --include=dev --cache "$BASE_DIR/.npm-cache"
     fi
-    "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium webkit
+    PATH="$NODE_BIN:$PATH" "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium webkit
     chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
     # The window env: the instance's own, then the lines that win over it in
@@ -266,15 +273,17 @@ FENCE_EOF
     wait_for_build_id || { echo "ERROR: $INSTANCE did not come up on the copy." >&2; exit 1; }
 
     # run_e2e.sh's order: the shape report, the fixtures a production
-    # database never held, the fake seeded from the copy, the reset that
-    # clears any residue, then the suite.
+    # database never held, the fake seeded from the copy, the workshop login
+    # made a payroll employee in that fake (no seed runs here to do it, as one
+    # does on a dev restore), the reset that clears any residue, then the suite.
     in_window python scripts/checks/data_shape_gap.py
     in_window python manage.py e2e_ensure_fixtures
     in_window python manage.py fake_xero_seed --replace
-    in_window npm --prefix frontend run test:e2e:reset -- --confirm
+    in_window python manage.py e2e_ensure_fixtures --payroll
+    in_window_node npm --prefix frontend run test:e2e:reset -- --confirm
     rm -rf "$E2E_DIR/test-results" "$E2E_DIR/playwright-report"
     echo "E2E: running the suite against https://$FQDN on a copy of $DB_NAME with the fake Xero..."
-    in_window npm --prefix frontend run test:e2e -- "${PLAYWRIGHT_ARGS[@]}" || E2E_STATUS=$?
+    in_window_node npm --prefix frontend run test:e2e -- "${PLAYWRIGHT_ARGS[@]}" || E2E_STATUS=$?
 
     e2e_restore_instance
     if (( E2E_STATUS == 0 )); then

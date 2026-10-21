@@ -27,6 +27,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.db.models import F
+from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
@@ -83,7 +84,9 @@ def _load_po_and_lines(
         .first()
     )
     if po is None:
-        raise DeliveryReceiptValidationError(f"PurchaseOrder {purchase_order_id} not found")
+        raise DeliveryReceiptValidationError(
+            gettext("PurchaseOrder %(po_id)s not found") % {"po_id": purchase_order_id}
+        )
 
     requested_ids = set(line_allocations.keys())
     # Lock each referenced line too, so parallel double-submissions cannot both
@@ -97,7 +100,8 @@ def _load_po_and_lines(
     if len(lines) != len(requested_ids):
         missing = requested_ids - set(lines)
         raise DeliveryReceiptValidationError(
-            f"Invalid or mismatched PurchaseOrderLine IDs provided: {missing}"
+            gettext("Invalid or mismatched PurchaseOrderLine IDs provided: %(missing)s")
+            % {"missing": missing}
         )
     return po, lines
 
@@ -112,7 +116,9 @@ def _load_jobs(line_allocations: dict[str, ReceiptLineRequest]) -> dict[str, Job
     jobs = {str(job.id): job for job in Job.objects.filter(id__in=job_ids)}
     if len(jobs) != len(job_ids):
         missing = {str(job_id) for job_id in job_ids} - set(jobs)
-        raise DeliveryReceiptValidationError(f"Invalid Job IDs provided in allocations: {missing}")
+        raise DeliveryReceiptValidationError(
+            gettext("Invalid Job IDs provided in allocations: %(missing)s") % {"missing": missing}
+        )
     return jobs
 
 
@@ -125,8 +131,11 @@ def _validate_and_prepare_allocations(
     """Return the received total and the allocations to materialise."""
     if line.unit_cost is None:
         raise DeliveryReceiptValidationError(
-            f"Price not confirmed for line {line.id} ({line.description}); "
-            f"cannot process delivery receipt."
+            gettext(
+                "Price not confirmed for line %(line_id)s (%(description)s); "
+                "cannot process delivery receipt."
+            )
+            % {"line_id": line.id, "description": line.description}
         )
 
     default_pct = default_retail_rate_pct()
@@ -139,7 +148,8 @@ def _validate_and_prepare_allocations(
         job = jobs_by_id.get(str(alloc.job_id))
         if job is None:
             raise DeliveryReceiptValidationError(
-                f"Invalid or missing job_id for non-zero allocation on line {line.id}."
+                gettext("Invalid or missing job_id for non-zero allocation on line %(line_id)s.")
+                % {"line_id": line.id}
             )
         prepared.append(
             MaterialAllocation(
@@ -155,14 +165,25 @@ def _validate_and_prepare_allocations(
 
     if abs(allocated - line_request.total_received) > ALLOCATION_TOLERANCE:
         raise DeliveryReceiptValidationError(
-            f"Allocation mismatch for line '{line.description}' (id {line.id}). "
-            f"Total Received={line_request.total_received}, Sum of Allocations={allocated}."
+            gettext(
+                "Allocation mismatch for line '%(description)s' (id %(line_id)s). "
+                "Total Received=%(total_received)s, Sum of Allocations=%(allocated)s."
+            )
+            % {
+                "description": line.description,
+                "line_id": line.id,
+                "total_received": line_request.total_received,
+                "allocated": allocated,
+            }
         )
     # GPT: an omitted line records no delivery; zero is not another receipt.
     if not prepared and line_request.total_received == 0:
         raise DeliveryReceiptValidationError(
-            f"Line '{line.description}' (id {line.id}) has nothing to receive; "
-            f"omit it from the receipt instead of sending a zero quantity."
+            gettext(
+                "Line '%(description)s' (id %(line_id)s) has nothing to receive; "
+                "omit it from the receipt instead of sending a zero quantity."
+            )
+            % {"description": line.description, "line_id": line.id}
         )
     return line_request.total_received, prepared
 
@@ -210,8 +231,11 @@ def process_delivery_receipt(
 
             if po.status not in RECEIPTABLE_STATUSES:
                 raise DeliveryReceiptValidationError(
-                    f"Cannot process delivery receipt for PO {po.po_number} "
-                    f"with status '{po.status}'."
+                    gettext(
+                        "Cannot process delivery receipt for PO %(po_number)s "
+                        "with status '%(status)s'."
+                    )
+                    % {"po_number": po.po_number, "status": po.status}
                 )
 
             stock_holding_job_id = Stock.get_stock_holding_job().id

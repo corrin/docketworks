@@ -55,7 +55,7 @@ def job(company: Company, office_staff: Staff) -> Job:
 
 def _create_invoice(
     api: Client, job_id: object, body: dict[str, object]
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return api.post(
         f"/api/xero/create_invoice/{job_id}",
         data=json.dumps(body),
@@ -173,6 +173,34 @@ class TestDeleteInvoiceEndpoint:
         assert response.status_code == 200, response.content
         assert not Invoice.objects.filter(xero_id=xero_id).exists()
 
+    def test_an_approved_invoice_is_refused_with_its_error_type(
+        self, api: Client, job: Job
+    ) -> None:
+        """The screen opens the void offer on this error_type and nothing else."""
+        xero_id = uuid.uuid4()
+        assert job.company is not None  # the fixture always sets a company
+        Invoice.objects.create(
+            xero_id=xero_id,
+            number="INV-APPROVED",
+            company=job.company,
+            job=job,
+            date="2026-08-09",
+            status="AUTHORISED",
+            total_excl_tax=Decimal("100"),
+            tax=Decimal("15"),
+            total_incl_tax=Decimal("115"),
+            amount_due=Decimal("115"),
+            xero_last_modified=timezone.now(),
+            raw_json={},
+        )
+
+        with patch("apps.xero.api.get_valid_token", return_value=TOKEN):
+            response = api.delete(f"/api/xero/delete_invoice/{job.id}?xero_invoice_id={xero_id}")
+
+        assert response.status_code == 400
+        assert response.json()["error_type"] == "invoice_approved"
+        assert Invoice.objects.filter(xero_id=xero_id, status="AUTHORISED").exists()
+
     def test_unknown_invoice_is_404(self, api: Client, job: Job) -> None:
         with patch("apps.xero.api.get_valid_token", return_value=TOKEN):
             response = api.delete(
@@ -183,7 +211,7 @@ class TestDeleteInvoiceEndpoint:
 
 def _create_quote(
     api: Client, job_id: object, body: dict[str, object]
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return api.post(
         f"/api/xero/create_quote/{job_id}",
         data=json.dumps(body),

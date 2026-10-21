@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw/http'
 import { setupServer } from 'msw/node'
 
 /**
@@ -16,7 +16,7 @@ const quietDataVersionsStream = http.get(
   '*/api/data-versions/stream/',
   () =>
     new HttpResponse(new ReadableStream(), {
-      headers: { 'Content-Type': 'text/event-stream' },
+      headers: { 'Content-Type': 'text/event-stream', 'Transfer-Encoding': 'chunked' },
     }),
 )
 

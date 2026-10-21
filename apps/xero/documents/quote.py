@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.accounting.enums import QuoteStatus
 from apps.accounting.models import Quote
@@ -59,15 +60,21 @@ class XeroQuoteManager(XeroDocumentManager):
     def _check_business_state(self) -> XeroDocumentResponse | None:
         """Return the expected refusal, or None when the job can be quoted."""
         if not self.state_valid_for_xero():
-            return self._refusal(f"Job {self.job.job_number} already has a Xero quote.")
+            return self._refusal(
+                gettext("Job %(job_number)s already has a Xero quote.")
+                % {"job_number": self.job.job_number}
+            )
         if self.job.pricing_methodology == "time_materials":
             return self._refusal(
-                f"Job {self.job.job_number} is priced time and materials; "
-                "only fixed-price jobs can be quoted in Xero."
+                gettext(
+                    "Job %(job_number)s is priced time and materials; "
+                    "only fixed-price jobs can be quoted in Xero."
+                )
+                % {"job_number": self.job.job_number}
             )
         return None
 
-    def _validated_configuration(self) -> "tuple[str, str] | XeroDocumentResponse":
+    def _validated_configuration(self) -> tuple[str, str] | XeroDocumentResponse:
         """Return ``(theme_id, terms)``, or the configuration refusal.
 
         Returning the validated values (rather than a passed/failed flag)
@@ -76,43 +83,55 @@ class XeroQuoteManager(XeroDocumentManager):
         document_theme_external_id = self.get_xero_sales_branding_theme_id()
         if document_theme_external_id is None:
             return self._refusal(
-                "Configure the Xero sales branding theme by running Xero setup "
-                "or selecting it in Company Settings before creating a quote.",
+                gettext(
+                    "Choose the Xero branding theme for sales documents (Company "
+                    "Defaults > Xero, or during Xero setup) before creating a quote."
+                ),
                 error_type="configuration_error",
             )
         terms = self.get_xero_quote_terms()
         if terms is None:
             return self._refusal(
-                "Configure Xero quote terms in Company Settings before creating "
-                "a quote. Xero does not apply its quote terms default to "
-                "API-created quotes.",
+                gettext(
+                    "Enter the Xero quote terms in Company Defaults > Xero before "
+                    "creating a quote. Xero does not add its own default quote terms "
+                    "to quotes DocketWorks creates."
+                ),
                 error_type="configuration_error",
             )
         if len(terms) > XERO_QUOTE_TERMS_MAX_CHARS:
             return self._refusal(
-                f"Xero quote terms must be no more than {XERO_QUOTE_TERMS_MAX_CHARS} "
-                f"characters (currently {len(terms)}).",
+                gettext(
+                    "Xero quote terms must be no more than %(max_chars)s "
+                    "characters (currently %(length)s)."
+                )
+                % {"max_chars": XERO_QUOTE_TERMS_MAX_CHARS, "length": len(terms)},
                 error_type="configuration_error",
             )
         return document_theme_external_id, terms
 
     def _validated_quote_lines(
         self, breakdown: bool
-    ) -> "tuple[Decimal, list[CostLine]] | XeroDocumentResponse":
+    ) -> tuple[Decimal, list[CostLine]] | XeroDocumentResponse:
         """Return ``(summary_rev, cost_lines)``, or the quotability refusal."""
         cost_set = self.job.get_latest("quote")
         cost_lines = list(cost_set.cost_lines.all()) if cost_set is not None else []
         if cost_set is None or not cost_lines:
             return self._refusal(
-                f"Job {self.job.job_number}'s quote cost set has no cost lines; "
-                "there is nothing to quote."
+                gettext(
+                    "Job %(job_number)s's quote has no lines, so there is nothing to send to Xero."
+                )
+                % {"job_number": self.job.job_number}
             )
         if breakdown:
             blank_descriptions = sum(1 for line in cost_lines if not (line.desc or "").strip())
             if blank_descriptions:
                 return self._refusal(
-                    f"{blank_descriptions} quote line(s) have no description; "
-                    "every line needs one to send a breakdown quote."
+                    gettext(
+                        "%(count)s quote line(s) have no description; "
+                        "every line needs one to send a breakdown quote."
+                    )
+                    % {"count": blank_descriptions}
                 )
         # Direct access, not .get(): a maintained summary always carries rev,
         # so its absence is data corruption to crash on (ADR 0015).
@@ -196,7 +215,7 @@ class XeroQuoteManager(XeroDocumentManager):
     def _finalize_created_quote(
         self,
         external_id: str,
-        result: "DocumentResult",
+        result: DocumentResult,
         payload: QuotePayload,
     ) -> XeroDocumentResponse:
         """Persist the mirror row and side effects; never orphan the quote.
@@ -264,7 +283,7 @@ class XeroQuoteManager(XeroDocumentManager):
         self,
         exc: IntegrityError,
         external_id: str,
-        result: "DocumentResult",
+        result: DocumentResult,
         raw: dict[str, object],
     ) -> XeroDocumentResponse:
         """Discriminate the two unique constraints by state, never by guess.
@@ -309,7 +328,10 @@ class XeroQuoteManager(XeroDocumentManager):
                 f"orphan Xero quote {external_id} that could not be "
                 f"voided: {void_result.error}"
             ) from exc
-        return self._refusal(f"Job {self.job.job_number} already has a Xero quote.")
+        return self._refusal(
+            gettext("Job %(job_number)s already has a Xero quote.")
+            % {"job_number": self.job.job_number}
+        )
 
     def _success_response(self, quote: Quote, external_id: str) -> XeroDocumentResponse:
         return {
@@ -386,7 +408,10 @@ class XeroQuoteManager(XeroDocumentManager):
             if not xero_id:
                 # Expected, not exceptional: a double-click or a stale tab
                 # lands here — a 400 the user can read beats a 500.
-                return self._refusal(f"Job {self.job.job_number} has no Xero quote to delete.")
+                return self._refusal(
+                    gettext("Job %(job_number)s has no Xero quote to delete.")
+                    % {"job_number": self.job.job_number}
+                )
 
             result = self.provider.delete_quote(xero_id)
             quote_absent_in_xero = not result.success and result.status_code == 404
@@ -408,13 +433,13 @@ class XeroQuoteManager(XeroDocumentManager):
             self._bump_job_updated_at()
             self._create_job_event("quote_deleted", {"xero_quote_number": quote_number})
 
-            return {  # noqa: TRY300 -- returns a value built across the try body
+            return {
                 "success": True,
                 "xero_id": xero_id,
                 "message": (
-                    "Quote was already absent in Xero; local record removed."
+                    gettext("Quote was already absent in Xero; local record removed.")
                     if quote_absent_in_xero
-                    else "Quote deleted successfully."
+                    else gettext("Quote deleted successfully.")
                 ),
             }
         except Exception as exc:

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { apiErrorMessage } from '@/api'
@@ -19,6 +20,7 @@ interface Props {
  * token is deliberately unverifiable without attempting the change.
  */
 export function ResetPasswordPage({ uid, token }: Props) {
+  const { t } = useTranslation('shell')
   const navigate = useNavigate()
   const confirmReset = useConfirmPasswordReset()
 
@@ -32,49 +34,49 @@ export function ResetPasswordPage({ uid, token }: Props) {
     event.preventDefault()
     if (confirmReset.isPending) return
     if (newPassword === '' || confirmPassword === '') {
-      setError('Both fields are required.')
+      setError(t('resetPassword.allRequired'))
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('The passwords do not match.')
+      setError(t('resetPassword.mismatch'))
       return
     }
     setError(null)
     try {
       await confirmReset.mutateAsync({ body: { uid, token, new_password: newPassword } })
-      toast.success('Password reset. Sign in with your new password.')
+      toast.success(t('resetPassword.succeeded'))
       await navigate({ to: '/login' })
     } catch (err) {
-      setError(apiErrorMessage(err, 'The password could not be reset.'))
+      setError(apiErrorMessage(err, t('resetPassword.failed')))
     }
   }
 
   return (
-    <AuthCard title="Choose a new password">
+    <AuthCard title={t('resetPassword.title')}>
       {!linkComplete ? (
         <div className="mt-4 flex flex-col gap-6">
           <p className="text-sm text-red-700" data-automation-id="ResetPasswordPage-invalid">
-            This reset link is incomplete. Use the full link from your email, or request a new one.
+            {t('resetPassword.incompleteLink')}
           </p>
           <Link
             to="/forgot-password"
             className="text-sm font-medium text-blue-600 hover:underline"
             data-automation-id="ResetPasswordPage-request-again"
           >
-            Request a new reset email
+            {t('resetPassword.requestAgain')}
           </Link>
         </div>
       ) : (
         <form className="mt-6 flex flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
           <PasswordField
-            label="New password"
+            label={t('resetPassword.newLabel')}
             automationId="ResetPasswordPage-new"
             autoComplete="new-password"
             value={newPassword}
             onChange={setNewPassword}
           />
           <PasswordField
-            label="Confirm new password"
+            label={t('resetPassword.confirmLabel')}
             automationId="ResetPasswordPage-confirm"
             autoComplete="new-password"
             value={confirmPassword}
@@ -89,7 +91,7 @@ export function ResetPasswordPage({ uid, token }: Props) {
               disabled={confirmReset.isPending}
               data-automation-id="ResetPasswordPage-submit"
             >
-              {confirmReset.isPending ? 'Resetting…' : 'Reset password'}
+              {confirmReset.isPending ? t('resetPassword.submitting') : t('resetPassword.submit')}
             </Button>
           </div>
         </form>

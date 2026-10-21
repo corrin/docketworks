@@ -11,6 +11,7 @@ from uuid import UUID
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
+from django.utils.translation import gettext
 
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.contact_methods import (
@@ -273,7 +274,7 @@ def classify_phone_ownership(*, company: Company, raw_phone: str) -> PhoneOwners
     """Classify who currently owns a phone number, relative to ``company``."""
     normalized = ContactMethod.normalize_phone(raw_phone)
     if not normalized:
-        raise ValueError("Phone number must contain at least one digit")
+        raise ValueError(gettext("Phone number must contain at least one digit"))
 
     from apps.crm.models import PhoneEndpoint  # noqa: PLC0415 -- company <-> crm cycle
 
@@ -481,7 +482,7 @@ def remove_company_link(*, person: Person, company: Company) -> None:
             .first()
         )
         if link is None:
-            raise ValueError("Active company link not found")
+            raise ValueError(gettext("Active company link not found"))
         projected_company_ids = set(
             person.company_links.filter(is_active=True)
             .exclude(company=company)
@@ -496,8 +497,8 @@ def remove_company_link(*, person: Person, company: Company) -> None:
             )
             if conflict is not None:
                 raise ValueError(
-                    f"Removing this link would make {method.value} conflict with "
-                    f"{conflict.owner_display_name()}"
+                    gettext("Removing this link would make %(value)s conflict with %(owner)s")
+                    % {"value": method.value, "owner": conflict.owner_display_name()}
                 )
         link.is_active = False
         link.is_primary = False

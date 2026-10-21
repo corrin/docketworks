@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useLatest } from '@/lib/useLatest'
 
@@ -36,6 +37,7 @@ export function LoadMoreSentinel({
   isFetchNextPageError,
   onLoadMore,
 }: LoadMoreSentinelProps) {
+  const { t } = useTranslation('shared')
   const ref = useRef<HTMLDivElement>(null)
   // Fable: the callback lives in a ref so the observer is rebuilt only when
   // `canLoad` flips, not on every parent render — a rebuild fires the
@@ -69,11 +71,11 @@ export function LoadMoreSentinel({
       {/* aria-live: the Load more button unmounts on the last page, so the
           count is what a screen-reader user hears after the final click. */}
       <span data-automation-id={`${automationId}-count`} aria-live="polite">
-        Showing {shown} of {total} {noun}
+        {t('loadMore.count', { shown, total, noun })}
       </span>
       {isFetchNextPageError ? (
         <span className="flex items-center gap-3 text-red-800">
-          Loading more failed.
+          {t('loadMore.failed')}
           {/* Fable: the query keeps its error status while the retry is in
               flight, so this branch stays on screen; a second click would
               cancel the request (cancelRefetch), hence the disabled state. */}
@@ -84,7 +86,7 @@ export function LoadMoreSentinel({
             disabled={isFetchingNextPage}
             onClick={onLoadMore}
           >
-            {isFetchingNextPage ? 'Retrying...' : 'Retry'}
+            {isFetchingNextPage ? t('loadMore.retrying') : t('loadMore.retry')}
           </button>
         </span>
       ) : (
@@ -95,7 +97,7 @@ export function LoadMoreSentinel({
             disabled={isFetchingNextPage}
             onClick={onLoadMore}
           >
-            {isFetchingNextPage ? 'Loading more...' : 'Load more'}
+            {isFetchingNextPage ? t('loadMore.loading') : t('loadMore.loadMore')}
           </button>
         )
       )}

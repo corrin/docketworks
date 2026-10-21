@@ -28,6 +28,7 @@ from urllib.parse import urlencode
 from django.core.cache import caches
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import redirect
+from django.utils.translation import gettext
 from django.views.decorators.csrf import csrf_exempt
 from xero_python.identity import IdentityApi
 
@@ -55,7 +56,7 @@ def _require_office_staff(request: HttpRequest) -> HttpResponse | None:
         user = None
     if user is None:
         logger.warning("Rejected unauthenticated request to %s", request.path)
-        return HttpResponseForbidden("Office staff only")
+        return HttpResponseForbidden(gettext("Office staff only"))
     return None
 
 
@@ -67,7 +68,7 @@ def xero_authenticate(request: HttpRequest) -> HttpResponse:
         return guard
     next_path = request.GET.get("next", "/")
     if not _NEXT_PATH.match(next_path):
-        return HttpResponseBadRequest("next must be a path on this host")
+        return HttpResponseBadRequest(gettext("next must be a path on this host"))
     state = str(uuid.uuid4())
     # The request's own origin: the canonical host, an alias, or the dev
     # tunnel — whichever the browser is on is where it lands afterwards.
@@ -115,7 +116,8 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
     return_to = _consume_state(request)
     if return_to is None:
         return _error_redirect(
-            request.build_absolute_uri("/"), "OAuth state mismatch — please retry the connection"
+            request.build_absolute_uri("/"),
+            gettext("OAuth state mismatch — please retry the connection"),
         )
 
     error = request.GET.get("error")
@@ -127,7 +129,7 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
     code = request.GET.get("code")
     if not code:
         logger.warning("Xero OAuth callback arrived without a code parameter")
-        return _error_redirect(return_to, "Xero returned no authorization code")
+        return _error_redirect(return_to, gettext("Xero returned no authorization code"))
 
     try:
         result = exchange_code_for_token(code)
@@ -136,7 +138,7 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
     # 500 page
     except Exception as exc:  # noqa: BLE001
         logger.warning("Xero code exchange failed: %s", exc)
-        return _error_redirect(return_to, "Xero rejected the authorization code")
+        return _error_redirect(return_to, gettext("Xero rejected the authorization code"))
     if "error" in result:
         return _error_redirect(return_to, str(result["error"]))
 

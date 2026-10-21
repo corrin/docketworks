@@ -15,6 +15,7 @@ from typing import ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
+from django.utils.translation import gettext, gettext_lazy
 
 
 class PhoneEndpoint(models.Model):
@@ -27,11 +28,11 @@ class PhoneEndpoint(models.Model):
     """
 
     class EndpointType(models.TextChoices):
-        MAIN_LINE = "main_line", "Main line"
-        STAFF_MOBILE = "staff_mobile", "Staff mobile"
-        STAFF_DDI = "staff_ddi", "Staff DDI"
-        EXTENSION = "extension", "Extension"
-        SHARED = "shared", "Shared"
+        MAIN_LINE = "main_line", gettext_lazy("Main line")
+        STAFF_MOBILE = "staff_mobile", gettext_lazy("Staff mobile")
+        STAFF_DDI = "staff_ddi", gettext_lazy("Staff DDI")
+        EXTENSION = "extension", gettext_lazy("Extension")
+        SHARED = "shared", gettext_lazy("Shared")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     number = models.CharField(max_length=150)
@@ -96,9 +97,11 @@ class PhoneEndpoint(models.Model):
             conflict = ContactMethod.conflicting_company(self.normalized_number, set())
             if conflict:
                 raise ValidationError(
-                    f"phone number {self.normalized_number} already belongs to "
-                    f"{conflict.owner_display_name()} and cannot be an active "
-                    "internal phone endpoint"
+                    gettext(
+                        "Phone number %(number)s already belongs to "
+                        "%(owner)s, so it can't be one of our own phone numbers"
+                    )
+                    % {"number": self.normalized_number, "owner": conflict.owner_display_name()}
                 )
         super().save(
             force_insert=force_insert,
@@ -131,10 +134,10 @@ class PhoneCallRecord(models.Model):
     """Call detail row imported from the phone provider portal."""
 
     class Direction(models.TextChoices):
-        INBOUND = "inbound", "Inbound"
-        OUTBOUND = "outbound", "Outbound"
-        INTERNAL = "internal", "Internal"
-        UNKNOWN = "unknown", "Unknown"
+        INBOUND = "inbound", gettext_lazy("Inbound")
+        OUTBOUND = "outbound", gettext_lazy("Outbound")
+        INTERNAL = "internal", gettext_lazy("Internal")
+        UNKNOWN = "unknown", gettext_lazy("Unknown")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     provider_call_id = models.CharField(max_length=255, unique=True)

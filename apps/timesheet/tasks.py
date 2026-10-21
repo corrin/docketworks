@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from celery import shared_task
+from django.utils.translation import gettext
 
 from apps.accounting.registry import get_provider
 from apps.accounting.types import PayrollMirrorScope
@@ -99,7 +100,7 @@ def post_payroll_week_task(
             lambda: payroll_runs.finished(
                 payroll_runs.running(connection_id, run_id, week, total=len(ids)),
                 "failed",
-                message=(
+                message=gettext(
                     "This posting run was queued for too long and never started. "
                     "Nothing was posted. Post again."
                 ),
@@ -114,8 +115,11 @@ def post_payroll_week_task(
         provider = get_provider()
         if not provider.supports_payroll:
             raise ValueError(
-                f"The configured accounting backend ({provider.provider_name}) "
-                "does not support payroll posting."
+                gettext(
+                    "The configured accounting backend (%(provider)s) "
+                    "does not support payroll posting."
+                )
+                % {"provider": provider.provider_name}
             )
         for index, result in enumerate(
             provider.post_payroll_week(connection_id, ids, week), start=1
@@ -161,7 +165,7 @@ def post_payroll_week_task(
             lambda: payroll_runs.finished(
                 lost_run,
                 "failed",
-                message=(
+                message=gettext(
                     "The posting run lost its claim mid-run; the results above are "
                     'what completed. Use "Check against Xero" before posting again.'
                 ),
@@ -203,7 +207,7 @@ def post_payroll_week_task(
 
 
 def _close_run_if_owned(
-    connection_id: str, run_id: str, build_document: "Callable[[], PayrollPostRunOut]"
+    connection_id: str, run_id: str, build_document: Callable[[], PayrollPostRunOut]
 ) -> None:
     """Write a terminal document only under a proven (or safely re-taken) claim.
 
@@ -225,7 +229,7 @@ def _close_run_if_owned(
 
 
 def _after_post_mirror_refresh(
-    provider: "AccountingProvider", connection_id: str, run_id: str, week_start_date: str
+    provider: AccountingProvider, connection_id: str, run_id: str, week_start_date: str
 ) -> None:
     """Best-effort follow-ups after a successful post: mirror now, slips later.
 

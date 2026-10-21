@@ -5,12 +5,16 @@ from datetime import date, time, timedelta
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.job_fixtures import make_job
+from apps.core.errors import InvalidInputError
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import approval, attendance
 from apps.timesheet.tests.conftest import (
     WEEK_START,
@@ -276,3 +280,328 @@ class TestApprovalsRead:
 
     def test_workshop_staff_cannot_read_approvals(self, worker_client: Client) -> None:
         assert worker_client.get(APPROVALS_URL).status_code == 403
+
+
+SWEEP_URL = f"{APPROVALS_URL}sweep/"
+
+
+@pytest.fixture
+def general_work(superuser: Staff) -> Job:
+    """The internal job clocked time on no job is swept to, as ``create_shop_jobs`` leaves it."""
+    defaults = CompanyDefaults.get_solo()
+    job = make_job(defaults.shop_company, superuser, name="General work", status="special")
+    defaults.general_work_job = job
+    defaults.save(update_fields=["general_work_job"])
+    return job
+
+
+def _general_work_hours(general_work: Job, worker: Staff) -> list[str]:
+    return [
+        str(line.quantity)
+        for line in CostLine.objects.filter(cost_set__job=general_work, staff=worker)
+    ]
+
+
+def _general_work_entries(general_work: Job, worker: Staff) -> list[tuple[str, str, str]]:
+    """Each swept entry as (start, end, hours), in the order of the day."""
+    return sorted(
+        (line.meta["start_time"], line.meta["end_time"], str(line.quantity))
+        for line in CostLine.objects.filter(cost_set__job=general_work, staff=worker)
+    )
+
+
+@pytest.mark.usefixtures("general_work")
+class TestSweep:
+    def test_each_stretch_between_breaks_and_jobs_is_its_own_entry(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: entries end where a break or a job starts."""
+        # 07:00 to 12:00 puts the 08:30 paid break and the 11:30 lunch on the day.
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(12, 0), worker)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="1.000",
+            approved=False,
+            start_time="09:00:00",
+            end_time="10:00:00",
+        )
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("07:00:00", "08:30:00", "1.500"),
+            ("08:45:00", "09:00:00", "0.250"),
+            ("10:00:00", "11:30:00", "1.500"),
+        ]
+        assert result["swept_hours"] == 3.25
+
+    def test_entries_without_times_are_laid_out_first(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: an untimed entry takes the day from clock-in."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 30), worker)
+        make_time_line(job, worker, accounting_date=DAY, hours="1.000", approved=False)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("07:00:00", "08:30:00", "1.500")]
+
+    def test_a_swept_entry_starts_and_stops_on_quarter_hours(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.to_quarter: the clock keeps 06:52 and 08:08; the entry rounds."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:45:00", "08:15:00", "1.500")]
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (time(6, 52), time(8, 8))
+
+    def test_rounding_never_reaches_into_an_entry_beside_the_stretch(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: 07:23 rounds to 07:30 but his job starts 07:23."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="0.200",
+            approved=False,
+            start_time="07:23:00",
+            end_time="07:35:00",
+        )
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("06:45:00", "07:23:00", "0.630"),
+            ("07:35:00", "08:15:00", "0.670"),
+        ]
+
+    def test_clocked_time_on_no_job_goes_to_general_work_and_the_day_is_approved(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._sweep: the remainder is clocked time less what is on jobs."""
+        # Clocked before the 08:30 break, so no break is put on the day.
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 30), worker)
+        own = make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            hours="1.000",
+            approved=False,
+            start_time="06:00:00",
+            end_time="07:00:00",
+        )
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result == {"swept_hours": 1.5, "approved_count": 1, "skipped": []}
+        assert _general_work_hours(general_work, worker) == ["1.500"]
+        swept = CostLine.objects.get(cost_set__job=general_work, staff=worker)
+        assert swept.approved
+        own.refresh_from_db()
+        assert own.approved
+        # The sweep reads the clock times; it never sets them.
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (time(6, 0), time(8, 30))
+
+    def test_a_day_still_clocked_in_is_skipped_and_left_alone(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._sweep: no clock-out means no clocked time, so nothing moves."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker)
+        own = make_time_line(job, worker, accounting_date=DAY, approved=False)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result["swept_hours"] == 0.0
+        assert result["approved_count"] == 0
+        assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
+            (str(worker.id), "still_clocked_in")
+        ]
+        assert _general_work_hours(general_work, worker) == []
+        own.refresh_from_db()
+        assert not own.approved
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert row.clock_out is None
+
+    def test_a_day_over_its_clocked_time_moves_nothing_but_is_approved(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards approval._move_to_general_work: a negative remainder is no entry."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(8, 0), worker)
+        own = make_time_line(job, worker, accounting_date=DAY, hours="3.000", approved=False)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result == {"swept_hours": 0.0, "approved_count": 1, "skipped": []}
+        assert _general_work_hours(general_work, worker) == []
+        own.refresh_from_db()
+        assert own.approved
+
+    def test_everyone_is_the_people_who_clocked_or_have_time_on_the_day(
+        self,
+        office_staff: Staff,
+        job: Job,
+        general_work: Job,
+        worker: Staff,
+        other_worker: Staff,
+    ) -> None:
+        """Guards approval._people_on: time without a clock is reported, nothing at all is not."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        make_time_line(job, other_worker, accounting_date=DAY, approved=False)
+        nobody = make_staff("not.here@example.com")
+
+        result = approval.sweep_everyone([DAY], office_staff)
+
+        assert result["swept_hours"] == 2.0
+        assert _general_work_hours(general_work, worker) == ["2.000"]
+        assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
+            (str(other_worker.id), "no_clock_times")
+        ]
+        assert str(nobody.id) not in {skip["staff_id"] for skip in result["skipped"]}
+
+    def test_only_office_staff_sweep(self, worker: Staff) -> None:
+        response = authenticated_client(worker).post(
+            SWEEP_URL,
+            {"start_date": DAY.isoformat(), "end_date": DAY.isoformat()},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403, response.content
+
+    def test_the_endpoint_sweeps_a_person_or_everyone_over_a_range(
+        self, office_staff: Staff, worker: Staff, other_worker: Staff
+    ) -> None:
+        attendance.set_clock_times(worker, DAY, time(7, 0), time(8, 0), worker)
+        tomorrow = DAY + timedelta(days=1)
+        attendance.set_clock_times(worker, tomorrow, time(6, 0), time(8, 0), worker)
+        attendance.set_clock_times(other_worker, DAY, time(6, 0), time(8, 30), other_worker)
+        client = authenticated_client(office_staff)
+
+        one = client.post(
+            SWEEP_URL,
+            {
+                "start_date": DAY.isoformat(),
+                "end_date": tomorrow.isoformat(),
+                "staff_id": str(worker.id),
+            },
+            content_type="application/json",
+        )
+        everyone = client.post(
+            SWEEP_URL,
+            {"start_date": DAY.isoformat(), "end_date": DAY.isoformat()},
+            content_type="application/json",
+        )
+
+        assert one.status_code == 200, one.content
+        assert one.json() == {"swept_hours": 3.0, "approved_count": 0, "skipped": []}
+        assert everyone.status_code == 200, everyone.content
+        # The worker's day was swept already: only the other worker's 2.5 hours move.
+        assert everyone.json()["swept_hours"] == 2.5
+
+    def test_leave_on_the_day_takes_none_of_the_clocked_time(
+        self,
+        office_staff: Staff,
+        company: Company,
+        superuser: Staff,
+        general_work: Job,
+        worker: Staff,
+    ) -> None:
+        """Guards attendance.unallocated_windows: leave on the day leaves clocked hours free."""
+        leave_job = make_leave_job(company, superuser, "Annual Leave")
+        leave = make_time_line(leave_job, worker, accounting_date=DAY, hours="4.000")
+        CostLine.objects.filter(pk=leave.pk).update(managed_by="leave")
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:00:00", "08:00:00", "2.000")]
+        assert result["swept_hours"] == 2.0
+
+    def test_a_clock_change_takes_off_swept_time_it_no_longer_covers(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.drop_sweep_outside_clock: an earlier finish is not paid after it."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(7, 0), office_staff)
+
+        assert _general_work_entries(general_work, worker) == []
+        approval.sweep_person(worker, [DAY], office_staff)
+        assert _general_work_entries(general_work, worker) == [("06:00:00", "07:00:00", "1.000")]
+
+    def test_a_clock_change_keeps_swept_time_it_still_covers(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.drop_sweep_outside_clock: bounds are the sweep's quarter hours."""
+        attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        attendance.set_clock_times(worker, DAY, time(6, 50), time(8, 10), office_staff)
+
+        assert _general_work_entries(general_work, worker) == [("06:45:00", "08:15:00", "1.500")]
+
+    def test_general_work_set_to_break_or_leave_is_refused(
+        self,
+        office_staff: Staff,
+        company: Company,
+        superuser: Staff,
+        break_job: Job,
+        worker: Staff,
+    ) -> None:
+        """Guards approval._general_work_job_id: neither breaks nor leave are worked time."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+        defaults = CompanyDefaults.get_solo()
+        for wrong in (break_job, make_leave_job(company, superuser, "Annual Leave")):
+            defaults.general_work_job = wrong
+            defaults.save(update_fields=["general_work_job"])
+
+            with pytest.raises(approval.GeneralWorkNotSetUpError, match=wrong.name):
+                approval.sweep_person(worker, [DAY], office_staff)
+
+    @pytest.mark.usefixtures("general_work")
+    def test_a_swept_day_is_sent(self, office_staff: Staff, worker: Staff) -> None:
+        """Guards approval._send_for_him: sweeping submits, so his app stops asking for the day."""
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert attendance.pending_day(worker, DAY + timedelta(days=1)) is None
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert attendance.day_state(row) == "sent"
+
+
+class TestSweepDays:
+    """Guards approval.sweep_days: the range a sweep may take."""
+
+    def test_today_and_the_six_days_before_are_a_sweep(self) -> None:
+        today = timezone.localdate()
+
+        days = approval.sweep_days(today - timedelta(days=6), today)
+
+        assert days[0] == today - timedelta(days=6)
+        assert days[-1] == today
+        assert len(days) == approval.SWEEP_MOST_DAYS
+
+    def test_a_day_after_today_is_refused(self) -> None:
+        today = timezone.localdate()
+
+        with pytest.raises(InvalidInputError, match="after today"):
+            approval.sweep_days(today, today + timedelta(days=1))
+
+    def test_more_than_a_week_is_refused(self) -> None:
+        today = timezone.localdate()
+
+        with pytest.raises(InvalidInputError, match="one week"):
+            approval.sweep_days(today - timedelta(days=7), today)
+
+    def test_an_end_before_the_start_is_refused(self) -> None:
+        with pytest.raises(InvalidInputError, match="before the start"):
+            approval.sweep_days(DAY, DAY - timedelta(days=1))

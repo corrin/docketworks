@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -32,10 +33,6 @@ export type PayRunState = 'draft' | 'posted' | 'missing'
 
 /** How often to re-read a live run while the stream is the primary signal. */
 const LIVE_RUN_POLL_MS = 10_000
-
-/** What to do when the run's outcome is unknown — never "try posting again". */
-const UNKNOWN_OUTCOME_ADVICE =
-  ' It may still be running in Xero — use "Check against Xero" before posting again.'
 
 export interface PayrollProgress {
   current: number
@@ -92,6 +89,7 @@ function isNewer(pushed: PayrollRunsOut, held: PayrollRunsOut | undefined): bool
 }
 
 export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
+  const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const payRunsQuery = useQuery(timesheetsPayrollPayRunsRetrieveOptions())
   // Opus: Never on mount. Xero has no bulk leave endpoint, so this asks
@@ -190,20 +188,21 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
       // never delivered: `error` counted as terminal, so the stream closed
       // before the `done` the client keyed "finished" off, and a real failure
       // read as "the run ended without reporting an outcome".
-      toast.error(finishedRun.message ?? `Posting failed.${UNKNOWN_OUTCOME_ADVICE}`)
+      // What to do when the run's outcome is unknown — never "try posting again".
+      toast.error(finishedRun.message ?? t('payroll.postingFailed'))
       return
     }
     if (finishedRun.failed === 0) {
-      toast.success(
-        `Posted ${finishedRun.successful} staff member${finishedRun.successful === 1 ? '' : 's'} to Xero. ` +
-          'Xero may take a minute or two to finish recalculating payslips.',
-      )
+      toast.success(t('payroll.posted', { count: finishedRun.successful }))
       return
     }
     // Opus: Not a toast that disappears: a failed staff member is work the operator
     // still has to do, and the rows below carry the reason for each one.
     toast.error(
-      `${finishedRun.failed} of ${finishedRun.successful + finishedRun.failed} staff failed to post — see the rows below`,
+      t('payroll.someFailed', {
+        failed: finishedRun.failed,
+        total: finishedRun.successful + finishedRun.failed,
+      }),
     )
   }
 
@@ -235,7 +234,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     // the local progress state had to be cleared by hand to avoid. A refused
     // duplicate arrives here as a 409 carrying the live run's id, rather than as
     // a fabricated failure the client had to open a stream to discover.
-    onError: (error) => toast.error(apiErrorMessage(error, 'Could not start posting to Xero.')),
+    onError: (error) => toast.error(apiErrorMessage(error, t('payroll.startFailed'))),
   })
 
   const postWeek = useCallback(() => {

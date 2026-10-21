@@ -7,6 +7,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
@@ -26,12 +27,12 @@ import { JobInvoiceCard } from './JobInvoiceCard'
 
 type ChecklistKey = keyof JobCompletionChecklistOut
 
-const ALL_CHECKLIST_ITEMS: Array<{ key: ChecklistKey; label: string }> = [
-  { key: 'foreman_signed_off', label: 'Has the supervisor signed off the job?' },
-  { key: 'timesheets_collected', label: "Have you collected today's timesheet entries?" },
-  { key: 'materials_checked', label: 'Are all materials used written correctly on the job sheet?' },
-  { key: 'customer_called', label: 'Have you called the customer?' },
-  { key: 'released', label: 'Has the job been handed over?' },
+const ALL_CHECKLIST_ITEMS: ChecklistKey[] = [
+  'foreman_signed_off',
+  'timesheets_collected',
+  'materials_checked',
+  'customer_called',
+  'released',
 ]
 
 interface NormalizedCostSummary {
@@ -100,6 +101,7 @@ interface JobFinishTabProps {
  * sent (ADR 0046), so invoicing and display cannot disagree.
  */
 export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
+  const { t } = useTranslation('job')
   const queryClient = useQueryClient()
   const finishQuery = useQuery(jobJobsFinishRetrieveOptions({ path: { job_id: jobId } }))
   const costsQuery = useQuery(jobJobsCostsSummaryRetrieveOptions({ path: { job_id: jobId } }))
@@ -125,12 +127,16 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
   // Timesheets only exist to invoice on a T&M job; a quoted job is never asked.
   const checklistItems = isTimeMaterials
     ? ALL_CHECKLIST_ITEMS
-    : ALL_CHECKLIST_ITEMS.filter((item) => item.key !== 'timesheets_collected')
+    : ALL_CHECKLIST_ITEMS.filter((key) => key !== 'timesheets_collected')
 
   const jobValueLabel =
     job.pricing_methodology === 'fixed_price'
-      ? 'Quote total (excl GST)'
-      : 'Job value to date (excl GST)'
+      ? t('finishTab.quoteTotal')
+      : t('finishTab.jobValueToDate')
+  const jobValueTitle =
+    job.pricing_methodology === 'fixed_price'
+      ? t('finishTab.titles.quoteTotal')
+      : t('finishTab.titles.jobValueToDate')
 
   // Invoicing changed the balance, so the server is re-read rather than the
   // figure adjusted locally; a failed reload surfaces as the query's error
@@ -161,7 +167,7 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
           )
         },
         onError: (error) => {
-          toast.error(apiErrorMessage(error, 'Failed to save checklist'))
+          toast.error(apiErrorMessage(error, t('finishTab.checklistSaveFailed')))
         },
       },
     )
@@ -207,13 +213,13 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Finish Job</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('finishTab.title')}</h2>
           <p className="text-sm text-gray-500">
             {isTimeMaterials
-              ? 'Compare Estimate and Actual cost sets for this Time & Materials job'
+              ? t('finishTab.intro.timeMaterials')
               : !showQuoteColumn
-                ? 'Compare Estimate and Actual cost sets for this job (no quote available)'
-                : 'Compare Estimate, Quote, and Actual cost sets with visual performance indicators'}
+                ? t('finishTab.intro.noQuote')
+                : t('finishTab.intro.withQuote')}
           </p>
         </div>
       </div>
@@ -227,7 +233,7 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-              <p className="text-gray-500">Loading job financials...</p>
+              <p className="text-gray-500">{t('finishTab.loading')}</p>
             </div>
           </div>
         }
@@ -236,8 +242,8 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
             data-automation-id="JobFinishTab-load-error"
             className="rounded-lg border border-red-200 bg-white p-6 text-center"
           >
-            <p className="font-medium text-red-700">Could not load this job&apos;s financials.</p>
-            <p className="mt-1 text-sm text-slate-600">Reload the page.</p>
+            <p className="font-medium text-red-700">{t('finishTab.loadFailed')}</p>
+            <p className="mt-1 text-sm text-slate-600">{t('finishTab.reload')}</p>
           </div>
         }
       >
@@ -248,23 +254,31 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                 data-automation-id="JobFinishTab-balance"
                 className="rounded-xl border border-slate-200 bg-white p-4"
               >
-                <h3 className="text-base font-semibold text-gray-900">Customer balance</h3>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {t('finishTab.customerBalance')}
+                </h3>
 
                 <dl className="mt-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">{jobValueLabel}</dt>
+                    <dt className="text-slate-600" title={jobValueTitle}>
+                      {jobValueLabel}
+                    </dt>
                     <dd className="font-medium tabular-nums">
                       {formatCurrency(Number(summary.job_value_excl_gst))}
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">Already invoiced (excl GST)</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.alreadyInvoiced')}>
+                      {t('finishTab.alreadyInvoiced')}
+                    </dt>
                     <dd className="font-medium tabular-nums">
                       {formatCurrency(Number(summary.valid_invoiced_excl_gst))}
                     </dd>
                   </div>
                   <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                    <dt className="text-slate-600">Still to invoice (excl GST)</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.stillToInvoice')}>
+                      {t('finishTab.stillToInvoice')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-remaining-excl-gst"
                       className="font-medium tabular-nums"
@@ -273,7 +287,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">GST</dt>
+                    <dt className="text-slate-600" title={t('finishTab.titles.gst')}>
+                      {t('finishTab.gst')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-remaining-gst"
                       className="font-medium tabular-nums"
@@ -283,7 +299,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                   </div>
                   {Number(summary.outstanding_invoiced_incl_gst) > 0 && (
                     <div className="flex justify-between">
-                      <dt className="text-slate-600">Unpaid invoices (incl GST)</dt>
+                      <dt className="text-slate-600" title={t('finishTab.titles.unpaidInvoices')}>
+                        {t('finishTab.unpaidInvoices')}
+                      </dt>
                       <dd
                         data-automation-id="JobFinishTab-outstanding-incl-gst"
                         className="font-medium tabular-nums"
@@ -293,7 +311,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </div>
                   )}
                   <div className="mt-1 flex items-baseline justify-between border-t-2 border-slate-300 pt-2">
-                    <dt className="font-semibold text-slate-900">Total to pay</dt>
+                    <dt
+                      className="font-semibold text-slate-900"
+                      title={t('finishTab.titles.totalToPay')}
+                    >
+                      {t('finishTab.totalToPay')}
+                    </dt>
                     <dd
                       data-automation-id="JobFinishTab-total-to-pay"
                       className="text-2xl font-bold tabular-nums text-emerald-700"
@@ -308,11 +331,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     data-automation-id="JobFinishTab-over-invoiced"
                     className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
                   >
-                    <strong>
-                      Job appears over-invoiced by{' '}
-                      {formatCurrency(Number(summary.over_invoiced_excl_gst))}
-                    </strong>{' '}
-                    (excl GST). The job value may be out of date, or invoicing may need correcting.
+                    <Trans
+                      t={t}
+                      i18nKey="finishTab.overInvoiced"
+                      values={{ amount: formatCurrency(Number(summary.over_invoiced_excl_gst)) }}
+                      components={{ strong: <strong /> }}
+                    />
                   </div>
                 )}
               </section>
@@ -331,21 +355,23 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               data-automation-id="JobFinishTab-checklist"
               className="rounded-xl border border-slate-200 bg-white p-4"
             >
-              <h3 className="text-base font-semibold text-gray-900">Completion checklist</h3>
-              <p className="mb-3 text-xs text-slate-500">Self-checklist.</p>
+              <h3 className="text-base font-semibold text-gray-900">
+                {t('finishTab.checklistTitle')}
+              </h3>
+              <p className="mb-3 text-xs text-slate-500">{t('finishTab.checklistHint')}</p>
 
               <div className="space-y-2">
-                {checklistItems.map((item) => (
-                  <label key={item.key} className="flex cursor-pointer items-start gap-2 text-sm">
+                {checklistItems.map((key) => (
+                  <label key={key} className="flex cursor-pointer items-start gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={checklist[item.key]}
-                      data-automation-id={`JobFinishTab-checklist-${item.key}`}
+                      checked={checklist[key]}
+                      data-automation-id={`JobFinishTab-checklist-${key}`}
                       className="mt-0.5 h-4 w-4 rounded border-slate-300"
                       disabled={checklistSave.isPending}
-                      onChange={(event) => toggleChecklist(item.key, event.target.checked)}
+                      onChange={(event) => toggleChecklist(key, event.target.checked)}
                     />
-                    <span className="text-slate-800">{item.label}</span>
+                    <span className="text-slate-800">{t(`finishTab.checklist.${key}`)}</span>
                   </label>
                 ))}
               </div>
@@ -355,9 +381,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               data-automation-id="JobFinishTab-labour-hours"
               className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3"
             >
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div
+                className="rounded-lg border border-slate-200 bg-white p-3"
+                title={t('finishTab.titles.labourBudget')}
+              >
                 <div className="text-[11px] tracking-wide text-slate-500 uppercase">
-                  Labour budget
+                  {t('finishTab.labourBudget')}
                 </div>
                 <div
                   data-automation-id="JobFinishTab-labour-budget"
@@ -366,8 +395,13 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                   {NUMBER.format(labourBudgetHours)}
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="text-[11px] tracking-wide text-slate-500 uppercase">Hours used</div>
+              <div
+                className="rounded-lg border border-slate-200 bg-white p-3"
+                title={t('finishTab.titles.hoursUsed')}
+              >
+                <div className="text-[11px] tracking-wide text-slate-500 uppercase">
+                  {t('finishTab.hoursUsed')}
+                </div>
                 <div
                   data-automation-id="JobFinishTab-labour-used"
                   className="text-lg font-semibold tabular-nums text-slate-900"
@@ -379,9 +413,10 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                 className={`rounded-lg border bg-white p-3 ${
                   labourOverrunHours > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200'
                 }`}
+                title={t('finishTab.titles.hoursRemaining')}
               >
                 <div className="text-[11px] tracking-wide text-slate-500 uppercase">
-                  {labourOverrunHours > 0 ? 'Overrun' : 'Hours remaining'}
+                  {labourOverrunHours > 0 ? t('finishTab.overrun') : t('finishTab.hoursRemaining')}
                 </div>
                 <div
                   data-automation-id="JobFinishTab-labour-remaining"
@@ -400,17 +435,30 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               <table className="min-w-full rounded-lg border border-gray-200 bg-white text-sm">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Metric</th>
-                    <th className="px-4 py-3 text-center font-semibold text-blue-700">Estimate</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                      {t('finishTab.metric')}
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold text-blue-700">
+                      {t('finishTab.estimate')}
+                    </th>
                     {showQuoteColumn && (
-                      <th className="px-4 py-3 text-center font-semibold text-green-700">Quote</th>
+                      <th className="px-4 py-3 text-center font-semibold text-green-700">
+                        {t('finishTab.quote')}
+                      </th>
                     )}
-                    <th className="px-4 py-3 text-center font-semibold text-orange-700">Actual</th>
+                    <th
+                      className="px-4 py-3 text-center font-semibold text-orange-700"
+                      title={t('finishTab.titles.actual')}
+                    >
+                      {t('finishTab.actual')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="[&_td]:border-b [&_td]:border-gray-200 [&_th]:border-b [&_th]:border-gray-200">
                   <tr>
-                    <td className="px-4 py-2 font-medium">Total Cost</td>
+                    <td className="px-4 py-2 font-medium" title={t('finishTab.titles.totalCost')}>
+                      {t('finishTab.totalCost')}
+                    </td>
                     <td className="px-4 py-2 text-center">{formatCurrency(estimate.cost)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{formatCurrency(quote.cost)}</td>
@@ -425,7 +473,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">Total Revenue</td>
+                    <td
+                      className="px-4 py-2 font-medium"
+                      title={t('finishTab.titles.totalRevenue')}
+                    >
+                      {t('finishTab.totalRevenue')}
+                    </td>
                     <td className="px-4 py-2 text-center">{formatCurrency(estimate.rev)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{formatCurrency(quote.rev)}</td>
@@ -440,7 +493,12 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">Profit Margin</td>
+                    <td
+                      className="px-4 py-2 font-medium"
+                      title={t('finishTab.titles.profitMargin')}
+                    >
+                      {t('finishTab.profitMargin')}
+                    </td>
                     <td className="px-4 py-2 text-center">
                       {signedPercent(estimate.profitMargin)}
                     </td>
@@ -457,7 +515,9 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 font-medium">Total Hours</td>
+                    <td className="px-4 py-2 font-medium" title={t('finishTab.titles.totalHours')}>
+                      {t('finishTab.totalHours')}
+                    </td>
                     <td className="px-4 py-2 text-center">{NUMBER.format(estimate.hours)}</td>
                     {showQuoteColumn && (
                       <td className="px-4 py-2 text-center">{NUMBER.format(quote.hours)}</td>
@@ -477,15 +537,20 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
               {showQuoteColumn && (
                 <div className="mt-6 flex flex-col gap-4 md:flex-row">
                   {quoteStatus !== 'nodata' ? (
-                    <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+                    <div
+                      className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4"
+                      title={t('finishTab.titles.quoteAccuracy')}
+                    >
                       <QuoteAccuracyIcon className={`h-8 w-8 ${quoteAccuracyClass}`} />
                       <div>
-                        <div className="font-semibold text-gray-900">Quote Accuracy</div>
+                        <div className="font-semibold text-gray-900">
+                          {t('finishTab.quoteAccuracy')}
+                        </div>
                         <div className={`text-lg font-bold ${quoteAccuracyClass}`}>
                           {signedPercent(percentDiff(actual.cost, quote.cost))}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Deviation of actual cost from quoted cost
+                          {t('finishTab.quoteAccuracyHint')}
                         </div>
                       </div>
                     </div>
@@ -495,9 +560,11 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                         <span className="text-sm text-gray-500">?</span>
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-500">Quote Accuracy</div>
+                        <div className="font-semibold text-gray-500">
+                          {t('finishTab.quoteAccuracy')}
+                        </div>
                         <div className="text-sm text-gray-500">
-                          {!quote.cost ? 'No quote data available' : 'No actual data available'}
+                          {!quote.cost ? t('finishTab.noQuoteData') : t('finishTab.noActualData')}
                         </div>
                       </div>
                     </div>

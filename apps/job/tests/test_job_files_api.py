@@ -54,7 +54,7 @@ def job(company: Company, office_staff: Staff) -> Job:
 
 def _upload(
     client: Client, job: Job, *files: SimpleUploadedFile, **extra: str
-) -> "_MonkeyPatchedWSGIResponse":
+) -> _MonkeyPatchedWSGIResponse:
     return client.post(f"/api/job/jobs/{job.id}/files/", {"files": list(files), **extra})
 
 

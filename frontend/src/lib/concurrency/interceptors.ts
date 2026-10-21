@@ -11,7 +11,10 @@
  */
 import { toast } from 'sonner'
 
-import { etagKey, getEtag, setEtag } from './etag-store'
+import { i18n } from '@/lib/i18n'
+import type sharedCatalogue from '@/locales/en/shared.json'
+
+import { etagKey, getEtag, setEtag, strongResourceVersion } from './etag-store'
 import { emitConcurrencyRetry, type ResourceKind } from './retry-bus'
 
 export class ConcurrencyError extends Error {
@@ -30,31 +33,14 @@ export function isConcurrencyError(error: unknown): error is ConcurrencyError {
   return error instanceof ConcurrencyError
 }
 
-// --- Strong-version header filtering ---
-
-function strongHeaderValue(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const normalized = value.trim()
-  if (!normalized || /^W\//i.test(normalized)) {
-    return null
-  }
-  return normalized
-}
-
-/** Headers with lowercased keys, as axios normalizes response headers. */
-export function strongResourceVersion(headers: Record<string, unknown>): string | null {
-  return (
-    strongHeaderValue(headers['x-resource-version']) ?? strongHeaderValue(headers['etag']) ?? null
-  )
-}
-
 // --- Resource rules ---
 
+/** Keys under `concurrency` in the shared catalogue, translated when the failure fires. */
+type ConcurrencyMessageKey = Extract<keyof (typeof sharedCatalogue)['concurrency'], string>
+
 interface StatusMessages {
-  toast: string
-  error: string
+  toast: ConcurrencyMessageKey
+  error: ConcurrencyMessageKey
 }
 
 interface ResourceRule {
@@ -122,12 +108,12 @@ const RULES: readonly ResourceRule[] = [
       /\/api\/purchasing\/stocktakes\/[0-9a-f-]{36}\/(?:post\/|correct\/)?$/i.test(url),
     idForMutation: (url) => url.match(/\/stocktakes\/([0-9a-f-]{36})/i)?.[1] ?? null,
     conflict: {
-      toast: 'This stocktake was saved elsewhere. Reload the saved draft to continue.',
-      error: 'This stocktake was saved elsewhere. Your entries have been retained.',
+      toast: 'stocktakeConflictToast',
+      error: 'stocktakeConflictError',
     },
     missing: {
-      toast: 'Reload the stocktake before saving.',
-      error: 'Stocktake version information is missing. Your entries have been retained.',
+      toast: 'stocktakeMissingToast',
+      error: 'stocktakeMissingError',
     },
   },
   {
@@ -140,12 +126,12 @@ const RULES: readonly ResourceRule[] = [
     isMutationEndpoint: (url) => JOB_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
     idForMutation: (url) => jobIdFromUrl(url),
     conflict: {
-      toast: 'This job was updated by another user. Data reloaded.',
-      error: 'This job was updated by another user. Data reloaded. Please retry your changes.',
+      toast: 'jobConflictToast',
+      error: 'jobConflictError',
     },
     missing: {
-      toast: 'Missing version information. Job data reloaded.',
-      error: 'Missing version information. Job data reloaded. Please retry your changes.',
+      toast: 'jobMissingToast',
+      error: 'jobMissingError',
     },
   },
   {
@@ -155,15 +141,12 @@ const RULES: readonly ResourceRule[] = [
     isMutationEndpoint: (url) => PO_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
     idForMutation: poIdForMutation,
     conflict: {
-      toast: 'This purchase order was updated elsewhere. Data reloaded.',
-      error:
-        'This purchase order was updated elsewhere. Data reloaded. Please review and resubmit.',
+      toast: 'poConflictToast',
+      error: 'poConflictError',
     },
     missing: {
-      toast:
-        'Missing version information. Purchase order data has been reloaded - please review before retrying your update.',
-      error:
-        'Missing version information. Purchase order data reloaded. Please review and resubmit.',
+      toast: 'poMissingToast',
+      error: 'poMissingError',
     },
   },
 ]
@@ -277,11 +260,11 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
     }
   }
 
-  toast.error(messages.toast, {
+  toast.error(i18n.t(`shared:concurrency.${messages.toast}`), {
     duration: Infinity, // Don't auto-dismiss
     action: rule.retryAction
       ? {
-          label: 'Retry',
+          label: i18n.t('shared:concurrency.retry'),
           onClick: () => {
             emitConcurrencyRetry({ kind: rule.kind, id })
           },
@@ -289,7 +272,7 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
       : undefined,
   })
 
-  throw new ConcurrencyError(messages.error, rule.kind, id)
+  throw new ConcurrencyError(i18n.t(`shared:concurrency.${messages.error}`), rule.kind, id)
 }
 
 /** First rule whose mutation-URL pattern matches and yields a resource id. */

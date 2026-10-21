@@ -41,6 +41,7 @@ import { hashKey, useQuery, useQueryClient, type QueryClient } from '@tanstack/r
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { i18n } from '@/lib/i18n'
 import { useLatest } from '@/lib/useLatest'
 
 import {
@@ -79,13 +80,6 @@ export const RECONCILE_INTERVAL_MS = 30_000
  * the burst is worth one question rather than five.
  */
 const STREAM_RECONCILE_DEBOUNCE_MS = 300
-
-/**
- * Said once per outage, not once per retry. The sentence names the fallback
- * because that is the part the user can act on: the board is still current
- * within 30s, it just stopped being instant.
- */
-const STREAM_DISCONNECTED_MESSAGE = 'Live updates disconnected — falling back to periodic refresh'
 
 /** The opaque server versions this loop tracks. Never parsed, never synthesised. */
 interface KanbanCursor {
@@ -287,7 +281,10 @@ export function useKanbanReconciliation({
         }
         // Cursor unchanged: whatever moved is still unseen, and the next tick
         // asks from the same point.
-        reportStreak(changesFailingRef, apiErrorMessage(error, 'Failed to refresh the board'))
+        reportStreak(
+          changesFailingRef,
+          apiErrorMessage(error, i18n.t('kanban:reconciliation.refreshFailed')),
+        )
         return
       }
       changesFailingRef.current = false
@@ -331,7 +328,7 @@ export function useKanbanReconciliation({
       if (event.action.type === 'error') {
         reportStreak(
           versionsFailingRef,
-          apiErrorMessage(event.action.error, 'Failed to check the board for changes'),
+          apiErrorMessage(event.action.error, i18n.t('kanban:reconciliation.checkFailed')),
         )
         return
       }
@@ -390,7 +387,10 @@ export function useKanbanReconciliation({
       },
       onDisconnect: () => {
         setStreamHealth(false)
-        reportStreak(streamFailingRef, STREAM_DISCONNECTED_MESSAGE)
+        // Said once per outage, not once per retry. The sentence names the
+        // fallback because that is the part the user can act on: the board is
+        // still current within 30s, it just stopped being instant.
+        reportStreak(streamFailingRef, i18n.t('kanban:reconciliation.streamDisconnected'))
       },
     })
 

@@ -38,7 +38,7 @@ GMAIL_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose"
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 
 
-def _build_gmail(scopes: list[str], subject: str) -> "GmailResource":
+def _build_gmail(scopes: list[str], subject: str) -> GmailResource:
     """Build the one Gmail client, as a named Workspace user.
 
     Both arguments are required: the two callers want different scopes and
@@ -130,7 +130,7 @@ def create_draft(
     to: str,
     subject: str,
     body: str,
-    attachments: "Sequence[Attachment]" = (),
+    attachments: Sequence[Attachment] = (),
 ) -> GmailDraft:
     """Create a draft in ``as_user``'s own mailbox and return where to open it.
 

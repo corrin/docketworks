@@ -1,4 +1,5 @@
 import type { CrmPhoneCallsListData } from '@/api'
+import { i18n } from '@/lib/i18n'
 
 /** The four triage queues the calls page offers. */
 export type CallsTab = 'recent' | 'unmatched' | 'unlinked' | 'all'
@@ -8,26 +9,21 @@ export const CALLS_TABS: readonly CallsTab[] = ['recent', 'unmatched', 'unlinked
 /** The direction filter's vocabulary, which is the wire's own. */
 export type DirectionFilter = NonNullable<NonNullable<CrmPhoneCallsListData['query']>['direction']>
 
-/** The option text for each direction. The `Record<DirectionFilter, …>`
-    annotation is what makes the compiler demand an entry for every direction
-    the wire declares. */
-export const DIRECTION_LABELS: Record<DirectionFilter, string> = {
-  all: 'All directions',
-  inbound: 'Inbound',
-  outbound: 'Outbound',
-  internal: 'Internal',
-  unknown: 'Unknown',
+/** The option text for a direction. The catalogue is typed, so a direction the
+    wire declares without a `crm:phoneCalls.direction.*` entry does not compile. */
+export function directionLabel(direction: DirectionFilter): string {
+  return i18n.t(`crm:phoneCalls.direction.${direction}`)
 }
 
 const DIRECTION_FILTER_ORDER = ['all', 'inbound', 'outbound', 'internal', 'unknown'] as const
 
 /**
- * Fable: the labels record and the order list check each other, so a direction
- * added to the wire cannot reach the select without an option. The record's
- * annotation demands a label for it; this alias demands a place in the order,
+ * Fable: the typed catalogue and the order list check each other, so a direction
+ * added to the wire cannot reach the select without an option. The catalogue's
+ * key type demands a label for it; this alias demands a place in the order,
  * and stops compiling when the exclusion leaves anything behind.
  *
- * Deriving the order from `Object.keys(DIRECTION_LABELS)` was rejected:
+ * Deriving the order from a list of the catalogue's keys was rejected:
  * `Object.keys` is typed `string[]`, so it needs a cast back to the union —
  * and a cast is exactly the silent gap this is here to close.
  */
@@ -60,7 +56,7 @@ export function callDirectionLabel(direction: string): string {
   if (known === undefined) {
     throw new Error(`Unknown call direction: '${direction}'`)
   }
-  return DIRECTION_LABELS[known]
+  return directionLabel(known)
 }
 
 interface QueueMeta {
@@ -70,29 +66,14 @@ interface QueueMeta {
   description: string
 }
 
-/** What each queue is called and what it is for, shown above its rows. */
-export const QUEUE_META: Record<CallsTab, QueueMeta> = {
-  recent: {
-    tab: 'Recent Calls',
-    title: 'Recent Calls',
-    description: 'Newest imported calls. The provider sync runs about every five minutes.',
-  },
-  unmatched: {
-    tab: 'Unmatched',
-    title: 'Unmatched Calls',
-    description:
-      'Assign these numbers to companies or people so future and historical calls land in the right CRM history.',
-  },
-  unlinked: {
-    tab: 'Needs Job Link',
-    title: 'Matched Calls Needing Job Link',
-    description: 'These calls already belong to a company but have not been linked to a job.',
-  },
-  all: {
-    tab: 'All Calls',
-    title: 'All Calls',
-    description: 'Audit and search across imported calls.',
-  },
+/** What a queue is called and what it is for, shown above its rows. The
+    catalogue holds a `tab`, `title` and `description` under each queue's key. */
+export function queueMeta(tab: CallsTab): QueueMeta {
+  return {
+    tab: i18n.t(`crm:phoneCalls.queues.${tab}.tab`),
+    title: i18n.t(`crm:phoneCalls.queues.${tab}.title`),
+    description: i18n.t(`crm:phoneCalls.queues.${tab}.description`),
+  }
 }
 
 /** The user's tab and filter choices, before they become query parameters. */

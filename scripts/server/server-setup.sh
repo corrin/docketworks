@@ -182,7 +182,7 @@ log "Installing system packages..."
 DEBIAN_FRONTEND=noninteractive apt install -y \
     etckeeper \
     build-essential libpq-dev pkg-config pandoc unzip \
-    python3.12 python3.12-venv python3.12-dev \
+    python3 \
     git \
     rclone \
     ufw fail2ban \
@@ -195,7 +195,7 @@ fi
 log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
-log_version "python3.12" "$(python3.12 --version 2>&1)"
+log_version "system python3" "$(python3 --version 2>&1)"
 log_version "rclone" "$(rclone version | head -1)"
 log_version "unattended-upgrades" "$(dpkg -s unattended-upgrades | grep '^Version:' | awk '{print $2}')"
 
@@ -233,13 +233,14 @@ Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 UNATT_EOF
 log "  Configured: security pockets, auto-reboot 04:30 server-local (after the 02:30+45m-jitter backup window)."
 
-# --- Node.js 22 (NodeSource) ---
+# --- Node.js (NodeSource), the major the last sweep tested ---
 
-if command -v node &>/dev/null && node --version | grep -q '^v22'; then
-    log "Node.js 22 already installed, skipping."
+NODE_MAJOR="$(node_major_from_nvmrc "$SCRIPT_DIR/../../frontend/.nvmrc")"
+if command -v node &>/dev/null && node --version | grep -q "^v$NODE_MAJOR\."; then
+    log "Node.js $NODE_MAJOR already installed, skipping."
 else
-    log "Installing Node.js 22 via NodeSource..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    log "Installing Node.js $NODE_MAJOR via NodeSource..."
+    curl -fsSL "https://deb.nodesource.com/setup_$NODE_MAJOR.x" | bash -
     apt install -y nodejs
 fi
 log_version "node" "$(node --version)"
@@ -511,7 +512,11 @@ rm -f /opt/docketworks/shared.env
 # --- uv for docketworks user (Python dependency manager; release builds) ---
 
 if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v uv' &>/dev/null; then
-    log "uv already installed for docketworks user, skipping."
+    # Opus: uv carries its list of Python builds inside the binary, so a uv
+    # older than the pin in .python-version cannot install it; the weekly
+    # sweep moves that pin, so uv moves with it.
+    log "uv already installed for docketworks user, updating..."
+    sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv self update'
 else
     log "Installing uv for docketworks user..."
     sudo -u docketworks bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
@@ -519,16 +524,28 @@ fi
 UV_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv --version' 2>&1)"
 log_version "uv (docketworks user)" "$UV_VERSION"
 
-# --- pnpm (via corepack) ---
+# GPT: The app runtime follows the release pin, independently of Ubuntu's Python.
+# Instance users execute this shared interpreter through their release venvs.
+PYTHON_VERSION="$(cat "$SCRIPT_DIR/../../.python-version")"
+log "Installing app Python $PYTHON_VERSION for docketworks..."
+sudo -u docketworks bash -c 'umask 022; export PATH="/opt/docketworks/.local/bin:$PATH"; uv python install "$1"' bash "$PYTHON_VERSION"
+APP_PYTHON="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH"; uv python find --managed-python "$1"' bash "$PYTHON_VERSION")"
+chmod o+rx /opt/docketworks/.local /opt/docketworks/.local/share \
+    /opt/docketworks/.local/share/uv /opt/docketworks/.local/share/uv/python
+APP_PYTHON_VERSION="$("$APP_PYTHON" --version 2>&1)"
+log_version "app Python" "$APP_PYTHON_VERSION"
+
+# --- pnpm (via npm) ---
 # Solely for the co-hosted marketing website (/opt/docketworks-website,
 # docs/server_setup.md Part G) — the app itself builds with npm.
+# Opus: Node 26 ships no corepack, and the Node upgrade removes it,
+# leaving the /usr/bin/pnpm it linked dangling; --force replaces that link.
 
-if command -v pnpm &>/dev/null; then
+if pnpm --version &>/dev/null; then
     log "pnpm already installed, skipping."
 else
-    log "Installing pnpm via corepack..."
-    corepack enable
-    corepack prepare pnpm@latest --activate
+    log "Installing pnpm via npm..."
+    npm install -g --force pnpm
 fi
 log_version "pnpm" "$(pnpm --version)"
 
@@ -664,7 +681,7 @@ cat > "$MANIFEST" <<MANIFEST
 ## Installed Software
 
 etckeeper:  $(dpkg -s etckeeper | grep Version | awk '{print $2}')
-Python:     $(python3.12 --version 2>&1)
+Python:     $APP_PYTHON_VERSION
 Node.js:    $(node --version)
 npm:        $(npm --version)
 PostgreSQL: $(psql --version)
