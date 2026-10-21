@@ -295,6 +295,18 @@ def general_work(superuser: Staff) -> Job:
     return job
 
 
+def _standard_day_with_breaks() -> None:
+    """07:00 to 15:30 on DAY's weekday, with the workshop's three standard breaks."""
+    defaults = CompanyDefaults.get_solo()
+    weekday = ("mon", "tue", "wed", "thu", "fri")[DAY.weekday()]
+    setattr(defaults, f"{weekday}_start", time(7, 0))
+    setattr(defaults, f"{weekday}_end", time(15, 30))
+    defaults.morning_break_start, defaults.morning_break_minutes = time(8, 30), 15
+    defaults.lunch_start, defaults.lunch_minutes = time(11, 30), 30
+    defaults.afternoon_break_start, defaults.afternoon_break_minutes = time(13, 30), 15
+    defaults.save()
+
+
 def _general_work_hours(general_work: Job, worker: Staff) -> list[str]:
     return [
         str(line.quantity)
@@ -444,7 +456,7 @@ class TestSweep:
         own.refresh_from_db()
         assert own.approved
 
-    def test_everyone_is_the_people_who_clocked_or_have_time_on_the_day(
+    def test_everyone_is_the_people_who_clocked_have_time_or_were_rostered(
         self,
         office_staff: Staff,
         job: Job,
@@ -452,19 +464,17 @@ class TestSweep:
         worker: Staff,
         other_worker: Staff,
     ) -> None:
-        """Guards approval._people_on: time without a clock is reported, nothing at all is not."""
+        """Guards approval._people_on: someone rostered who did nothing worked the standard day."""
         attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
         make_time_line(job, other_worker, accounting_date=DAY, approved=False)
         nobody = make_staff("not.here@example.com")
 
         result = approval.sweep_everyone([DAY], office_staff)
 
-        assert result["swept_hours"] == 2.0
+        assert result["skipped"] == []
         assert _general_work_hours(general_work, worker) == ["2.000"]
-        assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
-            (str(other_worker.id), "no_clock_times")
-        ]
-        assert str(nobody.id) not in {skip["staff_id"] for skip in result["skipped"]}
+        assert _general_work_hours(general_work, nobody) != []
+        assert AttendanceDay.objects.filter(staff=nobody, date=DAY).exists()
 
     def test_only_office_staff_sweep(self, worker: Staff) -> None:
         response = authenticated_client(worker).post(
@@ -504,6 +514,99 @@ class TestSweep:
         assert everyone.status_code == 200, everyone.content
         # The worker's day was swept already: only the other worker's 2.5 hours move.
         assert everyone.json()["swept_hours"] == 2.5
+
+    @pytest.mark.usefixtures("general_work")
+    def test_an_unclocked_rostered_day_is_the_standard_day(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Guards approval._sweep and unallocated_windows: not clocking is the standard day."""
+        standard = attendance.standard_day(DAY)
+        assert standard is not None
+        [shown] = [
+            row for row in approval.day_approvals(DAY)["staff"] if row["staff_id"] == str(worker.id)
+        ]
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (standard.start, standard.end)
+        assert attendance.day_state(row) == "sent"
+        assert result["skipped"] == []
+        assert result["swept_hours"] == shown["unallocated_hours"]
+        assert result["swept_hours"] > 0
+
+    def test_an_unclocked_day_books_the_standard_gaps_around_its_breaks_and_entries(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: untimed hours are laid from the standard start."""
+        _standard_day_with_breaks()
+        make_time_line(job, worker, accounting_date=DAY, hours="4.000", approved=False)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        # 07:00 + 4h around the 08:30 paid break ends 11:15; the rest to 15:30.
+        assert _general_work_entries(general_work, worker) == [
+            ("11:15:00", "11:30:00", "0.250"),
+            ("12:00:00", "13:30:00", "1.500"),
+            ("13:45:00", "15:30:00", "1.750"),
+        ]
+
+    def test_an_unclocked_day_with_nothing_is_the_whole_standard_day(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: the standard day less its standard breaks."""
+        _standard_day_with_breaks()
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("07:00:00", "08:30:00", "1.500"),
+            ("08:45:00", "11:30:00", "2.750"),
+            ("12:00:00", "13:30:00", "1.500"),
+            ("13:45:00", "15:30:00", "1.750"),
+        ]
+
+    @pytest.mark.usefixtures("general_work")
+    def test_today_unclocked_is_not_yet_a_day_worked(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Guards approval._assumed_standard: today he may still clock in."""
+        today = timezone.localdate()
+
+        result = approval.sweep_person(worker, [today], office_staff)
+
+        assert not AttendanceDay.objects.filter(staff=worker, date=today).exists()
+        assert result["swept_hours"] == 0.0
+
+    def test_an_unclocked_day_of_leave_sweeps_nothing(
+        self,
+        office_staff: Staff,
+        company: Company,
+        superuser: Staff,
+        general_work: Job,
+        worker: Staff,
+    ) -> None:
+        """Guards attendance.unallocated_windows: unclocked, his leave is his standard day."""
+        leave_job = make_leave_job(company, superuser, "Annual Leave")
+        leave = make_time_line(leave_job, worker, accounting_date=DAY, hours="8.000")
+        CostLine.objects.filter(pk=leave.pk).update(managed_by="leave")
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == []
+        assert result["swept_hours"] == 0.0
+
+    @pytest.mark.usefixtures("general_work")
+    def test_an_unclocked_day_nobody_was_rostered_for_is_skipped(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Guards approval._sweep: a weekend nobody clocked is no day worked."""
+        saturday = DAY + timedelta(days=5)
+
+        result = approval.sweep_person(worker, [saturday], office_staff)
+
+        assert [skip["reason"] for skip in result["skipped"]] == ["no_clock_times"]
+        assert not AttendanceDay.objects.filter(staff=worker, date=saturday).exists()
 
     def test_leave_on_the_day_takes_none_of_the_clocked_time(
         self,

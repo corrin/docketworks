@@ -40,6 +40,7 @@ from apps.timesheet.services.attendance import (
     split_breaks,
     standard_day,
     unallocated_windows,
+    use_standard_hours,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
@@ -195,7 +196,12 @@ def _staff_day(
     fill = fill_figures(
         attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
     )
-    unallocated = unallocated_windows(day, attendance, entries, break_lines)
+    # Nobody clocked: a day gone by he was rostered for is the standard day.
+    unallocated = (
+        unallocated_windows(day, attendance, entries, break_lines)
+        if attendance is not None or (rostered and day < timezone.localdate())
+        else None
+    )
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
@@ -257,8 +263,7 @@ def day_approvals(day: date) -> ApprovalsDayData:
             by_staff.get(str(person.id), []),
             clocked.get(person.id),
             # The roster rule the daily and weekly screens use.
-            rostered=hour_categories.scheduled_hours(person, day, weekend_enabled=weekend_enabled)
-            > 0,
+            rostered=_rostered(person, day, weekend_enabled=weekend_enabled),
         )
         for person in get_displayable_staff(target_date=day)
     ]
@@ -377,19 +382,45 @@ def sweep_everyone(days: list[date], actor: Staff) -> SweepData:
     return _sweep({day: _people_on(day) for day in days}, actor)
 
 
-def _people_on(day: date) -> list[Staff]:
-    """Return the people who clocked or have time on the day.
+def _rostered(person: Staff, day: date, *, weekend_enabled: bool) -> bool:
+    """Whether he was expected on the day, by the roster rule the timesheet screens use."""
+    return hour_categories.scheduled_hours(person, day, weekend_enabled=weekend_enabled) > 0
 
-    Someone with neither has nothing to sweep and nothing to approve, so they
-    are not reported as skipped.
+
+def _assumed_standard(
+    person: Staff, day: date, row: AttendanceDay | None, *, weekend_enabled: bool
+) -> bool:
+    """Whether his day is the standard day because he did not clock (owner, 2026-10-21).
+
+    Only a day gone by: today he may still clock in.
     """
+    return (
+        row is None
+        and day < timezone.localdate()
+        and _rostered(person, day, weekend_enabled=weekend_enabled)
+    )
+
+
+def _people_on(day: date) -> list[Staff]:
+    """Return the people who clocked, have time on the day, or were rostered for it.
+
+    Someone with none of these has nothing to sweep and nothing to approve, so
+    they are not reported as skipped. Someone rostered who did not clock
+    worked the standard day.
+    """
+    weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
     present = set(AttendanceDay.objects.filter(date=day).values_list("staff_id", flat=True))
     present |= set(
         CostLine.objects.filter(
             cost_set__kind="actual", kind="time", accounting_date=day
         ).values_list("staff_id", flat=True)
     )
-    return [person for person in get_displayable_staff(target_date=day) if person.id in present]
+    return [
+        person
+        for person in get_displayable_staff(target_date=day)
+        if person.id in present
+        or _assumed_standard(person, day, None, weekend_enabled=weekend_enabled)
+    ]
 
 
 def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
@@ -409,6 +440,10 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     # Every job the sweep will write to, at once and in id order: taken one
     # call at a time they could cross another writer's order and deadlock.
     job_ids = {general_work_id}
+    # Standard hours put the standard breaks on an unclocked day.
+    break_id = break_job_id()
+    if break_id is not None:
+        job_ids.add(break_id)
     for day, people in people_by_day.items():
         for person in people:
             job_ids |= set(_waiting(person, day).values_list("cost_set__job_id", flat=True))
@@ -416,12 +451,19 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     swept = Decimal(0)
     approved = 0
     skipped: list[SweepSkipData] = []
+    weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
     for day, people in people_by_day.items():
         for person in people:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
-            windows = unallocated_windows(day, row, entries, break_lines)
-            if row is None or windows is None:
+            # Not clocking in is working the standard day (owner, 2026-10-21).
+            assumed = _assumed_standard(person, day, row, weekend_enabled=weekend_enabled)
+            windows = (
+                unallocated_windows(day, row, entries, break_lines)
+                if row is not None or assumed
+                else None
+            )
+            if windows is None:
                 skipped.append(
                     {
                         "staff_id": str(person.id),
@@ -430,10 +472,18 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
                         "reason": "no_clock_times" if row is None else "still_clocked_in",
                     }
                 )
-            else:
-                swept += _put_on_general_work(person, day, windows, general_work_id, actor)
-                approved += approve_day(person, day, actor)
-                _send_for_him(person, row, actor)
+                continue
+            if assumed and windows:
+                # Recorded as the office's, so the day says it was not clocked;
+                # its standard breaks are the ones the stretches were placed around.
+                use_standard_hours(person, day, actor)
+                row = AttendanceDay.objects.get(staff=person, date=day)
+            swept += _put_on_general_work(person, day, windows, general_work_id, actor)
+            approved += approve_day(person, day, actor)
+            if row is None:
+                # Unclocked and his leave fills the standard day: no day to send.
+                continue
+            _send_for_him(person, row, actor)
     return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
 
 

@@ -282,7 +282,11 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                     ? t('approve.sweepPerson', {
                         hours: formatHoursDisplay(person.unallocated_hours),
                       })
-                    : t('approve.allOnJobs')}
+                    : person.unallocated_hours === null
+                      ? person.clock.state === 'at_work'
+                        ? t('approve.stillClockedIn')
+                        : t('approve.noClockTimes')
+                      : t('approve.allOnJobs')}
                 </Button>
                 {person.state === 'waiting' && (
                   <Button
