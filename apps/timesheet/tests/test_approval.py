@@ -295,6 +295,18 @@ def general_work(superuser: Staff) -> Job:
     return job
 
 
+def _standard_day_with_breaks() -> None:
+    """07:00 to 15:30 on DAY's weekday, with the workshop's three standard breaks."""
+    defaults = CompanyDefaults.get_solo()
+    weekday = ("mon", "tue", "wed", "thu", "fri")[DAY.weekday()]
+    setattr(defaults, f"{weekday}_start", time(7, 0))
+    setattr(defaults, f"{weekday}_end", time(15, 30))
+    defaults.morning_break_start, defaults.morning_break_minutes = time(8, 30), 15
+    defaults.lunch_start, defaults.lunch_minutes = time(11, 30), 30
+    defaults.afternoon_break_start, defaults.afternoon_break_minutes = time(13, 30), 15
+    defaults.save()
+
+
 def _general_work_hours(general_work: Job, worker: Staff) -> list[str]:
     return [
         str(line.quantity)
@@ -522,6 +534,49 @@ class TestSweep:
         assert result["skipped"] == []
         assert result["swept_hours"] == shown["unallocated_hours"]
         assert result["swept_hours"] > 0
+
+    def test_an_unclocked_day_books_the_standard_gaps_around_its_breaks_and_entries(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: untimed hours are laid from the standard start."""
+        _standard_day_with_breaks()
+        make_time_line(job, worker, accounting_date=DAY, hours="4.000", approved=False)
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        # 07:00 + 4h around the 08:30 paid break ends 11:15; the rest to 15:30.
+        assert _general_work_entries(general_work, worker) == [
+            ("11:15:00", "11:30:00", "0.250"),
+            ("12:00:00", "13:30:00", "1.500"),
+            ("13:45:00", "15:30:00", "1.750"),
+        ]
+
+    def test_an_unclocked_day_with_nothing_is_the_whole_standard_day(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Guards attendance.unallocated_windows: the standard day less its standard breaks."""
+        _standard_day_with_breaks()
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _general_work_entries(general_work, worker) == [
+            ("07:00:00", "08:30:00", "1.500"),
+            ("08:45:00", "11:30:00", "2.750"),
+            ("12:00:00", "13:30:00", "1.500"),
+            ("13:45:00", "15:30:00", "1.750"),
+        ]
+
+    @pytest.mark.usefixtures("general_work")
+    def test_today_unclocked_is_not_yet_a_day_worked(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Guards approval._assumed_standard: today he may still clock in."""
+        today = timezone.localdate()
+
+        result = approval.sweep_person(worker, [today], office_staff)
+
+        assert not AttendanceDay.objects.filter(staff=worker, date=today).exists()
+        assert result["swept_hours"] == 0.0
 
     def test_an_unclocked_day_of_leave_sweeps_nothing(
         self,

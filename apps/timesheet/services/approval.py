@@ -196,10 +196,10 @@ def _staff_day(
     fill = fill_figures(
         attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
     )
-    # Nobody clocked and not rostered: no day to account for.
+    # Nobody clocked: a day gone by he was rostered for is the standard day.
     unallocated = (
         unallocated_windows(day, attendance, entries, break_lines)
-        if attendance is not None or rostered
+        if attendance is not None or (rostered and day < timezone.localdate())
         else None
     )
     if fill is not None and fill["to_go_hours"] < 0:
@@ -387,6 +387,20 @@ def _rostered(person: Staff, day: date, *, weekend_enabled: bool) -> bool:
     return hour_categories.scheduled_hours(person, day, weekend_enabled=weekend_enabled) > 0
 
 
+def _assumed_standard(
+    person: Staff, day: date, row: AttendanceDay | None, *, weekend_enabled: bool
+) -> bool:
+    """Whether his day is the standard day because he did not clock (owner, 2026-10-21).
+
+    Only a day gone by: today he may still clock in.
+    """
+    return (
+        row is None
+        and day < timezone.localdate()
+        and _rostered(person, day, weekend_enabled=weekend_enabled)
+    )
+
+
 def _people_on(day: date) -> list[Staff]:
     """Return the people who clocked, have time on the day, or were rostered for it.
 
@@ -404,7 +418,8 @@ def _people_on(day: date) -> list[Staff]:
     return [
         person
         for person in get_displayable_staff(target_date=day)
-        if person.id in present or _rostered(person, day, weekend_enabled=weekend_enabled)
+        if person.id in present
+        or _assumed_standard(person, day, None, weekend_enabled=weekend_enabled)
     ]
 
 
@@ -442,7 +457,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
             # Not clocking in is working the standard day (owner, 2026-10-21).
-            assumed = row is None and _rostered(person, day, weekend_enabled=weekend_enabled)
+            assumed = _assumed_standard(person, day, row, weekend_enabled=weekend_enabled)
             windows = (
                 unallocated_windows(day, row, entries, break_lines)
                 if row is not None or assumed
