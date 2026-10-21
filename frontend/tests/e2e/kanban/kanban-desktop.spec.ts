@@ -123,4 +123,33 @@ test.describe.serial('kanban desktop', () => {
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
     await expect(page.locator(`[data-job-id="${otherJobId}"]:visible`)).toHaveCount(0)
   })
+
+  test('search finds the shop job General work, which keeps its status', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/kanban')
+    const searchInput = page.getByPlaceholder('Search jobs...')
+    const specialColumn = page.locator('[data-kanban-status="special"]:visible')
+    await expect(searchInput).toBeVisible()
+    await expect(specialColumn).toHaveCount(0)
+
+    await searchInput.fill('General work')
+
+    const generalWork = specialColumn.locator('[data-job-id]').first()
+    await expect(generalWork).toBeVisible({ timeout: 15000 })
+    const generalWorkId = await generalWork.getAttribute('data-job-id')
+    expect(generalWorkId).not.toBeNull()
+
+    // A shop job is never moved by the board: the drag does nothing.
+    await dragCardToColumn(
+      page,
+      generalWork,
+      page.locator('[data-kanban-status="draft"]:visible'),
+      STANDARD_DRAG_TIMING,
+    )
+    await expect(specialColumn.locator(`[data-job-id="${generalWorkId}"]`)).toBeVisible()
+
+    await searchInput.fill('')
+    await expect(specialColumn).toHaveCount(0)
+  })
 })

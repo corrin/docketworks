@@ -8,7 +8,9 @@
  * here because a second table is a second place for the taxonomy to drift.
  *
  * `special` and `rejected` are deliberately absent: they are hidden statuses
- * with no column at all.
+ * with no column of their own. A search still reaches special jobs (the
+ * shop's own, such as General work), so SEARCH_ONLY_COLUMN_ID is added after
+ * these while a search finds one, as v1 did.
  *
  * `archived` IS rendered, last. It was omitted until KAN-353 on a planning
  * brief's unexamined premise, which cost the board ~95% of the jobs it knows
@@ -35,6 +37,16 @@ export const OFFICE_COLUMN_IDS = [
 ] as const
 
 export type OfficeColumnId = (typeof OFFICE_COLUMN_IDS)[number]
+
+export const SEARCH_ONLY_COLUMN_ID = 'special'
+
+export type BoardColumnId = OfficeColumnId | typeof SEARCH_ONLY_COLUMN_ID
+
+/** A special job is the shop's own (General work, Break, the leave jobs) and
+    keeps its status: the board never moves one out, or a customer job in. */
+export function isMovableStatus(statusKey: string): boolean {
+  return statusKey !== SEARCH_ONLY_COLUMN_ID
+}
 
 /**
  * Labels come from the status-values endpoint at runtime, which
