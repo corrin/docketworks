@@ -23,6 +23,7 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
+from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import SWEPT_GENERAL_WORK, AttendanceDay, LeaveType
@@ -199,7 +200,8 @@ def _staff_day(
     # Nobody clocked: a day gone by he was rostered for is the standard day.
     unallocated = (
         unallocated_windows(day, attendance, entries, break_lines)
-        if attendance is not None or (rostered and day < timezone.localdate())
+        if attendance is not None
+        or (rostered and day < timezone.localdate() and not _has_leave(entries))
         else None
     )
     if fill is not None and fill["to_go_hours"] < 0:
@@ -387,16 +389,30 @@ def _rostered(person: Staff, day: date, *, weekend_enabled: bool) -> bool:
     return hour_categories.scheduled_hours(person, day, weekend_enabled=weekend_enabled) > 0
 
 
+def _has_leave(entries: list[CostLine]) -> bool:
+    """Whether he took leave on the day."""
+    return any(line.managed_by == CostLineOwner.LEAVE for line in entries)
+
+
 def _assumed_standard(
-    person: Staff, day: date, row: AttendanceDay | None, *, weekend_enabled: bool
+    person: Staff,
+    day: date,
+    row: AttendanceDay | None,
+    entries: list[CostLine],
+    *,
+    weekend_enabled: bool,
 ) -> bool:
     """Whether his day is the standard day because he did not clock (owner, 2026-10-21).
 
-    Only a day gone by: today he may still clock in.
+    Only a day gone by: today he may still clock in. Not a day with leave: the
+    standard times it would be given are clocked time, which leave takes none
+    of, so a second sweep would book his leave hours again; the office sets
+    that day's times.
     """
     return (
         row is None
         and day < timezone.localdate()
+        and not _has_leave(entries)
         and _rostered(person, day, weekend_enabled=weekend_enabled)
     )
 
@@ -419,7 +435,8 @@ def _people_on(day: date) -> list[Staff]:
         person
         for person in get_displayable_staff(target_date=day)
         if person.id in present
-        or _assumed_standard(person, day, None, weekend_enabled=weekend_enabled)
+        # Not present: he has no lines on the day.
+        or _assumed_standard(person, day, None, [], weekend_enabled=weekend_enabled)
     ]
 
 
@@ -457,7 +474,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
             # Not clocking in is working the standard day (owner, 2026-10-21).
-            assumed = _assumed_standard(person, day, row, weekend_enabled=weekend_enabled)
+            assumed = _assumed_standard(person, day, row, entries, weekend_enabled=weekend_enabled)
             windows = (
                 unallocated_windows(day, row, entries, break_lines)
                 if row is not None or assumed

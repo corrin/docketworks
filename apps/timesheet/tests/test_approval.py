@@ -578,7 +578,7 @@ class TestSweep:
         assert not AttendanceDay.objects.filter(staff=worker, date=today).exists()
         assert result["swept_hours"] == 0.0
 
-    def test_an_unclocked_day_of_leave_sweeps_nothing(
+    def test_an_unclocked_day_with_leave_is_left_for_the_office(
         self,
         office_staff: Staff,
         company: Company,
@@ -586,15 +586,16 @@ class TestSweep:
         general_work: Job,
         worker: Staff,
     ) -> None:
-        """Guards attendance.unallocated_windows: unclocked, his leave is his standard day."""
+        """Guards approval._assumed_standard: a re-sweep would book part-day leave hours again."""
         leave_job = make_leave_job(company, superuser, "Annual Leave")
-        leave = make_time_line(leave_job, worker, accounting_date=DAY, hours="8.000")
+        leave = make_time_line(leave_job, worker, accounting_date=DAY, hours="4.000")
         CostLine.objects.filter(pk=leave.pk).update(managed_by="leave")
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
         assert _general_work_entries(general_work, worker) == []
-        assert result["swept_hours"] == 0.0
+        assert [skip["reason"] for skip in result["skipped"]] == ["no_clock_times"]
+        assert not AttendanceDay.objects.filter(staff=worker, date=DAY).exists()
 
     @pytest.mark.usefixtures("general_work")
     def test_an_unclocked_day_nobody_was_rostered_for_is_skipped(
