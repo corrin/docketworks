@@ -1,6 +1,6 @@
 /**
  * The office kanban board: staff strip above, then a desktop grid (one equal
- * column per OFFICE_COLUMN_IDS entry) at `lg` and above, or KanbanMobileLayout's scroll-snap strip
+ * column per board column) at `lg` and above, or KanbanMobileLayout's scroll-snap strip
  * below it. Layout is a real conditional render, not a CSS-only toggle: a
  * resize across the breakpoint unmounts one and mounts the other, which is
  * exactly the "stale sortable after layout switch" scenario
@@ -19,7 +19,6 @@ import { useCallback, useRef, useState } from 'react'
 import type { KanbanJobOut } from '@/api'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
 
-import { OFFICE_COLUMN_IDS } from './columns'
 import { KanbanColumn } from './KanbanColumn'
 import { KanbanMobileLayout } from './KanbanMobileLayout'
 import { StaffPanel } from './StaffPanel'
@@ -109,7 +108,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
       {isDesktop ? (
         <div
           className="grid gap-2 xl:gap-3"
-          style={{ gridTemplateColumns: `repeat(${OFFICE_COLUMN_IDS.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${board.columns.length}, minmax(0, 1fr))` }}
         >
           {board.columns.map((column) => (
             <KanbanColumn

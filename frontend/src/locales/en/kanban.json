@@ -55,6 +55,7 @@
     "countTitle": "The number of job cards in this column. \"X of Y\" means not every job is showing: either the column has more jobs than the board loads (it loads 200), or a search is hiding some.",
     "statusTitles": {
       "draft": "A new job. The quote is still being prepared.",
+      "special": "The shop's own jobs, such as General work. Shown only when a search finds one. Drag a job in or out to make it special or not.",
       "awaiting_approval": "The quote has gone to the customer and we are waiting for a yes.",
       "approved": "The customer has accepted. Work has not started.",
       "in_progress": "Work has started on this job.",
