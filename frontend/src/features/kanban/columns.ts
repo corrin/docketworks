@@ -8,7 +8,10 @@
  * here because a second table is a second place for the taxonomy to drift.
  *
  * `special` and `rejected` are deliberately absent: they are hidden statuses
- * with no column at all.
+ * with no column of their own. A search still reaches special jobs (the
+ * shop's own, such as General work), so SEARCH_ONLY_COLUMN_ID is added after
+ * these while a search finds one, as v1 did. It is also where a job is made
+ * special or not: dragging into or out of it is the only place that is done.
  *
  * `archived` IS rendered, last. It was omitted until KAN-353 on a planning
  * brief's unexamined premise, which cost the board ~95% of the jobs it knows
@@ -36,12 +39,15 @@ export const OFFICE_COLUMN_IDS = [
 
 export type OfficeColumnId = (typeof OFFICE_COLUMN_IDS)[number]
 
+export const SEARCH_ONLY_COLUMN_ID = 'special'
+
+export type BoardColumnId = OfficeColumnId | typeof SEARCH_ONLY_COLUMN_ID
+
 /**
  * Labels come from the status-values endpoint at runtime, which
  * can only key them by column id. This is the fallback for a column the
- * endpoint does not describe — it never fires against the current backend
- * (get_status_choices is built from the same taxonomy), and exists so a
- * newly-added column renders its id rather than an empty header.
+ * endpoint does not describe: Special's heading always comes from here, since
+ * get_status_choices lists the office columns only.
  */
 export function fallbackColumnLabel(columnId: string): string {
   return columnId

@@ -39,10 +39,15 @@ import {
   snapshotColumns,
   type Placement,
 } from './boardCache'
-import { fallbackColumnLabel, OFFICE_COLUMN_IDS, type OfficeColumnId } from './columns'
+import {
+  fallbackColumnLabel,
+  OFFICE_COLUMN_IDS,
+  SEARCH_ONLY_COLUMN_ID,
+  type BoardColumnId,
+} from './columns'
 
 export interface KanbanColumnView {
-  id: OfficeColumnId
+  id: BoardColumnId
   label: string
   /** What the column means: its title's tooltip (ADR 0068). */
   title: string
@@ -154,7 +159,7 @@ export function useKanbanBoard(
   })
 
   // The column's heading, used wherever the board names a column.
-  const columnLabel = (columnId: OfficeColumnId): string =>
+  const columnLabel = (columnId: BoardColumnId): string =>
     statusValues.data?.statuses[columnId] ?? fallbackColumnLabel(columnId)
 
   // useQueries mirrors the array it was handed, so a missing entry is a bug
@@ -269,6 +274,23 @@ export function useKanbanBoard(
     }
   })
 
+  // Special jobs have no column of their own, but a search that finds one
+  // (General work, say) shows it in one rather than dropping it, as v1 did.
+  const searchOnlyJobs = searchGroups?.get(SEARCH_ONLY_COLUMN_ID) ?? []
+  const shownSearchOnlyJobs = activeStaffIds.length
+    ? searchOnlyJobs.filter((job) => jobMatchesStaffFilters(job, activeStaffIds))
+    : searchOnlyJobs
+  if (shownSearchOnlyJobs.length > 0) {
+    columns.push({
+      id: SEARCH_ONLY_COLUMN_ID,
+      label: columnLabel(SEARCH_ONLY_COLUMN_ID),
+      title: t(`board.statusTitles.${SEARCH_ONLY_COLUMN_ID}`),
+      jobs: shownSearchOnlyJobs,
+      countDisplay: String(shownSearchOnlyJobs.length),
+      isLoading: false,
+    })
+  }
+
   const toggleStaffFilter = useCallback((staffId: string) => {
     setActiveStaffIds((current) =>
       current.includes(staffId)
@@ -373,6 +395,16 @@ export function useKanbanBoard(
         }
       })
     : []
+  // The phone's way to make a job special or not, while the column is shown (v1 did the same).
+  if (shownSearchOnlyJobs.length > 0) {
+    statusOptions.push({
+      key: SEARCH_ONLY_COLUMN_ID,
+      label: columnLabel(SEARCH_ONLY_COLUMN_ID),
+      title: t('statusDrawer.optionTitle', {
+        meaning: t(`board.statusTitles.${SEARCH_ONLY_COLUMN_ID}`),
+      }),
+    })
+  }
 
   const updateStatusMutation = useMutation(jobJobsUpdateStatusCreateMutation())
 

@@ -123,4 +123,20 @@ test.describe.serial('kanban desktop', () => {
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
     await expect(page.locator(`[data-job-id="${otherJobId}"]:visible`)).toHaveCount(0)
   })
+
+  test('search finds the shop job General work in a Special column', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/kanban')
+    const searchInput = page.getByPlaceholder('Search jobs...')
+    const specialColumn = page.locator('[data-kanban-status="special"]:visible')
+    await expect(searchInput).toBeVisible()
+    await expect(specialColumn).toHaveCount(0)
+
+    await searchInput.fill('General work')
+    await expect(specialColumn.locator('[data-job-id]').first()).toBeVisible({ timeout: 15000 })
+
+    await searchInput.fill('')
+    await expect(specialColumn).toHaveCount(0)
+  })
 })
