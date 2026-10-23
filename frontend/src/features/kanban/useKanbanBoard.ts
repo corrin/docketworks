@@ -395,6 +395,16 @@ export function useKanbanBoard(
         }
       })
     : []
+  // The phone's way to make a job special or not, while the column is shown (v1 did the same).
+  if (shownSearchOnlyJobs.length > 0) {
+    statusOptions.push({
+      key: SEARCH_ONLY_COLUMN_ID,
+      label: columnLabel(SEARCH_ONLY_COLUMN_ID),
+      title: t('statusDrawer.optionTitle', {
+        meaning: t(`board.statusTitles.${SEARCH_ONLY_COLUMN_ID}`),
+      }),
+    })
+  }
 
   const updateStatusMutation = useMutation(jobJobsUpdateStatusCreateMutation())
 

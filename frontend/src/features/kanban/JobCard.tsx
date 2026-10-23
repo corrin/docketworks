@@ -19,7 +19,6 @@ import type { KanbanJobOut } from '@/api'
 import { formatDate, localIsoDate } from '@/lib/format'
 
 import { StaffAvatar } from '@/features/shared/StaffAvatar'
-import { isMovableStatus } from './columns'
 import { useJobCardDrag } from './useKanbanDrag'
 
 /** Matches the type StaffPanel writes on dragstart. */
@@ -150,13 +149,8 @@ export function JobCard({
           <button
             type="button"
             aria-label={t('jobCard.changeStatus')}
-            title={
-              isMovableStatus(job.status_key)
-                ? t('jobCard.changeStatus')
-                : t('jobCard.specialKeepsStatus')
-            }
-            disabled={!isMovableStatus(job.status_key)}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-sm disabled:opacity-50 lg:hidden"
+            title={t('jobCard.changeStatus')}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-sm lg:hidden"
             onClick={(event) => {
               event.stopPropagation()
               onStatusChange(job)

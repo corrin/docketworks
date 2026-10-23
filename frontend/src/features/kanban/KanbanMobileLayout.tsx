@@ -46,7 +46,11 @@ export function KanbanMobileLayout({
     throw new Error('Kanban mobile layout requires at least one column')
   }
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(firstColumn.id)
+  const [pickedStatus, setSelectedStatus] = useState<string>(firstColumn.id)
+  // Special comes and goes with the search; once it has gone, show the first column.
+  const selectedStatus = columns.some((column) => column.id === pickedStatus)
+    ? pickedStatus
+    : firstColumn.id
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const panelRefs = useRef(new Map<string, HTMLDivElement>())
 

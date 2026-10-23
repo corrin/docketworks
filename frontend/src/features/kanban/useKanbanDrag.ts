@@ -23,7 +23,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useLatest } from '@/lib/useLatest'
 
-import { isMovableStatus } from './columns'
 import type { MoveJobRequest } from './useKanbanBoard'
 
 const JOB_CARD_TYPE = 'job-card'
@@ -210,7 +209,7 @@ export function useJobCardDrag(
       draggable({
         element,
         getInitialData: (): JobCardDragData => ({ type: JOB_CARD_TYPE, jobId, statusKey }),
-        canDrag: () => !movePendingRef.current && isMovableStatus(statusKey),
+        canDrag: () => !movePendingRef.current,
         onDragStart: () => {
           draggedSincePointerDownRef.current = true
           setIsDragging(true)
@@ -219,7 +218,7 @@ export function useJobCardDrag(
       }),
       dropTargetForElements({
         element,
-        canDrop: ({ source }) => isJobCardData(source.data) && isMovableStatus(statusKey),
+        canDrop: ({ source }) => isJobCardData(source.data),
         getData: ({ input, element: target }: ElementDropTargetGetFeedbackArgs) =>
           attachClosestEdge(
             { type: JOB_CARD_TYPE, jobId, statusKey },
@@ -255,7 +254,7 @@ export function useColumnDropTarget(
     return combine(
       dropTargetForElements({
         element,
-        canDrop: ({ source }) => isJobCardData(source.data) && isMovableStatus(statusKey),
+        canDrop: ({ source }) => isJobCardData(source.data),
         getData: (): ColumnDropData => ({
           type: COLUMN_TYPE,
           statusKey,

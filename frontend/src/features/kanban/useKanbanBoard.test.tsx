@@ -9,6 +9,15 @@ import { server } from '@/test/msw'
 
 import { useKanbanBoard } from './useKanbanBoard'
 
+/**
+ * Guards the Special column block in useKanbanBoard: search results are grouped
+ * into the office columns, and special jobs (General work, the leave jobs) have
+ * none. Filtering search results back to OFFICE_COLUMN_IDS, or dropping the
+ * push, loses them again and the first test fails; pushing Special
+ * unconditionally fails the second. It is also the only place a job is made
+ * special or not, so a lost column is a lost capability.
+ */
+
 const COLUMN_URL = '*/api/job/jobs/fetch-by-column/:columnId/'
 const STATUS_VALUES_URL = '*/api/job/jobs/status-values/'
 const SEARCH_URL = '*/api/job/jobs/advanced-search/'
@@ -72,10 +81,13 @@ describe('useKanbanBoard search', () => {
   it('shows a special job a search finds in a Special column after the office columns', async () => {
     const hook = renderBoard('general', [job('general-work', 'special'), job('quote', 'draft')])
 
-    await waitFor(() => expect(hook.result.current.columns.at(-1)?.id).toBe('special'))
-    const special = hook.result.current.columns.at(-1)
-    expect(special?.jobs.map((found) => found.id)).toEqual(['general-work'])
-    expect(special?.label).toBe('Special')
+    await waitFor(() =>
+      expect(hook.result.current.columns.at(-1)).toMatchObject({
+        id: 'special',
+        label: 'Special',
+        jobs: [{ id: 'general-work' }],
+      }),
+    )
   })
 
   it('adds no Special column when the search finds no special job', async () => {
