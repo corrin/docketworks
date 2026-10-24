@@ -16,6 +16,7 @@ from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.job.services import job_service
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import (
@@ -75,21 +76,38 @@ def _breaks(worker: Staff) -> list[tuple[str, str, bool]]:
     ]
 
 
-finish_in_the_day = attendance.finish_in_the_day
+def _laid(start: time, hours: str) -> list[tuple[str, str]] | None:
+    stretches = attendance.lay_out(start, Decimal(hours), STANDARD_BREAKS)
+    if stretches is None:
+        return None
+    return [(f"{each.start:%H:%M}", f"{each.end:%H:%M}") for each in stretches]
 
 
 class TestPlacement:
-    """An entry's hours are the truth; its times are the picture, stepping over breaks."""
+    """An entry's times are when he worked: work that meets a break goes on after it."""
 
-    def test_a_six_hour_job_from_seven_ends_at_two(self) -> None:
-        """The owner's example: 7 + 6 + 0:15 + 0:30 + 0:15."""
-        assert finish_in_the_day(time(7, 0), Decimal("6"), STANDARD_BREAKS) == time(14, 0)
+    def test_a_six_hour_job_from_seven_is_four_stretches_ending_at_two(self) -> None:
+        """Guards attendance.lay_out: the owner's example, 7 + 6 + 0:15 + 0:30 + 0:15."""
+        assert _laid(time(7, 0), "6") == [
+            ("07:00", "08:30"),
+            ("08:45", "11:30"),
+            ("12:00", "13:30"),
+            ("13:45", "14:00"),
+        ]
 
-    def test_work_that_ends_as_a_break_starts_does_not_step_over_it(self) -> None:
-        assert finish_in_the_day(time(7, 0), Decimal("1.5"), STANDARD_BREAKS) == time(8, 30)
+    def test_work_that_ends_as_a_break_starts_is_one_stretch(self) -> None:
+        assert _laid(time(7, 0), "1.5") == [("07:00", "08:30")]
 
     def test_work_begun_inside_a_break_begins_when_the_break_ends(self) -> None:
-        assert finish_in_the_day(time(11, 45), Decimal("1"), STANDARD_BREAKS) == time(13, 0)
+        assert _laid(time(11, 45), "1") == [("12:00", "13:00")]
+
+    def test_the_stretches_share_the_hours_exactly(self) -> None:
+        """Guards attendance.stretch_hours: twenty minutes split ten and ten is still 0.33."""
+        stretches = attendance.lay_out(time(8, 20), Decimal("0.33"), STANDARD_BREAKS)
+        assert stretches is not None
+        shares = attendance.stretch_hours(stretches, Decimal("0.33"))
+        assert sum(shares) == Decimal("0.33")
+        assert len(shares) == 2
 
     def test_hours_are_the_span_less_the_breaks_inside_it(self) -> None:
         assert attendance.hours_for(time(7, 0), time(14, 0), STANDARD_BREAKS) == Decimal("6.00")
@@ -99,7 +117,7 @@ class TestPlacement:
         self, worker_client: Client, worker: Staff, job: Job
     ) -> None:
         """One rule: the drawer, an edit and the fill sheet keep the hours and drop the times."""
-        assert finish_in_the_day(time(20, 0), Decimal("5"), []) is None
+        assert attendance.lay_out(time(20, 0), Decimal("5"), []) is None
         _clocked(worker, time(7, 0), time(15, 0))
         asked = worker_client.get(f"{PLACEMENT_URL}?date={DAY.isoformat()}&start=20:00&hours=5")
         line = make_time_line(
@@ -121,8 +139,9 @@ class TestPlacement:
 
         assert asked.status_code == 200 and asked.json()["finish"] is None
         assert edited.status_code == 200, edited.content
-        assert (edited.json()["start_time"], edited.json()["end_time"]) == (None, None)
-        assert edited.json()["hours"] == 5.0
+        [entry] = edited.json()
+        assert (entry["start_time"], entry["end_time"]) == (None, None)
+        assert entry["hours"] == 5.0
         # The first row fits; the one that runs past midnight and every row after keep no times.
         assert [(line["start"], line["end"], line["hours"]) for line in laid] == [
             (time(20, 0), time(21, 0), Decimal("1")),
@@ -577,13 +596,135 @@ class TestBreaks:
         assert not AttendanceDay.objects.filter(staff=worker).exists()
 
 
+def _book(worker: Staff, job: Job, start: time, hours: str) -> None:
+    workshop_timesheet_service.create_entry(
+        worker,
+        worker,
+        {"job_id": job.id, "accounting_date": DAY, "hours": Decimal(hours), "start_time": start},
+    )
+
+
+def _entries(worker: Staff) -> list[tuple[str, str, float]]:
+    return [
+        (f"{entry['start_time']:%H:%M}", f"{entry['end_time']:%H:%M}", entry["hours"])
+        for entry in sorted(_day(worker)["entries"], key=lambda each: each["start_time"] or time())
+    ]
+
+
+def _break_id(worker: Staff, start: str) -> UUID:
+    [found] = [each for each in _day(worker)["breaks"] if f"{each['start']:%H:%M}" == start]
+    assert found["id"] is not None
+    return UUID(found["id"])
+
+
+class TestBreaksCutAndJoinEntries:
+    """A break and an entry never share time (owner, 2026-10-24).
+
+    Guards workshop_timesheet_service.cut_entries_under and merge_entries_across,
+    as add_break, change_break and remove_break use them: a break put on work cuts
+    that time off it, and a break taken away gives it back.
+    """
+
+    def test_a_break_added_inside_an_entry_cuts_it_in_two(self, worker: Staff, job: Job) -> None:
+        _clocked(worker)
+        _book(worker, job, time(9, 0), "2")
+
+        attendance.add_break(worker, DAY, time(9, 30), time(9, 45), paid=True, actor=worker)
+
+        assert _entries(worker) == [("09:00", "09:30", 0.5), ("09:45", "11:00", 1.25)]
+
+    def test_removing_that_break_joins_the_entry_up_again(self, worker: Staff, job: Job) -> None:
+        _clocked(worker)
+        _book(worker, job, time(9, 0), "2")
+        attendance.add_break(worker, DAY, time(9, 30), time(9, 45), paid=True, actor=worker)
+
+        attendance.remove_break(_break_id(worker, "09:30"), worker)
+
+        assert _entries(worker) == [("09:00", "11:00", 2.0)]
+
+    def test_a_break_over_a_whole_entry_takes_it_off(self, worker: Staff, job: Job) -> None:
+        _clocked(worker)
+        _book(worker, job, time(9, 0), "0.5")
+
+        attendance.add_break(worker, DAY, time(9, 0), time(9, 30), paid=False, actor=worker)
+
+        assert _entries(worker) == []
+
+    def test_working_through_a_standard_break_joins_the_entry_across_it(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """Three hours from 06:30 went around the morning break; without it they are one entry."""
+        _clocked(worker)
+        _book(worker, job, time(6, 30), "3")
+        assert _entries(worker) == [("06:30", "08:30", 2.0), ("08:45", "09:45", 1.0)]
+
+        attendance.remove_break(_break_id(worker, "08:30"), worker)
+
+        assert _entries(worker) == [("06:30", "09:45", 3.25)]
+
+    def test_a_break_moved_onto_work_is_cut_out_where_it_lands(
+        self, worker: Staff, job: Job
+    ) -> None:
+        _clocked(worker)
+        _book(worker, job, time(6, 30), "3")
+
+        attendance.change_break(_break_id(worker, "08:30"), time(9, 0), time(9, 15), worker)
+
+        # Where the break was is worked; where it is now is not.
+        assert _entries(worker) == [("06:30", "09:00", 2.5), ("09:15", "09:45", 0.5)]
+
+    def test_different_bookings_either_side_stay_apart(
+        self, worker: Staff, job: Job, company: Company, superuser: Staff
+    ) -> None:
+        _clocked(worker)
+        _book(worker, job, time(8, 0), "0.5")
+        _book(worker, make_job(company, superuser, name="Other Job"), time(8, 45), "1")
+
+        attendance.remove_break(_break_id(worker, "08:30"), worker)
+
+        assert _entries(worker) == [("08:00", "08:30", 0.5), ("08:45", "09:45", 1.0)]
+
+
+class TestTimesAreWhenHeWorked:
+    """No time line's start and finish hold anything but its hours (owner, 2026-10-24)."""
+
+    def test_a_line_whose_times_are_not_its_hours_is_refused_by_the_model(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """Guards CostLine._clean_times_hold_the_hours, which every writer crosses."""
+        with pytest.raises(ValidationError, match=r"2\.000 hours is not 07:00 to 08:00"):
+            make_time_line(
+                job,
+                worker,
+                accounting_date=DAY,
+                hours="2.000",
+                start_time="07:00:00",
+                end_time="08:00:00",
+            )
+
+    def test_new_hours_from_the_office_grid_are_laid_out_from_the_start(
+        self, office_staff: Staff, worker: Staff, job: Job
+    ) -> None:
+        """Guards job_service._lay_out_new_hours: the grid sends back the times it read."""
+        _clocked(worker)
+        _book(worker, job, time(7, 0), "1.5")
+        [line] = CostLine.objects.filter(staff=worker, cost_set__job=job)
+
+        job_service.update_cost_line(
+            line, {"quantity": Decimal("3"), "meta": dict(line.meta)}, office_staff
+        )
+
+        assert _entries(worker) == [("07:00", "08:30", 1.5), ("08:45", "10:15", 1.5)]
+
+
 class TestLayout:
-    def test_rows_are_placed_one_after_another_each_stepping_over_breaks(self, job: Job) -> None:
+    def test_rows_are_placed_one_after_another_each_laid_around_the_breaks(self, job: Job) -> None:
         lines = day_submission.lay_out_rows(
             time(6, 30), [_row(job, "3"), _row(job, "2"), _row(job, "2.5")], STANDARD_BREAKS
         )
 
-        # One entry per row, never split: 3h spans the morning break, 2.5h spans two.
+        # Each row from where the last ended to where its hours, around the breaks, end;
+        # saving one makes an entry per stretch (TestEntryTimes).
         assert _spans(lines) == [
             ("06:30", "09:45", Decimal("3")),
             ("09:45", "12:15", Decimal("2")),
@@ -596,9 +737,10 @@ class TestLayout:
 
 
 class TestEntryTimes:
-    def test_hours_may_be_less_than_the_span_but_not_more(
+    def test_times_across_breaks_are_saved_as_an_entry_per_stretch(
         self, worker_client: Client, job: Job
     ) -> None:
+        """Guards create_entry: six hours 07:00-14:00 are four entries, none holding a break."""
         body = {"job_id": str(job.id), "accounting_date": DAY.isoformat()}
 
         spanning = worker_client.post(
@@ -613,8 +755,16 @@ class TestEntryTimes:
         )
 
         assert spanning.status_code == 201, spanning.content
+        assert [
+            (each["start_time"], each["end_time"], each["hours"]) for each in spanning.json()
+        ] == [
+            ("07:00:00", "08:30:00", 1.5),
+            ("08:45:00", "11:30:00", 2.75),
+            ("12:00:00", "13:30:00", 1.5),
+            ("13:45:00", "14:00:00", 0.25),
+        ]
         assert too_many.status_code == 400
-        assert "cannot be more than" in too_many.json()["detail"]
+        assert "do not end at 14:00" in too_many.json()["detail"]
 
     def test_hours_that_would_run_past_midnight_are_saved_without_times(
         self, worker_client: Client, worker: Staff, job: Job
@@ -629,8 +779,9 @@ class TestEntryTimes:
         )
 
         assert late.status_code == 201, late.content
-        assert (late.json()["start_time"], late.json()["end_time"]) == (None, None)
-        assert late.json()["hours"] == 12.0
+        [entry] = late.json()
+        assert (entry["start_time"], entry["end_time"]) == (None, None)
+        assert entry["hours"] == 12.0
 
     def test_an_entry_saved_without_times_is_placed_after_the_previous_one(
         self, worker_client: Client, worker: Staff, job: Job
@@ -642,11 +793,11 @@ class TestEntryTimes:
         first = worker_client.post(
             DAY_URL, data={**body, "hours": "6"}, content_type="application/json"
         ).json()
-        second = worker_client.post(
+        [second] = worker_client.post(
             DAY_URL, data={**body, "hours": "0.5"}, content_type="application/json"
         ).json()
 
-        assert (first["start_time"], first["end_time"]) == ("07:00:00", "14:00:00")
+        assert (first[0]["start_time"], first[-1]["end_time"]) == ("07:00:00", "14:00:00")
         assert (second["start_time"], second["end_time"]) == ("14:00:00", "14:30:00")
 
 
@@ -660,11 +811,14 @@ class TestSubmitDay:
         )
 
         assert day["day"]["state"] == "sent"
+        # Each row is split around the break it meets: 3h over the morning break, 2h over lunch.
         assert [(entry["start_time"], entry["end_time"]) for entry in day["entries"]] == [
-            (time(6, 30), time(9, 45)),
-            (time(9, 45), time(12, 15)),
+            (time(6, 30), time(8, 30)),
+            (time(8, 45), time(9, 45)),
+            (time(9, 45), time(11, 30)),
+            (time(12, 0), time(12, 15)),
         ]
-        assert [entry["wage_rate_multiplier"] for entry in day["entries"]] == [1.0, 1.5]
+        assert [entry["wage_rate_multiplier"] for entry in day["entries"]] == [1.0, 1.0, 1.5, 1.5]
         assert all(not entry["approved"] for entry in day["entries"])
         assert day["fill"] == {
             "to_fill_hours": 8.0,
@@ -684,7 +838,7 @@ class TestSubmitDay:
             worker, DAY, [_row(bench, "3"), _row(job, "2")], None, timezone.now()
         )
 
-        assert [entry["is_billable"] for entry in day["entries"]] == [False, True]
+        assert [entry["is_billable"] for entry in day["entries"]] == [False, False, True, True]
 
     def test_submit_requires_clock_out(self, worker: Staff, job: Job) -> None:
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
@@ -734,12 +888,9 @@ class TestSubmitDay:
         )
 
         assert at_work.status_code == 200, at_work.content
-        assert [entry["remote_entry"] for entry in at_work.json()["entries"]] == [False, False]
+        assert [entry["remote_entry"] for entry in at_work.json()["entries"]] == [False] * 4
         elsewhere = worker_client.post(SUBMIT_URL, data=body, content_type="application/json")
-        assert [entry["remote_entry"] for entry in elsewhere.json()["entries"]][-2:] == [
-            True,
-            True,
-        ]
+        assert [entry["remote_entry"] for entry in elsewhere.json()["entries"]][-3:] == [True] * 3
 
     def test_sending_with_hours_still_to_go_is_allowed(self, worker: Staff) -> None:
         _clocked(worker)

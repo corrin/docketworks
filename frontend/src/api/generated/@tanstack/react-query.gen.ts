@@ -3402,6 +3402,8 @@ export const jobWorkshopTimesheetsRetrieveOptions = (options?: Options<JobWorksh
  * Update an existing timesheet entry belonging to the staff member
  *
  * Update one of the authenticated staff member's own entries.
+ *
+ * Answers with the entry first and any stretches the edit split off it after.
  */
 export const jobWorkshopTimesheetsPartialUpdateMutation = (options?: Partial<Options<JobWorkshopTimesheetsPartialUpdateData>>): UseMutationOptions<JobWorkshopTimesheetsPartialUpdateResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsPartialUpdateData>> => {
     const mutationOptions: UseMutationOptions<JobWorkshopTimesheetsPartialUpdateResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsPartialUpdateData>> = {
@@ -3421,6 +3423,8 @@ export const jobWorkshopTimesheetsPartialUpdateMutation = (options?: Partial<Opt
  * Create a new timesheet entry for the authenticated staff
  *
  * Create a time entry owned by the authenticated staff member.
+ *
+ * Answers with every entry it made: one per stretch around his breaks.
  */
 export const jobWorkshopTimesheetsCreateMutation = (options?: Partial<Options<JobWorkshopTimesheetsCreateData>>): UseMutationOptions<JobWorkshopTimesheetsCreateResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsCreateData>> => {
     const mutationOptions: UseMutationOptions<JobWorkshopTimesheetsCreateResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsCreateData>> = {
@@ -5751,8 +5755,8 @@ export const timesheetsMyDayPlacementQueryKey = (options: Options<TimesheetsMyDa
  *
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
- * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * Given hours, the finish is where they end laid around the day's breaks;
+ * given a finish, the hours are the span less the breaks inside it.
  */
 export const timesheetsMyDayPlacementOptions = (options: Options<TimesheetsMyDayPlacementData>) => queryOptions<TimesheetsMyDayPlacementResponse, AxiosError<DefaultError>, TimesheetsMyDayPlacementResponse, ReturnType<typeof timesheetsMyDayPlacementQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -5774,8 +5778,8 @@ export const timesheetsMyDayPlacementInfiniteQueryKey = (options: Options<Timesh
  *
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
- * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * Given hours, the finish is where they end laid around the day's breaks;
+ * given a finish, the hours are the span less the breaks inside it.
  */
 export const timesheetsMyDayPlacementInfiniteOptions = (options: Options<TimesheetsMyDayPlacementData>) => {
     const opts = infiniteQueryOptions<TimesheetsMyDayPlacementResponse, AxiosError<DefaultError>, InfiniteData<TimesheetsMyDayPlacementResponse>, QueryKey<Options<TimesheetsMyDayPlacementData>>, string | Pick<QueryKey<Options<TimesheetsMyDayPlacementData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

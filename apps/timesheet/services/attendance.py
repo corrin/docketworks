@@ -347,12 +347,12 @@ def unallocated_windows(
     occupied = [*break_windows(day, row, break_lines), *timed]
     cursor = day_start
     for line in [line for line in worked if _line_window(line) is None]:
-        begins = start_after_breaks(cursor, occupied)
-        ends = finish_in_the_day(begins, line.quantity, occupied)
+        stretches = lay_out(start_after_breaks(cursor, occupied), line.quantity, occupied)
         # Hours that would run past midnight take the rest of the day.
-        laid_end = ends if ends is not None else time(23, 59)
-        occupied.append(Window(begins, laid_end))
-        cursor = laid_end
+        if stretches is None:
+            stretches = [Window(start_after_breaks(cursor, occupied), time(23, 59))]
+        occupied.extend(stretches)
+        cursor = stretches[-1].end
     first, last = _minutes(day_start), _minutes(day_end)
     windows: list[Window] = []
     free_from, floor = first, 0
@@ -395,21 +395,24 @@ def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
 _LAST_MINUTE = 24 * 60 - 1
 
 
-def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time | None:
-    """Return when work of ``hours`` begun at ``start`` ends, stepping over every break.
+def lay_out(start: time, hours: Decimal, breaks: list[Window]) -> list[Window] | None:
+    """Return the stretches that work of ``hours`` begun at ``start`` fills, around every break.
 
-    An entry's hours are the truth and its times are the picture (owner,
-    2026-10-06): clocked in at 07:00, six hours on a job ends at 14:00, having
-    stepped over two paid breaks and lunch. Breaks are outside job time, so
-    none of a break is ever inside the hours. The one statement of the rule,
-    for the fill sheet, an entry saved without times, an edit of its hours and
-    the drawer's working out.
+    An entry's times are when he worked (owner, 2026-10-24), so work that
+    meets a break stops there and goes on after it as another stretch:
+    clocked in at 07:00, six hours on a job are 07:00-08:30, 08:45-11:30 and
+    12:00-13:45. None of a break is ever inside a stretch. The one statement
+    of the rule, for the fill sheet, an entry saved without times, an edit of
+    its hours and the drawer's working out.
 
-    None when the work would run past midnight: such hours keep no picture and
-    are saved without times, never refused (hours are the truth).
+    None when the work would run past midnight: such hours keep no times and
+    are saved without them, never refused.
     """
     cursor = _minutes(start)
     remaining = int((hours * 60).to_integral_value(ROUND_HALF_UP))
+    if remaining <= 0:
+        raise ValueError(f"Laying out {hours} hours: there is nothing to lay out.")
+    stretches: list[tuple[int, int]] = []
     for break_start, break_end in _merged(breaks):
         if break_end <= cursor:
             continue
@@ -418,21 +421,33 @@ def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time
             continue
         if cursor + remaining <= break_start:
             break
+        stretches.append((cursor, break_start))
         remaining -= break_start - cursor
         cursor = break_end
-    finish = cursor + remaining
-    if finish > _LAST_MINUTE:
+    stretches.append((cursor, cursor + remaining))
+    if stretches[-1][1] > _LAST_MINUTE:
         return None
-    return time(finish // 60, finish % 60)
+    return [Window(_time_of(first), _time_of(last)) for first, last in stretches]
 
 
 def start_after_breaks(start: time, breaks: list[Window]) -> time:
     """Return ``start``, or the end of the break it falls inside."""
-    stepped = finish_in_the_day(start, Decimal(0), breaks)
-    if stepped is None:
-        # A break is a time of day and ends by 23:59, so this cannot be reached.
-        raise ValueError(f"Stepping past the breaks from {start:%H:%M} left the day.")
-    return stepped
+    cursor = _minutes(start)
+    for break_start, break_end in _merged(breaks):
+        if break_start <= cursor < break_end:
+            cursor = break_end
+    return _time_of(cursor)
+
+
+def stretch_hours(stretches: list[Window], hours: Decimal) -> list[Decimal]:
+    """Share ``hours`` among its stretches by their lengths, so they add up to it exactly.
+
+    Each stretch holds its own minutes; the last takes what rounding to the
+    hundredth left over, so the pieces of an entry are never paid a cent more
+    or less than the entry.
+    """
+    shares = [hours_for(each.start, each.end, []) for each in stretches[:-1]]
+    return [*shares, hours - sum(shares, Decimal(0))]
 
 
 def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
@@ -827,21 +842,22 @@ def generate_default_breaks(
     """
     if row.breaks_generated:
         return
-    # Time already on a job is time he worked: a paid break there would pay it
-    # twice. Usually none: breaks go on as the day starts, before any entry.
-    lines = CostLine.objects.filter(
-        cost_set__kind="actual", kind="time", staff=row.staff, accounting_date=row.date
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        day_time_lines,
     )
-    break_id = break_job_id()
-    # Without a Break job there are no break lines to leave out.
-    job_lines = lines if break_id is None else lines.exclude(cost_set__job_id=break_id)
-    booked = [window for line in job_lines if (window := _line_window(line)) is not None]
+
+    # An entry's times are when he worked, so a standard break inside one is a
+    # break he worked through: a paid break there would pay that time twice.
+    # A day he clocked into has none yet; a day assumed worked (the sweep) can.
+    entries, _ = split_breaks(day_time_lines(row.staff, row.date))
+    worked = [window for line in entries if (window := _line_window(line)) is not None]
     for each in _default_breaks():
         # A day given both times at once has no break he was not there for.
         ends_after = row.clock_out is not None and each.window.end > row.clock_out
         if each.window.start < row.clock_in or ends_after:
             continue
-        if any(_overlaps(window, each.window) for window in booked):
+        first, last = _minutes(each.window.start), _minutes(each.window.end)
+        if _minutes_inside(first, last, worked) > 0:
             continue
         _create_break(
             row.staff,
@@ -914,10 +930,6 @@ def drop_sweep_outside_clock(
             raise ValueError(f"Swept General work line {line.id} has no start and stop")
         if window.start < first or (last is not None and window.end > last):
             delete_entry(actor, line.id, location)
-
-
-def _overlaps(first: Window, second: Window) -> bool:
-    return first.start < second.end and second.start < first.end
 
 
 def _break_lines_if_any(owner: Staff, day: date) -> list[CostLine]:
@@ -993,7 +1005,14 @@ def add_break(  # noqa: PLR0913 -- a break is its day, its two times, its kind a
     actor: Staff,
     location: EntryLocation | None = None,
 ) -> None:
-    """Add a break to a day that has clock times: his own, or anyone's for office staff."""
+    """Add a break to a day that has clock times: his own, or anyone's for office staff.
+
+    The break wins over any entry it lands on: that time comes off the entry.
+    """
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        cut_entries_under,
+    )
+
     if actor.id != owner.id and not actor.is_office_staff:
         raise AccessDeniedError(gettext("Only office staff change another person's breaks."))
     _require_break_times(start, end)
@@ -1009,6 +1028,7 @@ def add_break(  # noqa: PLR0913 -- a break is its day, its two times, its kind a
         location=location,
         generated=False,
     )
+    cut_entries_under(actor, owner, day, Window(start, end), location)
 
 
 class BreakNotFoundError(LookupError):
@@ -1025,6 +1045,7 @@ def _break_line(break_id: UUID) -> CostLine:
     return line
 
 
+@transaction.atomic
 def change_break(
     break_id: UUID,
     start: time,
@@ -1035,29 +1056,58 @@ def change_break(
     """Move or resize a break. It keeps its kind: a longer lunch is longer unpaid time.
 
     A break is a line, so it changes as one: the same ownership, approval
-    lock and audit as any of his time. Nothing else moves.
+    lock and audit as any of his time. The entries it leaves join up again
+    across where it was, and the ones it lands on are cut.
     """
     _require_break_times(start, end)
     from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        cut_entries_under,
+        merge_entries_across,
         update_entry,
     )
 
+    line = _break_line(break_id)
+    was = _required_line_window(line)
     update_entry(
         actor,
         {
-            "entry_id": _break_line(break_id).id,
+            "entry_id": line.id,
             "start_time": start,
             "end_time": end,
             "hours": hours_for(start, end, []),
         },
         location,
     )
+    owner = _break_owner(line)
+    merge_entries_across(actor, owner, line.accounting_date, was, location)
+    cut_entries_under(actor, owner, line.accounting_date, Window(start, end), location)
 
 
+@transaction.atomic
 def remove_break(break_id: UUID, actor: Staff, location: EntryLocation | None = None) -> None:
-    """Take a break off the day: he worked through it, or it did not happen."""
+    """Take a break off the day: he worked through it, or it did not happen.
+
+    Worked through: the entries either side of it join up across it again.
+    """
     from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
         delete_entry,
+        merge_entries_across,
     )
 
-    delete_entry(actor, _break_line(break_id).id, location)
+    line = _break_line(break_id)
+    was = _required_line_window(line)
+    delete_entry(actor, line.id, location)
+    merge_entries_across(actor, _break_owner(line), line.accounting_date, was, location)
+
+
+def _required_line_window(line: CostLine) -> Window:
+    window = _line_window(line)
+    if window is None:
+        raise ValueError(f"Break line {line.id} has no start and end")
+    return window
+
+
+def _break_owner(line: CostLine) -> Staff:
+    if line.staff is None:
+        raise ValueError(f"Break line {line.id} has no staff member")
+    return line.staff

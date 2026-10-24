@@ -449,14 +449,17 @@ def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCrea
     "/job/workshop/timesheets/",
     auth=self_service_auth,
     operation_id="job_workshop_timesheets_create",
-    response={201: WorkshopTimesheetEntryOut},
+    response={201: list[WorkshopTimesheetEntryOut]},
     summary="Create a new timesheet entry for the authenticated staff",
     tags=["job"],
 )
 def job_workshop_timesheets_create(
     request: HttpRequest, payload: WorkshopTimesheetEntryRequest
-) -> Status[workshop_timesheet_service.WorkshopEntryData]:
-    """Create a time entry owned by the authenticated staff member."""
+) -> Status[list[workshop_timesheet_service.WorkshopEntryData]]:
+    """Create a time entry owned by the authenticated staff member.
+
+    Answers with every entry it made: one per stretch around his breaks.
+    """
     owner = _entry_owner(request, payload.staff_id)
     try:
         entry = workshop_timesheet_service.create_entry(
@@ -505,14 +508,17 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
     "/job/workshop/timesheets/",
     auth=self_service_auth,
     operation_id="job_workshop_timesheets_partial_update",
-    response=WorkshopTimesheetEntryOut,
+    response=list[WorkshopTimesheetEntryOut],
     summary="Update an existing timesheet entry belonging to the staff member",
     tags=["job"],
 )
 def job_workshop_timesheets_partial_update(
     request: HttpRequest, payload: WorkshopTimesheetEntryUpdateRequest
-) -> workshop_timesheet_service.WorkshopEntryData:
-    """Update one of the authenticated staff member's own entries."""
+) -> list[workshop_timesheet_service.WorkshopEntryData]:
+    """Update one of the authenticated staff member's own entries.
+
+    Answers with the entry first and any stretches the edit split off it after.
+    """
     data = _update_payload(payload)
     if len(data) <= 1:
         raise HttpError(400, gettext("At least one field besides entry_id must be provided."))
@@ -645,8 +651,8 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
 ) -> dict[str, object]:
     """Answer the entry drawer as he types: the one placement rule, nothing written.
 
-    Given hours, the finish steps over the day's breaks; given a finish, the
-    hours are the span less the breaks inside it.
+    Given hours, the finish is where they end laid around the day's breaks;
+    given a finish, the hours are the span less the breaks inside it.
     """
     owner = _entry_owner(request, staff_id)
     day = _parse_date(date)
@@ -654,9 +660,10 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
         raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     breaks = workshop_timesheet_service.day_break_windows(owner, day)
     if hours is not None:
+        stretches = attendance.lay_out(start, hours, breaks)
         return {
             "start": start,
-            "finish": attendance.finish_in_the_day(start, hours, breaks),
+            "finish": None if stretches is None else stretches[-1].end,
             "hours": float(hours),
         }
     if finish is None:  # narrowed for the type checker; refused above

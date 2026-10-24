@@ -8,10 +8,14 @@ verb, alongside the pricing the entries pick up from the shared rate pipeline.
 
 from datetime import datetime, time, timedelta
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
 from django.test import Client
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -35,6 +39,8 @@ pytestmark = [
 
 URL = "/api/job/workshop/timesheets/"
 ENTRY_DATE = WEEK_START
+#: The standard day is 07:00-15:00 with breaks at 08:30, 11:30 and 13:30.
+AFTER_THE_DAY = "15:00:00"
 
 
 def _entry_id(entry: dict[str, object]) -> str:
@@ -45,16 +51,26 @@ def _entry_id(entry: dict[str, object]) -> str:
 
 
 def _create(client: Client, job: Job, **overrides: object) -> dict[str, object]:
+    """Book one entry, after the standard day so no break splits it."""
     payload: dict[str, object] = {
         "job_id": str(job.id),
         "accounting_date": ENTRY_DATE.isoformat(),
         "hours": "4.00",
         "description": "Fabrication",
+        "start_time": AFTER_THE_DAY,
     }
     payload.update(overrides)
     response = client.post(URL, data=payload, content_type="application/json")
     assert response.status_code == 201, response.content
-    body: dict[str, object] = response.json()
+    [body] = response.json()
+    assert isinstance(body, dict)
+    return body
+
+
+def _only(response: _MonkeyPatchedWSGIResponse) -> dict[str, object]:
+    """The one entry a write answered with: it split nothing off."""
+    [body] = response.json()
+    assert isinstance(body, dict)
     return body
 
 
@@ -146,10 +162,10 @@ class TestCreate:
         assert CostLine.objects.get(id=_entry_id(body)).unit_rev == Decimal("0.00")
 
     def test_start_and_end_times_round_trip(self, worker_client: Client, job: Job) -> None:
-        body = _create(worker_client, job, start_time="08:00:00", end_time="12:00:00")
+        body = _create(worker_client, job, start_time="15:00:00", end_time="19:00:00")
 
-        assert body["start_time"] == "08:00:00"
-        assert body["end_time"] == "12:00:00"
+        assert body["start_time"] == "15:00:00"
+        assert body["end_time"] == "19:00:00"
 
     def test_leave_job_entry_is_leave_not_billable_work(
         self, worker_client: Client, company: Company, superuser: Staff
@@ -266,9 +282,11 @@ class TestRequestValidation:
 class TestTimeConsistency:
     """When both times are present they must agree with each other and with hours.
 
-    The calendar client derives ``hours`` from the start/end pair, but the wire
-    carries all three, so a direct caller could book "08:00-09:00, 8 hours" and
-    the payroll cost would silently disagree with the calendar block.
+    An entry's times are when he worked, so the hours, laid around his breaks
+    from the start, must end at the finish. The calendar client derives
+    ``hours`` that way, but the wire carries all three, so a direct caller
+    could book "08:00-09:00, 8 hours" and the payroll cost would silently
+    disagree with the calendar block.
     """
 
     def test_end_at_or_before_start_is_rejected(self, worker_client: Client, job: Job) -> None:
@@ -301,7 +319,7 @@ class TestTimeConsistency:
         assert not CostLine.objects.filter(cost_set__job=job).exists()
 
     def test_hours_matching_the_times_are_accepted(self, worker_client: Client, job: Job) -> None:
-        body = _create(worker_client, job, hours="1.50", start_time="08:00:00", end_time="09:30:00")
+        body = _create(worker_client, job, hours="1.50", start_time="15:00:00", end_time="16:30:00")
 
         assert body["hours"] == 1.5
 
@@ -310,7 +328,7 @@ class TestTimeConsistency:
     ) -> None:
         """A PATCH is validated against the merged entry, not the patch alone."""
         entry = _create(
-            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
+            worker_client, job, hours="4.00", start_time="15:00:00", end_time="19:00:00"
         )
 
         response = worker_client.patch(
@@ -321,33 +339,73 @@ class TestTimeConsistency:
 
         assert response.status_code == 400, response.content
         line = CostLine.objects.get(id=_entry_id(entry))
-        assert line.meta["end_time"] == "12:00:00"
+        assert line.meta["end_time"] == "19:00:00"
 
-    def test_new_hours_redraw_the_finish_rather_than_being_refused_by_it(
+    def test_new_hours_that_meet_a_break_split_the_entry_around_it(
         self, worker_client: Client, job: Job
     ) -> None:
-        """Hours are what he is paid; the times are their picture, stepped over the breaks."""
-        entry = _create(
-            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
-        )
+        """Guards update_entry's lay-out: an entry's times are when he worked, never a break."""
+        entry = _create(worker_client, job, hours="1.50", start_time="07:00:00")
 
         response = worker_client.patch(
             URL,
-            data={"entry_id": entry["id"], "hours": "6.00"},
+            data={"entry_id": entry["id"], "hours": "3.00"},
             content_type="application/json",
         )
 
         assert response.status_code == 200, response.content
-        line = CostLine.objects.get(id=_entry_id(entry))
-        assert line.quantity == Decimal("6.000")
-        # Six hours from eight, over the day's three planned breaks.
-        assert (line.meta["start_time"], line.meta["end_time"]) == ("08:00:00", "15:00:00")
+        assert [
+            (each["id"] == entry["id"], each["start_time"], each["end_time"], each["hours"])
+            for each in response.json()
+        ] == [
+            (True, "07:00:00", "08:30:00", 1.5),
+            (False, "08:45:00", "10:15:00", 1.5),
+        ]
+
+    def test_a_finish_that_skips_a_break_is_refused(self, worker_client: Client, job: Job) -> None:
+        """Guards create_entry: 08:00-12:00 holds a break, so it is not four hours of work."""
+        response = worker_client.post(
+            URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": ENTRY_DATE.isoformat(),
+                "hours": "4.00",
+                "start_time": "08:00:00",
+                "end_time": "12:00:00",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert not CostLine.objects.filter(cost_set__job=job).exists()
+
+    def test_hours_given_alone_are_split_around_the_breaks(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        """Guards create_entry: four hours from the start of his day go around the 08:30 break."""
+        response = worker_client.post(
+            URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": ENTRY_DATE.isoformat(),
+                "hours": "4.00",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201, response.content
+        assert [
+            (each["start_time"], each["end_time"], each["hours"]) for each in response.json()
+        ] == [
+            ("07:00:00", "08:30:00", 1.5),
+            ("08:45:00", "11:15:00", 2.5),
+        ]
 
     def test_clearing_a_time_lifts_the_agreement_requirement(
         self, worker_client: Client, job: Job
     ) -> None:
         entry = _create(
-            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
+            worker_client, job, hours="4.00", start_time="15:00:00", end_time="19:00:00"
         )
 
         response = worker_client.patch(
@@ -357,7 +415,7 @@ class TestTimeConsistency:
         )
 
         assert response.status_code == 200, response.content
-        assert response.json()["hours"] == 6.0
+        assert _only(response)["hours"] == 6.0
 
 
 class TestUpdate:
@@ -371,7 +429,7 @@ class TestUpdate:
         )
 
         assert response.status_code == 200, response.content
-        body = response.json()
+        body = _only(response)
         assert body["hours"] == 6.5
         assert body["description"] == "Welding"
 
@@ -391,7 +449,7 @@ class TestUpdate:
         )
 
         assert response.status_code == 200, response.content
-        body = response.json()
+        body = _only(response)
         assert body["is_billable"] is False
         assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("0.00")
 
@@ -409,7 +467,7 @@ class TestUpdate:
         )
 
         assert response.status_code == 200, response.content
-        assert response.json()["job_id"] == str(other.id)
+        assert _only(response)["job_id"] == str(other.id)
         assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("200.00")
 
     def test_switching_to_overtime_reprices_cost_and_revenue(
@@ -446,7 +504,7 @@ class TestUpdate:
             content_type="application/json",
         )
         assert on.status_code == 200, on.content
-        assert on.json()["is_billable"] is True
+        assert _only(on)["is_billable"] is True
         assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("120.00")
 
     def test_wage_multiplier_patch_does_not_re_bill_a_non_billable_line(
@@ -463,7 +521,7 @@ class TestUpdate:
         )
 
         assert response.status_code == 200, response.content
-        body = response.json()
+        body = _only(response)
         assert body["is_billable"] is False
         assert body["bill_rate_multiplier"] == 0.0
         line = CostLine.objects.get(id=_entry_id(entry))
@@ -624,7 +682,7 @@ class TestApprovalStatus:
         )
 
         assert response.status_code == 200
-        assert response.json()["approved"] is False
+        assert _only(response)["approved"] is False
 
     def test_office_edit_keeps_an_entry_approved(self, office_staff: Staff, job: Job) -> None:
         line = make_time_line(job, office_staff, accounting_date=ENTRY_DATE, hours="4.000")
@@ -634,7 +692,7 @@ class TestApprovalStatus:
         )
 
         assert response.status_code == 200
-        assert response.json()["approved"] is True
+        assert _only(response)["approved"] is True
         line.refresh_from_db()
         assert line.quantity == Decimal("5.000")
 
@@ -754,7 +812,8 @@ class TestRemoteEntry:
                 content_type="application/json",
             )
             assert response.status_code == 200, response.content
-            marked: bool = response.json()["remote_entry"]
+            marked = _only(response)["remote_entry"]
+            assert isinstance(marked, bool)
             return marked
 
         assert edit("from the workshop", location=ACROSS_THE_YARD) is False

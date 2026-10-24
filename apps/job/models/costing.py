@@ -3,6 +3,7 @@
 import logging
 import uuid
 from collections.abc import Iterable
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, ClassVar
 from uuid import UUID
@@ -60,6 +61,13 @@ def valid_cost_summary() -> Q:
 def get_default_cost_set_summary() -> dict[str, float]:
     """Default summary structure for CostSet."""
     return {"cost": 0.0, "rev": 0.0, "hours": 0.0}
+
+
+# Fable: Not exact equality: clients derive hours from the minute-grained time
+# pair and round to two decimals, so a 20-minute booking is 0.33 hours against
+# a 0.3333… duration. Rounding alone bounds the error at 0.005; the full 0.01
+# is deliberate headroom, and at most 36 seconds of wage per entry.
+TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
 
 
 class CostSet(models.Model):
@@ -520,6 +528,36 @@ class CostLine(models.Model):
 
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
+        if self.kind == "time":
+            self._clean_times_hold_the_hours()
+
+    def _clean_times_hold_the_hours(self) -> None:
+        """Refuse times that are not exactly when the line's hours were worked.
+
+        An entry's start and finish are when he worked (owner, 2026-10-24):
+        work that meets a break is split around it into entries of its own, so
+        no entry's span holds a break or anything else but its hours. Checked
+        here, the boundary every write crosses. A single missing time carries
+        no span and is exempt.
+        """
+        meta = self.meta if isinstance(self.meta, dict) else {}
+        start, end = meta.get("start_time"), meta.get("end_time")
+        if not isinstance(start, str) or not isinstance(end, str):
+            return
+        first, last = time.fromisoformat(start), time.fromisoformat(end)
+        if last <= first:
+            raise ValidationError(gettext("The finish time must be after the start time."))
+        elapsed = datetime.combine(date.min, last) - datetime.combine(date.min, first)
+        span = Decimal(elapsed.total_seconds()) / Decimal(3600)
+        if abs(span - self.quantity) > TIME_AGREEMENT_TOLERANCE:
+            raise ValidationError(
+                gettext("%(hours)s hours is not %(start)s to %(end)s.")
+                % {
+                    "hours": self.quantity,
+                    "start": first.strftime("%H:%M"),
+                    "end": last.strftime("%H:%M"),
+                }
+            )
 
     def _clean_actual_time_pay_item(self) -> None:
         """Require a Xero pay item, except where Xero pays the category itself.

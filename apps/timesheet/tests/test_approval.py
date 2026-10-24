@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from datetime import date, time, timedelta
+from decimal import Decimal
 
 import pytest
 from django.test import Client
@@ -14,8 +15,9 @@ from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
-from apps.timesheet.services import approval, attendance
+from apps.timesheet.services import approval, attendance, workshop_timesheet_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -136,6 +138,7 @@ class TestApprovalsRead:
             worker,
             accounting_date=DAY,
             approved=False,
+            hours="5.000",
             start_time="07:00:00",
             end_time="12:00:00",
         )
@@ -614,6 +617,31 @@ class TestSweep:
             ("12:00:00", "13:30:00", "1.500"),
             ("13:45:00", "15:30:00", "1.750"),
         ]
+
+    def test_an_unclocked_day_keeps_the_breaks_his_entry_went_around(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        """Guards generate_default_breaks with create_entry's lay-out: the day pays eight hours.
+
+        Four hours entered without times go around the planned 08:30 break, so it
+        is a break he took, not one he worked through, and it is paid.
+        """
+        _standard_day_with_breaks()
+        workshop_timesheet_service.create_entry(
+            worker, worker, {"job_id": job.id, "accounting_date": DAY, "hours": Decimal("4")}
+        )
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        lines = list(
+            CostLine.objects.filter(staff=worker, accounting_date=DAY).select_related(
+                "xero_pay_item"
+            )
+        )
+        breaks = sorted(line.meta["start_time"] for line in attendance.split_breaks(lines)[1])
+        assert breaks == ["08:30:00", "11:30:00", "13:30:00"]
+        paid = sum((line.quantity for line in lines if not is_unpaid_time(line)), Decimal(0))
+        assert paid == Decimal("8")
 
     def test_an_unclocked_day_with_leave_is_left_for_the_office(
         self,

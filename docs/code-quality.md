@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 129,490 (v1 172,577, -25%) |
-| tests | 91,119 (v1 50,869, +79%) |
-| generated | 54,480 (v1 20,359, +168%) |
+| code | 129,747 (v1 172,577, -25%) |
+| tests | 91,431 (v1 50,869, +80%) |
+| generated | 54,672 (v1 20,359, +169%) |
 
 ## Suppressions
 
@@ -31,9 +31,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 798 |
+| TOTAL suppressions | 802 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 157 |
+| noqa: PLC0415 | 161 |
 | noqa: E402 | 108 |
 | noqa: PLR0913 | 59 |
 | noqa: ARG002 | 49 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 260 |
-| non-test functions | 3133 |
+| functions returning `X \| None` | 262 |
+| non-test functions | 3145 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 703 |
+| object annotations | 706 |
 
 ## Wire contract (response side)
 

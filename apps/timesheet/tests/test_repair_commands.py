@@ -366,6 +366,52 @@ class TestReclassifyOvertimeEntries:
         assert new_line.accounting_date == TUESDAY
         assert new_line.unit_cost == split_line.unit_cost
 
+    def test_a_timed_split_divides_the_times_where_the_hours_divide(
+        self, tmp_path: Path, creator: Staff
+    ) -> None:
+        """Guards _split_costline: each half keeps its own times, so neither holds the other's."""
+        staff = make_staff("rc-t@example.com", first_name="Timed", last_name="Worker")
+        shop_job = _make_special_job("Shop Time", creator)
+        line = make_time_line(
+            shop_job,
+            staff,
+            accounting_date=TUESDAY,
+            hours="8.000",
+            unit_rev="0.00",
+            is_billable=False,
+            start_time="07:00:00",
+            end_time="15:00:00",
+        )
+        csv_path = tmp_path / "reviewed.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=reclassify_command_module.PREVIEW_COLUMNS)
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "week_start": MONDAY.isoformat(),
+                    "staff_name": staff.get_display_name(),
+                    "staff_id": str(staff.id),
+                    "job_name": shop_job.name,
+                    "job_id": str(shop_job.id),
+                    "unit_cost": "48.00",
+                    "xero_ot": "3",
+                    "jm_ot": "0",
+                    "ot_gap": "3",
+                    "costline_id": str(line.id),
+                    "action": "split",
+                    "ot_hours": "3",
+                    "remaining_hours": "5",
+                    "accounting_date": TUESDAY.isoformat(),
+                }
+            )
+
+        _run("reclassify_overtime_entries", "--apply", str(csv_path))
+
+        line.refresh_from_db()
+        overtime = CostLine.objects.get(cost_set=shop_job.latest_actual, quantity=Decimal("3.000"))
+        assert (line.meta["start_time"], line.meta["end_time"]) == ("07:00:00", "12:00:00")
+        assert (overtime.meta["start_time"], overtime.meta["end_time"]) == ("12:00:00", "15:00:00")
+
     def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")
         shop_job = _make_special_job("Shop Time", creator)
