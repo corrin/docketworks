@@ -38,16 +38,19 @@ def _events(line_id: UUID | str) -> list[TimesheetEvent]:
 
 
 def _workshop_create(client: Client, job: Job, **overrides: object) -> str:
+    """Book one ordinary entry, 09:00-11:00: inside the standard day and clear of its breaks."""
     payload: dict[str, object] = {
         "job_id": str(job.id),
         "accounting_date": ENTRY_DATE.isoformat(),
-        "hours": "4.00",
+        "hours": "2.00",
         "description": "Fabrication",
+        "start_time": "09:00:00",
     }
     payload.update(overrides)
     response = client.post(URL, data=payload, content_type="application/json")
     assert response.status_code == 201, response.content
-    return str(response.json()["id"])
+    [entry] = response.json()
+    return str(entry["id"])
 
 
 def _office_data(worker: Staff, **meta: object) -> CostLineWriteData:
@@ -83,7 +86,7 @@ class TestWorkshopPath:
         assert event.accounting_date == ENTRY_DATE
         assert event.delta_before is None
         assert event.delta_after is not None
-        assert event.delta_after["hours"] == "4.000"
+        assert event.delta_after["hours"] == "2.000"
         assert event.delta_after["job"] == f"#{job.job_number}"
         assert event.description == "Entry created"
 
@@ -94,7 +97,7 @@ class TestWorkshopPath:
 
         response = worker_client.patch(
             URL,
-            data={"entry_id": line_id, "hours": "6.00"},
+            data={"entry_id": line_id, "hours": "2.50"},
             content_type="application/json",
         )
 
@@ -105,8 +108,8 @@ class TestWorkshopPath:
         assert {
             change["field_name"]: change["new_value"] for change in updated.detail["changes"]
         } == {
-            "Hours": "6.000",
-            "End": "14:00:00",
+            "Hours": "2.500",
+            "End": "11:30:00",
         }
 
     def test_editing_only_the_times_records_the_change(
@@ -114,23 +117,23 @@ class TestWorkshopPath:
     ) -> None:
         """The snapshot carries start and end: a time-only edit is not a blank "Entry updated"."""
         line_id = _workshop_create(
-            worker_client, job, start_time="08:00:00", end_time="12:00:00", hours="4.00"
+            worker_client, job, start_time="15:00:00", end_time="19:00:00", hours="4.00"
         )
 
         response = worker_client.patch(
             URL,
-            data={"entry_id": line_id, "start_time": "09:00:00", "end_time": "13:00:00"},
+            data={"entry_id": line_id, "start_time": "16:00:00", "end_time": "20:00:00"},
             content_type="application/json",
         )
 
         assert response.status_code == 200, response.content
         *_, updated = _events(line_id)
         assert updated.detail["changes"] == [
-            {"field_name": "Start", "old_value": "08:00:00", "new_value": "09:00:00"},
-            {"field_name": "End", "old_value": "12:00:00", "new_value": "13:00:00"},
+            {"field_name": "Start", "old_value": "15:00:00", "new_value": "16:00:00"},
+            {"field_name": "End", "old_value": "19:00:00", "new_value": "20:00:00"},
         ]
         assert updated.description == (
-            "Start changed from '08:00:00' to '09:00:00'. End changed from '12:00:00' to '13:00:00'"
+            "Start changed from '15:00:00' to '16:00:00'. End changed from '19:00:00' to '20:00:00'"
         )
 
     def test_moving_records_entry_moved_naming_both_jobs(
@@ -166,7 +169,7 @@ class TestWorkshopPath:
         assert deleted.worker == worker
         assert deleted.delta_after is None
         assert deleted.delta_before is not None
-        assert deleted.delta_before["hours"] == "4.000"
+        assert deleted.delta_before["hours"] == "2.000"
 
     def test_the_event_rolls_back_with_a_write_that_fails(
         self, worker_client: Client, job: Job

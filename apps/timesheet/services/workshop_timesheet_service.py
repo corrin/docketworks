@@ -14,7 +14,7 @@ item and a zero bill rate.
 import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 from uuid import UUID
 
 from django.db import transaction
@@ -25,7 +25,7 @@ from django.utils.dateparse import parse_date
 from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
-from apps.core.errors import AccessDeniedError, ConflictError
+from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
@@ -210,37 +210,6 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
     if not isinstance(value, str):
         return None
     return time.fromisoformat(value)
-
-
-# Fable: Not exact equality: clients derive hours from the minute-grained time
-# pair and round to two decimals, so a 20-minute booking is 0.33 hours against
-# a 0.3333… duration. Rounding alone bounds the error at 0.005; the full 0.01
-# is deliberate headroom, and at most 36 seconds of wage per entry.
-_TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
-
-
-def _validate_time_consistency(start: time | None, end: time | None, hours: Decimal) -> None:
-    """Refuse a start/end pair that is backwards or too short to hold ``hours``.
-
-    An entry's hours are what is paid and billed; its times are a picture of
-    where the work sat in the day. Breaks are outside job time, so an entry
-    spanning one has a span longer than its hours, and that is ordinary. What
-    cannot be is more hours than the span. A single missing time carries no
-    span and is exempt.
-    """
-    if start is None or end is None:
-        return
-    if end <= start:
-        raise ValueError(gettext("The finish time must be after the start time."))
-    elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
-    duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
-    if hours - duration > _TIME_AGREEMENT_TOLERANCE:
-        raise ValueError(
-            gettext(
-                "hours (%(hours)s) cannot be more than the start_time-end_time span (%(span)s)."
-            )
-            % {"hours": hours, "span": duration.quantize(Decimal("0.01"))}
-        )
 
 
 def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Decimal:
@@ -544,28 +513,151 @@ def pricing_meta(
     return meta
 
 
-class _Placement(TypedDict, total=False):
-    start_time: time
-    end_time: time
+class TimesDisagreeError(InvalidInputError):
+    """A finish was given that the hours, laid around the breaks, do not reach."""
 
 
-def _placed(owner: Staff, day: date, hours: Decimal) -> _Placement:
-    """Place hours given without times after his latest entry, stepping over the breaks.
+def entry_stretches(
+    owner: Staff, day: date, job_id: UUID, start: time, hours: Decimal
+) -> list[attendance.Window] | None:
+    """Return where ``hours`` begun at ``start`` sit in his day, split around his breaks.
 
-    Hours are all he has to say; the times are the picture that lets the day
-    draw. Hours that would run past midnight from there keep no picture: the
-    entry is saved without times, as it always could be, rather than refused
-    or drawn shorter than the hours it holds.
+    A break is itself one stretch: it is the time the others step around.
+    None when the hours would run past midnight.
     """
-    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
-    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
-    start = default_entry_start(day, row, entries, break_lines)
-    finish = attendance.finish_in_the_day(
-        start, hours, attendance.break_windows(day, row, break_lines)
-    )
-    if finish is None:
-        return {}
-    return {"start_time": start, "end_time": finish}
+    if job_id == attendance.break_job_id():
+        return attendance.lay_out(start, hours, [])
+    return attendance.lay_out(start, hours, day_break_windows(owner, day))
+
+
+def _refuse_other_finish(start: time, hours: Decimal, finish: time, reached: time | None) -> None:
+    if finish <= start:
+        raise TimesDisagreeError(gettext("The finish time must be after the start time."))
+    if reached != finish:
+        raise TimesDisagreeError(
+            gettext("%(hours)s hours from %(start)s, around the breaks, do not end at %(finish)s.")
+            % {"hours": hours, "start": f"{start:%H:%M}", "finish": f"{finish:%H:%M}"}
+        )
+
+
+def _set_times(meta: dict[str, object], stretch: attendance.Window | None) -> None:
+    meta["start_time"] = None if stretch is None else _format_time(stretch.start)
+    meta["end_time"] = None if stretch is None else _format_time(stretch.end)
+
+
+#: What work after his usual finish is paid at unless he chose a rate himself.
+OVERTIME = Decimal("1.5")
+
+
+class Piece(NamedTuple):
+    """One entry's worth of an entry: a stretch of the day, its hours and its pay rate."""
+
+    stretch: attendance.Window
+    hours: Decimal
+    multiplier: Decimal
+
+
+def entry_pieces(
+    day: date,
+    job_id: UUID,
+    stretches: list[attendance.Window],
+    hours: Decimal,
+    multiplier: Decimal,
+) -> list[Piece]:
+    """Share an entry's hours among its stretches, those after his usual finish at time and a half.
+
+    Time in the business's hours defaults to ordinary time and time after them
+    to time and a half (owner, 2026-10-24), so a twelve-hour day is split at
+    the finish as well as around the breaks. A rate he chose himself stands, a
+    break is never overtime, and a day with no usual hours (a weekend) has no
+    after.
+    """
+    standard = attendance.standard_day(day)
+    after: list[attendance.Window] = []
+    if standard is None or multiplier != attendance.ORDINARY or job_id == attendance.break_job_id():
+        before = stretches
+    else:
+        before, after = attendance.split_at(stretches, standard.end)
+    laid = [*before, *after]
+    rates = [multiplier] * len(before) + [OVERTIME] * len(after)
+    shares = attendance.stretch_hours(laid, hours)
+    return [Piece(*each) for each in zip(laid, shares, rates, strict=True)]
+
+
+def overtime_hours(day: date, stretches: list[attendance.Window]) -> Decimal:
+    """Return the hours of ``stretches`` that fall after the day's usual finish."""
+    standard = attendance.standard_day(day)
+    if standard is None:
+        return Decimal(0)
+    _, after = attendance.split_at(stretches, standard.end)
+    return sum((attendance.hours_for(each.start, each.end, []) for each in after), Decimal(0))
+
+
+def _same_rate(
+    line: CostLine, stretches: list[attendance.Window], hours: list[Decimal]
+) -> list[Piece]:
+    rate = hour_categories.wage_rate_multiplier(line)
+    return [Piece(stretch, share, rate) for stretch, share in zip(stretches, hours, strict=True)]
+
+
+def add_stretches(actor: Staff, line: CostLine, rest: list[Piece]) -> list[CostLine]:
+    """Save the rest of an entry's pieces as entries of their own, beside ``line``.
+
+    Each is the same booking as ``line`` (job, pay item, approval) for its own
+    times, priced again where its rate differs (overtime after his usual
+    finish), and dated as made when ``line`` was: splitting an entry is no
+    reason to call any of it entered late.
+    """
+    pieces: list[CostLine] = []
+    for each in rest:
+        meta = dict(line.meta)
+        _set_times(meta, each.stretch)
+        unit_cost, unit_rev = line.unit_cost, line.unit_rev
+        pay_item_id, labour_subtype = line.xero_pay_item_id, line.labour_subtype
+        if each.multiplier != hour_categories.wage_rate_multiplier(line):
+            meta["wage_rate_multiplier"] = float(each.multiplier)
+            # The charge follows the wage rate, as it does when he changes it.
+            meta.pop("bill_rate_multiplier", None)
+            pricing = price_time_entry(
+                job=line.cost_set.job,
+                staff=_owner_of(line),
+                meta=meta,
+                labour_subtype=line.labour_subtype,
+            )
+            meta.update(pricing.meta_updates())
+            unit_cost, unit_rev = pricing.unit_cost, pricing.unit_rev
+            pay_item_id, labour_subtype = pricing.pay_item_id, pricing.labour_subtype
+        piece = CostLine(
+            cost_set=line.cost_set,
+            kind=line.kind,
+            desc=line.desc,
+            quantity=each.hours,
+            unit_cost=unit_cost,
+            unit_rev=unit_rev,
+            accounting_date=line.accounting_date,
+            staff=line.staff,
+            xero_pay_item_id=pay_item_id,
+            labour_subtype=labour_subtype,
+            ext_refs={},
+            meta=meta,
+            approved=line.approved,
+            remote_entry=line.remote_entry,
+        )
+        piece.save()
+        # created_at is auto_now_add, so the save stamped it now. A microsecond
+        # after the entry it came from: the day lists in the order entries were
+        # made, so the piece follows it, and it is no later a day than it.
+        piece.created_at = line.created_at + timedelta(microseconds=len(pieces) + 1)
+        CostLine.objects.filter(pk=piece.pk).update(created_at=piece.created_at)
+        record_timesheet_event(
+            staff=actor,
+            event_type="entry_created",
+            line=piece,
+            before=None,
+            trusted=not piece.remote_entry,
+        )
+        pieces.append(piece)
+    return pieces
 
 
 def create_entry(
@@ -575,13 +667,17 @@ def create_entry(
     location: EntryLocation | None = None,
     *,
     source: str | None = None,
-) -> WorkshopEntryData:
-    """Create a time line for ``owner``, saved by ``actor``.
+) -> list[WorkshopEntryData]:
+    """Create ``owner``'s time, saved by ``actor``: one entry per stretch around his breaks.
 
     The two are the same person when someone books their own time. The owner's
-    wage prices the line; who saved it decides whether it starts approved and
-    whether it is marked as saved away from the workshop. ``location`` is
-    where the actor's phone says it is; None when it gave none.
+    wage prices the lines; who saved them decides whether they start approved
+    and whether they are marked as saved away from the workshop. ``location``
+    is where the actor's phone says it is; None when it gave none.
+
+    Hours given without times start where his day has got to. A finish given
+    with a start must be where the hours, laid around his breaks, end. Hours
+    that would run past midnight keep no times.
 
     ``source`` marks a line nobody typed (the breaks put on a day when it is
     closed, the sweep's General work): never marked late or remote, since
@@ -589,31 +685,46 @@ def create_entry(
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
+    day, hours = data["accounting_date"], data["hours"]
 
     with transaction.atomic():
         # His day is read and placed on under a lock on him, so two entries
         # saved at once are placed one after the other, not on one slot.
         Staff.objects.select_for_update().filter(pk=owner.pk).first()
-        if data.get("start_time") is None and data.get("end_time") is None:
-            data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
-        _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
+        start, finish = data.get("start_time"), data.get("end_time")
+        if start is None and finish is None:
+            row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+            entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+            start = default_entry_start(day, row, entries, break_lines)
+        stretches = None if start is None else entry_stretches(owner, day, job.id, start, hours)
+        if start is not None and finish is not None:
+            _refuse_other_finish(
+                start, hours, finish, None if stretches is None else stretches[-1].end
+            )
+        pieces = (
+            []
+            if stretches is None
+            else entry_pieces(day, job.id, stretches, hours, wage_rate_multiplier)
+        )
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(
             staff=owner,
-            accounting_date=data["accounting_date"],
-            wage_rate_multiplier=wage_rate_multiplier,
+            accounting_date=day,
+            wage_rate_multiplier=pieces[0].multiplier if pieces else wage_rate_multiplier,
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
             is_billable=data.get("is_billable", True),
         )
         if source is not None:
             meta["source"] = source
-        start_time = data.get("start_time")
-        end_time = data.get("end_time")
-        if start_time is not None:
-            meta["start_time"] = _format_time(start_time)
-        if end_time is not None:
-            meta["end_time"] = _format_time(end_time)
+        if pieces:
+            _set_times(meta, pieces[0].stretch)
+        else:
+            # No picture past midnight; a lone time given is kept as given.
+            if data.get("start_time") is not None:
+                meta["start_time"] = _format_time(data["start_time"])
+            if finish is not None:
+                meta["end_time"] = _format_time(finish)
 
         pricing = price_time_entry(job=job, staff=owner, meta=meta)
         meta.update(pricing.meta_updates())
@@ -622,10 +733,10 @@ def create_entry(
             cost_set=cost_set,
             kind="time",
             desc=data.get("description") or None,
-            quantity=data["hours"],
+            quantity=pieces[0].hours if pieces else hours,
             unit_cost=pricing.unit_cost,
             unit_rev=pricing.unit_rev,
-            accounting_date=data["accounting_date"],
+            accounting_date=day,
             staff=owner,
             xero_pay_item_id=pricing.pay_item_id,
             labour_subtype=pricing.labour_subtype,
@@ -637,7 +748,6 @@ def create_entry(
             remote_entry=source is None and saved_remotely(actor, location),
         )
         line.save()
-        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
         record_timesheet_event(
             staff=actor,
             event_type="entry_created",
@@ -645,8 +755,10 @@ def create_entry(
             before=None,
             trusted=not line.remote_entry,
         )
+        saved = [line, *add_stretches(actor, line, pieces[1:])]
+        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
 
-    return entry_data(line)
+    return [entry_data(each) for each in saved]
 
 
 def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
@@ -717,35 +829,69 @@ def _apply_scalar_changes(
     return changed
 
 
-_MOVES_THE_FINISH = frozenset({"hours", "start_time", "accounting_date"})
+_MOVES_THE_FINISH = frozenset({"hours", "start_time", "end_time", "accounting_date"})
 
 
-def _redraw_finish(line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData) -> None:
-    """Redraw an edited entry's finish from its hours, unless a finish was given.
+def _relaid(
+    line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData, job_id: UUID
+) -> list[Piece]:
+    """Lay an edited entry out again from its start; return the stretches it no longer holds.
 
-    Hours are the truth and the times their picture: new hours, a new start or
-    a new day redraw the finish rather than being refused by it. Past midnight
-    from the start, the hours stand and keep no picture.
+    New hours, a new start or a new day move where the work sits, so the
+    entry is laid around his breaks again: the line keeps the first stretch
+    and the rest are returned, with their hours, to be saved beside it. A
+    finish given must be where that lay-out ends. Past midnight from the
+    start, the hours stand and keep no times.
+    """
+    if not data.keys() & _MOVES_THE_FINISH or ("end_time" in data and data["end_time"] is None):
+        return []
+    return lay_out_again(line, meta, job_id, data.get("end_time"))
+
+
+def lay_out_again(
+    line: CostLine, meta: dict[str, object], job_id: UUID, finish: time | None = None
+) -> list[Piece]:
+    """Lay a timed line out from its start for its hours; return the pieces beyond the first.
+
+    The line takes the first stretch in ``meta`` and its hours, at the rate it
+    has: a rate someone set stands. The rest are for ``add_stretches``, after
+    his usual finish at time and a half. A ``finish`` given must be where the
+    lay-out ends. Past midnight the hours keep no times. An untimed line is
+    left as it is.
     """
     start = _meta_time(meta, "start_time")
-    if start is None or "end_time" in data or not data.keys() & _MOVES_THE_FINISH:
-        return
-    windows = day_break_windows(_owner_of(line), line.accounting_date)
-    finish = attendance.finish_in_the_day(start, line.quantity, windows)
-    if finish is None:
-        meta["start_time"] = None
-        meta["end_time"] = None
-    else:
-        meta["end_time"] = _format_time(finish)
+    if start is None:
+        return []
+    stretches = entry_stretches(_owner_of(line), line.accounting_date, job_id, start, line.quantity)
+    if finish is not None:
+        _refuse_other_finish(
+            start, line.quantity, finish, None if stretches is None else stretches[-1].end
+        )
+    if stretches is None:
+        _set_times(meta, None)
+        return []
+    pieces = entry_pieces(
+        line.accounting_date,
+        job_id,
+        stretches,
+        line.quantity,
+        # The edit's own rate: ``meta`` holds the patch, the line not yet.
+        Decimal(str(meta["wage_rate_multiplier"])),
+    )
+    _set_times(meta, pieces[0].stretch)
+    line.quantity = pieces[0].hours
+    return pieces[1:]
 
 
 def update_entry(
     actor: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
-) -> WorkshopEntryData:
+) -> list[WorkshopEntryData]:
     """Update an entry: the actor's own, or anyone's when the actor is office staff.
 
-    The entry stays its owner's and is priced at the owner's wage. ``location``
-    is where the actor's phone says it is; None when it gave none.
+    The entry stays its owner's and is priced at the owner's wage. An edit that
+    moves where the work sits can split it around his breaks: the entry is the
+    first stretch and the rest come back beside it. ``location`` is where the
+    actor's phone says it is; None when it gave none.
     """
     line = _editable_line(actor, data["entry_id"])
 
@@ -796,13 +942,7 @@ def update_entry(
         if not changed:
             raise ValueError(gettext("No changes supplied."))
 
-        _redraw_finish(line, meta, data)
-
-        # Validated on the merged entry, not the patch alone: a PATCH that moves
-        # one time can break agreement with the stored other half.
-        _validate_time_consistency(
-            _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
-        )
+        rest = _relaid(line, meta, data, job.id)
 
         # Changed by someone: no longer the default the finish may take away.
         mark_break_edited(meta)
@@ -822,8 +962,9 @@ def update_entry(
             before=before,
             trusted=not remote,
         )
+        saved = [line, *add_stretches(actor, line, rest)]
 
-    return entry_data(line)
+    return [entry_data(each) for each in saved]
 
 
 @transaction.atomic
@@ -859,3 +1000,94 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
     )
     line.delete()
     logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)
+
+
+def _timed_window(line: CostLine) -> attendance.Window | None:
+    span = timed_span(line)
+    return None if span is None else attendance.Window(*span)
+
+
+def cut_entries_under(
+    actor: Staff,
+    owner: Staff,
+    day: date,
+    window: attendance.Window,
+    location: EntryLocation | None = None,
+) -> None:
+    """Take a new break's time out of the entries it lands on (owner, 2026-10-24).
+
+    The break wins: he was on it, not on the job. An entry it lands inside is
+    left as the stretches either side of it, holding that much less; one it
+    covers goes. Untimed entries have no place in the day to land on.
+    """
+    entries, _ = attendance.split_breaks(day_time_lines(owner, day))
+    for line in entries:
+        span = _timed_window(line)
+        if span is None or span.end <= window.start or span.start >= window.end:
+            continue
+        kept = [
+            stretch
+            for stretch in (
+                attendance.Window(span.start, min(span.end, window.start)),
+                attendance.Window(max(span.start, window.end), span.end),
+            )
+            if stretch.end > stretch.start
+        ]
+        if not kept:
+            delete_entry(actor, line.id, location)
+            continue
+        hours = [attendance.hours_for(stretch.start, stretch.end, []) for stretch in kept]
+        update_entry(
+            actor,
+            {
+                "entry_id": line.id,
+                "start_time": kept[0].start,
+                "end_time": kept[0].end,
+                "hours": hours[0],
+            },
+            location,
+        )
+        cut = CostLine.objects.get(pk=line.pk)
+        add_stretches(actor, cut, _same_rate(cut, kept[1:], hours[1:]))
+
+
+def _booking(line: CostLine) -> tuple[object, ...]:
+    """Return what makes two lines the same booking: everything but where they sit in the day."""
+    meta = {key: value for key, value in line.meta.items() if key not in {"start_time", "end_time"}}
+    return (
+        line.cost_set_id,
+        line.desc,
+        line.approved,
+        line.remote_entry,
+        line.xero_pay_item_id,
+        line.labour_subtype_id,
+        line.unit_cost,
+        line.unit_rev,
+        sorted(meta.items()),
+    )
+
+
+def merge_entries_across(
+    actor: Staff,
+    owner: Staff,
+    day: date,
+    window: attendance.Window,
+    location: EntryLocation | None = None,
+) -> None:
+    """Join the entries either side of a break that has gone (owner, 2026-10-24).
+
+    The reverse of ``cut_entries_under``: two stretches of the same booking
+    that meet the gap from either side become one entry again, holding all
+    the time between its ends that no remaining break covers. Anything else
+    beside the gap is left alone, and the gap stays unbooked.
+    """
+    entries, _ = attendance.split_breaks(day_time_lines(owner, day))
+    spans = [(line, span) for line in entries if (span := _timed_window(line)) is not None]
+    before = next(((line, span) for line, span in spans if span.end == window.start), None)
+    after = next(((line, span) for line, span in spans if span.start == window.end), None)
+    if before is None or after is None or _booking(before[0]) != _booking(after[0]):
+        return
+    start, end = before[1].start, after[1].end
+    hours = attendance.hours_for(start, end, day_break_windows(owner, day))
+    delete_entry(actor, after[0].id, location)
+    update_entry(actor, {"entry_id": before[0].id, "start_time": start, "hours": hours}, location)

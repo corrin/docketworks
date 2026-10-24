@@ -16,6 +16,14 @@ import type {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -262,31 +270,58 @@ function WorkshopEntryForm({
   // render, so a double-click could otherwise book the entry twice.
   const inFlightRef = useRef(false)
 
-  /** The three values as they will be saved: the server's answer is waited
-      for rather than guessed, so a quick Save after typing is still right. */
-  const resolveTimes = async (): Promise<Pick<
-    EntryFormValues,
-    'hours' | 'start' | 'end'
-  > | null> => {
+  // Set while he is asked whether the hours past his usual finish are overtime.
+  const [overtimeAsk, setOvertimeAsk] = useState<OvertimeAsk | null>(null)
+
+  /** The three values as they will be saved, and how many of the hours fall
+      after his usual finish: the server's answer is waited for rather than
+      guessed, so a quick Save after typing is still right. */
+  const resolveTimes = async (): Promise<ResolvedTimes | null> => {
     const question = { start, hours, end, workingOut }
     if (!placementAskable(question)) {
-      return hours === null ? null : { hours, start, end }
+      return hours === null ? null : { times: { hours, start, end }, overtime: null }
     }
     const answer = await queryClient.fetchQuery(
       timesheetsMyDayPlacementOptions({ query: placementQuestion(date, question, ownerId) }),
     )
+    const overtime =
+      answer.overtime_hours > 0 && answer.usual_finish !== null && answer.finish !== null
+        ? { hours: answer.overtime_hours, usualFinish: answer.usual_finish, finish: answer.finish }
+        : null
     // Past midnight from his start: the hours save with no times at all.
-    if (answer.finish === null) return { hours: answer.hours, start: '', end: '' }
-    return { hours: answer.hours, start, end: inputTime(answer.finish) }
+    if (answer.finish === null) {
+      return { times: { hours: answer.hours, start: '', end: '' }, overtime }
+    }
+    return { times: { hours: answer.hours, start, end: inputTime(answer.finish) }, overtime }
   }
 
   const submit = async () => {
     if (jobId === null || inFlightRef.current) return
     inFlightRef.current = true
+    let resolved: ResolvedTimes | null
+    try {
+      resolved = await resolveTimes()
+    } catch (error) {
+      toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
+      return
+    } finally {
+      inFlightRef.current = false
+    }
+    if (resolved === null) return
+    // Time after his usual finish is time and a half unless he picked a rate:
+    // he is told before it is saved (owner, 2026-10-24).
+    if (resolved.overtime !== null && rateMultiplier === ORDINARY_RATE) {
+      setOvertimeAsk({ times: resolved.times, ...resolved.overtime })
+      return
+    }
+    await save(resolved.times)
+  }
+
+  const save = async (times: EntryTimes) => {
+    if (jobId === null || inFlightRef.current) return
+    inFlightRef.current = true
     let saved: boolean
     try {
-      const times = await resolveTimes()
-      if (times === null) return
       if (entry === null) {
         saved = await onCreate({
           job_id: jobId,
@@ -608,9 +643,66 @@ function WorkshopEntryForm({
           )}
         </div>
       </DrawerFooter>
+
+      <Dialog
+        open={overtimeAsk !== null}
+        onOpenChange={(open) => {
+          if (!open) setOvertimeAsk(null)
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          data-automation-id="WorkshopTimesheetEntryDrawer-overtime"
+        >
+          <DialogHeader>
+            <DialogTitle>{t('entryDrawer.overtime.title')}</DialogTitle>
+            <DialogDescription>
+              {overtimeAsk !== null &&
+                t('entryDrawer.overtime.body', {
+                  finish: inputTime(overtimeAsk.finish),
+                  usualFinish: inputTime(overtimeAsk.usualFinish),
+                  hours: formatHoursDisplay(overtimeAsk.hours),
+                })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              data-automation-id="WorkshopTimesheetEntryDrawer-overtime-cancel"
+              onClick={() => setOvertimeAsk(null)}
+            >
+              {t('entryDrawer.cancel')}
+            </Button>
+            <Button
+              data-automation-id="WorkshopTimesheetEntryDrawer-overtime-save"
+              onClick={() => {
+                if (overtimeAsk === null) return
+                const { times } = overtimeAsk
+                setOvertimeAsk(null)
+                void save(times)
+              }}
+            >
+              {t('entryDrawer.overtime.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
+
+/** The ordinary pay rate: hours past his usual finish default away from it. */
+const ORDINARY_RATE = 1
+
+type EntryTimes = Pick<EntryFormValues, 'hours' | 'start' | 'end'>
+
+type ResolvedTimes = {
+  times: EntryTimes
+  /** Hours after his usual finish, when there are any. */
+  overtime: { hours: number; usualFinish: string; finish: string } | null
+}
+
+type OvertimeAsk = { times: EntryTimes; hours: number; usualFinish: string; finish: string }
 
 type PlacementQuestion = {
   start: string

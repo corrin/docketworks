@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from functools import singledispatch
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -69,6 +69,10 @@ from apps.timesheet.services.timesheet_events import (
     record_timesheet_event,
     snapshot_if_entry,
 )
+
+if TYPE_CHECKING:
+    # The timesheet's entry writes import this module, so the type is only named here.
+    from apps.timesheet.services.workshop_timesheet_service import Piece
 
 logger = logging.getLogger(__name__)
 
@@ -2520,9 +2524,11 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         _reprice_timesheet_line(line, data, patch_meta)
 
     with transaction.atomic():
+        stored_hours = line.quantity
         _apply_costline_fields(line, data)
         # A standard break changed from the grid is his, as from his phone.
         mark_break_edited(line.meta)
+        rest = _lay_out_new_hours(line, stored_hours)
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError(
                 gettext("Issue material through purchasing so its stock movement is recorded.")
@@ -2537,8 +2543,39 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
             before=before,
             trusted=not saved_remotely(staff, None),
         )
+        _save_new_stretches(staff, line, rest)
 
     return line
+
+
+def _save_new_stretches(staff: Staff, line: CostLine, rest: list[Piece]) -> None:
+    """Save the stretches new hours took the line past, as entries beside it."""
+    # Call-time import: the timesheet's entry writes import this module.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        add_stretches,
+    )
+
+    add_stretches(staff, line, rest)
+
+
+def _lay_out_new_hours(line: CostLine, stored_hours: Decimal) -> list[Piece]:
+    """Lay a timed entry out again from its start when the grid changed its hours.
+
+    The grid sends back the times it read with the new hours, and an entry's
+    times are when he worked, so the start stands and the rest follows from
+    the hours, split around his breaks as from his phone. Returns the
+    pieces the line no longer holds.
+    """
+    if line.kind != "time" or line.cost_set.kind != "actual" or line.quantity == stored_hours:
+        return []
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        lay_out_again,
+    )
+
+    meta = dict(line.meta)
+    rest = lay_out_again(line, meta, line.cost_set.job_id)
+    line.meta = meta
+    return rest
 
 
 @transaction.atomic

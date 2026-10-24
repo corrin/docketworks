@@ -2904,6 +2904,8 @@ export const jobWorkshopTimesheetsRetrieve = <ThrowOnError extends boolean = fal
  * Update an existing timesheet entry belonging to the staff member
  *
  * Update one of the authenticated staff member's own entries.
+ *
+ * Answers with the entry first and any stretches the edit split off it after.
  */
 export const jobWorkshopTimesheetsPartialUpdate = <ThrowOnError extends boolean = false>(options: Options<JobWorkshopTimesheetsPartialUpdateData, ThrowOnError>): RequestResult<JobWorkshopTimesheetsPartialUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<JobWorkshopTimesheetsPartialUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -2925,6 +2927,8 @@ export const jobWorkshopTimesheetsPartialUpdate = <ThrowOnError extends boolean 
  * Create a new timesheet entry for the authenticated staff
  *
  * Create a time entry owned by the authenticated staff member.
+ *
+ * Answers with every entry it made: one per stretch around his breaks.
  */
 export const jobWorkshopTimesheetsCreate = <ThrowOnError extends boolean = false>(options: Options<JobWorkshopTimesheetsCreateData, ThrowOnError>): RequestResult<JobWorkshopTimesheetsCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<JobWorkshopTimesheetsCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -4737,8 +4741,8 @@ export const timesheetsMyDayClock = <ThrowOnError extends boolean = false>(optio
  *
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
- * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * Given hours, the finish is where they end laid around the day's breaks;
+ * given a finish, the hours are the span less the breaks inside it.
  */
 export const timesheetsMyDayPlacement = <ThrowOnError extends boolean = false>(options: Options<TimesheetsMyDayPlacementData, ThrowOnError>): RequestResult<TimesheetsMyDayPlacementResponses, unknown, ThrowOnError> => (options.client ?? client).get<TimesheetsMyDayPlacementResponses, unknown, ThrowOnError>({
     responseType: 'json',
