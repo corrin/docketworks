@@ -10439,14 +10439,25 @@ components:
         hours:
           title: Hours
           type: number
+        overtime_hours:
+          title: Overtime Hours
+          type: number
         start:
           format: time
           title: Start
           type: string
+        usual_finish:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Usual Finish
       required:
       - start
       - finish
       - hours
+      - usual_finish
+      - overtime_hours
       title: PlacementOut
       type: object
     PostWeekToXeroRequest:

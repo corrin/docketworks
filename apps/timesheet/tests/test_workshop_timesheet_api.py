@@ -39,8 +39,9 @@ pytestmark = [
 
 URL = "/api/job/workshop/timesheets/"
 ENTRY_DATE = WEEK_START
-#: The standard day is 07:00-15:00 with breaks at 08:30, 11:30 and 13:30.
-AFTER_THE_DAY = "15:00:00"
+#: The standard day is 07:00-15:00 with breaks at 08:30, 11:30 and 13:30, so two
+#: hours from 09:00 sit inside it with no break: one ordinary entry.
+INSIDE_THE_DAY = "09:00:00"
 
 
 def _entry_id(entry: dict[str, object]) -> str:
@@ -51,13 +52,13 @@ def _entry_id(entry: dict[str, object]) -> str:
 
 
 def _create(client: Client, job: Job, **overrides: object) -> dict[str, object]:
-    """Book one entry, after the standard day so no break splits it."""
+    """Book one ordinary entry: no break splits it, and it ends before the usual finish."""
     payload: dict[str, object] = {
         "job_id": str(job.id),
         "accounting_date": ENTRY_DATE.isoformat(),
-        "hours": "4.00",
+        "hours": "2.00",
         "description": "Fabrication",
-        "start_time": AFTER_THE_DAY,
+        "start_time": INSIDE_THE_DAY,
     }
     payload.update(overrides)
     response = client.post(URL, data=payload, content_type="application/json")
@@ -128,7 +129,7 @@ class TestCreate:
     ) -> None:
         body = _create(worker_client, job)
 
-        assert body["hours"] == 4.0
+        assert body["hours"] == 2.0
         assert body["job_number"] == job.job_number
         assert body["company_name"] == "Timesheet Test Company"
         assert body["is_billable"] is True
@@ -162,7 +163,7 @@ class TestCreate:
         assert CostLine.objects.get(id=_entry_id(body)).unit_rev == Decimal("0.00")
 
     def test_start_and_end_times_round_trip(self, worker_client: Client, job: Job) -> None:
-        body = _create(worker_client, job, start_time="15:00:00", end_time="19:00:00")
+        body = _create(worker_client, job, hours="4.00", start_time="15:00:00", end_time="19:00:00")
 
         assert body["start_time"] == "15:00:00"
         assert body["end_time"] == "19:00:00"
@@ -276,7 +277,7 @@ class TestRequestValidation:
         )
 
         assert response.status_code == 422, response.content
-        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
+        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("2.000")
 
 
 class TestTimeConsistency:
@@ -424,13 +425,13 @@ class TestUpdate:
 
         response = worker_client.patch(
             URL,
-            data={"entry_id": entry["id"], "hours": "6.50", "description": "Welding"},
+            data={"entry_id": entry["id"], "hours": "2.50", "description": "Welding"},
             content_type="application/json",
         )
 
         assert response.status_code == 200, response.content
         body = _only(response)
-        assert body["hours"] == 6.5
+        assert body["hours"] == 2.5
         assert body["description"] == "Welding"
 
     def test_an_explicit_unbillable_choice_survives_a_move_off_a_shop_job(

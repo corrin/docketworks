@@ -160,8 +160,15 @@ class TestPlacement:
         back = worker_client.get(f"{query}&finish=14:00").json()
         neither = worker_client.get(query)
 
-        assert forward == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
-        assert back == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
+        same_answer = {
+            "start": "07:00:00",
+            "finish": "14:00:00",
+            "hours": 6.0,
+            "usual_finish": "15:00:00",
+            "overtime_hours": 0.0,
+        }
+        assert forward == same_answer
+        assert back == same_answer
         assert neither.status_code == 400
         for refused in ("0", "-1", "100000"):
             assert worker_client.get(f"{query}&hours={refused}").status_code == 422
@@ -715,6 +722,104 @@ class TestTimesAreWhenHeWorked:
         )
 
         assert _entries(worker) == [("07:00", "08:30", 1.5), ("08:45", "10:15", 1.5)]
+
+
+def _rated(worker: Staff) -> list[tuple[str, str, float, float]]:
+    return [
+        (
+            f"{entry['start_time']:%H:%M}",
+            f"{entry['end_time']:%H:%M}",
+            entry["hours"],
+            entry["wage_rate_multiplier"],
+        )
+        for entry in sorted(_day(worker)["entries"], key=lambda each: each["start_time"] or time())
+    ]
+
+
+class TestTimeAfterTheUsualFinishIsOvertime:
+    """Owner, 2026-10-24: business hours default to ordinary time, later hours to time and a half.
+
+    Guards workshop_timesheet_service.entry_pieces as create_entry and update_entry use it.
+    """
+
+    def test_a_ten_hour_task_on_an_unclocked_day_is_overtime_after_three(
+        self, worker_client: Client, worker: Staff, job: Job
+    ) -> None:
+        response = worker_client.post(
+            DAY_URL,
+            data={"job_id": str(job.id), "accounting_date": DAY.isoformat(), "hours": "10"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201, response.content
+        assert _rated(worker) == [
+            ("07:00", "08:30", 1.5, 1.0),
+            ("08:45", "11:30", 2.75, 1.0),
+            ("12:00", "13:30", 1.5, 1.0),
+            ("13:45", "15:00", 1.25, 1.0),
+            ("15:00", "18:00", 3.0, 1.5),
+        ]
+        overtime = CostLine.objects.get(staff=worker, meta__start_time="15:00:00")
+        # Priced as time and a half: the worker's 48.00 an hour at 1.5.
+        assert overtime.unit_cost == Decimal("72.00")
+        assert overtime.xero_pay_item is not None
+        assert overtime.xero_pay_item.name == "Time and one half"
+
+    def test_a_rate_he_chose_stands_past_the_finish(self, worker: Staff, job: Job) -> None:
+        workshop_timesheet_service.create_entry(
+            worker,
+            worker,
+            {
+                "job_id": job.id,
+                "accounting_date": DAY,
+                "hours": Decimal("2"),
+                "start_time": time(14, 0),
+                "wage_rate_multiplier": Decimal("2.0"),
+            },
+        )
+
+        assert _rated(worker) == [("14:00", "16:00", 2.0, 2.0)]
+
+    def test_a_day_with_no_usual_hours_has_no_after(self, worker: Staff, job: Job) -> None:
+        saturday = DAY + timedelta(days=(5 - DAY.weekday()) % 7)
+        [entry] = workshop_timesheet_service.create_entry(
+            worker,
+            worker,
+            {
+                "job_id": job.id,
+                "accounting_date": saturday,
+                "hours": Decimal("2"),
+                "start_time": time(14, 0),
+            },
+        )
+
+        assert (entry["end_time"], entry["wage_rate_multiplier"]) == (time(16, 0), 1.0)
+
+    def test_new_hours_that_run_past_the_finish_add_an_overtime_entry(
+        self, worker_client: Client, worker: Staff, job: Job
+    ) -> None:
+        _book(worker, job, time(13, 45), "1.25")
+        [line] = CostLine.objects.filter(staff=worker, cost_set__job=job)
+
+        edited = worker_client.patch(
+            DAY_URL,
+            data={"entry_id": str(line.id), "hours": "2.25"},
+            content_type="application/json",
+        )
+
+        assert edited.status_code == 200, edited.content
+        assert _rated(worker) == [("13:45", "15:00", 1.25, 1.0), ("15:00", "16:00", 1.0, 1.5)]
+
+    def test_the_drawer_is_told_how_much_is_overtime(self, worker_client: Client) -> None:
+        answer = worker_client.get(
+            f"{PLACEMENT_URL}?date={DAY.isoformat()}&start=13:45&hours=3"
+        ).json()
+
+        assert (answer["finish"], answer["usual_finish"], answer["overtime_hours"]) == (
+            "16:45:00",
+            "15:00:00",
+            1.75,
+        )
 
 
 class TestLayout:

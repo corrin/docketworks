@@ -4091,7 +4091,9 @@ export const zPipelineWarningOut = z.object({
 export const zPlacementOut = z.object({
     finish: z.iso.time().nullable(),
     hours: z.number(),
-    start: z.iso.time()
+    overtime_hours: z.number(),
+    start: z.iso.time(),
+    usual_finish: z.iso.time().nullable()
 });
 
 /**

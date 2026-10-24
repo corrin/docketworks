@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from functools import singledispatch
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -63,13 +63,16 @@ from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
 from apps.timesheet.models import mark_break_edited
-from apps.timesheet.services.attendance import Window
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
     is_timesheet_entry,
     record_timesheet_event,
     snapshot_if_entry,
 )
+
+if TYPE_CHECKING:
+    # The timesheet's entry writes import this module, so the type is only named here.
+    from apps.timesheet.services.workshop_timesheet_service import Piece
 
 logger = logging.getLogger(__name__)
 
@@ -2545,28 +2548,26 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     return line
 
 
-def _save_new_stretches(
-    staff: Staff, line: CostLine, rest: tuple[list[Window], list[Decimal]]
-) -> None:
+def _save_new_stretches(staff: Staff, line: CostLine, rest: list[Piece]) -> None:
     """Save the stretches new hours took the line past, as entries beside it."""
     # Call-time import: the timesheet's entry writes import this module.
     from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
         add_stretches,
     )
 
-    add_stretches(staff, line, *rest)
+    add_stretches(staff, line, rest)
 
 
-def _lay_out_new_hours(line: CostLine, stored_hours: Decimal) -> tuple[list[Window], list[Decimal]]:
+def _lay_out_new_hours(line: CostLine, stored_hours: Decimal) -> list[Piece]:
     """Lay a timed entry out again from its start when the grid changed its hours.
 
     The grid sends back the times it read with the new hours, and an entry's
     times are when he worked, so the start stands and the rest follows from
     the hours, split around his breaks as from his phone. Returns the
-    stretches the line no longer holds, with their hours.
+    pieces the line no longer holds.
     """
     if line.kind != "time" or line.cost_set.kind != "actual" or line.quantity == stored_hours:
-        return [], []
+        return []
     from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
         lay_out_again,
     )

@@ -9299,9 +9299,17 @@ export type PlacementOut = {
      */
     hours: number;
     /**
+     * Overtime Hours
+     */
+    overtime_hours: number;
+    /**
      * Start
      */
     start: string;
+    /**
+     * Usual Finish
+     */
+    usual_finish: string | null;
 };
 
 /**

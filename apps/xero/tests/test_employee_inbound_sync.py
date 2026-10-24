@@ -699,8 +699,8 @@ def test_imported_rate_prices_new_time_without_repricing_existing_lines(
         "job_id": job.id,
         "accounting_date": date(2026, 9, 9),
         "hours": Decimal("1"),
-        # After the standard day, so no break splits it: this is about its price.
-        "start_time": time_of_day(15, 0),
+        # Inside the standard day and clear of its breaks: this is about its price.
+        "start_time": time_of_day(9, 0),
     }
     [old] = create_entry(staff, staff, payload)
     assert CostLine.objects.get(pk=old["id"]).unit_cost == Decimal("37.50")

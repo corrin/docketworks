@@ -659,19 +659,28 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
     if (hours is None) == (finish is None):
         raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     breaks = workshop_timesheet_service.day_break_windows(owner, day)
-    if hours is not None:
-        stretches = attendance.lay_out(start, hours, breaks)
-        return {
-            "start": start,
-            "finish": None if stretches is None else stretches[-1].end,
-            "hours": float(hours),
-        }
-    if finish is None:  # narrowed for the type checker; refused above
-        raise HttpError(400, gettext("Give the hours or the finish, one of them."))
-    return {
+    if hours is None:
+        if finish is None:  # narrowed for the type checker; refused above
+            raise HttpError(400, gettext("Give the hours or the finish, one of them."))
+        hours = attendance.hours_for(start, finish, breaks)
+    standard = attendance.standard_day(day)
+    answer: dict[str, object] = {
         "start": start,
         "finish": finish,
-        "hours": float(attendance.hours_for(start, finish, breaks)),
+        "hours": float(hours),
+        "usual_finish": None if standard is None else standard.end,
+        "overtime_hours": 0.0,
+    }
+    # A finish inside the break that follows the start holds no work to lay out.
+    if hours == 0:
+        return answer
+    stretches = attendance.lay_out(start, hours, breaks)
+    if stretches is None:
+        return {**answer, "finish": None}
+    return {
+        **answer,
+        "finish": stretches[-1].end,
+        "overtime_hours": float(workshop_timesheet_service.overtime_hours(day, stretches)),
     }
 
 

@@ -1,8 +1,10 @@
 import type { Page } from '@playwright/test'
+import { z } from 'zod'
 
+import { shiftDate } from '../../../src/lib/dates'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob } from '../helpers'
-import { readJobNumber } from './support'
+import { getLatestWeekdayDate, readJobNumber } from './support'
 
 /**
  * The workshop "my time" calendar: day navigation, refresh, and the
@@ -36,6 +38,15 @@ function timesheetResponse(page: Page, method: 'GET' | 'POST' | 'PATCH' | 'DELET
       [200, 201, 204].includes(response.status()),
     { timeout: 15000 },
   )
+}
+
+/** A wire time ("HH:MM:SS") moved by some minutes, as the wire writes it. */
+function clock(time: string, minutes: number): string {
+  return new Date(
+    Date.UTC(2000, 0, 1, Number(time.slice(0, 2)), Number(time.slice(3, 5)) + minutes),
+  )
+    .toISOString()
+    .slice(11, 19)
 }
 
 async function selectJobInPicker(page: Page, jobNumber: number): Promise<void> {
@@ -112,16 +123,11 @@ test.describe.serial('workshop my time view', () => {
       const createResponse = timesheetResponse(page, 'POST')
       await submit.click()
 
-      const body: unknown = await (await createResponse).json()
-      if (
-        typeof body !== 'object' ||
-        body === null ||
-        !('id' in body) ||
-        typeof body.id !== 'string'
-      ) {
-        throw new Error('Create response carried no entry id.')
-      }
-      entryId = body.id
+      // One entry: 09:00-10:00 meets no break and ends before the usual finish.
+      const [created] = z
+        .tuple([z.object({ id: z.string() })])
+        .parse(await (await createResponse).json())
+      entryId = created.id
 
       await expect(page.getByRole('heading', { name: 'Add entry' })).toBeHidden({
         timeout: 10000,
@@ -176,6 +182,85 @@ test.describe.serial('workshop my time view', () => {
         timeout: 10000,
       })
       await expect(page.locator(CALENDAR_EVENT(entryId))).toHaveCount(0)
+    })
+  })
+
+  test('a task past the usual finish asks first, and a break put on work cuts it', async ({
+    authenticatedPage: page,
+  }) => {
+    // A weekday of its own, well back: the day has usual hours whatever today is.
+    const date = shiftDate(getLatestWeekdayDate(), -7 * 12)
+    const dayPath = `/api/job/workshop/timesheets/?date=${date}`
+    const daySchema = z.object({
+      standard: z.object({ end: z.string() }),
+      entries: z.array(
+        z.object({
+          id: z.string(),
+          start_time: z.string(),
+          end_time: z.string(),
+          wage_rate_multiplier: z.number(),
+        }),
+      ),
+      breaks: z.array(z.object({ id: z.string().nullable(), start: z.string() })),
+    })
+    const readDay = async () => daySchema.parse(await (await page.request.get(dayPath)).json())
+    const spans = async () =>
+      (await readDay()).entries
+        .toSorted((first, second) => first.start_time.localeCompare(second.start_time))
+        .map((entry) => [entry.start_time, entry.end_time, entry.wage_rate_multiplier])
+
+    const times = await page.request.post('/api/timesheets/my-day/times/', {
+      data: { date, clock_in: '07:00', clock_out: '20:00' },
+    })
+    expect(times.ok(), await times.text()).toBe(true)
+    const usualFinish = (await readDay()).standard.end
+    const start = clock(usualFinish, -60)
+
+    await test.step('three hours from an hour before the finish asks about overtime', async () => {
+      await page.goto(`/timesheets/my-time?date=${date}`)
+      await autoId(page, 'WorkshopTimesheetSummaryCard-add').click()
+      await selectJobInPicker(page, jobNumber)
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-start-time').fill(start.slice(0, 5))
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-hours').fill('3')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-submit').click()
+
+      const ask = autoId(page, 'WorkshopTimesheetEntryDrawer-overtime')
+      await expect(ask).toContainText(`2h past your usual finish of ${usualFinish.slice(0, 5)}`)
+      const create = timesheetResponse(page, 'POST')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-overtime-save').click()
+      await create
+
+      expect(await spans()).toEqual([
+        [start, usualFinish, 1],
+        [usualFinish, clock(usualFinish, 120), 1.5],
+      ])
+    })
+
+    await test.step('a break put on that work cuts it, and taking it away joins it', async () => {
+      const breakStart = clock(start, 15)
+      const added = await page.request.post('/api/timesheets/my-day/breaks/', {
+        data: {
+          date,
+          start: breakStart.slice(0, 5),
+          end: clock(start, 30).slice(0, 5),
+          paid: true,
+        },
+      })
+      expect(added.ok(), await added.text()).toBe(true)
+      expect(await spans()).toEqual([
+        [start, breakStart, 1],
+        [clock(start, 30), usualFinish, 1],
+        [usualFinish, clock(usualFinish, 120), 1.5],
+      ])
+
+      const taken = (await readDay()).breaks.find((each) => each.start === breakStart)
+      if (taken === undefined || taken.id === null) throw new Error(`No break at ${breakStart}`)
+      const removed = await page.request.delete(`/api/timesheets/my-day/breaks/${taken.id}/`)
+      expect(removed.ok(), await removed.text()).toBe(true)
+      expect(await spans()).toEqual([
+        [start, usualFinish, 1],
+        [usualFinish, clock(usualFinish, 120), 1.5],
+      ])
     })
   })
 })

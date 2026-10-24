@@ -430,6 +430,21 @@ def lay_out(start: time, hours: Decimal, breaks: list[Window]) -> list[Window] |
     return [Window(_time_of(first), _time_of(last)) for first, last in stretches]
 
 
+def split_at(stretches: list[Window], moment: time) -> tuple[list[Window], list[Window]]:
+    """Return the stretches before ``moment`` and those after it, cutting one that holds it."""
+    before: list[Window] = []
+    after: list[Window] = []
+    for each in stretches:
+        if each.end <= moment:
+            before.append(each)
+        elif each.start >= moment:
+            after.append(each)
+        else:
+            before.append(Window(each.start, moment))
+            after.append(Window(moment, each.end))
+    return before, after
+
+
 def start_after_breaks(start: time, breaks: list[Window]) -> time:
     """Return ``start``, or the end of the break it falls inside."""
     cursor = _minutes(start)

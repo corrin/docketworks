@@ -462,6 +462,11 @@
     "approveDayTitle": "Approves every waiting entry this person has today, so it's paid at the next post. Approval can't be undone; to change an entry afterwards, correct it here."
   },
   "entryDrawer": {
+    "overtime": {
+      "title": "This runs past your usual finish",
+      "body": "This takes your day to {{finish}}, {{hours}} past your usual finish of {{usualFinish}}. Those {{hours}} will be overtime, at time and a half.",
+      "save": "Save with overtime"
+    },
     "bookOwnTime": "Book your own time for {{date}}.",
     "overlapsBooked": "You are already booked for that time. Were you doing two things at once?",
     "entryOn": "#{{number}} {{name}} on {{date}}",
@@ -499,7 +504,7 @@
     "workingOutHours": "Working out the hours from the times and your breaks…",
     "sayHowLong": "Say how long it took. The times are optional.",
     "placedAfterLast": "{{hours}}, placed after your last entry when you save.",
-    "placed": "{{hours}} from {{start}} to {{end}}, breaks left out."
+    "placed": "{{hours}} from {{start}} to {{end}}, split around your breaks."
   },
   "myTime": {
     "title": "Workshop timesheets",
