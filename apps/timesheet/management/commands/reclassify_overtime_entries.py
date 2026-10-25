@@ -16,7 +16,7 @@ Two-step workflow:
          --apply scripts/overtime_reclassify_preview.csv
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import TypedDict
@@ -413,26 +413,12 @@ class Command(BaseCommand):
 
     @staticmethod
     def _split_costline(costline: CostLine, ot_hours: Decimal, ot_pay_item: PayItem) -> CostLine:
-        """Split a CostLine: reduce the original, create a new OT entry for the rest.
-
-        A timed line's times are when he worked, so the ordinary hours keep the
-        start and the overtime is the end of it: the two meet where the hours
-        divide.
-        """
+        """Split a CostLine: reduce the original, create a new OT entry for the rest."""
         # Reduce original — quantize to 3dp to match DecimalField(10,3).
         costline.quantity = (costline.quantity - ot_hours).quantize(THREE_DP)
-        ordinary_meta = dict(costline.meta or {})
-        meta = dict(ordinary_meta)
-        start, end = ordinary_meta.get("start_time"), ordinary_meta.get("end_time")
-        if isinstance(start, str) and isinstance(end, str):
-            divide = (
-                datetime.combine(date.min, time.fromisoformat(start))
-                + timedelta(hours=float(costline.quantity))
-            ).time()
-            ordinary_meta["end_time"] = meta["start_time"] = divide.strftime("%H:%M:%S")
-        costline.meta = ordinary_meta
         costline.save()
 
+        meta = dict(costline.meta or {})
         meta["wage_rate_multiplier"] = OT_MULTIPLIER
         new_line = CostLine(
             cost_set=costline.cost_set,

@@ -4091,9 +4091,7 @@ export const zPipelineWarningOut = z.object({
 export const zPlacementOut = z.object({
     finish: z.iso.time().nullable(),
     hours: z.number(),
-    overtime_hours: z.number(),
-    start: z.iso.time(),
-    usual_finish: z.iso.time().nullable()
+    start: z.iso.time()
 });
 
 /**
@@ -8292,20 +8290,16 @@ export const zJobWorkshopTimesheetsRetrieveResponse = zWorkshopTimesheetListResp
 export const zJobWorkshopTimesheetsPartialUpdateBody = zWorkshopTimesheetEntryUpdateRequest;
 
 /**
- * Response
- *
  * OK
  */
-export const zJobWorkshopTimesheetsPartialUpdateResponse = z.array(zWorkshopTimesheetEntryOut);
+export const zJobWorkshopTimesheetsPartialUpdateResponse = zWorkshopTimesheetEntryOut;
 
 export const zJobWorkshopTimesheetsCreateBody = zWorkshopTimesheetEntryRequest;
 
 /**
- * Response
- *
  * Created
  */
-export const zJobWorkshopTimesheetsCreateResponse = z.array(zWorkshopTimesheetEntryOut);
+export const zJobWorkshopTimesheetsCreateResponse = zWorkshopTimesheetEntryOut;
 
 export const zPeopleListQuery = z.object({
     q: z.string().optional().default(''),

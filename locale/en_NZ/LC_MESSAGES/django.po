@@ -1726,16 +1726,6 @@ msgid "Only time lines may have labour_subtype set."
 msgstr ""
 
 #: apps/job/models/costing.py
-#: apps/timesheet/services/workshop_timesheet_service.py
-msgid "The finish time must be after the start time."
-msgstr ""
-
-#: apps/job/models/costing.py
-#, python-format
-msgid "%(hours)s hours is not %(start)s to %(end)s."
-msgstr ""
-
-#: apps/job/models/costing.py
 #, python-format
 msgid ""
 "%(leave_type)s is paid by Xero's own calculation, so its time entries must "
@@ -4274,9 +4264,14 @@ msgid "date must be provided in YYYY-MM-DD format."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
+msgid "The finish time must be after the start time."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
 #, python-format
 msgid ""
-"%(hours)s hours from %(start)s, around the breaks, do not end at %(finish)s."
+"hours (%(hours)s) cannot be more than the start_time-end_time span "
+"(%(span)s)."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

@@ -113,7 +113,7 @@ async function officeSetup(chromium: BrowserType, baseURL: string): Promise<Offi
       jobA,
       jobB,
       searchOnlyJob,
-      officeEntryId: (await savedEntry(response)).id,
+      officeEntryId: entrySchema.parse(await response.json()).id,
     }
   })
 }
@@ -126,24 +126,11 @@ function timesheetWrite(page: Page, method: 'POST' | 'PATCH' | 'DELETE') {
   )
 }
 
-/** Every entry a write made: one per stretch of the day it fills, around the breaks. */
-async function savedEntries(response: APIResponse | Awaited<ReturnType<typeof timesheetWrite>>) {
+async function savedEntry(response: APIResponse | Awaited<ReturnType<typeof timesheetWrite>>) {
   if (!response.ok()) {
     throw new Error(`entry write answered ${response.status()}: ${await response.text()}`)
   }
-  return z
-    .array(entrySchema)
-    .min(1)
-    .parse(await response.json())
-}
-
-/** The one entry a write made: its time crossed no break and no usual finish. */
-async function savedEntry(response: APIResponse | Awaited<ReturnType<typeof timesheetWrite>>) {
-  const [entry, ...more] = await savedEntries(response)
-  if (entry === undefined || more.length > 0) {
-    throw new Error(`expected one entry, the write made ${more.length + 1}`)
-  }
-  return entry
+  return entrySchema.parse(await response.json())
 }
 
 async function openMyTime(page: Page): Promise<void> {
@@ -516,7 +503,7 @@ test.describe.serial('workshop time entry on a phone', () => {
     await expect(autoId(page, 'WorkshopTimesheetSummaryCard-job-count')).toHaveText('2 jobs')
   })
 
-  test('hours saved without times are placed after his last entry, around the breaks', async ({
+  test('hours saved without times are placed after his last entry, over the breaks', async ({
     authenticatedPage: page,
   }, testInfo) => {
     const day = daySchema.parse(
@@ -533,10 +520,7 @@ test.describe.serial('workshop time entry on a phone', () => {
         is_billable: false,
       },
     })
-    const pieces = await savedEntries(seeded)
-    const placed = pieces[0]
-    const last = pieces.at(-1)
-    if (placed === undefined || last === undefined) throw new Error('The write made no entry.')
+    const placed = await savedEntry(seeded)
     // The server's one placement rule, asked the same question.
     const expected = placementSchema.parse(
       await (
@@ -546,13 +530,11 @@ test.describe.serial('workshop time entry on a phone', () => {
       ).json(),
     )
 
-    // From where his day was up to, to where two hours around the breaks end.
-    expect([placed.start_time, last.end_time]).toEqual([placedFrom, expected.finish])
+    expect([placed.start_time, placed.end_time]).toEqual([placedFrom, expected.finish])
     await openMyTime(page)
-    for (const piece of pieces) {
-      await expect(page.locator(calendarEvent(piece.id))).toContainText(`#${setup.jobA.number}`)
-    }
     const block = page.locator(calendarEvent(placed.id))
+    await expect(block).toContainText(`#${setup.jobA.number}`)
+    await expect(block).toContainText('2h')
     await expect(autoId(page, 'WorkshopMyTimePage-untimed')).toHaveCount(0)
     await attachScreenshot(page, testInfo, 'my-time-placed')
 
@@ -562,9 +544,6 @@ test.describe.serial('workshop time entry on a phone', () => {
     expect((await destroy).ok()).toBe(true)
     await expect(page.getByText('Entry deleted.')).toBeVisible()
     await expect(block).toHaveCount(0)
-    for (const piece of pieces.slice(1)) {
-      expect((await page.request.delete(`${TIMESHEETS_PATH}?entry_id=${piece.id}`)).ok()).toBe(true)
-    }
   })
 
   // ---- Approval: what the worker sees before and after the office approves. ----
@@ -584,9 +563,8 @@ test.describe.serial('workshop time entry on a phone', () => {
           job_id: setup.jobA.id,
           accounting_date: date,
           hours: 1.5,
-          // Between lunch and the afternoon break: one entry.
-          start_time: '12:00:00',
-          end_time: '13:30:00',
+          start_time: '13:00:00',
+          end_time: '14:30:00',
           description: 'Waiting for the office',
         },
       }),
@@ -646,12 +624,10 @@ test.describe.serial('workshop time entry on a phone', () => {
     playwright,
   }, testInfo) => {
     const baseURL = z.string().parse(testInfo.project.use.baseURL)
-    // Each at its own early half hour: clear of the breaks and of his usual finish.
-    const addFromThePhone = async (description: string, start: string) => {
+    const addFromThePhone = async (description: string) => {
       await autoId(page, 'WorkshopTimesheetSummaryCard-add').tap()
       await expect(page.getByRole('heading', { name: 'Add entry' })).toBeVisible()
       await pickJob(page, setup.jobA)
-      await autoId(page, `${DRAWER}-start-time`).fill(start)
       await autoId(page, `${DRAWER}-hours`).fill('0.5')
       await autoId(page, `${DRAWER}-description`).fill(description)
       const create = timesheetWrite(page, 'POST')
@@ -671,16 +647,16 @@ test.describe.serial('workshop time entry on a phone', () => {
         // Loaded after the address is set: the page asks for location only when
         // the company has one.
         await openMyTime(page)
-        const onSite = await addFromThePhone('Entered at the workshop', '07:00')
+        const onSite = await addFromThePhone('Entered at the workshop')
         await expect(onSite).toContainText('Waiting')
         await expect(onSite).not.toContainText('Suspicious remote entry')
 
         await context.setGeolocation(elsewhere)
-        const offSite = await addFromThePhone('Entered somewhere else', '07:30')
+        const offSite = await addFromThePhone('Entered somewhere else')
         await expect(offSite).toContainText('Suspicious remote entry')
 
         await context.clearPermissions()
-        const refused = await addFromThePhone('Entered with location refused', '08:00')
+        const refused = await addFromThePhone('Entered with location refused')
         await expect(refused).toContainText('Suspicious remote entry')
 
         await expect(onSite).not.toContainText('Suspicious remote entry')

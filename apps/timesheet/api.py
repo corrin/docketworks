@@ -449,17 +449,14 @@ def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCrea
     "/job/workshop/timesheets/",
     auth=self_service_auth,
     operation_id="job_workshop_timesheets_create",
-    response={201: list[WorkshopTimesheetEntryOut]},
+    response={201: WorkshopTimesheetEntryOut},
     summary="Create a new timesheet entry for the authenticated staff",
     tags=["job"],
 )
 def job_workshop_timesheets_create(
     request: HttpRequest, payload: WorkshopTimesheetEntryRequest
-) -> Status[list[workshop_timesheet_service.WorkshopEntryData]]:
-    """Create a time entry owned by the authenticated staff member.
-
-    Answers with every entry it made: one per stretch around his breaks.
-    """
+) -> Status[workshop_timesheet_service.WorkshopEntryData]:
+    """Create a time entry owned by the authenticated staff member."""
     owner = _entry_owner(request, payload.staff_id)
     try:
         entry = workshop_timesheet_service.create_entry(
@@ -508,17 +505,14 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
     "/job/workshop/timesheets/",
     auth=self_service_auth,
     operation_id="job_workshop_timesheets_partial_update",
-    response=list[WorkshopTimesheetEntryOut],
+    response=WorkshopTimesheetEntryOut,
     summary="Update an existing timesheet entry belonging to the staff member",
     tags=["job"],
 )
 def job_workshop_timesheets_partial_update(
     request: HttpRequest, payload: WorkshopTimesheetEntryUpdateRequest
-) -> list[workshop_timesheet_service.WorkshopEntryData]:
-    """Update one of the authenticated staff member's own entries.
-
-    Answers with the entry first and any stretches the edit split off it after.
-    """
+) -> workshop_timesheet_service.WorkshopEntryData:
+    """Update one of the authenticated staff member's own entries."""
     data = _update_payload(payload)
     if len(data) <= 1:
         raise HttpError(400, gettext("At least one field besides entry_id must be provided."))
@@ -651,36 +645,26 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
 ) -> dict[str, object]:
     """Answer the entry drawer as he types: the one placement rule, nothing written.
 
-    Given hours, the finish is where they end laid around the day's breaks;
-    given a finish, the hours are the span less the breaks inside it.
+    Given hours, the finish steps over the day's breaks; given a finish, the
+    hours are the span less the breaks inside it.
     """
     owner = _entry_owner(request, staff_id)
     day = _parse_date(date)
     if (hours is None) == (finish is None):
         raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     breaks = workshop_timesheet_service.day_break_windows(owner, day)
-    if hours is None:
-        if finish is None:  # narrowed for the type checker; refused above
-            raise HttpError(400, gettext("Give the hours or the finish, one of them."))
-        hours = attendance.hours_for(start, finish, breaks)
-    standard = attendance.standard_day(day)
-    answer: dict[str, object] = {
+    if hours is not None:
+        return {
+            "start": start,
+            "finish": attendance.finish_in_the_day(start, hours, breaks),
+            "hours": float(hours),
+        }
+    if finish is None:  # narrowed for the type checker; refused above
+        raise HttpError(400, gettext("Give the hours or the finish, one of them."))
+    return {
         "start": start,
         "finish": finish,
-        "hours": float(hours),
-        "usual_finish": None if standard is None else standard.end,
-        "overtime_hours": 0.0,
-    }
-    # A finish inside the break that follows the start holds no work to lay out.
-    if hours == 0:
-        return answer
-    stretches = attendance.lay_out(start, hours, breaks)
-    if stretches is None:
-        return {**answer, "finish": None}
-    return {
-        **answer,
-        "finish": stretches[-1].end,
-        "overtime_hours": float(workshop_timesheet_service.overtime_hours(day, stretches)),
+        "hours": float(attendance.hours_for(start, finish, breaks)),
     }
 
 

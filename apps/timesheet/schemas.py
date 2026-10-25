@@ -344,10 +344,6 @@ class PlacementOut(Schema):
     #: None when the hours would run past midnight: they save without times.
     finish: time | None
     hours: float
-    #: The day's usual finish; None on a day with no usual hours (a weekend).
-    usual_finish: time | None
-    #: Hours after the usual finish: paid at time and a half unless he picks a rate.
-    overtime_hours: float
 
 
 class BreakCreateRequest(Schema):

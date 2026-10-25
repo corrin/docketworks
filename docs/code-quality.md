@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 129,926 (v1 172,577, -25%) |
-| tests | 91,631 (v1 50,869, +80%) |
-| generated | 54,682 (v1 20,359, +169%) |
+| code | 129,477 (v1 172,577, -25%) |
+| tests | 91,085 (v1 50,869, +79%) |
+| generated | 54,480 (v1 20,359, +168%) |
 
 ## Suppressions
 
@@ -31,9 +31,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 802 |
+| TOTAL suppressions | 798 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 161 |
+| noqa: PLC0415 | 157 |
 | noqa: E402 | 108 |
 | noqa: PLR0913 | 59 |
 | noqa: ARG002 | 49 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 262 |
-| non-test functions | 3149 |
+| functions returning `X \| None` | 260 |
+| non-test functions | 3132 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 707 |
+| object annotations | 703 |
 
 ## Wire contract (response side)
 
@@ -134,9 +134,9 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 331 |
-| response properties | 2129 |
+| response properties | 2127 |
 | optional (pinned at zero) | 0 |
-| nullable | 472 |
+| nullable | 471 |
 
 ## Automation ids (frontend)
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 131 of 443 (30%) |
+| without data-automation-id | 131 of 441 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

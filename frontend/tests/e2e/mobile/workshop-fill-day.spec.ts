@@ -158,21 +158,17 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await expect(page.getByText('Day sent to the office.')).toBeVisible()
   })
 
-  await test.step('the day reads sent, each job split around the breaks it meets', async () => {
+  await test.step('the day reads sent, each job one entry stepping over the breaks', async () => {
     await expect(autoId(page, 'DayCard-state')).toContainText('Sent, waiting for approval')
     await expect(fill).toHaveText('8h to fill, 30m breaks, 7h 30m entered. All filled')
     const saved = daySchema.parse(await (await page.request.get(`${DAY_PATH}?date=${day}`)).json())
     expect(
       saved.entries.map((entry) => [entry.job_number, entry.start_time, entry.end_time]),
     ).toEqual([
-      // An entry's times are when he worked: 3h around the morning break, 2h
-      // around lunch, 2h 30m around the afternoon break.
-      [first, '06:30:00', '08:30:00'],
-      [first, '08:45:00', '09:45:00'],
-      [second, '09:45:00', '11:30:00'],
-      [second, '12:00:00', '12:15:00'],
-      [third, '12:15:00', '13:30:00'],
-      [third, '13:45:00', '15:00:00'],
+      // 3h over the morning break, 2h over lunch, 2h 30m over the afternoon break.
+      [first, '06:30:00', '09:45:00'],
+      [second, '09:45:00', '12:15:00'],
+      [third, '12:15:00', '15:00:00'],
     ])
     await testInfo.attach('day-sent', {
       body: await page.screenshot({ animations: 'disabled', fullPage: true }),

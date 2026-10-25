@@ -9299,17 +9299,9 @@ export type PlacementOut = {
      */
     hours: number;
     /**
-     * Overtime Hours
-     */
-    overtime_hours: number;
-    /**
      * Start
      */
     start: string;
-    /**
-     * Usual Finish
-     */
-    usual_finish: string | null;
 };
 
 /**
@@ -18290,11 +18282,9 @@ export type JobWorkshopTimesheetsPartialUpdateData = {
 
 export type JobWorkshopTimesheetsPartialUpdateResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<WorkshopTimesheetEntryOut>;
+    200: WorkshopTimesheetEntryOut;
 };
 
 export type JobWorkshopTimesheetsPartialUpdateResponse = JobWorkshopTimesheetsPartialUpdateResponses[keyof JobWorkshopTimesheetsPartialUpdateResponses];
@@ -18308,11 +18298,9 @@ export type JobWorkshopTimesheetsCreateData = {
 
 export type JobWorkshopTimesheetsCreateResponses = {
     /**
-     * Response
-     *
      * Created
      */
-    201: Array<WorkshopTimesheetEntryOut>;
+    201: WorkshopTimesheetEntryOut;
 };
 
 export type JobWorkshopTimesheetsCreateResponse = JobWorkshopTimesheetsCreateResponses[keyof JobWorkshopTimesheetsCreateResponses];

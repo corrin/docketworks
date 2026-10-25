@@ -2,7 +2,7 @@
 
 A worker says what he did as rows of a job and hours, and the day is laid out
 for him: the rows become entries placed one after another from where his day
-has got to, each split around his breaks. He never works out
+has got to, each stepping over his breaks. He never works out
 a start or an end time, and never adds the day up.
 """
 
@@ -48,7 +48,7 @@ class FillRow(TypedDict):
 
 
 class LaidLine(TypedDict):
-    """A row with its place in the day: from its start to where its last stretch ends."""
+    """A piece of a row with its place in the day."""
 
     job_id: UUID
     #: None for a row the day cannot hold: it would run past midnight, so it
@@ -61,11 +61,12 @@ class LaidLine(TypedDict):
 
 
 def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list[LaidLine]:
-    """Place rows one after another from ``start``, each laid around the breaks.
+    """Place rows one after another from ``start``, each stepping over the breaks.
 
-    A row that meets a break goes on after it (``attendance.lay_out``); saving
-    it makes one entry per stretch. Rows may run past when he clocked out:
-    more hours than he was here for is allowed, and the office sees it.
+    One entry per row, never split: a row's hours are the truth and its times
+    the picture, so a row that meets a break simply ends later. Rows may run
+    past when he clocked out: more hours than he was here for is allowed, and
+    the office sees it.
     """
     cursor: time | None = start
     lines: list[LaidLine] = []
@@ -76,8 +77,9 @@ def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list
             )
         # A row that would begin inside a break begins when the break ends.
         begins = None if cursor is None else attendance.start_after_breaks(cursor, breaks)
-        stretches = None if begins is None else attendance.lay_out(begins, row["hours"], breaks)
-        ends = None if stretches is None else stretches[-1].end
+        ends = (
+            None if begins is None else attendance.finish_in_the_day(begins, row["hours"], breaks)
+        )
         if ends is None:
             begins = None
         lines.append(

@@ -10439,25 +10439,14 @@ components:
         hours:
           title: Hours
           type: number
-        overtime_hours:
-          title: Overtime Hours
-          type: number
         start:
           format: time
           title: Start
           type: string
-        usual_finish:
-          anyOf:
-          - format: time
-            type: string
-          - type: 'null'
-          title: Usual Finish
       required:
       - start
       - finish
       - hours
-      - usual_finish
-      - overtime_hours
       title: PlacementOut
       type: object
     PostWeekToXeroRequest:
@@ -21192,10 +21181,7 @@ paths:
       tags:
       - job
     patch:
-      description: 'Update one of the authenticated staff member''s own entries.
-
-
-        Answers with the entry first and any stretches the edit split off it after.'
+      description: Update one of the authenticated staff member's own entries.
       operationId: job_workshop_timesheets_partial_update
       parameters: []
       requestBody:
@@ -21209,10 +21195,7 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           description: OK
       security:
       - CookieJWTAuth: []
@@ -21220,10 +21203,7 @@ paths:
       tags:
       - job
     post:
-      description: 'Create a time entry owned by the authenticated staff member.
-
-
-        Answers with every entry it made: one per stretch around his breaks.'
+      description: Create a time entry owned by the authenticated staff member.
       operationId: job_workshop_timesheets_create
       parameters: []
       requestBody:
@@ -21237,10 +21217,7 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           description: Created
       security:
       - CookieJWTAuth: []
@@ -24056,9 +24033,9 @@ paths:
       description: 'Answer the entry drawer as he types: the one placement rule, nothing written.
 
 
-        Given hours, the finish is where they end laid around the day''s breaks;
+        Given hours, the finish steps over the day''s breaks; given a finish, the
 
-        given a finish, the hours are the span less the breaks inside it.'
+        hours are the span less the breaks inside it.'
       operationId: timesheets_my_day_placement
       parameters:
       - in: query
