@@ -64,6 +64,7 @@ from apps.timesheet.services.attendance import (
 from apps.timesheet.services.location import EntryLocation, saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
+from apps.timesheet.services.xero_hours import leave_job_ids
 
 logger = logging.getLogger(__name__)
 
@@ -712,7 +713,11 @@ def overtime_part(
     under a quarter hour is not split off: the entry goes whole to the rate
     of its larger part.
     """
-    if wage_rate_multiplier != ORDINARY or job_id == attendance.break_job_id():
+    if (
+        wage_rate_multiplier != ORDINARY
+        or job_id == attendance.break_job_id()
+        or job_id in leave_job_ids()
+    ):
         return Decimal(0)
     overtime = overtime_hours(owner, day, hours)
     ordinary = hours - overtime
@@ -774,8 +779,9 @@ def overtime_hours(
     worked = Decimal(0)
     if already_on_the_day:
         entries, _ = attendance.split_breaks(day_time_lines(owner, day))
+        leave = leave_job_ids()
         worked = sum(
-            (line.quantity for line in entries if line.managed_by != CostLineOwner.LEAVE),
+            (line.quantity for line in entries if line.cost_set.job_id not in leave),
             Decimal(0),
         )
     return min(hours, max(hours - (usual - worked), Decimal(0)))

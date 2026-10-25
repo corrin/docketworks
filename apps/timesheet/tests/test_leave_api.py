@@ -1,6 +1,7 @@
 """HTTP contracts and authorization for the leave management surface."""
 
 import json
+from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
@@ -29,7 +30,7 @@ def _request_payload(staff: Staff, code: str) -> dict[str, object]:
         "start_date": MONDAY.isoformat(),
         "end_date": MONDAY.isoformat(),
         "note": "API leave",
-        "days": [{"date": MONDAY.isoformat(), "hours": "4.000"}],
+        "days": [MONDAY.isoformat()],
     }
 
 
@@ -60,7 +61,8 @@ def test_preview_create_list_update_and_cancel(
     )
     assert created.status_code == 200
     request_id = created.json()["request"]["id"]
-    assert created.json()["request"]["total_hours"] == pytest.approx(4)
+    # A whole day: MONDAY's scheduled 8h.
+    assert created.json()["request"]["total_hours"] == pytest.approx(8)
 
     current = manage_client.get("/api/timesheets/leave/requests/?scope=current&search=Wendy")
     assert current.status_code == 200
@@ -156,7 +158,7 @@ class TestLeaveHttpContract:
             "start_date": MONDAY.isoformat(),
             "end_date": MONDAY.isoformat(),
             "note": None,
-            "days": [{"date": MONDAY.isoformat(), "hours": "4.000"}],
+            "days": [MONDAY.isoformat()],
         }
 
         response = manage_client.post(
@@ -187,7 +189,7 @@ class TestLeaveHttpContract:
         """ADR 0038: the diagnosis travels, rather than being flattened to a 500."""
         make_leave_job(company, superuser, "Annual Leave")
         payload = _request_payload(worker, LeaveType.Code.ANNUAL)
-        payload["days"] = [{"date": MONDAY.isoformat(), "hours": "12.000"}]
+        payload["days"] = [(MONDAY + timedelta(days=1)).isoformat()]
 
         response = manage_client.post(
             "/api/timesheets/leave/requests/",
@@ -196,7 +198,7 @@ class TestLeaveHttpContract:
         )
 
         assert response.status_code == 400
-        assert "no more than the scheduled" in response.json()["detail"]
+        assert "is outside the requested date range" in response.json()["detail"]
 
     def test_an_unknown_request_is_a_404_on_update_as_well_as_delete(
         self, manage_client: Client, worker: Staff
@@ -339,4 +341,4 @@ class TestLeaveHttpContract:
         # MONDAY is in the future, so it is upcoming rather than away-today.
         assert current["summary"]["upcoming_requests"] == 1
         assert current["summary"]["away_today"] == 0
-        assert current["summary"]["upcoming_hours"] == pytest.approx(4)
+        assert current["summary"]["upcoming_hours"] == pytest.approx(8)

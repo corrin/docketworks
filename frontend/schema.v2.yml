@@ -7309,22 +7309,6 @@ components:
       - bereavement_leave
       - public_holiday
       type: string
-    LeaveDayInput:
-      description: Operator-selected hours for one proposed date.
-      properties:
-        date:
-          format: date
-          title: Date
-          type: string
-        hours:
-          exclusiveMinimum: 0.0
-          title: Hours
-          type: number
-      required:
-      - date
-      - hours
-      title: LeaveDayInput
-      type: object
     LeaveDayOut:
       description: Persisted leave day and payroll-line identity.
       properties:
@@ -7526,7 +7510,8 @@ components:
       properties:
         days:
           items:
-            $ref: '#/components/schemas/LeaveDayInput'
+            format: date
+            type: string
           minItems: 1
           title: Days
           type: array
@@ -7559,7 +7544,8 @@ components:
       properties:
         days:
           items:
-            $ref: '#/components/schemas/LeaveDayInput'
+            format: date
+            type: string
           minItems: 1
           title: Days
           type: array

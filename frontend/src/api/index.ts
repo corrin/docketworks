@@ -450,7 +450,7 @@ export type {
   TimesheetJobOut,
   TimesheetStaffOut,
   LeaveBalanceOut,
-  LeaveDayInput,
+  LeaveDayOut,
   LeavePreviewOut,
   LeaveRequestOut,
   LeaveSettingsOut,

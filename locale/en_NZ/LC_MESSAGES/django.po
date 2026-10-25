@@ -4136,13 +4136,6 @@ msgid "%(date)s is outside the requested date range."
 msgstr ""
 
 #: apps/timesheet/services/leave_service.py
-#, python-format
-msgid ""
-"Hours for %(date)s must be greater than zero and no more than the scheduled "
-"%(scheduled_hours)s hours."
-msgstr ""
-
-#: apps/timesheet/services/leave_service.py
 msgid "No available leave days remain to save."
 msgstr ""
 

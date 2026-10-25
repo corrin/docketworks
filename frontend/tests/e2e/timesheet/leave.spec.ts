@@ -1,10 +1,10 @@
 import type { Page } from '@playwright/test'
 
-import { getWorkshopStaff } from '../fixtures/api'
+import { getJobLabourRates, getWorkshopStaff, seedTimesheetLabour } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
-import { localIsoDate } from '../../../src/lib/format'
-import { autoId } from '../helpers'
+import { formatDate, localIsoDate } from '../../../src/lib/format'
+import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 
 /** The Monday strictly after today, via the app's own week arithmetic. */
 function nextMonday(): string {
@@ -54,7 +54,12 @@ test.describe('leave management', () => {
     await page.getByLabel('End date').fill(date)
     await page.getByLabel('Note (optional)').fill('[TEST] Leave E2E')
     await page.getByRole('button', { name: 'Preview scheduled days' }).click()
-    await expect(page.getByLabel(`Hours for ${date}`)).toBeVisible({ timeout: 30000 })
+    // Whole days (owner, 2026-10-25): the day is listed with the hours it
+    // takes, and nobody types hours.
+    await expect(autoId(page, `LeaveRequestDialog-hours-${date}`)).toBeVisible({
+      timeout: 30000,
+    })
+    await expect(page.getByLabel(`Hours for ${date}`)).toHaveCount(0)
 
     const createResponse = page.waitForResponse(
       (response) =>
@@ -79,6 +84,54 @@ test.describe('leave management', () => {
     )
     await row.getByRole('button', { name: 'Cancel' }).click()
     expect((await deleteResponse).status()).toBe(204)
+    await expect(row).toHaveCount(0)
+  })
+
+  test('leave on a day that already has time fills the rest and tells the office', async ({
+    authenticatedPage: page,
+  }) => {
+    const workshop = await getWorkshopStaff(page)
+    // The Tuesday after next: a day the first leave test does not book.
+    const date = shiftDate(nextMonday(), 8)
+    const jobId = getJobIdFromUrl(await createTestJob(page, 'Leave fill'))
+    const [rate] = await getJobLabourRates(page, jobId)
+    if (rate === undefined) throw new Error(`Job ${jobId} has no labour rates.`)
+    await seedTimesheetLabour(page, {
+      jobId,
+      staffId: workshop.id,
+      labourSubtype: rate.labour_subtype,
+      date,
+      hours: 2,
+      description: '[TEST] time before the leave',
+    })
+
+    await openLeave(page)
+    await autoId(page, 'LeavePage-new').click()
+    const employee = page.getByLabel('Employee')
+    await employee.selectOption(workshop.id)
+    const employeeName = (await employee.locator('option:checked').textContent()) ?? ''
+    await page.getByLabel('Leave type').selectOption({ index: 1 })
+    await page.getByLabel('Start date').fill(date)
+    await page.getByLabel('End date').fill(date)
+    await page.getByLabel('Note (optional)').fill('[TEST] Leave fills the day')
+    await page.getByRole('button', { name: 'Preview scheduled days' }).click()
+    await expect(autoId(page, `LeaveRequestDialog-hours-${date}`)).toBeVisible({
+      timeout: 30000,
+    })
+    await page.getByRole('button', { name: 'Save leave' }).click()
+
+    await expect(
+      page.getByText(
+        new RegExp(`on ${date}, but the day already had time entered: .+ put to leave\\.`),
+      ),
+    ).toBeVisible()
+
+    const row = page
+      .getByRole('row')
+      .filter({ hasText: employeeName })
+      .filter({ hasText: formatDate(date) })
+    page.once('dialog', (dialog) => dialog.accept())
+    await row.getByRole('button', { name: 'Cancel' }).click()
     await expect(row).toHaveCount(0)
   })
 })

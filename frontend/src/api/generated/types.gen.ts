@@ -6492,22 +6492,6 @@ export type LeaveBalanceOut = {
 export type LeaveCodeOut = 'annual_leave' | 'sick_leave' | 'unpaid_leave' | 'bereavement_leave' | 'public_holiday';
 
 /**
- * LeaveDayInput
- *
- * Operator-selected hours for one proposed date.
- */
-export type LeaveDayInput = {
-    /**
-     * Date
-     */
-    date: string;
-    /**
-     * Hours
-     */
-    hours: number;
-};
-
-/**
  * LeaveDayOut
  *
  * Persisted leave day and payroll-line identity.
@@ -6697,7 +6681,7 @@ export type LeaveRequestUpdate = {
     /**
      * Days
      */
-    days: Array<LeaveDayInput>;
+    days: Array<string>;
     /**
      * End Date
      */
@@ -6725,7 +6709,7 @@ export type LeaveRequestWrite = {
     /**
      * Days
      */
-    days: Array<LeaveDayInput>;
+    days: Array<string>;
     /**
      * End Date
      */

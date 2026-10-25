@@ -26,7 +26,7 @@ from apps.timesheet.services.workshop_timesheet_service import pricing_meta
 
 
 class RequestedDay(TypedDict):
-    """A requested leave date and its operator-selected hours."""
+    """A leave date and the hours it puts to leave."""
 
     date: date
     hours: Decimal
@@ -200,36 +200,26 @@ def _paid_hours_by_date(
 
 
 def _validated_days(
-    *, preview: PreviewData, requested_days: list[RequestedDay]
+    *, preview: PreviewData, requested_days: list[date]
 ) -> tuple[list[RequestedDay], list[PreviewDay]]:
     by_date = {row["date"]: row for row in preview["days"]}
-    if len({row["date"] for row in requested_days}) != len(requested_days):
+    if len(set(requested_days)) != len(requested_days):
         raise ValidationError(gettext("Each leave date may be supplied only once."))
 
     valid: list[RequestedDay] = []
     skipped: list[PreviewDay] = []
     for requested in requested_days:
-        proposal = by_date.get(requested["date"])
+        proposal = by_date.get(requested)
         if proposal is None:
             raise ValidationError(
-                gettext("%(date)s is outside the requested date range.")
-                % {"date": requested["date"]}
+                gettext("%(date)s is outside the requested date range.") % {"date": requested}
             )
         if not proposal["available"]:
             skipped.append(proposal)
             continue
-        # A whole day: the screen sends the day's scheduled hours, and what
-        # is left of the day once his time is in is what goes to leave.
-        hours = min(requested["hours"], proposal["hours"])
-        if requested["hours"] <= 0 or requested["hours"] > proposal["scheduled_hours"]:
-            raise ValidationError(
-                gettext(
-                    "Hours for %(date)s must be greater than zero and no more than "
-                    "the scheduled %(scheduled_hours)s hours."
-                )
-                % {"date": requested["date"], "scheduled_hours": proposal["scheduled_hours"]}
-            )
-        valid.append({"date": requested["date"], "hours": hours})
+        # A whole day (owner, 2026-10-25): what is left of the day once his
+        # time is in is what goes to leave.
+        valid.append({"date": requested, "hours": proposal["hours"]})
     if not valid:
         raise ValidationError(gettext("No available leave days remain to save."))
     return valid, skipped
@@ -369,7 +359,7 @@ def create_leave_request(  # noqa: PLR0913 -- one complete leave write contract
     start_date: date,
     end_date: date,
     note: str | None,
-    requested_days: list[RequestedDay],
+    requested_days: list[date],
     actor: Staff,
     source: str = LeaveRequest.Source.LEAVE,
     batch_id: UUID | None = None,
@@ -409,7 +399,7 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
     start_date: date,
     end_date: date,
     note: str | None,
-    requested_days: list[RequestedDay],
+    requested_days: list[date],
     actor: Staff,
 ) -> SaveResult:
     """Replace one request's range and projections as a single transaction."""
@@ -542,12 +532,7 @@ def create_office_closure(
     skipped: list[PreviewDay] = []
     warnings: list[str] = []
     for staff_preview in preview["staff"]:
-        requested: list[RequestedDay] = [
-            # A whole day each: what is left of it goes to the holiday.
-            {"date": row["date"], "hours": row["scheduled_hours"]}
-            for row in staff_preview["days"]
-            if row["available"]
-        ]
+        requested = [row["date"] for row in staff_preview["days"] if row["available"]]
         skipped.extend(row for row in staff_preview["days"] if not row["available"])
         if not requested:
             continue

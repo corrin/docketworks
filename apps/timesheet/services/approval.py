@@ -63,6 +63,7 @@ from apps.timesheet.services.workshop_timesheet_service import (
     timed_window,
     update_entry,
 )
+from apps.timesheet.services.xero_hours import leave_job_ids
 
 #: What a person's day needs from the office. ``nothing_entered`` is its own
 #: state, not zero waiting: an empty day is the one the office phones about.
@@ -350,10 +351,9 @@ def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
     worked through and added back as ordinary time, leaves the two apart;
     nothing re-rates them, so the office is shown the day to check.
     """
+    leave = leave_job_ids()
     work = [
-        line
-        for line in entries
-        if line.managed_by != CostLineOwner.LEAVE and not is_unpaid_time(line)
+        line for line in entries if line.cost_set.job_id not in leave and not is_unpaid_time(line)
     ]
     worked = sum((line.quantity for line in work), Decimal(0))
     at_overtime = sum(

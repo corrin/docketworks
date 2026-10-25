@@ -86,18 +86,13 @@ def _enter(  # noqa: PLR0913, PLR0917 -- who saves it, whose it is, the job, the
     workshop_timesheet_service.create_entry(by, owner, data)
 
 
-#: A whole day's leave hours: the roster's 8h for a weekday.
-WHOLE_DAY = Decimal("8")
-
-
 def _leave(
     person: Staff, code: str, actor: Staff, *, start: date = DAY, end: date = DAY
 ) -> leave_service.SaveResult:
     """Book whole days of leave for him from the office's leave screen.
 
-    Leave is booked in whole days (owner, 2026-10-25). Opus: RequestedDay still
-    carries an hours figure, so each day asks for its full 8h; the service puts
-    to leave only the day's leave hours less the paid hours already on it.
+    Leave is booked in whole days (owner, 2026-10-25): the service puts to
+    leave the day's leave hours less the paid hours already on it.
     """
     days = [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
     return leave_service.create_leave_request(
@@ -106,7 +101,7 @@ def _leave(
         start_date=start,
         end_date=end,
         note=None,
-        requested_days=[{"date": each, "hours": WHOLE_DAY} for each in days],
+        requested_days=days,
         actor=actor,
     )
 

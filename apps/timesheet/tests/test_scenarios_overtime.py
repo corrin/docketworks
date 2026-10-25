@@ -437,25 +437,48 @@ def test_E13_leave_is_not_work_so_four_hours_leave_and_six_worked_is_no_overtime
 ) -> None:
     """Leave 4h plus 6h on jobs: no overtime, leave isn't work.
 
+    Part of a day's leave is time entered on the leave job (owner, 2026-10-25:
+    the leave screen books whole days; "for anything less, you enter time on
+    the leave job").
+
     Guards workshop_timesheet_service.overtime_hours (leave is left out of the day's work).
     """
-    make_leave_job(company, superuser, "Annual Leave")
-    leave_service.create_leave_request(
-        staff_id=worker.id,
-        leave_type_code=LeaveType.Code.ANNUAL,
-        start_date=DAY,
-        end_date=DAY,
-        note=None,
-        requested_days=[{"date": DAY, "hours": Decimal("4")}],
-        actor=superuser,
-    )
+    leave_job = make_leave_job(company, superuser, "Annual Leave")
+    _drawer(worker, leave_job, "4")
 
     _drawer(worker, job, "6")
 
-    # Unclocked: from the standard 07:00, 6h + 1h of planned breaks = 14:00, all ordinary.
-    assert _lines(job, worker) == [
-        ("07:00-14:00", "6.000", 1.0, 1.0, "48.00", "120.00", False),
-    ]
+    # Unclocked: his turn starts after the leave's 07:00-11:15 (4h + the 08:30
+    # break), so 6h + lunch + the 13:30 break runs 11:15-18:00, all ordinary.
+    assert [(line[1], line[2]) for line in _lines(job, worker)] == [("6.000", 1.0)]
+
+
+def test_E13b_ten_hours_on_the_leave_job_is_never_split_into_overtime(
+    worker: Staff, company: Company, superuser: Staff
+) -> None:
+    """Leave is paid at its own rate in Xero, so none of it is time and a half.
+
+    Guards workshop_timesheet_service.overtime_part (a leave job is not work).
+    """
+    leave_job = make_leave_job(company, superuser, "Annual Leave")
+
+    _drawer(worker, leave_job, "10")
+
+    assert [(line[1], line[2]) for line in _lines(leave_job, worker)] == [("10.000", 1.0)]
+
+
+def test_E13c_leave_entered_on_the_leave_job_raises_no_overtime_check(
+    worker: Staff, job: Job, company: Company, superuser: Staff
+) -> None:
+    """4h on the leave job and 6h worked: nothing is past the usual day, nothing to check.
+
+    Guards approval._overtime_is_off (leave is left out of the day's work).
+    """
+    leave_job = make_leave_job(company, superuser, "Annual Leave")
+    _drawer(worker, leave_job, "4")
+    _drawer(worker, job, "6")
+
+    assert _approval_row(DAY, worker)["overtime_check"] is False
 
 
 def test_E14_nine_hours_entered_in_the_office_grid_is_eight_then_one_at_time_and_a_half(
@@ -897,7 +920,7 @@ def test_P12_eight_hours_leave_and_two_worked_is_no_overtime(
         start_date=DAY,
         end_date=DAY,
         note=None,
-        requested_days=[{"date": DAY, "hours": Decimal("8")}],
+        requested_days=[DAY],
         actor=superuser,
     )
 

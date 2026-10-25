@@ -2753,16 +2753,6 @@ export const zLeaveCodeOut = z.enum([
 ]);
 
 /**
- * LeaveDayInput
- *
- * Operator-selected hours for one proposed date.
- */
-export const zLeaveDayInput = z.object({
-    date: z.iso.date(),
-    hours: z.number().gt(0)
-});
-
-/**
  * LeaveDayOut
  *
  * Persisted leave day and payroll-line identity.
@@ -2839,7 +2829,7 @@ export const zLeaveRequestOut = z.object({
  * Replace an existing leave request.
  */
 export const zLeaveRequestUpdate = z.object({
-    days: z.array(zLeaveDayInput).min(1),
+    days: z.array(z.iso.date()).min(1),
     end_date: z.iso.date(),
     leave_type_code: z.string(),
     note: z.string().min(1).nullish(),
@@ -2852,7 +2842,7 @@ export const zLeaveRequestUpdate = z.object({
  * Create a first-class leave request.
  */
 export const zLeaveRequestWrite = z.object({
-    days: z.array(zLeaveDayInput).min(1),
+    days: z.array(z.iso.date()).min(1),
     end_date: z.iso.date(),
     leave_type_code: z.string(),
     note: z.string().min(1).nullish(),

@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 130,078 (v1 172,577, -25%) |
-| tests | 95,752 (v1 50,869, +88%) |
-| generated | 54,537 (v1 20,359, +168%) |
+| code | 130,059 (v1 172,577, -25%) |
+| tests | 95,817 (v1 50,869, +88%) |
+| generated | 54,513 (v1 20,359, +168%) |
 
 ## Suppressions
 
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 261 |
-| non-test functions | 3155 |
+| non-test functions | 3154 |
 
 ## Broad type annotations
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 131 of 443 (30%) |
+| without data-automation-id | 131 of 442 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |
