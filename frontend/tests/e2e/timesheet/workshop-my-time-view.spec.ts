@@ -209,7 +209,7 @@ test.describe.serial('workshop my time view', () => {
         .toSorted((first, second) => first.start_time.localeCompare(second.start_time))
         .map((entry) => [entry.start_time, entry.end_time, entry.wage_rate_multiplier])
 
-    const times = await page.request.post('/api/timesheets/my-day/times/', {
+    const times = await page.request.put('/api/timesheets/my-day/times/', {
       data: { date, clock_in: '07:00', clock_out: '20:00' },
     })
     expect(times.ok(), await times.text()).toBe(true)

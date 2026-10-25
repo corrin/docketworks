@@ -138,9 +138,9 @@ class TestApprovalsRead:
             worker,
             accounting_date=DAY,
             approved=False,
-            hours="5.000",
+            hours="1.500",
             start_time="07:00:00",
-            end_time="12:00:00",
+            end_time="08:30:00",
         )
         attendance.set_clock_times(other_worker, DAY, time(6, 30), None, other_worker)
 
@@ -149,7 +149,8 @@ class TestApprovalsRead:
         )
 
         rows = {row["staff_id"]: row["default_entry_start"] for row in body["staff"]}
-        assert rows[str(worker.id)] == "12:00:00"
+        # His entry ends at 08:30, where the morning break begins: next is after it.
+        assert rows[str(worker.id)] == "08:45:00"
         # Nothing entered yet: from when that person clocked in.
         assert rows[str(other_worker.id)] == "06:30:00"
         assert "default_entry_start" not in body

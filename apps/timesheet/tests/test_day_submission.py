@@ -995,7 +995,12 @@ class TestSubmitDay:
         assert at_work.status_code == 200, at_work.content
         assert [entry["remote_entry"] for entry in at_work.json()["entries"]] == [False] * 4
         elsewhere = worker_client.post(SUBMIT_URL, data=body, content_type="application/json")
-        assert [entry["remote_entry"] for entry in elsewhere.json()["entries"]][-3:] == [True] * 3
+        # The second send goes on from 12:15: 3h is 12:15-13:30, 13:45-15:00 and
+        # 15:00-15:30 (after the usual finish), 2h is 15:30-17:30. Four new
+        # entries, each judged by where this phone is: away from the workshop.
+        assert [entry["remote_entry"] for entry in elsewhere.json()["entries"]] == [False] * 4 + [
+            True
+        ] * 4
 
     def test_sending_with_hours_still_to_go_is_allowed(self, worker: Staff) -> None:
         _clocked(worker)
