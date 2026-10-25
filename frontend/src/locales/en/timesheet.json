@@ -3,6 +3,7 @@
     "moved": "{{hours}} booked to General work.",
     "skippedDay": "{{name}} on {{date}} ({{reason}})",
     "withSkipped": "{{moved}} Not booked: {{skipped}}.",
+    "withOvertime": "{{words}} {{overtime}}",
     "skip": {
       "stillClockedIn": "still clocked in",
       "noClockTimes": "no clock in or out"
@@ -23,7 +24,9 @@
     "sentLate": "Sent late",
     "enteredLateTitle": "Some of the waiting time was entered on a later day than the day it's for.",
     "remoteEntryTitle": "Some of the waiting time was entered from a phone that was away from the workshop, or that didn't give its location.",
-    "sentLateTitle": "They sent this day to the office on a later day."
+    "sentLateTitle": "They sent this day to the office on a later day.",
+    "overtimeCheck": "Overtime to check",
+    "overtimeCheckTitle": "The hours at time and a half don't match the hours past the usual day."
   },
   "clock": {
     "noStandardHours": "No standard hours on this day. Set the times.",

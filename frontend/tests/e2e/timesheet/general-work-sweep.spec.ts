@@ -43,11 +43,16 @@ async function sweepWeek(browser: Browser, origin: string): Promise<string> {
   return shiftDate(postable < thisWeek ? postable : thisWeek, -35)
 }
 
-async function setClock(page: Page, staffId: string): Promise<void> {
+async function setClock(
+  page: Page,
+  staffId: string,
+  start: string = CLOCK_IN,
+  finish: string = CLOCK_OUT,
+): Promise<void> {
   await autoId(page, `ApproveTimePage-open-${staffId}`).click()
   await autoId(page, `ApproveTimePage-clock-edit-${staffId}`).click()
-  await autoId(page, `ApproveTimePage-clock-${staffId}-start`).fill(CLOCK_IN)
-  await autoId(page, `ApproveTimePage-clock-${staffId}-finish`).fill(CLOCK_OUT)
+  await autoId(page, `ApproveTimePage-clock-${staffId}-start`).fill(start)
+  await autoId(page, `ApproveTimePage-clock-${staffId}-finish`).fill(finish)
   await autoId(page, `ApproveTimePage-clock-${staffId}-times-save`).click()
   await expect(page.getByText('Clock times saved.').last()).toBeVisible()
 }
@@ -137,4 +142,26 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
     await expect(swept.nth(index)).toContainText(times)
     await expect(swept.nth(index)).toContainText(formatHoursDisplay(hours))
   }
+})
+
+test('a sweep that takes a person past the usual day tells the office about the overtime', async ({
+  authenticatedPage: page,
+  browser,
+  baseURL,
+}) => {
+  const origin = z.string().parse(baseURL)
+  // The Wednesday after the second test's Tuesday, so no test shares the day.
+  const day = shiftDate(await sweepWeek(browser, origin), 9)
+  const staff = await asSuperuser(browser, origin, getWorkshopStaff)
+
+  await page.goto(`/timesheets/approve?date=${day}`)
+  // Clocked 07:00 to 17:00 with nothing entered: the sweep books 8h at the
+  // ordinary rate and the hour after it at time and a half (owner, 2026-10-25).
+  await setClock(page, staff.id, '07:00', '17:00')
+  await autoId(page, `ApproveTimePage-sweep-${staff.id}`).click()
+
+  await expect(
+    page.getByText(/has done over 8h, converting some time to overtime\./).first(),
+  ).toBeVisible()
+  await expect(autoId(page, `ApproveTimePage-state-${staff.id}`)).toContainText('Approved')
 })

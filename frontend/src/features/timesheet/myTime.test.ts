@@ -7,6 +7,7 @@ import {
   billingChangeFields,
   billsItsTime,
   calendarEvent,
+  cautionMarks,
   clockWords,
   distinctJobCount,
   entryLockedFor,
@@ -479,5 +480,12 @@ describe('fillAfterRows', () => {
         { hours: null },
       ]),
     ).toEqual({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 4, to_go_hours: 3.5 })
+  })
+})
+
+describe('cautionMarks', () => {
+  it('marks a day whose overtime does not match the hours past the usual day', () => {
+    const marks = cautionMarks({ entered_late: false, remote_entry: false, overtime_check: true })
+    expect(marks.map((mark) => mark.label)).toEqual(['Overtime to check'])
   })
 })

@@ -73,6 +73,8 @@ export function cautionMarks(flags: {
   remote_entry: boolean
   /** A person's day only: how it was clocked and sent, as the server words it. */
   clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
+  /** A person's day only: the hours at overtime differ from the hours past the usual day. */
+  overtime_check?: boolean
 }): CautionMark[] {
   const marks: CautionMark[] = []
   if (flags.clock !== undefined) marks.push(...flags.clock.cautions.map((label) => ({ label })))
@@ -90,6 +92,11 @@ export function cautionMarks(flags: {
     marks.push({
       label: i18n.t('timesheet:marks.sentLate'),
       title: i18n.t('timesheet:marks.sentLateTitle'),
+    })
+  if (flags.overtime_check)
+    marks.push({
+      label: i18n.t('timesheet:marks.overtimeCheck'),
+      title: i18n.t('timesheet:marks.overtimeCheckTitle'),
     })
   return marks
 }

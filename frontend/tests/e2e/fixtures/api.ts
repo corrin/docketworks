@@ -248,6 +248,8 @@ export interface SeedTimesheetLabourPayload {
   date: string
   hours: number
   description: string
+  /** Ordinary unless given. */
+  wageRateMultiplier?: number
 }
 
 export async function seedTimesheetLabour(
@@ -269,7 +271,7 @@ export async function seedTimesheetLabour(
           staff_id: payload.staffId,
           date: payload.date,
           is_billable: true,
-          wage_rate_multiplier: 1,
+          wage_rate_multiplier: payload.wageRateMultiplier ?? 1,
         },
       },
     },
