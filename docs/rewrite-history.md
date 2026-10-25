@@ -2749,3 +2749,72 @@ So the localhost run reuses the dev instance's registered key, and the planned
 fake for the verify call is not built: the run keeps the real chain (OpenAI's
 CDN, domain verification, and a real model reply through the gateway).
 Localhost needs no allowlist entry; any other hostname still does.
+
+## 2026-10-25 — Timesheets pay the day right: overtime past the usual day, breaks never touch entries, leave fills the day (PR #228)
+
+PR #228 began as one bug: an hour entered 08:00–09:00, then the day's standard
+breaks put on, paid the 08:30 break twice. Fixing it by re-working entries
+around breaks grew seventeen defects in review, so the owner stopped the work
+and ruled the model from first principles, scenario by scenario. The rulings:
+
+Why approval exists (owner): "to FORCE the office to CHECK the entry", like
+a draft invoice against an approved one. "A worker can enter whatever they
+like. If it's a lie, the office catches it." So nothing is refused for being
+unusual; the office is shown it.
+
+Billing never waits for approval (owner): a job worked 9–11, collected and paid
+at 1pm, the timesheet approved at 4pm. "If you didn't bill unapproved time,
+you'd have given away free labour." Approval gates pay only.
+
+Breaks (owner): "Breaks are like 'start time'" — they come first, "months...
+years.... before time entries". Anyone, worker or office, adds, moves, resizes
+or deletes a break at any time, and that never changes an entry: Mary's
+approved New Year's Eve does not change when the factory start moves. The
+system records a standard break only where the day has room for it: one inside
+an entry whose hours exceed its span less that break is skipped, which is the
+bug the PR began with.
+
+Overtime (owner): "the first 8 hours is standard", N being the company's start
+to stop for the weekday, counted in save order. The hours past it default to
+time and a half, paid and charged ("It varies. The default is yes."). A rate
+someone chose stands and an edit never re-rates; Approve time marks "Overtime
+to check" where the hours at overtime differ from the hours past the usual day.
+The sweep warns: "Joe has done over 8h, converting some time to overtime" —
+"the overtime would be applied to the morning shift - that doesn't matter."
+Settled with it: urgent plus overtime is charged 1.5x, never 2.25x; salaried
+staff get no split; every hour on a public holiday (an office-closure line) is
+time and a half; no split piece is under a quarter hour.
+
+The sweep (owner): "the whole point is to fill the day with regular time...
+It won't affect how much we invoice out. Just make sure the employee gets paid
+the right amount." An entry approved over swept General work makes that General
+work give way.
+
+Leave (owner): the leave screen books whole days only; "for anything less, you
+enter time on the leave job." Booking leave sweeps the rest of the day into the
+leave job, replacing nothing, and warns when the day already had time: "Leave
+booked for <name> on <date>, but the day already had time entered: <h> put to
+leave." Time on a leave job is never work for overtime, whoever entered it.
+
+Also settled: nobody approves their own time; no standard day is assumed, and
+no time accepted, outside a person's employment dates; a daylight-saving day
+counts the hours actually there.
+
+Findings.
+- 190 scenario tests were written first and run against main: every rule main
+  already had passed, every new rule failed. Each of the 19 new rules, broken
+  on purpose, fails its own scenario tests.
+- Salaried staff could save no time: their pricing meta (`salary_term_id`,
+  `pay_basis`) was refused by the time-line meta schema.
+- `approve_day` relied on its caller's transaction.
+- `reclassify_overtime_entries` left the line it split off at the ordinary wage.
+- With leave in whole days, part of a day's leave is time entered on the leave
+  job, which the overtime rule first counted as work, since it knew leave only
+  as lines the leave screen manages. Leave is now known by its job
+  (`xero_hours.leave_job_ids`), however it was entered.
+
+Deferred to the next PR: hours stored at high precision and rounded only where
+shown or posted (owner: "I tend to store in pretty high precision and round on
+display"). `CostLine.quantity` is three decimal places and shared with
+materials and stock, and its sums reach the Xero boundaries, so it is its own
+change.
