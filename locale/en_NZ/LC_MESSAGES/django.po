@@ -3955,6 +3955,10 @@ msgid "Over by %(over)s"
 msgstr ""
 
 #: apps/timesheet/services/approval.py
+msgid "Leave and work on the same day"
+msgstr ""
+
+#: apps/timesheet/services/approval.py
 msgid ""
 "General work isn't set up: there is no General work job yet. Ask an "
 "administrator to choose it in Company Defaults > Working Hours."
@@ -3978,6 +3982,11 @@ msgstr ""
 
 #: apps/timesheet/services/approval.py
 msgid "A sweep covers one week at most."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+#, python-format
+msgid "%(name)s has done over %(usual)s, converting some time to overtime."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
@@ -4118,10 +4127,6 @@ msgid "Not a scheduled working day"
 msgstr ""
 
 #: apps/timesheet/services/leave_service.py
-msgid "Timesheet entry already exists"
-msgstr ""
-
-#: apps/timesheet/services/leave_service.py
 msgid "Each leave date may be supplied only once."
 msgstr ""
 
@@ -4139,6 +4144,17 @@ msgstr ""
 
 #: apps/timesheet/services/leave_service.py
 msgid "No available leave days remain to save."
+msgstr ""
+
+#: apps/timesheet/services/leave_service.py
+msgid "0h"
+msgstr ""
+
+#: apps/timesheet/services/leave_service.py
+#, python-format
+msgid ""
+"Leave booked for %(name)s on %(date)s, but the day already had time entered: "
+"%(hours)s put to leave."
 msgstr ""
 
 #: apps/timesheet/services/leave_service.py
@@ -4272,6 +4288,23 @@ msgstr ""
 msgid ""
 "hours (%(hours)s) cannot be more than the start_time-end_time span "
 "(%(span)s)."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+#, python-format
+msgid "%(name)s starts on %(date)s, so time before it can't be entered."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+#, python-format
+msgid "%(name)s's last day was %(date)s, so time after it can't be entered."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+#, python-format
+msgid ""
+"That is all inside your %(name)s. If you worked through it, delete the "
+"%(name)s."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

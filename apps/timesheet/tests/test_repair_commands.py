@@ -364,7 +364,10 @@ class TestReclassifyOvertimeEntries:
         assert new_line.xero_pay_item is not None
         assert new_line.xero_pay_item.name == "Time and one half"
         assert new_line.accounting_date == TUESDAY
-        assert new_line.unit_cost == split_line.unit_cost
+        # Paid as the overtime Xero paid: half as much again; charged as billed.
+        assert new_line.unit_cost == split_line.unit_cost * Decimal("1.5")
+        assert new_line.unit_rev == split_line.unit_rev
+        assert whole_line.unit_cost == split_line.unit_cost * Decimal("1.5")
 
     def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")

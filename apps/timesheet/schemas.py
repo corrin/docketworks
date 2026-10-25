@@ -344,6 +344,8 @@ class PlacementOut(Schema):
     #: None when the hours would run past midnight: they save without times.
     finish: time | None
     hours: float
+    #: Of ``hours``, how many a new entry would put past his usual day: time and a half.
+    overtime_hours: float
 
 
 class BreakCreateRequest(Schema):
@@ -478,6 +480,8 @@ class StaffApprovalOut(Schema):
     remote_entry: bool
     clock: AttendanceOut
     unallocated_hours: float | None
+    #: His hours at overtime are not the hours past his usual day: check them.
+    overtime_check: bool
     breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
     default_entry_start: time
@@ -523,12 +527,21 @@ class SweepSkipOut(Schema):
     reason: Literal["still_clocked_in", "no_clock_times"]
 
 
+class SweepOvertimeOut(Schema):
+    """A day the sweep took past the usual day: some of it went to overtime."""
+
+    staff_id: str
+    staff_name: str
+    message: str
+
+
 class SweepOut(Schema):
     """What the sweep put on General work, and the worker entries it approved with the days."""
 
     swept_hours: float
     approved_count: int
     skipped: list[SweepSkipOut]
+    overtime: list[SweepOvertimeOut]
 
 
 class TimesheetCostLineOut(CostLineOut):

@@ -67,6 +67,9 @@ TIME_META_SCHEMA: dict[str, Any] = {
         "consumed_by": STRING_OR_NULL,
         "comments": STRING_OR_NULL,
         "source": STRING_OR_NULL,
+        # The salary term that priced a salaried person's hours.
+        "salary_term_id": STRING_OR_NULL,
+        "pay_basis": STRING_OR_NULL,
     },
     "additionalProperties": False,
 }

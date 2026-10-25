@@ -412,7 +412,7 @@ class TestSweep:
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert result == {"swept_hours": 1.5, "approved_count": 1, "skipped": []}
+        assert result == {"swept_hours": 1.5, "approved_count": 1, "skipped": [], "overtime": []}
         assert _general_work_hours(general_work, worker) == ["1.500"]
         swept = CostLine.objects.get(cost_set__job=general_work, staff=worker)
         assert swept.approved
@@ -451,7 +451,7 @@ class TestSweep:
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert result == {"swept_hours": 0.0, "approved_count": 1, "skipped": []}
+        assert result == {"swept_hours": 0.0, "approved_count": 1, "skipped": [], "overtime": []}
         assert _general_work_hours(general_work, worker) == []
         own.refresh_from_db()
         assert own.approved
@@ -510,7 +510,12 @@ class TestSweep:
         )
 
         assert one.status_code == 200, one.content
-        assert one.json() == {"swept_hours": 3.0, "approved_count": 0, "skipped": []}
+        assert one.json() == {
+            "swept_hours": 3.0,
+            "approved_count": 0,
+            "skipped": [],
+            "overtime": [],
+        }
         assert everyone.status_code == 200, everyone.content
         # The worker's day was swept already: only the other worker's 2.5 hours move.
         assert everyone.json()["swept_hours"] == 2.5

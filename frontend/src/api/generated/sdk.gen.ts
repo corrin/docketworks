@@ -4738,7 +4738,8 @@ export const timesheetsMyDayClock = <ThrowOnError extends boolean = false>(optio
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
  * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * hours are the span less the breaks inside it. Either way it says how many
+ * of them a new entry would put past his usual day, as overtime.
  */
 export const timesheetsMyDayPlacement = <ThrowOnError extends boolean = false>(options: Options<TimesheetsMyDayPlacementData, ThrowOnError>): RequestResult<TimesheetsMyDayPlacementResponses, unknown, ThrowOnError> => (options.client ?? client).get<TimesheetsMyDayPlacementResponses, unknown, ThrowOnError>({
     responseType: 'json',

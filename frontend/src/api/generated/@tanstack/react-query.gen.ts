@@ -5752,7 +5752,8 @@ export const timesheetsMyDayPlacementQueryKey = (options: Options<TimesheetsMyDa
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
  * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * hours are the span less the breaks inside it. Either way it says how many
+ * of them a new entry would put past his usual day, as overtime.
  */
 export const timesheetsMyDayPlacementOptions = (options: Options<TimesheetsMyDayPlacementData>) => queryOptions<TimesheetsMyDayPlacementResponse, AxiosError<DefaultError>, TimesheetsMyDayPlacementResponse, ReturnType<typeof timesheetsMyDayPlacementQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -5775,10 +5776,11 @@ export const timesheetsMyDayPlacementInfiniteQueryKey = (options: Options<Timesh
  * Answer the entry drawer as he types: the one placement rule, nothing written.
  *
  * Given hours, the finish steps over the day's breaks; given a finish, the
- * hours are the span less the breaks inside it.
+ * hours are the span less the breaks inside it. Either way it says how many
+ * of them a new entry would put past his usual day, as overtime.
  */
 export const timesheetsMyDayPlacementInfiniteOptions = (options: Options<TimesheetsMyDayPlacementData>) => {
-    const opts = infiniteQueryOptions<TimesheetsMyDayPlacementResponse, AxiosError<DefaultError>, InfiniteData<TimesheetsMyDayPlacementResponse>, QueryKey<Options<TimesheetsMyDayPlacementData>>, string | Pick<QueryKey<Options<TimesheetsMyDayPlacementData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<TimesheetsMyDayPlacementResponse, AxiosError<DefaultError>, InfiniteData<TimesheetsMyDayPlacementResponse>, QueryKey<Options<TimesheetsMyDayPlacementData>>, string | null | Pick<QueryKey<Options<TimesheetsMyDayPlacementData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {

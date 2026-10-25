@@ -6759,6 +6759,10 @@ export type LeaveSaveOut = {
      * Skipped Days
      */
     skipped_days: Array<LeavePreviewDayOut>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
 };
 
 /**
@@ -7117,6 +7121,10 @@ export type OfficeClosureOut = {
      * Skipped Days
      */
     skipped_days: Array<LeavePreviewDayOut>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
 };
 
 /**
@@ -9299,6 +9307,10 @@ export type PlacementOut = {
      */
     hours: number;
     /**
+     * Overtime Hours
+     */
+    overtime_hours: number;
+    /**
      * Start
      */
     start: string;
@@ -11081,6 +11093,10 @@ export type StaffApprovalOut = {
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Overtime Check
+     */
+    overtime_check: boolean;
     /**
      * Remote Entry
      */
@@ -12894,6 +12910,10 @@ export type SweepOut = {
      */
     approved_count: number;
     /**
+     * Overtime
+     */
+    overtime: Array<SweepOvertimeOut>;
+    /**
      * Skipped
      */
     skipped: Array<SweepSkipOut>;
@@ -12901,6 +12921,26 @@ export type SweepOut = {
      * Swept Hours
      */
     swept_hours: number;
+};
+
+/**
+ * SweepOvertimeOut
+ *
+ * A day the sweep took past the usual day: some of it went to overtime.
+ */
+export type SweepOvertimeOut = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
 };
 
 /**
@@ -20443,7 +20483,7 @@ export type TimesheetsMyDayPlacementData = {
         /**
          * Start
          */
-        start: string;
+        start?: string | null;
         /**
          * Hours
          */

@@ -1,8 +1,10 @@
 import type { Page } from '@playwright/test'
+import { z } from 'zod'
 
+import { shiftDate } from '../../../src/lib/dates'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob } from '../helpers'
-import { readJobNumber } from './support'
+import { getLatestWeekdayDate, readJobNumber } from './support'
 
 /**
  * The workshop "my time" calendar: day navigation, refresh, and the
@@ -177,5 +179,85 @@ test.describe.serial('workshop my time view', () => {
       })
       await expect(page.locator(CALENDAR_EVENT(entryId))).toHaveCount(0)
     })
+  })
+
+  test('a long day asks about overtime, and a break he adds never changes an entry', async ({
+    authenticatedPage: page,
+  }) => {
+    // A weekday of its own, well back, with the company's usual 07:00-15:00
+    // day and its standard breaks (owner, 2026-10-25: the first 8 hours are
+    // ordinary, the rest time and a half).
+    const date = shiftDate(getLatestWeekdayDate(), -7 * 12)
+    const dayPath = `/api/job/workshop/timesheets/?date=${date}`
+    const daySchema = z.object({
+      entries: z.array(
+        z.object({
+          id: z.string(),
+          start_time: z.string().nullable(),
+          end_time: z.string().nullable(),
+          hours: z.number(),
+          wage_rate_multiplier: z.number(),
+        }),
+      ),
+    })
+    const readDay = async () => daySchema.parse(await (await page.request.get(dayPath)).json())
+    const entries = async () =>
+      (await readDay()).entries
+        .toSorted((first, second) =>
+          (first.start_time ?? '').localeCompare(second.start_time ?? ''),
+        )
+        .map((entry) => [entry.start_time, entry.end_time, entry.hours, entry.wage_rate_multiplier])
+
+    const times = await page.request.put('/api/timesheets/my-day/times/', {
+      data: { date, clock_in: '07:00', clock_out: '17:00' },
+    })
+    expect(times.ok(), await times.text()).toBe(true)
+
+    await test.step('07:00 to 17:00 on one job asks first, then is 8h and 1h overtime', async () => {
+      await page.goto(`/timesheets/my-time?date=${date}`)
+      await autoId(page, 'WorkshopTimesheetSummaryCard-add').click()
+      await selectJobInPicker(page, jobNumber)
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-start-time').fill('07:00')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-end-time').fill('17:00')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-submit').click()
+
+      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-overtime')).toContainText(
+        'past your usual day',
+      )
+      const create = timesheetResponse(page, 'POST')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-overtime-save').click()
+      await create
+
+      // Nine hours on the job: the three breaks are not. Eight are ordinary.
+      expect(await entries()).toEqual([
+        ['07:00:00', '16:00:00', 8, 1],
+        ['16:00:00', '17:00:00', 1, 1.5],
+      ])
+    })
+
+    // A break is his to add or take off; it never changes an entry (owner,
+    // 2026-10-25): if he worked through it, he edits the entry himself.
+    await test.step('a break added inside the entry, then taken off, leaves it as entered', async () => {
+      const added = await page.request.post('/api/timesheets/my-day/breaks/', {
+        data: { date, start: '09:00', end: '09:15', paid: true },
+      })
+      expect(added.ok(), await added.text()).toBe(true)
+      expect((await entries())[0]).toEqual(['07:00:00', '16:00:00', 8, 1])
+
+      const day = z
+        .object({ breaks: z.array(z.object({ id: z.string().nullable(), start: z.string() })) })
+        .parse(await (await page.request.get(dayPath)).json())
+      const taken = day.breaks.find((each) => each.start === '09:00:00')
+      if (taken === undefined || taken.id === null) throw new Error('No break at 09:00')
+      const removed = await page.request.delete(`/api/timesheets/my-day/breaks/${taken.id}/`)
+      expect(removed.ok(), await removed.text()).toBe(true)
+      expect((await entries())[0]).toEqual(['07:00:00', '16:00:00', 8, 1])
+    })
+
+    // The day is reused by the next run: what this test made goes.
+    for (const entry of (await readDay()).entries) {
+      const gone = await page.request.delete(`/api/job/workshop/timesheets/?entry_id=${entry.id}`)
+      expect(gone.ok(), await gone.text()).toBe(true)
+    }
   })
 })

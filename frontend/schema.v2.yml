@@ -7602,9 +7602,15 @@ components:
             $ref: '#/components/schemas/LeavePreviewDayOut'
           title: Skipped Days
           type: array
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
       required:
       - request
       - skipped_days
+      - warnings
       title: LeaveSaveOut
       type: object
     LeaveSettingsOut:
@@ -7984,10 +7990,16 @@ components:
             $ref: '#/components/schemas/LeavePreviewDayOut'
           title: Skipped Days
           type: array
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
       required:
       - batch_id
       - requests
       - skipped_days
+      - warnings
       title: OfficeClosureOut
       type: object
     OfficeClosurePreviewOut:
@@ -10439,6 +10451,9 @@ components:
         hours:
           title: Hours
           type: number
+        overtime_hours:
+          title: Overtime Hours
+          type: number
         start:
           format: time
           title: Start
@@ -10447,6 +10462,7 @@ components:
       - start
       - finish
       - hours
+      - overtime_hours
       title: PlacementOut
       type: object
     PostWeekToXeroRequest:
@@ -12489,6 +12505,9 @@ components:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           title: Entries
           type: array
+        overtime_check:
+          title: Overtime Check
+          type: boolean
         remote_entry:
           title: Remote Entry
           type: boolean
@@ -12525,6 +12544,7 @@ components:
       - remote_entry
       - clock
       - unallocated_hours
+      - overtime_check
       - breaks
       - entries
       - default_entry_start
@@ -14528,6 +14548,11 @@ components:
         approved_count:
           title: Approved Count
           type: integer
+        overtime:
+          items:
+            $ref: '#/components/schemas/SweepOvertimeOut'
+          title: Overtime
+          type: array
         skipped:
           items:
             $ref: '#/components/schemas/SweepSkipOut'
@@ -14540,7 +14565,26 @@ components:
       - swept_hours
       - approved_count
       - skipped
+      - overtime
       title: SweepOut
+      type: object
+    SweepOvertimeOut:
+      description: 'A day the sweep took past the usual day: some of it went to overtime.'
+      properties:
+        message:
+          title: Message
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+      required:
+      - staff_id
+      - staff_name
+      - message
+      title: SweepOvertimeOut
       type: object
     SweepSkipOut:
       description: 'A day the sweep left alone: there was no clocked time to sweep.'
@@ -24035,7 +24079,9 @@ paths:
 
         Given hours, the finish steps over the day''s breaks; given a finish, the
 
-        hours are the span less the breaks inside it.'
+        hours are the span less the breaks inside it. Either way it says how many
+
+        of them a new entry would put past his usual day, as overtime.'
       operationId: timesheets_my_day_placement
       parameters:
       - in: query
@@ -24046,11 +24092,13 @@ paths:
           type: string
       - in: query
         name: start
-        required: true
+        required: false
         schema:
-          format: time
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
           title: Start
-          type: string
       - in: query
         name: hours
         required: false

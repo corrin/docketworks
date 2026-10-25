@@ -141,8 +141,9 @@ class TestPlacement:
         back = worker_client.get(f"{query}&finish=14:00").json()
         neither = worker_client.get(query)
 
-        assert forward == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
-        assert back == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
+        six = {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0, "overtime_hours": 0.0}
+        assert forward == six
+        assert back == six
         assert neither.status_code == 400
         for refused in ("0", "-1", "100000"):
             assert worker_client.get(f"{query}&hours={refused}").status_code == 422
@@ -619,7 +620,11 @@ class TestEntryTimes:
     def test_hours_that_would_run_past_midnight_are_saved_without_times(
         self, worker_client: Client, worker: Staff, job: Job
     ) -> None:
-        """Hours are the truth: twelve hours from one o'clock still save, with no picture."""
+        """Hours are the truth: twelve hours from one o'clock still save, with no picture.
+
+        Past his usual eight with the five before them, nine of the twelve are
+        time and a half: two lines, both without times.
+        """
         _clocked(worker, time(7, 0), time(15, 0))
         body = {"job_id": str(job.id), "accounting_date": DAY.isoformat()}
         worker_client.post(DAY_URL, data={**body, "hours": "5"}, content_type="application/json")
@@ -629,8 +634,17 @@ class TestEntryTimes:
         )
 
         assert late.status_code == 201, late.content
-        assert (late.json()["start_time"], late.json()["end_time"]) == (None, None)
-        assert late.json()["hours"] == 12.0
+        lines = CostLine.objects.filter(staff=worker, cost_set__job=job).order_by("created_at")
+        assert [
+            (
+                # An entry with no times has neither key.
+                line.meta.get("start_time"),
+                line.meta.get("end_time"),
+                line.quantity,
+                line.meta["wage_rate_multiplier"],
+            )
+            for line in lines[1:]
+        ] == [(None, None, Decimal("3.000"), 1.0), (None, None, Decimal("9.000"), 1.5)]
 
     def test_an_entry_saved_without_times_is_placed_after_the_previous_one(
         self, worker_client: Client, worker: Staff, job: Job

@@ -25,7 +25,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
 from apps.job.models.costing import CostLine
-from apps.job.services.time_entry_rates import PayItem
+from apps.job.services.time_entry_rates import PayItem, price_time_entry
 from apps.timesheet.services.xero_hours import (
     XeroWeekRow,
     build_staff_lookup,
@@ -404,11 +404,8 @@ class Command(BaseCommand):
     @staticmethod
     def _reclassify_costline(costline: CostLine, ot_pay_item: PayItem) -> None:
         """Reclassify a whole CostLine as overtime."""
-        costline.xero_pay_item_id = ot_pay_item.id
         costline.desc = f"{costline.desc} {DESC_SUFFIX}"
-        meta = dict(costline.meta or {})
-        meta["wage_rate_multiplier"] = OT_MULTIPLIER
-        costline.meta = meta
+        _price_as_overtime(costline, ot_pay_item)
         costline.save()
 
     @staticmethod
@@ -418,20 +415,40 @@ class Command(BaseCommand):
         costline.quantity = (costline.quantity - ot_hours).quantize(THREE_DP)
         costline.save()
 
-        meta = dict(costline.meta or {})
-        meta["wage_rate_multiplier"] = OT_MULTIPLIER
         new_line = CostLine(
             cost_set=costline.cost_set,
             kind=costline.kind,
             desc=f"{costline.desc} {DESC_SUFFIX}",
             quantity=ot_hours.quantize(THREE_DP),
-            unit_cost=costline.unit_cost,
-            unit_rev=costline.unit_rev,
             accounting_date=costline.accounting_date,
             staff=costline.staff,
-            xero_pay_item_id=ot_pay_item.id,
             labour_subtype=costline.labour_subtype,
-            meta=meta,
+            meta=dict(costline.meta),
         )
+        _price_as_overtime(new_line, ot_pay_item)
         new_line.save()
         return new_line
+
+
+def _price_as_overtime(line: CostLine, ot_pay_item: PayItem) -> None:
+    """Price a line as the overtime Xero paid: its wage cost at the overtime rate.
+
+    The charge keeps its stored multiplier: this mends what was paid, and the
+    customer was billed as the entry stood.
+    """
+    if line.staff is None:
+        raise CommandError(f"Time line {line.id} has no staff member to price it by.")
+    meta = dict(line.meta)
+    meta["wage_rate_multiplier"] = OT_MULTIPLIER
+    pricing = price_time_entry(
+        job=line.cost_set.job,
+        staff=line.staff,
+        meta=meta,
+        labour_subtype=line.labour_subtype,
+        pay_item_override=ot_pay_item,
+    )
+    meta.update(pricing.meta_updates())
+    line.meta = meta
+    line.unit_cost = pricing.unit_cost
+    line.unit_rev = pricing.unit_rev
+    line.xero_pay_item_id = pricing.pay_item_id

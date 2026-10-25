@@ -462,6 +462,11 @@
     "approveDayTitle": "Approves every waiting entry this person has today, so it's paid at the next post. Approval can't be undone; to change an entry afterwards, correct it here."
   },
   "entryDrawer": {
+    "overtime": {
+      "title": "This takes you past your usual day",
+      "body": "{{hours}} of this is past your usual day, so it will be overtime, at time and a half.",
+      "save": "Save with overtime"
+    },
     "bookOwnTime": "Book your own time for {{date}}.",
     "overlapsBooked": "You are already booked for that time. Were you doing two things at once?",
     "entryOn": "#{{number}} {{name}} on {{date}}",

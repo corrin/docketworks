@@ -53,10 +53,15 @@ from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
     create_entry,
+    day_break_windows,
     day_time_lines,
     default_entry_start,
+    delete_entry,
     entered_late,
     entry_data,
+    overtime_hours,
+    timed_window,
+    update_entry,
 )
 
 #: What a person's day needs from the office. ``nothing_entered`` is its own
@@ -94,6 +99,9 @@ class StaffApprovalData(TypedDict):
     #: Clocked time on no job and no paid break: what a sweep would put on
     #: General work (KAN-380). None until both clock times are known.
     unallocated_hours: float | None
+    #: His hours at overtime are not the hours past his usual day: the
+    #: office checks which time it is (owner, 2026-10-25).
+    overtime_check: bool
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
     #: Where an entry the office adds for this person starts: after their
@@ -165,7 +173,91 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     )
     for line in locked:
         approve_line(line, actor)
+    _general_work_gives_way(worker, day, locked, actor)
     return len(locked)
+
+
+def _general_work_gives_way(
+    worker: Staff, day: date, approved: list[CostLine], actor: Staff
+) -> None:
+    """Take the swept General work out from under entries the office has just approved.
+
+    Swept General work stands in for time nobody booked (owner, 2026-10-25).
+    When he later books part of that time and the office approves it, the
+    stand-in under it goes, so the time is paid once and on the job he named.
+    Until then the General work stays approved and paid, and his entry waits.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        # Nowhere to sweep to, so nothing was swept to give way.
+        return
+    booked = [
+        window
+        for line in approved
+        if line.cost_set.job_id not in {general_work_id, break_job_id()}
+        and (window := timed_window(line)) is not None
+    ]
+    if not booked:
+        return
+    breaks = day_break_windows(worker, day)
+    for swept in CostLine.objects.filter(
+        kind="time",
+        staff=worker,
+        accounting_date=day,
+        cost_set__job_id=general_work_id,
+        meta__source=SWEPT_GENERAL_WORK,
+    ).select_related("cost_set__job"):
+        window = timed_window(swept)
+        if window is None:
+            continue
+        left = _less(window, booked)
+        if left == [window]:
+            continue
+        if not left:
+            delete_entry(actor, swept.id)
+            continue
+        first, *rest = left
+        update_entry(
+            actor,
+            {
+                "entry_id": swept.id,
+                "start_time": first.start,
+                "end_time": first.end,
+                "hours": hours_for(first.start, first.end, breaks),
+            },
+        )
+        for piece in rest:
+            create_entry(
+                actor,
+                worker,
+                {
+                    "job_id": swept.cost_set.job_id,
+                    "accounting_date": day,
+                    "hours": hours_for(piece.start, piece.end, breaks),
+                    "start_time": piece.start,
+                    "end_time": piece.end,
+                    "is_billable": False,
+                },
+                source=SWEPT_GENERAL_WORK,
+            )
+
+
+def _less(window: Window, taken: list[Window]) -> list[Window]:
+    """Return what is left of ``window`` once the ``taken`` stretches are cut out of it."""
+    left = [window]
+    for cut in taken:
+        kept: list[Window] = []
+        for each in left:
+            if each.end <= cut.start or cut.end <= each.start:
+                kept.append(each)
+                continue
+            kept.extend(
+                piece
+                for piece in (Window(each.start, cut.start), Window(cut.end, each.end))
+                if piece.end > piece.start
+            )
+        left = kept
+    return left
 
 
 def _waiting(worker: Staff, day: date) -> QuerySet[CostLine]:
@@ -212,6 +304,12 @@ def _staff_day(
             **clock,
             "cautions": [*clock["cautions"], gettext("Over by %(over)s") % {"over": over}],
         }
+    if _has_leave(entries) and any(line.managed_by != CostLineOwner.LEAVE for line in entries):
+        # Paid for both: he came in on a day off, or the leave is wrong.
+        clock = {
+            **clock,
+            "cautions": [*clock["cautions"], gettext("Leave and work on the same day")],
+        }
     state: ApprovalState
     if not entries and (rostered or attendance is not None):
         # Expected and no job in: the person the office phones. His paid
@@ -234,6 +332,7 @@ def _staff_day(
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
         "unallocated_hours": None if unallocated is None else float(_hours_in(unallocated)),
+        "overtime_check": _overtime_is_off(person, day, entries),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
         if attendance is not None
         else [],
@@ -242,6 +341,26 @@ def _staff_day(
         "entries": [entry_data(line) for line in entries],
         "default_entry_start": default_entry_start(day, attendance, entries, break_lines),
     }
+
+
+def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
+    """Whether his time at overtime is other than the hours past his usual day.
+
+    An entry deleted after its overtime half was split off, or a lunch he
+    worked through and added back as ordinary time, leaves the two apart;
+    nothing re-rates them, so the office is shown the day to check.
+    """
+    work = [
+        line
+        for line in entries
+        if line.managed_by != CostLineOwner.LEAVE and not is_unpaid_time(line)
+    ]
+    worked = sum((line.quantity for line in work), Decimal(0))
+    at_overtime = sum(
+        (line.quantity for line in work if hour_categories.wage_rate_multiplier(line) > 1),
+        Decimal(0),
+    )
+    return at_overtime != overtime_hours(person, day, worked, already_on_the_day=False)
 
 
 def day_approvals(day: date) -> ApprovalsDayData:
@@ -309,6 +428,14 @@ class SweepSkipData(TypedDict):
     reason: SweepSkipReason
 
 
+class SweepOvertimeData(TypedDict):
+    """A day the sweep took past the usual day, so some of it went to overtime."""
+
+    staff_id: str
+    staff_name: str
+    message: str
+
+
 class SweepData(TypedDict):
     """What a sweep moved onto General work and approved."""
 
@@ -316,6 +443,8 @@ class SweepData(TypedDict):
     #: The worker's own entries the sweep approved with the day.
     approved_count: int
     skipped: list[SweepSkipData]
+    #: Days it put past the usual day: the office checks which time is overtime.
+    overtime: list[SweepOvertimeData]
 
 
 class GeneralWorkNotSetUpError(ConflictError):
@@ -411,6 +540,7 @@ def _assumed_standard(
     """
     return (
         row is None
+        and person.is_active_on(day)
         and day < timezone.localdate()
         and not _has_leave(entries)
         and _rostered(person, day, weekend_enabled=weekend_enabled)
@@ -468,6 +598,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     swept = Decimal(0)
     approved = 0
     skipped: list[SweepSkipData] = []
+    overtime: list[SweepOvertimeData] = []
     weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
     for day, people in people_by_day.items():
         for person in people:
@@ -495,13 +626,44 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
                 # its standard breaks are the ones the stretches were placed around.
                 use_standard_hours(person, day, actor)
                 row = AttendanceDay.objects.get(staff=person, date=day)
+            if _goes_past_the_usual_day(person, day, windows):
+                overtime.append(_overtime_warning(person, day))
             swept += _put_on_general_work(person, day, windows, general_work_id, actor)
             approved += approve_day(person, day, actor)
             if row is None:
                 # Unclocked and his leave fills the standard day: no day to send.
                 continue
             _send_for_him(person, row, actor)
-    return {"swept_hours": float(swept), "approved_count": approved, "skipped": skipped}
+    return {
+        "swept_hours": float(swept),
+        "approved_count": approved,
+        "skipped": skipped,
+        "overtime": overtime,
+    }
+
+
+def _goes_past_the_usual_day(worker: Staff, day: date, windows: list[Window]) -> bool:
+    """Whether the General work the sweep is about to book takes his day past the usual day."""
+    return overtime_hours(worker, day, _hours_in(windows)) > 0
+
+
+def _overtime_warning(worker: Staff, day: date) -> SweepOvertimeData:
+    """Tell the office the sweep put some of his day at time and a half (owner, 2026-10-25).
+
+    The overtime lands on whichever time the sweep books past the usual day,
+    which may be his morning: he marks his own late time, and the office
+    checks which hours it was.
+    """
+    standard = standard_day(day)
+    if standard is None:
+        raise ValueError(f"{day} has no usual day, so nothing on it is overtime")
+    usual = duration_words(hours_for(standard.start, standard.end, []))
+    return {
+        "staff_id": str(worker.id),
+        "staff_name": worker.get_display_full_name(),
+        "message": gettext("%(name)s has done over %(usual)s, converting some time to overtime.")
+        % {"name": worker.get_display_name(), "usual": usual},
+    }
 
 
 def _send_for_him(worker: Staff, row: AttendanceDay, actor: Staff) -> None:

@@ -2371,7 +2371,53 @@ def move_time_line(
 
 
 def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
-    """Create a cost line on the job's ``kind`` cost set."""
+    """Create a cost line on the job's ``kind`` cost set.
+
+    Worked time the grid books past the person's usual day is split there,
+    the rest at time and a half, as from his phone (owner, 2026-10-24).
+    Returns the first line made.
+    """
+    rows = _at_their_rates(job, kind, data)
+    with transaction.atomic():
+        lines = [_create_cost_line(job, kind, row, staff) for row in rows]
+    return lines[0]
+
+
+def _at_their_rates(job: Job, kind: str, data: CostLineWriteData) -> list[CostLineWriteData]:
+    """Return a grid row as the lines it makes: itself, or its ordinary and overtime parts."""
+    # Call-time import: the timesheet's entry writes import this module.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        OVERTIME,
+        overtime_part,
+    )
+
+    meta = data.get("meta") or {}
+    if kind != "actual" or data.get("kind") != "time" or not meta.get("created_from_timesheet"):
+        return [data]
+    probe: CostLineWriteData = {**data}
+    hours = data["quantity"]
+    overtime = overtime_part(
+        _timesheet_pricing_staff(dict(meta), probe),
+        data["accounting_date"],
+        hours,
+        wage_rate_multiplier=Decimal(str(meta["wage_rate_multiplier"])),
+        job_id=job.id,
+    )
+    if overtime == 0:
+        return [data]
+    late_meta = {**meta, "wage_rate_multiplier": float(OVERTIME)}
+    bill = meta.get("bill_rate_multiplier")
+    if isinstance(bill, (int, float)) and meta.get("is_billable", True):
+        # The higher of the two applies, never both.
+        late_meta["bill_rate_multiplier"] = max(float(bill), float(OVERTIME))
+    late: CostLineWriteData = {**data, "quantity": overtime, "meta": late_meta}
+    if overtime == hours:
+        return [late]
+    return [{**data, "quantity": hours - overtime}, late]
+
+
+def _create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
+    """Create one cost line on the job's ``kind`` cost set."""
     if kind not in COST_SET_KINDS:
         raise ValueError(
             gettext("Invalid kind. Must be one of: %(kinds)s")

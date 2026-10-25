@@ -17,8 +17,9 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineWriteData, create_cost_line, update_latest_actual
+from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
-from apps.timesheet.services.attendance import break_job_id
+from apps.timesheet.services.attendance import duration_words
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
 from apps.timesheet.services.workshop_timesheet_service import pricing_meta
@@ -100,6 +101,8 @@ class SaveResult(TypedDict):
 
     request: LeaveRequestData
     skipped_days: list[PreviewDay]
+    #: Days that already had time: leave took only what was left of them.
+    warnings: list[str]
 
 
 class OfficeClosurePreviewData(TypedDict):
@@ -118,6 +121,7 @@ class OfficeClosureResult(TypedDict):
     batch_id: str
     requests: list[LeaveRequestData]
     skipped_days: list[PreviewDay]
+    warnings: list[str]
 
 
 class LeaveBalanceData(TypedDict):
@@ -139,22 +143,14 @@ def _dates(start_date: date, end_date: date) -> list[date]:
 def preview_leave(
     *, staff: Staff, start_date: date, end_date: date, exclude_request: LeaveRequest | None = None
 ) -> PreviewData:
-    """Propose scheduled hours and report dates already carrying time."""
+    """Propose each day's leave: what is left of its scheduled hours once his time is in.
+
+    Leave fills the rest of the day, as the sweep fills it with General work
+    (owner, 2026-10-25): a morning worked and an afternoon off is a day of
+    leave less the morning. Nothing on the day is replaced.
+    """
     target_dates = _dates(start_date, end_date)
-    conflicts = CostLine.objects.filter(
-        kind="time",
-        cost_set__kind="actual",
-        staff=staff,
-        accounting_date__range=(start_date, end_date),
-    )
-    if exclude_request is not None:
-        conflicts = conflicts.exclude(leave_day__request=exclude_request)
-    # His breaks are not work on the day: a clocked morning with its paid
-    # break still takes an afternoon of sick leave.
-    breaks = break_job_id()
-    if breaks is not None:
-        conflicts = conflicts.exclude(cost_set__job_id=breaks)
-    conflicting_dates = set(conflicts.values_list("accounting_date", flat=True))
+    paid = _paid_hours_by_date(staff, start_date, end_date, exclude_request)
 
     rows: list[PreviewDay] = []
     for target_date in target_dates:
@@ -164,13 +160,11 @@ def preview_leave(
             reason = gettext("Outside employment dates")
         elif rostered <= 0:
             reason = gettext("Not a scheduled working day")
-        elif target_date in conflicting_dates:
-            reason = gettext("Timesheet entry already exists")
         rows.append(
             {
                 "date": target_date,
                 "scheduled_hours": rostered,
-                "hours": rostered,
+                "hours": max(rostered - paid.get(target_date, Decimal(0)), Decimal(0)),
                 "available": reason is None,
                 "reason": reason,
             }
@@ -183,6 +177,26 @@ def preview_leave(
         "days": rows,
         "available_hours": sum((row["hours"] for row in rows if row["available"]), Decimal("0")),
     }
+
+
+def _paid_hours_by_date(
+    staff: Staff, start_date: date, end_date: date, exclude_request: LeaveRequest | None
+) -> dict[date, Decimal]:
+    """Return the paid hours already on each day: his entries, paid breaks and other leave."""
+    lines = CostLine.objects.filter(
+        kind="time",
+        cost_set__kind="actual",
+        staff=staff,
+        accounting_date__range=(start_date, end_date),
+    ).select_related("xero_pay_item")
+    if exclude_request is not None:
+        lines = lines.exclude(leave_day__request=exclude_request)
+    paid: dict[date, Decimal] = {}
+    for line in lines:
+        if is_unpaid_time(line):
+            continue
+        paid[line.accounting_date] = paid.get(line.accounting_date, Decimal(0)) + line.quantity
+    return paid
 
 
 def _validated_days(
@@ -204,8 +218,10 @@ def _validated_days(
         if not proposal["available"]:
             skipped.append(proposal)
             continue
-        hours = requested["hours"]
-        if hours <= 0 or hours > proposal["scheduled_hours"]:
+        # A whole day: the screen sends the day's scheduled hours, and what
+        # is left of the day once his time is in is what goes to leave.
+        hours = min(requested["hours"], proposal["hours"])
+        if requested["hours"] <= 0 or requested["hours"] > proposal["scheduled_hours"]:
             raise ValidationError(
                 gettext(
                     "Hours for %(date)s must be greater than zero and no more than "
@@ -217,6 +233,25 @@ def _validated_days(
     if not valid:
         raise ValidationError(gettext("No available leave days remain to save."))
     return valid, skipped
+
+
+def _filled_warnings(staff: Staff, preview: PreviewData, days: list[RequestedDay]) -> list[str]:
+    """Tell the office which days already had time, and how much leave they took."""
+    by_date = {row["date"]: row for row in preview["days"]}
+    warnings: list[str] = []
+    for day in days:
+        if day["hours"] == by_date[day["date"]]["scheduled_hours"]:
+            continue
+        # "0h", not the screens' "0m": nothing at all went to leave.
+        put = gettext("0h") if day["hours"] == 0 else duration_words(day["hours"])
+        warnings.append(
+            gettext(
+                "Leave booked for %(name)s on %(date)s, but the day already had time "
+                "entered: %(hours)s put to leave."
+            )
+            % {"name": staff.get_display_name(), "date": day["date"].isoformat(), "hours": put}
+        )
+    return warnings
 
 
 def _request_data(request: LeaveRequest) -> LeaveRequestData:
@@ -358,8 +393,12 @@ def create_leave_request(  # noqa: PLR0913 -- one complete leave write contract
         batch_id=batch_id,
         created_by=actor,
     )
-    _create_days(request=request, days=valid, actor=actor)
-    return {"request": _request_data(_loaded_request(request.id)), "skipped_days": skipped}
+    _create_days(request=request, days=[day for day in valid if day["hours"] > 0], actor=actor)
+    return {
+        "request": _request_data(_loaded_request(request.id)),
+        "skipped_days": skipped,
+        "warnings": _filled_warnings(staff, preview, valid),
+    }
 
 
 @transaction.atomic
@@ -393,8 +432,12 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
     request.end_date = end_date
     request.note = clean_note
     request.save(update_fields=["leave_type", "start_date", "end_date", "note", "updated_at"])
-    _create_days(request=request, days=valid, actor=actor)
-    return {"request": _request_data(_loaded_request(request.id)), "skipped_days": skipped}
+    _create_days(request=request, days=[day for day in valid if day["hours"] > 0], actor=actor)
+    return {
+        "request": _request_data(_loaded_request(request.id)),
+        "skipped_days": skipped,
+        "warnings": _filled_warnings(request.staff, preview, valid),
+    }
 
 
 @transaction.atomic
@@ -497,9 +540,11 @@ def create_office_closure(
     batch_id = uuid.uuid4()
     requests: list[LeaveRequestData] = []
     skipped: list[PreviewDay] = []
+    warnings: list[str] = []
     for staff_preview in preview["staff"]:
         requested: list[RequestedDay] = [
-            {"date": row["date"], "hours": row["hours"]}
+            # A whole day each: what is left of it goes to the holiday.
+            {"date": row["date"], "hours": row["scheduled_hours"]}
             for row in staff_preview["days"]
             if row["available"]
         ]
@@ -519,6 +564,12 @@ def create_office_closure(
         )
         requests.append(result["request"])
         skipped.extend(result["skipped_days"])
+        warnings.extend(result["warnings"])
     if not requests:
         raise ValidationError(gettext("No available office-closure days remain to save."))
-    return {"batch_id": str(batch_id), "requests": requests, "skipped_days": skipped}
+    return {
+        "batch_id": str(batch_id),
+        "requests": requests,
+        "skipped_days": skipped,
+        "warnings": warnings,
+    }

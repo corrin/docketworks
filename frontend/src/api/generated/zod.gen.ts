@@ -2867,7 +2867,8 @@ export const zLeaveRequestWrite = z.object({
  */
 export const zLeaveSaveOut = z.object({
     request: zLeaveRequestOut,
-    skipped_days: z.array(zLeavePreviewDayOut)
+    skipped_days: z.array(zLeavePreviewDayOut),
+    warnings: z.array(z.string())
 });
 
 /**
@@ -3058,7 +3059,8 @@ export const zNotebookLmLinkOut = z.object({
 export const zOfficeClosureOut = z.object({
     batch_id: z.string(),
     requests: z.array(zLeaveRequestOut),
-    skipped_days: z.array(zLeavePreviewDayOut)
+    skipped_days: z.array(zLeavePreviewDayOut),
+    warnings: z.array(z.string())
 });
 
 /**
@@ -4091,6 +4093,7 @@ export const zPipelineWarningOut = z.object({
 export const zPlacementOut = z.object({
     finish: z.iso.time().nullable(),
     hours: z.number(),
+    overtime_hours: z.number(),
     start: z.iso.time()
 });
 
@@ -5857,6 +5860,17 @@ export const zSweepIn = z.object({
 });
 
 /**
+ * SweepOvertimeOut
+ *
+ * A day the sweep took past the usual day: some of it went to overtime.
+ */
+export const zSweepOvertimeOut = z.object({
+    message: z.string(),
+    staff_id: z.string(),
+    staff_name: z.string()
+});
+
+/**
  * SweepSkipOut
  *
  * A day the sweep left alone: there was no clocked time to sweep.
@@ -5875,6 +5889,7 @@ export const zSweepSkipOut = z.object({
  */
 export const zSweepOut = z.object({
     approved_count: z.int(),
+    overtime: z.array(zSweepOvertimeOut),
     skipped: z.array(zSweepSkipOut),
     swept_hours: z.number()
 });
@@ -6373,6 +6388,7 @@ export const zStaffApprovalOut = z.object({
     entered_hours: z.number(),
     entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
+    overtime_check: z.boolean(),
     remote_entry: z.boolean(),
     staff_id: z.uuid(),
     staff_name: z.string(),
@@ -9220,7 +9236,7 @@ export const zTimesheetsMyDayClockResponse = zAttendanceOut;
 
 export const zTimesheetsMyDayPlacementQuery = z.object({
     date: z.string(),
-    start: z.iso.time(),
+    start: z.iso.time().nullish(),
     hours: z.union([
         z.number().gte(0.01).lt(100000),
         z.string()

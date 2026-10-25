@@ -9,11 +9,13 @@ constraints state the same facts about a row and are the backstop, never the
 message.
 """
 
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, NamedTuple, TypedDict
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext, gettext_noop
@@ -392,6 +394,11 @@ def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
     )
 
 
+def break_minutes_in(span: Window, breaks: list[Window]) -> int:
+    """Return how many minutes of ``span`` the breaks cover, overlapping ones counted once."""
+    return _minutes_inside(_minutes(span.start), _minutes(span.end), breaks)
+
+
 _LAST_MINUTE = 24 * 60 - 1
 
 
@@ -433,6 +440,20 @@ def start_after_breaks(start: time, breaks: list[Window]) -> time:
         # A break is a time of day and ends by 23:59, so this cannot be reached.
         raise ValueError(f"Stepping past the breaks from {start:%H:%M} left the day.")
     return stepped
+
+
+def clock_change_minutes(day: date, start: time, finish: time) -> int:
+    """Return the minutes the clocks moved between two times of the day: -60, 0 or 60.
+
+    On the day the clocks go forward, 01:00 to 04:00 is two hours worked, not
+    three; on the day they go back it is four. Every other day it is nothing.
+    """
+    zone = ZoneInfo(settings.TIME_ZONE)
+    elapsed = datetime.combine(day, finish, zone).astimezone(UTC) - datetime.combine(
+        day, start, zone
+    ).astimezone(UTC)
+    on_the_clock = _minutes(finish) - _minutes(start)
+    return int(elapsed.total_seconds() // 60) - on_the_clock
 
 
 def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
@@ -827,10 +848,19 @@ def generate_default_breaks(
     """
     if row.breaks_generated:
         return
+    # Call-time import: the entry writes live in the module that reads this
+    # one for the day's attendance.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        day_time_lines,
+    )
+
+    entries, _ = split_breaks(day_time_lines(row.staff, row.date))
     for each in _default_breaks():
         # A day given both times at once has no break he was not there for.
         ends_after = row.clock_out is not None and each.window.end > row.clock_out
         if each.window.start < row.clock_in or ends_after:
+            continue
+        if any(_no_room_for(each.window, line) for line in entries):
             continue
         _create_break(
             row.staff,
@@ -844,6 +874,22 @@ def generate_default_breaks(
         )
     row.breaks_generated = True
     row.save(update_fields=["breaks_generated", "updated_at"])
+
+
+def _no_room_for(window: Window, line: CostLine) -> bool:
+    """Whether an entry already on the day holds the time a standard break would take.
+
+    Breaks come before entries (owner, 2026-10-25), so a standard break is
+    recorded wherever the day is free and never changes an entry. An entry
+    whose hours fill its span, such as 08:00-09:00 booked as an hour, was
+    worked through that break: putting it on would pay the quarter hour
+    twice, so it is left off. One placed around the planned break has room.
+    """
+    span = _line_window(line)
+    if span is None or span.end <= window.start or window.end <= span.start:
+        return False
+    room = _minutes(span.end) - _minutes(span.start) - break_minutes_in(span, [window])
+    return line.quantity * 60 > room
 
 
 def drop_breaks_after_finish(
