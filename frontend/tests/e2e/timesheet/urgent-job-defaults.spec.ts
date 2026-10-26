@@ -3,8 +3,7 @@ import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/auth'
 import { autoId, getPhantomRowIndex, TEST_COMPANY_NAME } from '../helpers'
 import { isRecord } from '../fixtures/api'
-import { shiftDate } from '../../../src/lib/dates'
-import { enterHours, getLatestWeekdayDate, openEntryViaDaily } from './support'
+import { bookingDay, enterHours, openEntryViaDaily } from './support'
 
 /**
  * Urgent-job billing defaults: picking an urgent job leaves the WAGE at
@@ -67,9 +66,7 @@ test.describe('urgent job timesheet defaults', () => {
     authenticatedPage: page,
   }) => {
     const { jobId, jobNumber } = await createUrgentJob(page)
-    // A weekday of its own, well back: the latest weekday collects other specs'
-    // time, and past 8h worked a new entry splits off its overtime.
-    const date = shiftDate(getLatestWeekdayDate(), -7 * 11)
+    const date = bookingDay('urgentJobDefaults')
 
     await openEntryViaDaily(page, date)
     const rowIndex = await getPhantomRowIndex(page)

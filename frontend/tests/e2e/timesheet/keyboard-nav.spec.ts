@@ -4,8 +4,7 @@ import { z } from 'zod'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
 import { getTimesheetJobs, getWorkshopTimesheetStaff, type TimesheetJob } from '../fixtures/api'
-import { shiftDate } from '../../../src/lib/dates'
-import { getLatestWeekdayDate, waitForEntryGrid } from './support'
+import { bookingDay, waitForEntryGrid } from './support'
 
 /**
  * The keyboard-only entry flow: after ONE mouse click on the first picker,
@@ -112,9 +111,7 @@ test.describe.serial('keyboard Tab entry flow', () => {
   test('two rows enter keyboard-only with exact wire and display state', async ({
     authenticatedPage: page,
   }) => {
-    // A weekday of its own, well back: the latest weekday collects other specs'
-    // time, and past 8h worked a new entry splits off its overtime.
-    const date = shiftDate(getLatestWeekdayDate(), -7 * 10)
+    const date = bookingDay('keyboardNav')
     const staff = await getWorkshopTimesheetStaff(page, date)
     const staffWageRate = Number(staff.wageRate)
     expect(Number.isFinite(staffWageRate)).toBe(true)
