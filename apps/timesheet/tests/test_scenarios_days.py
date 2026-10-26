@@ -14,6 +14,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -883,22 +884,21 @@ class TestPartDays:
         assert (leave_line.quantity, leave_line.managed_by) == (Decimal("8"), "leave")
         assert _paid(worker) == Decimal("8")
 
-    def test_G8_leave_on_a_day_already_full_puts_nothing_to_leave_and_warns(
+    def test_G8_leave_on_a_day_already_full_is_refused(
         self, company: Company, superuser: Staff, job: Job, worker: Staff
     ) -> None:
         """He entered a full 8h on a job; the office books a day of leave on it.
 
-        Not refused (owner, 2026-10-25): 8 less 8 paid leaves 0h to put to
-        leave, and the office is told.
-        Guards leave_service.create_leave_request's fill and its warning.
+        8 less 8 paid leaves nothing to put to leave, so no request is saved.
+        Guards leave_service._validated_days.
         """
         make_leave_job(company, superuser, "Annual Leave")
         # 8h from 07:00 around the planned breaks, unclocked: 8h paid.
         _enter(worker, worker, job, "8")
 
-        booked = _leave(worker, LeaveType.Code.ANNUAL, superuser)
+        with pytest.raises(ValidationError, match="No available leave days remain"):
+            _leave(worker, LeaveType.Code.ANNUAL, superuser)
 
-        assert booked["warnings"] == [_leave_warning(worker, DAY, "0h")]
         assert _leave_hours(worker) == Decimal(0)
         assert _paid(worker) == Decimal("8")
 

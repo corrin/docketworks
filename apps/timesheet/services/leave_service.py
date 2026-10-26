@@ -220,7 +220,8 @@ def _validated_days(
         # A whole day (owner, 2026-10-25): what is left of the day once his
         # time is in is what goes to leave.
         valid.append({"date": requested, "hours": proposal["hours"]})
-    if not valid:
+    # A request whose days are all full would be saved with nothing on it.
+    if not any(day["hours"] > 0 for day in valid):
         raise ValidationError(gettext("No available leave days remain to save."))
     return valid, skipped
 
@@ -532,10 +533,21 @@ def create_office_closure(
     skipped: list[PreviewDay] = []
     warnings: list[str] = []
     for staff_preview in preview["staff"]:
-        requested = [row["date"] for row in staff_preview["days"] if row["available"]]
+        available = [row for row in staff_preview["days"] if row["available"]]
         skipped.extend(row for row in staff_preview["days"] if not row["available"])
-        if not requested:
+        if not available:
             continue
+        if not any(row["hours"] > 0 for row in available):
+            # His days are already full: no request, and the office is told.
+            warnings.extend(
+                _filled_warnings(
+                    Staff.objects.get(id=staff_preview["staff_id"]),
+                    staff_preview,
+                    [{"date": row["date"], "hours": row["hours"]} for row in available],
+                )
+            )
+            continue
+        requested = [row["date"] for row in available]
         result = create_leave_request(
             staff_id=UUID(staff_preview["staff_id"]),
             leave_type_code=LeaveType.Code.PUBLIC_HOLIDAY,

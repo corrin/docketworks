@@ -560,33 +560,27 @@ class TestRequestedDayRules:
             )
         assert not LeaveRequest.objects.exists()
 
-    def test_leave_on_a_day_already_full_puts_nothing_to_leave_and_says_so(
+    def test_a_request_whose_every_day_is_already_full_saves_nothing(
         self, worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
-        """Not refused: what is left of the day, nothing, goes to leave (owner, 2026-10-25).
+        """Refused outright rather than persisted as a request with no days.
 
-        Guards leave_service.preview_leave and create_leave_request.
+        Guards leave_service._validated_days.
         """
         make_leave_job(company, superuser, "Annual Leave")
         make_time_line(job, worker, accounting_date=MONDAY)
 
-        result = leave_service.create_leave_request(
-            staff_id=worker.id,
-            leave_type_code=LeaveType.Code.ANNUAL,
-            start_date=MONDAY,
-            end_date=MONDAY,
-            note=None,
-            requested_days=requested(MONDAY),
-            actor=superuser,
-        )
-
-        assert not LeaveDay.objects.exists()
-        assert result["warnings"] == [
-            (
-                f"Leave booked for {worker.get_display_name()} on {MONDAY.isoformat()}, "
-                "but the day already had time entered: 0h put to leave."
+        with pytest.raises(ValidationError, match="No available leave days remain"):
+            leave_service.create_leave_request(
+                staff_id=worker.id,
+                leave_type_code=LeaveType.Code.ANNUAL,
+                start_date=MONDAY,
+                end_date=MONDAY,
+                note=None,
+                requested_days=requested(MONDAY),
+                actor=superuser,
             )
-        ]
+        assert not LeaveRequest.objects.exists()
 
     def test_a_reversed_date_range_is_refused(self, worker: Staff) -> None:
         """An empty range would otherwise preview as simply having no days."""
@@ -712,7 +706,7 @@ class TestOfficeClosure:
         )
 
         # 8h scheduled less his 8h worked = 0h of holiday, and the office is told.
-        assert not LeaveDay.objects.filter(staff=other_worker).exists()
+        assert not LeaveRequest.objects.filter(staff=other_worker).exists()
         assert LeaveDay.objects.get(staff=worker).hours == Decimal("8")
         assert result["warnings"] == [
             (
