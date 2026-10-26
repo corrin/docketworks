@@ -654,7 +654,7 @@ def timesheets_my_day_times(
     summary="Work out an entry's finish from its hours, or its hours from its finish",
     tags=["timesheets"],
 )
-def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, and two of the three values
+def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, its job, and two of the three values
     request: HttpRequest,
     date: str,
     # None for an entry he gives no start: it starts where such an entry would.
@@ -664,6 +664,8 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
     hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] | None = None,
     finish: time | None = None,
     staff_id: UUID | None = None,
+    # The entry's job, once chosen: leave is never overtime.
+    job_id: UUID | None = None,
 ) -> dict[str, object]:
     """Answer the entry drawer as he types: the one placement rule, nothing written.
 
@@ -689,8 +691,16 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
         "start": start,
         "finish": finish,
         "hours": float(hours),
-        # What a new entry of these hours would add past his usual day.
-        "overtime_hours": float(workshop_timesheet_service.overtime_hours(owner, day, hours)),
+        # What saving a new entry of these hours would put at overtime.
+        "overtime_hours": float(
+            workshop_timesheet_service.overtime_part(
+                owner,
+                day,
+                hours,
+                wage_rate_multiplier=workshop_timesheet_service.ORDINARY,
+                job_id=job_id,
+            )
+        ),
     }
 
 

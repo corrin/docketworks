@@ -486,7 +486,7 @@ class TestSomeOfTheTimeEntered:
     ) -> None:
         """He did two things at once: Job X and Job Y both 09:00-10:00; swept.
 
-        Guards attendance._merged inside unallocated_windows: the overlap is one
+        Guards attendance.merged_minutes inside unallocated_windows: the overlap is one
         occupied stretch, so the sweep books around it once.
         """
         second = _second_job(company, superuser)
@@ -1283,6 +1283,62 @@ class TestSweepingHairyCases:
         _enter(worker, worker, job, "2")
 
         assert locked[0] == {job.id, general_work.id}
+
+    def test_R14_an_edit_that_leaves_the_gaps_as_they_were_keeps_the_general_work(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Clocked 07:00-17:00 with 1h on Job X; swept and approved; then he renames the entry.
+
+        The General work past 8h is split into an ordinary and an overtime
+        line. A change that leaves the day's gaps as they were touches neither:
+        same lines, still approved.
+        Guards workshop_timesheet_service.refill_general_work's "nothing changed" check.
+        """
+        _clock(worker, "07:00", "17:00")
+        _enter(worker, worker, job, "1")
+        approval.sweep_person(worker, [DAY], office_staff)
+        before = {
+            line.id: line.approved
+            for line in CostLine.objects.filter(staff=worker, cost_set__job=general_work)
+        }
+        assert len(before) > len(STANDARD_GENERAL_WORK), "the overtime split is not exercised"
+        entry = CostLine.objects.get(staff=worker, cost_set__job=job)
+
+        workshop_timesheet_service.update_entry(
+            worker, {"entry_id": entry.id, "description": "Handrail"}
+        )
+
+        after = {
+            line.id: line.approved
+            for line in CostLine.objects.filter(staff=worker, cost_set__job=general_work)
+        }
+        assert after == before
+        assert all(after.values())
+
+    @pytest.mark.usefixtures("general_work")
+    def test_R15_a_sweep_of_a_worked_public_holiday_says_so(
+        self, office_staff: Staff, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """The office closed Monday; he came in 07:00-11:00 anyway, and the office sweeps.
+
+        Every hour of a public holiday is time and a half, however few: the
+        office is told it was a public holiday, not that he did over 8h.
+        Guards approval._overtime_warning.
+        """
+        make_public_holiday_job(company, superuser)
+        leave_service.create_office_closure(
+            start_date=DAY, end_date=DAY, note="Office closed", actor=superuser
+        )
+        _clock(worker, "07:00", "11:00")
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert [each["message"] for each in result["overtime"]] == [
+            (
+                f"{worker.get_display_name()} worked a public holiday, "
+                "so that time is at time and a half."
+            )
+        ]
 
 
 # ── V. Leave and days off ──────────────────────────────────────────────

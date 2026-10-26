@@ -229,7 +229,7 @@ function WorkshopEntryForm({
   // worked out here.
   const asked = useDebouncedValue({ start, hours, end, workingOut }, SEARCH_DEBOUNCE_MS)
   const placementQuery = useQuery({
-    ...timesheetsMyDayPlacementOptions({ query: placementQuestion(date, asked, ownerId) }),
+    ...timesheetsMyDayPlacementOptions({ query: placementQuestion(date, asked, ownerId, jobId) }),
     enabled: placementAskable(asked),
   })
   const settled =
@@ -270,13 +270,18 @@ function WorkshopEntryForm({
       // No start: the server places it after his last entry, and says what is over.
       const placed = await queryClient.fetchQuery(
         timesheetsMyDayPlacementOptions({
-          query: { date, hours, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+          query: {
+            date,
+            hours,
+            ...(ownerId === undefined ? {} : { staff_id: ownerId }),
+            ...(jobId === null ? {} : { job_id: jobId }),
+          },
         }),
       )
       return { times: { hours, start, end }, overtimeHours: placed.overtime_hours }
     }
     const answer = await queryClient.fetchQuery(
-      timesheetsMyDayPlacementOptions({ query: placementQuestion(date, question, ownerId) }),
+      timesheetsMyDayPlacementOptions({ query: placementQuestion(date, question, ownerId, jobId) }),
     )
     // Past midnight from his start: the hours save with no times at all.
     const times =
@@ -664,7 +669,13 @@ function placementAskable(question: PlacementQuestion): boolean {
 }
 
 /** The placement endpoint's query for the question, which placementAskable has passed. */
-function placementQuestion(date: string, question: PlacementQuestion, ownerId: string | undefined) {
+function placementQuestion(
+  date: string,
+  question: PlacementQuestion,
+  ownerId: string | undefined,
+  // Its job, once chosen: hours on leave are never overtime.
+  jobId: string | null,
+) {
   return {
     date,
     start: `${question.start}:00`,
@@ -672,6 +683,7 @@ function placementQuestion(date: string, question: PlacementQuestion, ownerId: s
       ? { hours: question.hours }
       : { finish: `${question.end}:00` }),
     ...(ownerId === undefined ? {} : { staff_id: ownerId }),
+    ...(jobId === null ? {} : { job_id: jobId }),
   }
 }
 

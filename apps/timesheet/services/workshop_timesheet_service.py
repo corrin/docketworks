@@ -710,8 +710,11 @@ def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
     )
     # Still clocked in: the day has no end to fill to yet.
     windows = attendance.unallocated_windows(day, row, entries, break_lines) or []
-    current = sorted(window for line in filled if (window := timed_window(line)) is not None)
-    if len(current) == len(filled) and current == windows:
+    current = [window for line in filled if (window := timed_window(line)) is not None]
+    # Compared as joined stretches: the overtime split cuts one gap into two lines.
+    if len(current) == len(filled) and attendance.merged_minutes(
+        current
+    ) == attendance.merged_minutes(windows):
         return Decimal(0)
     lock_costing_jobs([general_work_id])
     for line in filled:
@@ -817,13 +820,21 @@ OVERTIME = Decimal("1.5")
 URGENT_CHARGE = Decimal("1.5")
 #: The smallest piece an entry is split into at the overtime point: below it,
 #: the whole entry takes the rate of its larger part.
-_SMALLEST_SPLIT = Decimal("0.25")
+SMALLEST_SPLIT = Decimal("0.25")
 
 
 def overtime_part(
-    owner: Staff, day: date, hours: Decimal, *, wage_rate_multiplier: Decimal, job_id: UUID
+    owner: Staff,
+    day: date,
+    hours: Decimal,
+    *,
+    wage_rate_multiplier: Decimal,
+    job_id: UUID | None,
 ) -> Decimal:
     """Return how many of a new entry's hours default to time and a half.
+
+    ``job_id`` is None when the job is not chosen yet: the answer is then
+    for ordinary work.
 
     Only an entry at ordinary time takes the default: a rate someone chose
     stands, and a break is never overtime. On a public holiday every hour
@@ -844,12 +855,12 @@ def overtime_part(
         general_work_counts=job_id == CompanyDefaults.get_solo().general_work_job_id,
     )
     ordinary = hours - overtime
-    if 0 < min(overtime, ordinary) < _SMALLEST_SPLIT:
+    if 0 < min(overtime, ordinary) < SMALLEST_SPLIT:
         return hours if overtime > ordinary else Decimal(0)
     return overtime
 
 
-def _on_a_public_holiday(owner: Staff, day: date) -> bool:
+def on_a_public_holiday(owner: Staff, day: date) -> bool:
     """Whether the day is a public holiday for him: the office closure gave him its holiday."""
     holiday_job = (
         LeaveType.objects.filter(code=LeaveType.Code.PUBLIC_HOLIDAY)
@@ -866,6 +877,17 @@ def _on_a_public_holiday(owner: Staff, day: date) -> bool:
         managed_by=CostLineOwner.LEAVE,
         cost_set__job_id=holiday_job,
     ).exists()
+
+
+def _charge_urgent_at_least(job: Job, meta: dict[str, object]) -> None:
+    """Re-derive a dropped charge as on create: an urgent job's at time and a half at least.
+
+    The higher of the two applies, never both (owner): a charge someone set stands.
+    """
+    if not job.is_urgent or "bill_rate_multiplier" in meta or not meta["is_billable"]:
+        return
+    wage = Decimal(str(meta["wage_rate_multiplier"]))
+    meta["bill_rate_multiplier"] = float(max(URGENT_CHARGE, wage))
 
 
 def _at_overtime(data: WorkshopEntryCreateData) -> WorkshopEntryCreateData:
@@ -904,7 +926,7 @@ def overtime_hours(
     # Salary pays no overtime earnings: its hours allocate a fixed cost.
     if standard is None or owner.pay_basis == "salary":
         return Decimal(0)
-    if _on_a_public_holiday(owner, day):
+    if on_a_public_holiday(owner, day):
         return hours
     usual = attendance.hours_for(standard.start, standard.end, [])
     worked = Decimal(0)
@@ -1161,6 +1183,7 @@ def update_entry(
             reprice = True
 
         if reprice:
+            _charge_urgent_at_least(job, meta)
             pricing = price_time_entry(
                 job=job, staff=_owner_of(line), meta=meta, labour_subtype=line.labour_subtype
             )

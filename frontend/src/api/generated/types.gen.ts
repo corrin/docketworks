@@ -20520,6 +20520,10 @@ export type TimesheetsMyDayPlacementData = {
          * Staff Id
          */
         staff_id?: string | null;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
     };
     url: '/api/timesheets/my-day/placement/';
 };

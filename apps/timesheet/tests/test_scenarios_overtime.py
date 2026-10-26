@@ -289,6 +289,31 @@ def test_E4_the_drawer_warns_two_hours_of_a_ten_hour_task_are_overtime(
     }
 
 
+def test_E4b_the_drawer_is_told_the_overtime_the_save_will_make(
+    worker: Staff, worker_client: Client, job: Job, company: Company, superuser: Staff
+) -> None:
+    """Asked as the drawer asks, placement answers what saving would put at overtime.
+
+    8.1h is kept whole at 1x (a few minutes past 8 is not split off), and
+    hours on a leave job are never overtime: he is not asked about either.
+    Guards the placement endpoint's use of workshop_timesheet_service.overtime_part.
+    """
+    leave = make_leave_job(company, superuser, "Annual Leave")
+    _clock(worker, "07:00", "17:00")
+
+    a_little_past = worker_client.get(
+        f"{PLACEMENT_URL}?date={DAY.isoformat()}&hours=8.1&job_id={job.id}"
+    )
+    on_leave = worker_client.get(
+        f"{PLACEMENT_URL}?date={DAY.isoformat()}&hours=10&job_id={leave.id}"
+    )
+
+    assert a_little_past.status_code == 200, a_little_past.content
+    assert a_little_past.json()["overtime_hours"] == 0.0
+    assert on_leave.status_code == 200, on_leave.content
+    assert on_leave.json()["overtime_hours"] == 0.0
+
+
 def test_E5_a_rate_he_chose_stands_and_nothing_is_split(worker: Staff, job: Job) -> None:
     """A 10h task he saves at 2x on purpose: one line at 2x, nothing split.
 
@@ -486,6 +511,22 @@ def test_E13b_ten_hours_on_the_leave_job_is_never_split_into_overtime(
     assert [(line[1], line[2]) for line in _lines(leave_job, worker)] == [("10.000", 1.0)]
 
 
+def test_E13d_a_few_minutes_past_eight_left_ordinary_raises_no_overtime_check(
+    worker: Staff, job: Job
+) -> None:
+    """He enters 8.1h: the 0.1h past 8 is under a quarter hour, so the entry stays whole at 1x.
+
+    That is the split rule working, not a day for the office to check.
+    Guards approval._overtime_is_off.
+    """
+    _clock(worker, "07:00", "17:00")
+
+    _drawer(worker, job, "8.1")
+
+    assert [rate for _, _, rate, *_ in _lines(job, worker)] == [1.0]
+    assert _approval_row(DAY, worker)["overtime_check"] is False
+
+
 def test_E13c_leave_entered_on_the_leave_job_raises_no_overtime_check(
     worker: Staff, job: Job, company: Company, superuser: Staff
 ) -> None:
@@ -580,6 +621,29 @@ def test_E17_a_non_billable_entry_crossing_eight_bills_none_of_its_overtime(
 
 
 # ── F. Urgent jobs ──────────────────────────────────────────────────────
+
+
+def test_F1b_setting_an_urgent_hour_back_to_ordinary_pay_keeps_its_urgent_charge(
+    office_staff: Staff, superuser: Staff, worker: Staff, job: Job
+) -> None:
+    """9h on an urgent job, so 1h at time and a half; the office pays that hour ordinary.
+
+    The wage goes to 1x; the charge stays 1.5x, an urgent job's charge (owner).
+    Guards workshop_timesheet_service.update_entry's re-derived charge.
+    """
+    _make_urgent(job, superuser)
+    _clock(worker, "07:00", "17:00")
+    _drawer(worker, job, "9", "07:00", "17:00")
+    late = CostLine.objects.get(staff=worker, cost_set__job=job, quantity=Decimal("1.000"))
+
+    workshop_timesheet_service.update_entry(
+        office_staff, {"entry_id": late.id, "wage_rate_multiplier": Decimal("1.0")}
+    )
+
+    late.refresh_from_db()
+    # 48 x 1 = 48; 120 x 1.5 = 180.
+    assert (late.meta["wage_rate_multiplier"], late.meta["bill_rate_multiplier"]) == (1.0, 1.5)
+    assert (late.unit_cost, late.unit_rev) == (Decimal("48.00"), Decimal("180.00"))
 
 
 def test_F1_the_office_grid_charges_an_urgent_job_at_time_and_a_half(

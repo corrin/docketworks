@@ -24158,6 +24158,15 @@ paths:
             type: string
           - type: 'null'
           title: Staff Id
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
       responses:
         '200':
           content:

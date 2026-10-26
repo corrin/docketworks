@@ -3755,6 +3755,11 @@ msgstr ""
 
 #: apps/timesheet/services/approval.py
 #, python-format
+msgid "%(name)s worked a public holiday, so that time is at time and a half."
+msgstr ""
+
+#: apps/timesheet/services/approval.py
+#, python-format
 msgid "%(name)s has done over %(usual)s, converting some time to overtime."
 msgstr ""
 

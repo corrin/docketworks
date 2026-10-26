@@ -9257,7 +9257,8 @@ export const zTimesheetsMyDayPlacementQuery = z.object({
         z.string()
     ]).nullish(),
     finish: z.iso.time().nullish(),
-    staff_id: z.uuid().nullish()
+    staff_id: z.uuid().nullish(),
+    job_id: z.uuid().nullish()
 });
 
 /**

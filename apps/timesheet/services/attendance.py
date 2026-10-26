@@ -359,7 +359,7 @@ def unallocated_windows(
     first, last = _minutes(day_start), _minutes(day_end)
     windows: list[Window] = []
     free_from, floor = first, 0
-    for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
+    for taken_start, taken_end in [*merged_minutes(occupied), (24 * 60, 24 * 60)]:
         # Each bound rounds to its quarter, but never into the entry or break
         # beside it: those minutes are already paid.
         start = max(_minutes(to_quarter(_time_of(free_from))), floor)
@@ -373,8 +373,8 @@ def _time_of(minutes: int) -> time:
     return time(minutes // 60, minutes % 60)
 
 
-def _merged(windows: list[Window]) -> list[tuple[int, int]]:
-    """Return breaks as minute stretches in order, with overlapping ones joined."""
+def merged_minutes(windows: list[Window]) -> list[tuple[int, int]]:
+    """Return windows as minute stretches in order, with overlapping or touching ones joined."""
     merged: list[tuple[int, int]] = []
     for start, end in sorted((_minutes(each.start), _minutes(each.end)) for each in windows):
         if merged and start <= merged[-1][1]:
@@ -391,7 +391,7 @@ def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
     """
     return sum(
         max(min(last, break_end) - max(first, break_start), 0)
-        for break_start, break_end in _merged(breaks)
+        for break_start, break_end in merged_minutes(breaks)
     )
 
 
@@ -418,7 +418,7 @@ def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time
     """
     cursor = _minutes(start)
     remaining = int((hours * 60).to_integral_value(ROUND_HALF_UP))
-    for break_start, break_end in _merged(breaks):
+    for break_start, break_end in merged_minutes(breaks):
         if break_end <= cursor:
             continue
         if break_start <= cursor:

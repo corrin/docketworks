@@ -433,7 +433,9 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
 @transaction.atomic
 def delete_leave_request(request_id: UUID) -> None:
     """Delete a request and every generated payroll line."""
-    request = LeaveRequest.objects.select_for_update().get(id=request_id)
+    # Joined, the person's row is locked with the request: a sweep filling
+    # his day holds it, so the leave is not taken away from under it.
+    request = LeaveRequest.objects.select_for_update().select_related("staff").get(id=request_id)
     _delete_days(request)
     request.delete()
 

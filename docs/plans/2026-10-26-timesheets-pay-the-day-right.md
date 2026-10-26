@@ -23,6 +23,14 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] Job Y typed over Job X: both saved and billed, with the overlap warning (owner, 2026-10-26)
 - [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)
 - [ ] Blocked on the owner: upgrade the dev machine to Ubuntu 26.04 (`! sudo do-release-upgrade`), so its gettext is production's 0.23.2
-- [ ] Fresh review of `main...HEAD`
+- [x] Fresh review of `origin/main...HEAD` (2026-10-26); its findings:
+- [x] Review 1: a filled day whose General work is split at overtime is deleted and recreated on every write, so its approval and any office change to it are lost: the rebuild compares joined stretches (R14)
+- [x] Review 2: changing the wage on an urgent job's entry drops its charge from 1.5x to 1.0x (the office grid now reaches this path): a re-derived charge keeps the urgent 1.5x (F1b); it was wrong from the drawer on main too
+- [x] Review 3: "Overtime to check" flags a day under a quarter hour past 8h, which the split leaves ordinary; the placement endpoint's overtime figure ignores the same rule and leave jobs: the check allows the quarter hour (E13d); placement answers through overtime_part with the drawer's job (E4b)
+- [x] Review 4: migration 0013 flags nothing: false, the review read a stale local `main`; `origin/main` stamps the sweep source
+- [x] Review 5: booked leave blocks an office closure: correct, the office deletes that leave first (owner, 2026-10-26)
+- [x] Review 6: editing or cancelling a leave request doesn't take the person's lock, so it can race a sweep: editing already did (its joined lock); cancelling now does (test_leave_concurrency)
+- [x] Review 7: a sweep on a worked public holiday says "has done over 8h" whatever the hours: it now says he worked a public holiday (R15)
+- [x] Review: job migration 0018's CHECK constraint: not this branch's; it is on production already and has run there
 - [ ] Full E2E green with `--max-failures=0` (blocked: the owner runs `powercfg.exe /change standby-timeout-ac 0` first)
 - [ ] `docs/rewrite-status.md` and `docs/rewrite-history.md` updated

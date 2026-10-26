@@ -50,6 +50,7 @@ from apps.timesheet.services.timesheet_events import (
     snapshot_if_entry,
 )
 from apps.timesheet.services.workshop_timesheet_service import (
+    SMALLEST_SPLIT,
     StandardDayData,
     WorkshopEntryData,
     day_time_lines,
@@ -57,6 +58,7 @@ from apps.timesheet.services.workshop_timesheet_service import (
     entered_late,
     entry_data,
     fill_with_general_work,
+    on_a_public_holiday,
     overtime_hours,
 )
 from apps.timesheet.services.xero_hours import leave_job_ids
@@ -261,7 +263,9 @@ def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
 
     An entry deleted after its overtime half was split off, or a lunch he
     worked through and added back as ordinary time, leaves the two apart;
-    nothing re-rates them, so the office is shown the day to check.
+    nothing re-rates them, so the office is shown the day to check. Less
+    than a quarter hour apart is the split rule keeping a few minutes whole,
+    not a day to check.
     """
     leave = leave_job_ids()
     work = [
@@ -272,7 +276,8 @@ def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
         (line.quantity for line in work if hour_categories.wage_rate_multiplier(line) > 1),
         Decimal(0),
     )
-    return at_overtime != overtime_hours(person, day, worked, already_on_the_day=False)
+    expected = overtime_hours(person, day, worked, already_on_the_day=False)
+    return abs(at_overtime - expected) >= SMALLEST_SPLIT
 
 
 def day_approvals(day: date) -> ApprovalsDayData:
@@ -566,15 +571,25 @@ def _overtime_warning(worker: Staff, day: date) -> SweepOvertimeData:
     which may be his morning: he marks his own late time, and the office
     checks which hours it was.
     """
-    standard = standard_day(day)
-    if standard is None:
-        raise ValueError(f"{day} has no usual day, so nothing on it is overtime")
-    usual = duration_words(hours_for(standard.start, standard.end, []))
+    name = worker.get_display_name()
+    if on_a_public_holiday(worker, day):
+        # Every hour of it is time and a half, however few.
+        message = gettext(
+            "%(name)s worked a public holiday, so that time is at time and a half."
+        ) % {"name": name}
+    else:
+        standard = standard_day(day)
+        if standard is None:
+            raise ValueError(f"{day} has no usual day, so nothing on it is overtime")
+        usual = duration_words(hours_for(standard.start, standard.end, []))
+        message = gettext("%(name)s has done over %(usual)s, converting some time to overtime.") % {
+            "name": name,
+            "usual": usual,
+        }
     return {
         "staff_id": str(worker.id),
         "staff_name": worker.get_display_full_name(),
-        "message": gettext("%(name)s has done over %(usual)s, converting some time to overtime.")
-        % {"name": worker.get_display_name(), "usual": usual},
+        "message": message,
     }
 
 
