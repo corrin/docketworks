@@ -17,8 +17,9 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [ ] A split overtime line's pay item isn't asserted
 - [ ] Office-grid writes save times without checking them (a stop before the start, more hours than the span)
 - [ ] Check whether these from the reverted model still hold: a standard break skipped because he worked through it doesn't come back when that entry is deleted; the fill-day sheet doesn't warn of overtime before sending
-- [ ] Owner's question: Job Y typed over Job X currently saves both with an overlap warning, as on main. Recommendation: keep it (two things at once is real, and both are billed)
-- [ ] gettext 0.23.2 on the dev machine, and CI pinned to `ubuntu-26.04` to match production (recommended; needs the owner's yes)
+- [x] Job Y typed over Job X: both saved and billed, with the overlap warning (owner, 2026-10-26)
+- [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)
+- [ ] Blocked on the owner: upgrade the dev machine to Ubuntu 26.04 (`! sudo do-release-upgrade`), so its gettext is production's 0.23.2
 - [ ] Fresh review of `main...HEAD`
 - [ ] Full E2E green with `--max-failures=0` (blocked: the owner runs `powercfg.exe /change standby-timeout-ac 0` first)
 - [ ] `docs/rewrite-status.md` and `docs/rewrite-history.md` updated

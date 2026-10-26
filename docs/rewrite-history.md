@@ -2858,3 +2858,12 @@ turns it on.
 Finding: before this, time added after a sweep counted the General work toward
 the usual day, so a 2h job added to a swept day went to time and a half, and
 approval had to cut the General work out from under it afterwards.
+
+Overlap (owner): an entry typed over another's time (Job X 07:00-15:00, then
+Job Y 09:00-11:00) is saved beside it and both are billed, with the overlap
+warning, as on main.
+
+CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
+`ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
+CI while dev machines on 24.04 had 0.21; the two wrap a long message
+differently. The messages catalogue is now written unwrapped.
