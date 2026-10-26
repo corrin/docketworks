@@ -548,7 +548,7 @@ test.describe.serial('workshop time entry on a phone', () => {
 
   // ---- Approval: what the worker sees before and after the office approves. ----
 
-  test('an entry reads Waiting, then Approved and read-only once the office approves it', async ({
+  test('an entry reads Waiting, then Approved, and waits again when he changes it', async ({
     authenticatedPage: page,
     playwright,
   }, testInfo) => {
@@ -593,26 +593,18 @@ test.describe.serial('workshop time entry on a phone', () => {
     await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours))
     await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours + 1.5))
 
-    await test.step('the approved entry opens read-only', async () => {
+    // Staff change their own time, approved or not (owner, 2026-10-26); his
+    // change has not been checked, so it waits for the office again.
+    await test.step('he changes the approved entry, and it waits for the office again', async () => {
       await block.tap()
-      await expect(page.getByRole('heading', { name: 'Approved entry' })).toBeVisible()
-      await expect(autoId(page, `${DRAWER}-locked`)).toBeVisible()
-      await expect(autoId(page, `${DRAWER}-start-time`)).toBeDisabled()
-      await expect(autoId(page, `${DRAWER}-description`)).toBeDisabled()
-      await expect(autoId(page, `${DRAWER}-submit`)).toHaveCount(0)
-      await expect(autoId(page, `${DRAWER}-delete`)).toHaveCount(0)
+      await expect(page.getByRole('heading', { name: 'Edit entry' })).toBeVisible()
+      await autoId(page, `${DRAWER}-description`).fill('changed after approval')
       await expectNoHorizontalOverflow(page)
       await attachScreenshot(page, testInfo, 'drawer-approved')
-      await autoId(page, `${DRAWER}-cancel`).tap()
-    })
-
-    await test.step('and the server refuses a change to it', async () => {
-      const patch = await page.request.patch(TIMESHEETS_PATH, {
-        data: { entry_id: booked.id, description: 'changed after approval' },
-      })
-      expect(patch.status()).toBe(409)
-      const destroy = await page.request.delete(`${TIMESHEETS_PATH}?entry_id=${booked.id}`)
-      expect(destroy.status()).toBe(409)
+      await autoId(page, `${DRAWER}-submit`).tap()
+      await expect(block).toContainText('Waiting')
+      await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours + 1.5))
+      await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours))
     })
   })
 

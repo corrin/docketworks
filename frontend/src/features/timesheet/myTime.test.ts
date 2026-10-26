@@ -10,7 +10,6 @@ import {
   cautionMarks,
   clockWords,
   distinctJobCount,
-  entryLockedFor,
   entryMarks,
   entryUpdateBody,
   eventTitle,
@@ -413,15 +412,6 @@ describe('entryMarks', () => {
       'Approved',
       'Suspicious remote entry',
     ])
-  })
-})
-
-describe('entryLockedFor', () => {
-  it('locks an approved entry for a worker and leaves it open to the office', () => {
-    const approved = makeEntry({ approved: true })
-    expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
-    expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
-    expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
   })
 })
 

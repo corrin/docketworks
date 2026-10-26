@@ -2491,10 +2491,6 @@ msgid ""
 msgstr ""
 
 #: apps/job/services/job_service.py
-msgid "This entry has been approved. Ask the office to change it."
-msgstr ""
-
-#: apps/job/services/job_service.py
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "This entry moved to another job. Reload before editing it."
 msgstr ""

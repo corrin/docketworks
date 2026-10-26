@@ -480,9 +480,7 @@ class TestBreaks:
         assert straddling is not None and straddling["to_fill_hours"] == 8.25
         assert outside is not None and outside["to_fill_hours"] == 8.5
 
-    def test_a_break_is_moved_as_the_entry_it_is(
-        self, worker: Staff, office_staff: Staff, break_job: Job
-    ) -> None:
+    def test_a_break_is_moved_as_the_entry_it_is(self, worker: Staff, break_job: Job) -> None:
         _clocked(worker)
         morning = CostLine.objects.filter(staff=worker, cost_set__job=break_job).first()
         assert morning is not None
@@ -490,11 +488,10 @@ class TestBreaks:
         attendance.change_break(morning.id, time(9, 0), time(9, 15), worker)
         morning.refresh_from_db()
         assert (morning.meta["start_time"], morning.meta["end_time"]) == ("09:00:00", "09:15:00")
-        # Once the office approves it, it is locked for him like any approved time.
+        # Approved, it is still his to change like any of his time (owner,
+        # 2026-10-26: the office has less authority over a timesheet than he does).
         CostLine.objects.filter(pk=morning.pk).update(approved=True)
-        with pytest.raises(ConflictError, match="approved"):
-            attendance.remove_break(morning.id, worker)
-        attendance.remove_break(morning.id, office_staff)
+        attendance.remove_break(morning.id, worker)
         assert not CostLine.objects.filter(pk=morning.pk).exists()
 
     def test_a_job_entry_is_not_a_break(self, worker: Staff, job: Job) -> None:

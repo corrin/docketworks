@@ -34,9 +34,9 @@ from apps.job.services.job_service import (
     cost_line_data,
     get_or_create_cost_set,
     move_time_line,
-    refuse_worker_change_to_approved,
     refuse_workflow_managed,
     update_latest_actual,
+    worker_change_waits_for_the_office,
 )
 from apps.job.services.time_entry_rates import (
     UNPAID_TIME,
@@ -855,10 +855,10 @@ def _save_entry(  # noqa: PLR0913 -- the entry, whose it is, who saves it, where
         labour_subtype=pricing.labour_subtype,
         ext_refs={},
         meta=meta,
-        # Time the office enters for someone is approved as it is saved; a
-        # person's own waits for the office, office staff's included: nobody
-        # approves their own time (owner, 2026-10-25: approval is the check).
-        approved=actor.is_office_staff and actor.pk != owner.pk,
+        # Time the office enters is approved as it is saved, their own
+        # included (owner, 2026-10-26: "We have SIX STAFF - of course office
+        # staff approve their own time"); a worker's waits for the office.
+        approved=actor.is_office_staff,
         remote_entry=source is None and saved_remotely(actor, location),
     )
     line.save()
@@ -985,8 +985,8 @@ def update_entry(
             raise ConflictError(
                 gettext("This entry moved to another job. Reload before editing it.")
             )
-        refuse_worker_change_to_approved(line, actor)
         before = snapshot_if_entry(line)
+        worker_change_waits_for_the_office(line, actor)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -1074,7 +1074,6 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         line, actor, gettext("You can only delete your own timesheet entries.")
     )
     refuse_workflow_managed(line, "cancel")
-    refuse_worker_change_to_approved(line, actor)
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(

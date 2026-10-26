@@ -598,21 +598,23 @@ class TestEntrySequencing:
 class TestApprovalStatus:
     """What the worker sees and may change once the office approves (KAN-376)."""
 
-    def test_worker_cannot_edit_or_delete_an_approved_entry(
+    def test_worker_edits_an_approved_entry_and_it_waits_for_the_office_again(
         self, worker_client: Client, job: Job, worker: Staff
     ) -> None:
+        """Staff change their own time, approved or not (owner, 2026-10-26)."""
         line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
+        other = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="1.000")
 
         edit = worker_client.patch(
-            URL, data={"entry_id": str(line.id), "hours": "9.00"}, content_type="application/json"
+            URL, data={"entry_id": str(line.id), "hours": "3.00"}, content_type="application/json"
         )
-        delete = worker_client.delete(f"{URL}?entry_id={line.id}")
+        delete = worker_client.delete(f"{URL}?entry_id={other.id}")
 
-        assert edit.status_code == 409
-        assert "approved" in edit.json()["detail"]
-        assert delete.status_code == 409
+        assert edit.status_code == 200
+        assert edit.json()["approved"] is False
+        assert delete.status_code == 204
         line.refresh_from_db()
-        assert line.quantity == Decimal("4.000")
+        assert (line.quantity, line.approved) == (Decimal("3.000"), False)
 
     def test_worker_still_changes_an_entry_that_is_waiting(
         self, worker_client: Client, job: Job, worker: Staff

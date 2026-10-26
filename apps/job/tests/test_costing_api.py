@@ -865,27 +865,29 @@ class TestCostLineDelete:
         assert client.delete(f"/api/job/cost_lines/{uuid4()}/delete/").status_code == 404
 
 
-class TestApprovedTimeIsLockedForWorkers:
+class TestApprovedTimeThroughTheCostLineApi:
     """The cost-line endpoints are a second door to a worker's time entries (KAN-376)."""
 
-    def test_worker_cannot_change_an_approved_entry_through_the_cost_line_api(
+    def test_worker_changes_an_approved_entry_and_it_waits_for_the_office_again(
         self, job: Job, workshop_staff: Staff
     ) -> None:
+        """Staff change their own time, approved or not (owner, 2026-10-26)."""
         line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
+        other = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="1.000")
         worker = _workshop_client(workshop_staff)
 
         edit = worker.patch(
             f"/api/job/cost_lines/{line.id}/",
-            data={"quantity": "9.000"},
+            data={"quantity": "3.000"},
             content_type="application/json",
         )
-        delete = worker.delete(f"/api/job/cost_lines/{line.id}/delete/")
+        delete = worker.delete(f"/api/job/cost_lines/{other.id}/delete/")
 
-        assert edit.status_code == 409
-        assert "approved" in edit.json()["detail"]
-        assert delete.status_code == 409
+        assert edit.status_code == 200
+        assert edit.json()["approved"] is False
+        assert delete.status_code == 204
         line.refresh_from_db()
-        assert line.quantity == Decimal("4.000")
+        assert (line.quantity, line.approved) == (Decimal("3.000"), False)
 
     def test_office_changes_an_approved_entry(
         self, client: Client, job: Job, workshop_staff: Staff
@@ -901,8 +903,10 @@ class TestApprovedTimeIsLockedForWorkers:
         assert response.status_code == 200
         assert response.json()["approved"] is True
 
-    def test_the_lock_leaves_approved_material_alone(self, job: Job, workshop_staff: Staff) -> None:
-        """Material approval is a stock matter with its own rules; the lock is about pay."""
+    def test_a_workers_change_leaves_approved_material_approved(
+        self, job: Job, workshop_staff: Staff
+    ) -> None:
+        """Material approval is a stock matter with its own rules; this one is about pay."""
         line = _make_line(job.cost_sets.get(kind="actual"))
         assert line.approved
 
@@ -913,6 +917,7 @@ class TestApprovedTimeIsLockedForWorkers:
         )
 
         assert response.status_code == 200
+        assert response.json()["approved"] is True
 
 
 class TestCopyEstimateToQuote:

@@ -136,18 +136,6 @@ export function clockWords(day: AttendanceOut): string {
     : i18n.t('timesheet:clock.clockedOut', { span, here })
 }
 
-/**
- * Whether this person may no longer change the entry. Approved time is what
- * payroll pays, so only the office changes it; the server refuses the write
- * either way, and this keeps the drawer from offering one it will refuse.
- */
-export function entryLockedFor(
-  entry: WorkshopTimesheetEntryOut,
-  user: { is_office_staff: boolean },
-): boolean {
-  return entry.approved && !user.is_office_staff
-}
-
 const TIME_PATTERN = /^(\d{2}):(\d{2})/
 
 function minutesOfDay(value: string): number | null {

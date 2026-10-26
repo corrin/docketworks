@@ -2475,18 +2475,15 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
         )
 
 
-class ApprovedEntryLockedError(ConflictError):
-    """A worker tried to change time the office has already approved."""
+def worker_change_waits_for_the_office(line: CostLine, actor: Staff) -> None:
+    """Take the approval off approved worked time a non-office person changes.
 
-
-def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
-    """Refuse a non-office change to approved worked time.
-
-    Approved time is what payroll pays (KAN-376), so once the office has
-    approved an entry only the office changes it. Called by every path a
-    worker can reach a time line through, under the lock that approval takes.
-    Material lines are not covered: their approval is a stock issue, with its
-    own rules in purchasing.
+    Staff change their own time, approved or not (owner, 2026-10-26: "office
+    has less authority to change time sheets than staff"); approval is the
+    office checking an entry, and his change has not been checked. Call it
+    after the write's ``before`` snapshot, so the write's own event records
+    the approval going. Material lines are not covered: their approval is a
+    stock issue, with its own rules in purchasing.
     """
     if (
         not actor.is_office_staff
@@ -2494,9 +2491,7 @@ def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
         and line.kind == "time"
         and line.cost_set.kind == "actual"
     ):
-        raise ApprovedEntryLockedError(
-            gettext("This entry has been approved. Ask the office to change it.")
-        )
+        line.approved = False
 
 
 @transaction.atomic
@@ -2531,9 +2526,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     ):
         raise AccessDeniedError(gettext("Only office staff move another person's time."))
     refuse_workflow_managed(line, "edit")
-    refuse_worker_change_to_approved(line, staff)
     _validate_costline_write(data)
     before = snapshot_if_entry(line)
+    worker_change_waits_for_the_office(line, staff)
 
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}
@@ -2600,7 +2595,6 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
         .get(pk=line.pk)
     )
     refuse_workflow_managed(line, "cancel")
-    refuse_worker_change_to_approved(line, staff)
     with transaction.atomic():
         # Recorded before the delete: Django clears the pk on the instance it
         # deleted, and the event names the line by that id.

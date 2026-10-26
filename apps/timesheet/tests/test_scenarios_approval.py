@@ -38,7 +38,6 @@ from apps.core.models import CompanyDefaults
 from apps.core.tests.concurrency import await_database_lock, start_database_task
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import ApprovedEntryLockedError
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import (
     approval,
@@ -66,7 +65,6 @@ FRIDAY = WEEK_START + timedelta(days=4)
 PLACEMENT_URL = "/api/timesheets/my-day/placement/"
 APPROVE_LINE_URL = "/api/job/cost_lines/{line_id}/approve/"
 APPROVE_DAY_URL = "/api/timesheets/approvals/{staff_id}/{day}/approve/"
-APPROVED_REFUSAL = "This entry has been approved. Ask the office to change it."
 BACKWARDS_REFUSAL = "The finish time must be after the start time."
 
 DATABASE = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
@@ -259,28 +257,36 @@ class TestChangesAfterApproval:
         # Paid once: General work 5h + X 2h + paid breaks 0.5h = 7.5h.
         assert _week(worker) == {"approved_hours": 7.5, "waiting_hours": 0.0}
 
-    def test_c3_he_cannot_edit_or_delete_an_approved_entry(
+    def test_c3_he_edits_or_deletes_his_approved_entry_and_the_office_checks_it_again(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
-        """He tries to edit or delete an approved entry.
+        """He changes an entry the office approved: saved, and it waits for the office again.
 
-        Refused: "This entry has been approved. Ask the office to change it."
+        Owner, 2026-10-26: "OFFICE HAS LESS AUTHORTITY TO CHANGE TIME SHEETS
+        THAN STAFF." Approval is the office checking the entry, and his change
+        has not been checked. The approved flag follows the audit log: the
+        edit's own event records approved going from true to false.
 
-        Guards job_service.refuse_worker_change_to_approved.
+        Guards workshop_timesheet_service.update_entry and delete_entry.
         """
         entry = _book(worker, worker, job, at(9), at(11))
+        other = _book(worker, worker, job, at(12), at(13))
         approval.approve_day(worker, DAY, office_staff)
         entry_id = UUID(entry["id"])
 
-        with pytest.raises(ApprovedEntryLockedError, match=exactly(APPROVED_REFUSAL)):
-            workshop_timesheet_service.update_entry(
-                worker, {"entry_id": entry_id, "hours": Decimal("1")}
-            )
-        with pytest.raises(ApprovedEntryLockedError, match=exactly(APPROVED_REFUSAL)):
-            workshop_timesheet_service.delete_entry(worker, entry_id)
+        workshop_timesheet_service.update_entry(
+            worker, {"entry_id": entry_id, "hours": Decimal("1")}
+        )
+        workshop_timesheet_service.delete_entry(worker, UUID(other["id"]))
 
         line = _line(entry)
-        assert (line.quantity, line.approved) == (Decimal("2.000"), True)
+        assert (line.quantity, line.approved) == (Decimal("1.000"), False)
+        edit = TimesheetEvent.objects.filter(cost_line_id=line.id, event_type="entry_updated").get()
+        assert edit.staff_id == worker.id
+        assert edit.delta_before is not None
+        assert edit.delta_after is not None
+        assert (edit.delta_before["approved"], edit.delta_after["approved"]) == (True, False)
+        assert not CostLine.objects.filter(id=UUID(other["id"])).exists()
 
     def test_c4_the_office_edits_an_approved_entry_and_it_stays_approved(
         self, office_staff: Staff, worker: Staff, job: Job
@@ -746,8 +752,8 @@ class TestTwoThingsAtOnce:
     ) -> None:
         """The office edits his entry while he has it open; he then saves his stale copy.
 
-        If it was approved meanwhile, his save is refused. Otherwise the last
-        save wins, and both are audited.
+        The last save wins and both are audited. His save after the approval
+        is his change to approved time, so it waits for the office again.
 
         Guards workshop_timesheet_service.update_entry and approval.approve_day.
         """
@@ -769,15 +775,15 @@ class TestTwoThingsAtOnce:
             )
 
         if first == "the_approval":
-            with pytest.raises(ApprovedEntryLockedError, match=exactly(APPROVED_REFUSAL)):
-                _race(approve, stale_save)
-            expected_hours, editors = Decimal("1.500"), [office_staff.id]
+            _race(approve, stale_save)
+            approved = False
         else:
             _race(stale_save, approve)
-            expected_hours, editors = Decimal("2.000"), [office_staff.id, worker.id]
+            approved = True
 
         line = CostLine.objects.get(id=entry_id)
-        assert (line.quantity, line.approved) == (expected_hours, True)
+        assert (line.quantity, line.approved) == (Decimal("2.000"), approved)
+        editors = [office_staff.id, worker.id]
         updates = TimesheetEvent.objects.filter(
             cost_line_id=entry_id, event_type="entry_updated"
         ).order_by("timestamp")
@@ -909,31 +915,21 @@ class TestStaffChanges:
         # Repriced at the new wage: 50.00 + 20% = 60.00.
         assert _line(entry).unit_cost == Decimal("60.00")
 
-    def test_n5_an_office_persons_own_time_waits_for_another_office_person(
+    def test_n5_an_office_persons_own_time_is_approved_as_they_save_it(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
-        """An office person books their own time (Proposed).
+        """An office person books their own time: approved on save, as what they enter for others.
 
-        Their own time waits for another office person to approve. Office-
-        entered time for someone else stays approved on save.
+        Owner, 2026-10-26: "We have SIX STAFF - of course office staff approve
+        their own time."
 
-        Guards workshop_timesheet_service._save_entry (approved=) and approval.approve_day.
+        Guards workshop_timesheet_service._save_entry (approved=).
         """
-        colleague = make_staff(
-            "timesheet-office-colleague@example.com",
-            is_office_staff=True,
-            xero_user_id="",
-            first_name="Ola",
-            last_name="Colleague",
-        )
-
         own = _book(office_staff, office_staff, job, at(9), at(11))
         for_worker = _book(office_staff, worker, job, at(9), at(11))
 
-        assert _line(own).approved is False
-        assert _line(for_worker).approved is True
-        assert approval.approve_day(office_staff, DAY, colleague) == 1
         assert _line(own).approved is True
+        assert _line(for_worker).approved is True
 
     def test_n7_a_new_default_labour_type_leaves_existing_entries_theirs(
         self, worker: Staff, job: Job

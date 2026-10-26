@@ -2796,7 +2796,7 @@ leave job, replacing nothing, and warns when the day already had time: "Leave
 booked for <name> on <date>, but the day already had time entered: <h> put to
 leave." Time on a leave job is never work for overtime, whoever entered it.
 
-Also settled: nobody approves their own time; no standard day is assumed, and
+Also settled: no standard day is assumed, and
 no time accepted, outside a person's employment dates; a daylight-saving day
 counts the hours actually there.
 
@@ -2818,3 +2818,20 @@ shown or posted (owner: "I tend to store in pretty high precision and round on
 display"). `CostLine.quantity` is three decimal places and shared with
 materials and stock, and its sums reach the Xero boundaries, so it is its own
 change.
+
+## 2026-10-26 — Staff change their own time, approved or not; the office approves its own (PR #228)
+
+Owner: "OFFICE HAS LESS AUTHORTITY TO CHANGE TIME SHEETS THAN STAFF." KAN-376
+had it the other way round: once approved, a worker was refused ("Ask the
+office to change it") and only the office could edit. Now a worker changes or
+deletes his own entries whatever their state, and a change to an approved
+entry takes its approval off: approval is the office checking the entry, and
+his change has not been checked. The flag is the denormalisation of the audit
+log, and the edit's own event records it going (its before and after carry
+`approved`). The office's own edit keeps an entry approved, as before.
+
+Owner: "We have SIX STAFF - of course office staff approve their own time."
+The rule recorded on 2026-10-25 that office staff's own time waits for another
+office person was an AI proposal carried into the rulings by mistake, never
+the owner's; time the office enters is approved as it is saved, their own
+included.

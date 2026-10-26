@@ -46,7 +46,6 @@ describe('WorkshopTimesheetEntryDrawer', () => {
     renderWithProviders(
       <WorkshopTimesheetEntryDrawer
         state={{ mode: 'edit', entry }}
-        locked={false}
         date="2026-05-04"
         dayEntries={[entry]}
         dayStart="07:00"
