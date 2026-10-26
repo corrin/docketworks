@@ -119,6 +119,8 @@ interface DayCardProps {
   /** Record the standard hours as the day's times, then fill it. */
   onUseStandardHours: () => void
   onAddBreak: () => void
+  /** Put the rest of the day on General work. */
+  onGeneralWork: () => void
 }
 
 /** What stands in for the fill figures on a day that has none yet. */
@@ -148,6 +150,7 @@ export function DayCard({
   onFill,
   onUseStandardHours,
   onAddBreak,
+  onGeneralWork,
 }: DayCardProps) {
   const { t } = useTranslation('timesheet')
   const [editingTimes, setEditingTimes] = useState(false)
@@ -274,6 +277,24 @@ export function DayCard({
           >
             {day.state === 'not_clocked_in' ? t('dayCard.setTimes') : t('dayCard.changeTimes')}
           </Button>
+          {/* The rest of a day runs to its clock-out, so it needs both times. */}
+          {day.clock_out !== null && !day.general_work_fill && (
+            <Button
+              variant="outline"
+              className={TOUCH_TARGET_CLASS}
+              disabled={clocking}
+              title={t('dayCard.generalWorkTitle')}
+              data-automation-id="DayCard-general-work"
+              onClick={onGeneralWork}
+            >
+              {t('dayCard.generalWork')}
+            </Button>
+          )}
+          {day.general_work_fill && (
+            <p className="text-sm text-slate-600" data-automation-id="DayCard-general-work-on">
+              {t('dayCard.generalWorkOn')}
+            </p>
+          )}
           {/* A break belongs to a day that has clock times. */}
           {day.state !== 'not_clocked_in' && (
             <Button

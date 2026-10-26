@@ -141,6 +141,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             })
           }
           onAddBreak={() => setBreakSheet({ mode: 'add' })}
+          onGeneralWork={() => void clocking.fillWithGeneralWork(date)}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
           }

@@ -58,6 +58,7 @@
     "withApproval": "{{kind}} {{span}} · {{approval}}"
   },
   "myDay": {
+    "generalWorkFailed": "Couldn't put the rest of the day on General work.",
     "entrySaveFailed": "The entry could not be saved.",
     "entryUpdateFailed": "The entry could not be updated.",
     "entryDeleteFailed": "The entry could not be deleted.",
@@ -250,6 +251,9 @@
     "fillAndSend": "Fill and send",
     "clockBackIn": "Clock back in",
     "addBreak": "Add a break",
+    "generalWork": "Rest of the day to General work",
+    "generalWorkTitle": "Puts the time on no job and no break onto General work. Anything you enter later takes its time from it.",
+    "generalWorkOn": "The rest of the day is General work.",
     "setTimes": "Set times",
     "changeTimes": "Change times"
   },

@@ -260,6 +260,7 @@ class TestApprovalsRead:
             "here_hours": 8.5,
             "sent_late": False,
             "cautions": ["Did not clock in", "Did not clock out"],
+            "general_work_fill": False,
         }
         assert rows[str(other_worker.id)]["state"] == "waiting"
         assert rows[str(other_worker.id)]["clock"]["state"] == "not_clocked_in"

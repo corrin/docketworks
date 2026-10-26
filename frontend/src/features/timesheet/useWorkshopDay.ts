@@ -15,6 +15,7 @@ import {
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
   timesheetsMyDayClockMutation,
+  timesheetsMyDayGeneralWorkMutation,
   timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
@@ -26,6 +27,7 @@ import type {
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,
 } from '@/api'
+import { formatHoursDisplay } from '@/lib/format'
 
 // Short enough that a phone with no signal does not leave the Save button
 // looking dead.
@@ -236,6 +238,7 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
   const clockMutation = useMutation(timesheetsMyDayClockMutation())
   const timesMutation = useMutation(timesheetsMyDayTimesMutation())
   const standardMutation = useMutation(timesheetsMyDayStandardHoursMutation())
+  const generalWorkMutation = useMutation(timesheetsMyDayGeneralWorkMutation())
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
@@ -285,11 +288,33 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
     return true
   }
 
+  /** "I can't be bothered to enter the rest": the rest of the day goes on General work. */
+  const fillWithGeneralWork = async (date: string): Promise<boolean> => {
+    let hours: number
+    try {
+      const result = await generalWorkMutation.mutateAsync({
+        body: { date, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+      })
+      hours = result.swept_hours
+    } catch (error) {
+      report(error, t('myDay.generalWorkFailed'))
+      return false
+    }
+    toast.success(t('sweep.moved', { hours: formatHoursDisplay(hours) }))
+    refresh()
+    return true
+  }
+
   return {
     clock,
     setTimes,
     recordStandardHours,
-    clocking: clockMutation.isPending || timesMutation.isPending || standardMutation.isPending,
+    fillWithGeneralWork,
+    clocking:
+      clockMutation.isPending ||
+      timesMutation.isPending ||
+      standardMutation.isPending ||
+      generalWorkMutation.isPending,
   }
 }
 

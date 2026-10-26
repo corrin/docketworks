@@ -53,6 +53,8 @@ class AttendanceData(TypedDict):
     #: "Did not clock in", "Did not clock out". Empty for times tapped at the
     #: workshop and for times the office itself set.
     cautions: list[str]
+    #: The rest of the day is General work, as the sweep or he set it.
+    general_work_fill: bool
 
 
 class ClockingRefusedError(ConflictError):
@@ -534,6 +536,7 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
             "here_hours": None,
             "sent_late": False,
             "cautions": [],
+            "general_work_fill": False,
         }
     return {
         "state": day_state(row),
@@ -543,6 +546,7 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
         "sent_late": row.submitted_at is not None
         and timezone.localdate(row.submitted_at) > row.date,
         "cautions": clock_cautions(row),
+        "general_work_fill": row.general_work_fill,
     }
 
 

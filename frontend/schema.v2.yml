@@ -449,6 +449,9 @@ components:
             type: string
           - type: 'null'
           title: Clock Out
+        general_work_fill:
+          title: General Work Fill
+          type: boolean
         here_hours:
           anyOf:
           - type: number
@@ -472,6 +475,7 @@ components:
       - here_hours
       - sent_late
       - cautions
+      - general_work_fill
       title: AttendanceOut
       type: object
     AuthErrorOut:
@@ -4448,6 +4452,33 @@ components:
       required:
       - error_id
       title: FrontendErrorOut
+      type: object
+    GeneralWorkFillOut:
+      description: How many hours the rest of the day put on General work.
+      properties:
+        swept_hours:
+          title: Swept Hours
+          type: number
+      required:
+      - swept_hours
+      title: GeneralWorkFillOut
+      type: object
+    GeneralWorkFillRequest:
+      description: Put the rest of a day on General work. ``staff_id`` is for the office.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      required:
+      - date
+      title: GeneralWorkFillRequest
       type: object
     GroupedJobDeltaRejectionListResponse:
       description: Wire contract for GroupedJobDeltaRejectionListResponse.
@@ -24052,6 +24083,29 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/general-work/:
+    post:
+      description: Fill the rest of the caller's day with General work, or for office staff anyone's.
+      operationId: timesheets_my_day_general_work
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneralWorkFillRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralWorkFillOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Put the rest of a day on General work
       tags:
       - timesheets
   /api/timesheets/my-day/placement/:

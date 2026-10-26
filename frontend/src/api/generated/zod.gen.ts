@@ -184,6 +184,7 @@ export const zAttendanceOut = z.object({
     cautions: z.array(z.string()),
     clock_in: z.iso.time().nullable(),
     clock_out: z.iso.time().nullable(),
+    general_work_fill: z.boolean(),
     here_hours: z.number().nullable(),
     sent_late: z.boolean(),
     state: z.enum([
@@ -1593,6 +1594,25 @@ export const zFrontendErrorIn = z.object({
  */
 export const zFrontendErrorOut = z.object({
     error_id: z.uuid()
+});
+
+/**
+ * GeneralWorkFillOut
+ *
+ * How many hours the rest of the day put on General work.
+ */
+export const zGeneralWorkFillOut = z.object({
+    swept_hours: z.number()
+});
+
+/**
+ * GeneralWorkFillRequest
+ *
+ * Put the rest of a day on General work. ``staff_id`` is for the office.
+ */
+export const zGeneralWorkFillRequest = z.object({
+    date: z.iso.date(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -9222,6 +9242,13 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  * OK
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayGeneralWorkBody = zGeneralWorkFillRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayGeneralWorkResponse = zGeneralWorkFillOut;
 
 export const zTimesheetsMyDayPlacementQuery = z.object({
     date: z.string(),

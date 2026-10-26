@@ -423,6 +423,7 @@ describe('clockWords', () => {
     here_hours: null,
     sent_late: false,
     cautions: [],
+    general_work_fill: false,
   }
 
   it('says where the day stands, with the hours the server worked out', () => {

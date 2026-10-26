@@ -410,6 +410,10 @@ export type AttendanceOut = {
      */
     clock_out: string | null;
     /**
+     * General Work Fill
+     */
+    general_work_fill: boolean;
+    /**
      * Here Hours
      */
     here_hours: number | null;
@@ -3930,6 +3934,34 @@ export type FrontendErrorOut = {
      * Error Id
      */
     error_id: string;
+};
+
+/**
+ * GeneralWorkFillOut
+ *
+ * How many hours the rest of the day put on General work.
+ */
+export type GeneralWorkFillOut = {
+    /**
+     * Swept Hours
+     */
+    swept_hours: number;
+};
+
+/**
+ * GeneralWorkFillRequest
+ *
+ * Put the rest of a day on General work. ``staff_id`` is for the office.
+ */
+export type GeneralWorkFillRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -20451,6 +20483,22 @@ export type TimesheetsMyDayClockResponses = {
 };
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayGeneralWorkData = {
+    body: GeneralWorkFillRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/general-work/';
+};
+
+export type TimesheetsMyDayGeneralWorkResponses = {
+    /**
+     * OK
+     */
+    200: GeneralWorkFillOut;
+};
+
+export type TimesheetsMyDayGeneralWorkResponse = TimesheetsMyDayGeneralWorkResponses[keyof TimesheetsMyDayGeneralWorkResponses];
 
 export type TimesheetsMyDayPlacementData = {
     body?: never;

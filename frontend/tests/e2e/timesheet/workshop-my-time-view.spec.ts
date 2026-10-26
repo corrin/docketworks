@@ -260,4 +260,79 @@ test.describe.serial('workshop my time view', () => {
       expect(gone.ok(), await gone.text()).toBe(true)
     }
   })
+
+  test('he puts the rest of his day on General work, and an entry takes its time from it', async ({
+    authenticatedPage: page,
+  }) => {
+    // Owner, 2026-10-26: anyone can sweep the rest of their day into General
+    // work, and General work is the time on no job and no break, so it
+    // shrinks round what he enters next. A weekday of its own, well back.
+    const date = shiftDate(getLatestWeekdayDate(), -7 * 13)
+    const dayPath = `/api/job/workshop/timesheets/?date=${date}`
+    const daySchema = z.object({
+      entries: z.array(
+        z.object({
+          id: z.string(),
+          job_name: z.string(),
+          start_time: z.string().nullable(),
+          end_time: z.string().nullable(),
+          hours: z.number(),
+        }),
+      ),
+    })
+    const readDay = async () => daySchema.parse(await (await page.request.get(dayPath)).json())
+    const spans = async (jobName: string) =>
+      (await readDay()).entries
+        .filter((entry) => entry.job_name === jobName)
+        .map((entry) => [entry.start_time, entry.end_time, entry.hours])
+        .toSorted((first, second) => String(first[0]).localeCompare(String(second[0])))
+
+    const times = await page.request.put('/api/timesheets/my-day/times/', {
+      data: { date, clock_in: '07:00', clock_out: '15:00' },
+    })
+    expect(times.ok(), await times.text()).toBe(true)
+
+    await test.step('the rest of the day goes on General work', async () => {
+      await page.goto(`/timesheets/my-time?date=${date}`)
+      await autoId(page, 'DayCard-general-work').click()
+      await expect(page.getByText('7h booked to General work.')).toBeVisible()
+      await expect(autoId(page, 'DayCard-general-work-on')).toBeVisible()
+      expect(await spans('General work')).toEqual([
+        ['07:00:00', '08:30:00', 1.5],
+        ['08:45:00', '11:30:00', 2.75],
+        ['12:00:00', '13:30:00', 1.5],
+        ['13:45:00', '15:00:00', 1.25],
+      ])
+    })
+
+    await test.step('2h on a job, no times typed, goes in from 07:00', async () => {
+      await autoId(page, 'WorkshopTimesheetSummaryCard-add').click()
+      await selectJobInPicker(page, jobNumber)
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-hours').fill('2')
+      const create = timesheetResponse(page, 'POST')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-submit').click()
+      await create
+
+      const job = (await readDay()).entries.find((entry) => entry.job_name !== 'General work')
+      if (job === undefined) throw new Error('No job entry saved')
+      expect([job.start_time, job.end_time, job.hours]).toEqual(['07:00:00', '09:15:00', 2])
+      expect(await spans('General work')).toEqual([
+        ['09:15:00', '11:30:00', 2.25],
+        ['12:00:00', '13:30:00', 1.5],
+        ['13:45:00', '15:00:00', 1.25],
+      ])
+    })
+
+    // The day is reused by the next run: what this test made goes. Deleting
+    // one General work line takes the day's fill off, all of it.
+    const { entries } = await readDay()
+    const generalWork = entries.find((entry) => entry.job_name === 'General work')
+    for (const entry of [
+      ...entries.filter((each) => each.job_name !== 'General work'),
+      ...(generalWork === undefined ? [] : [generalWork]),
+    ]) {
+      const gone = await page.request.delete(`/api/job/workshop/timesheets/?entry_id=${entry.id}`)
+      expect(gone.ok(), await gone.text()).toBe(true)
+    }
+  })
 })

@@ -311,6 +311,8 @@ class AttendanceOut(Schema):
     here_hours: float | None
     sent_late: bool
     cautions: list[str]
+    #: The rest of the day is General work, as the sweep or he set it.
+    general_work_fill: bool
 
 
 class EntryLocationIn(Schema):
@@ -418,6 +420,19 @@ class StandardDayOut(Schema):
 
     start: time
     end: time
+
+
+class GeneralWorkFillRequest(Schema):
+    """Put the rest of a day on General work. ``staff_id`` is for the office."""
+
+    date: date
+    staff_id: UUID | None = None
+
+
+class GeneralWorkFillOut(Schema):
+    """How many hours the rest of the day put on General work."""
+
+    swept_hours: float
 
 
 class StandardHoursRequest(Schema):

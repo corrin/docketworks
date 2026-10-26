@@ -514,6 +514,69 @@ class TestChangesAfterApproval:
         assert _swept(general_work, worker) == STANDARD_SWEEP
 
 
+GENERAL_WORK_URL = "/api/timesheets/my-day/general-work/"
+
+
+@pytest.mark.usefixtures("general_work")
+class TestHeFillsHisOwnDay:
+    """Anyone puts the rest of their own day on General work (owner, 2026-10-26).
+
+    "All staff, including the office, can do time entries ... can sweep the
+    rest of the day into general work." Entering, so it waits for approval.
+    """
+
+    pytestmark = DATABASE
+
+    def test_he_puts_the_rest_of_his_day_on_general_work_and_it_waits(
+        self, worker: Staff, worker_client: Client, job: Job, general_work: Job
+    ) -> None:
+        """Guards the my-day general-work endpoint and fill_with_general_work."""
+        attendance.set_clock_times(worker, DAY, at(7), at(15), worker)
+        _book(worker, worker, job, at(7), at(9))
+
+        response = worker_client.post(
+            GENERAL_WORK_URL, data={"date": DAY.isoformat()}, content_type="application/json"
+        )
+
+        assert response.status_code == 200, response.content
+        # 09:00-15:00 less lunch and the 13:30 break, round the paid 08:30 break in X.
+        assert response.json()["swept_hours"] == 5.25
+        assert _swept(general_work, worker) == [
+            ("09:00:00", "11:30:00", Decimal("2.500")),
+            ("12:00:00", "13:30:00", Decimal("1.500")),
+            ("13:45:00", "15:00:00", Decimal("1.250")),
+        ]
+        assert not any(
+            line.approved for line in CostLine.objects.filter(cost_set__job=general_work)
+        )
+        assert workshop_timesheet_service.list_entries(worker, DAY)["day"]["general_work_fill"]
+
+    def test_a_day_with_no_clock_times_has_nothing_to_fill(self, worker_client: Client) -> None:
+        """Guards fill_with_general_work: the rest of a day needs the day's end."""
+        response = worker_client.post(
+            GENERAL_WORK_URL, data={"date": DAY.isoformat()}, content_type="application/json"
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == (
+            "Set the day's clock times before putting the rest of it on General work."
+        )
+
+    def test_he_cannot_fill_another_persons_day(
+        self, worker_client: Client, other_worker: Staff
+    ) -> None:
+        """Guards fill_with_general_work: another's day is the office's."""
+        attendance.set_clock_times(other_worker, DAY, at(7), at(15), other_worker)
+
+        response = worker_client.post(
+            GENERAL_WORK_URL,
+            data={"date": DAY.isoformat(), "staff_id": str(other_worker.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+
+
 class TestApprovalHairyCases:
     pytestmark = DATABASE
 

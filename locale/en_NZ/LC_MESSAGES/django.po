@@ -4288,6 +4288,15 @@ msgid ""
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
+msgid "Only office staff fill another person's day."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid ""
+"Set the day's clock times before putting the rest of it on General work."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
 #, python-format
 msgid "%(name)s starts on %(date)s, so time before it can't be entered."
 msgstr ""

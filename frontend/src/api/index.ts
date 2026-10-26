@@ -390,6 +390,7 @@ export {
   timesheetsMyDayBreaksUpdateMutation,
   timesheetsMyDayPlacementOptions,
   timesheetsMyDayClockMutation,
+  timesheetsMyDayGeneralWorkMutation,
   timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,

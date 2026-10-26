@@ -717,9 +717,18 @@ def fill_with_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
     """Put the rest of his day on General work from now on; return the hours it made.
 
     Entering, not approving: anyone fills their own day ("I can't be bothered
-    to enter the rest"), the office anyone's (owner, 2026-10-26).
+    to enter the rest"), the office anyone's (owner, 2026-10-26). The rest of
+    a day runs to its clock-out, so a day needs both clock times first.
     """
-    row = AttendanceDay.objects.select_for_update().get(staff=owner, date=day)
+    if actor.id != owner.id and not actor.is_office_staff:
+        raise AccessDeniedError(gettext("Only office staff fill another person's day."))
+    # His lock first, as every write to his day takes it.
+    Staff.objects.select_for_update().filter(pk=owner.pk).first()
+    row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
+    if row is None or row.clock_out is None:
+        raise ConflictError(
+            gettext("Set the day's clock times before putting the rest of it on General work.")
+        )
     if not row.general_work_fill:
         row.general_work_fill = True
         row.save(update_fields=["general_work_fill", "updated_at"])
