@@ -23,7 +23,7 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] Job Y typed over Job X: both saved and billed, with the overlap warning (owner, 2026-10-26)
 - [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)
 - [x] Found: through the office grid's endpoint any staff member could create time for a colleague; the entry owner rule now applies (owner, 2026-10-26)
-- [ ] Non-office staff read no one else's time, through any endpoint (owner, 2026-10-26): audit every read of time lines
+- [x] Non-office staff read no one else's time, through any endpoint (owner, 2026-10-26): the job, its actual costs and its timeline now show them only their own time lines; the timesheet, leave and report reads were already office-gated or owner-checked; the job sheet's per-person totals stay (owner)
 - [ ] Blocked on the owner: upgrade the dev machine to Ubuntu 26.04 (`! sudo do-release-upgrade`), so its gettext is production's 0.23.2
 - [x] Fresh review of `origin/main...HEAD` (2026-10-26); its findings:
 - [x] Review 1: a filled day whose General work is split at overtime is deleted and recreated on every write, so its approval and any office change to it are lost: the rebuild compares joined stretches (R14)

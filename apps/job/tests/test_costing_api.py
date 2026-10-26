@@ -120,6 +120,62 @@ class TestCostSetRetrieve:
         assert response.json()["rev"] == 2
 
 
+class TestWhoseTimeIsRead:
+    """Non-office staff read no one else's time; the office reads anyone's (owner, 2026-10-26)."""
+
+    @pytest.fixture
+    def two_people(
+        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> tuple[str, str]:
+        mine = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="2.000")
+        theirs = make_time_line(job, timesheet_worker, accounting_date=ACCOUNTING_DATE)
+        return str(mine.id), str(theirs.id)
+
+    def test_the_actual_costs_show_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.cost_set_data's filter on the viewer."""
+        mine, _ = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/cost_sets/actual/")
+
+        assert response.status_code == 200, response.content
+        assert [line["id"] for line in response.json()["cost_lines"]] == [mine]
+
+    def test_the_job_shows_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.job_detail_data passing the viewer to its cost sets."""
+        mine, _ = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/")
+
+        assert response.status_code == 200, response.content
+        actual = response.json()["data"]["job"]["latest_actual"]
+        assert [line["id"] for line in actual["cost_lines"]] == [mine]
+
+    def test_the_timeline_shows_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.get_job_timeline's filter on the viewer."""
+        mine, theirs = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/timeline/")
+
+        assert response.status_code == 200, response.content
+        ids = {str(entry["id"]) for entry in response.json()["timeline"]}
+        assert mine in ids
+        assert theirs not in ids
+
+    def test_the_office_reads_everyones_time(
+        self, client: Client, job: Job, two_people: tuple[str, str]
+    ) -> None:
+        response = client.get(f"/api/job/jobs/{job.id}/cost_sets/actual/")
+
+        assert response.status_code == 200, response.content
+        assert {line["id"] for line in response.json()["cost_lines"]} == set(two_people)
+
+
 class TestCostLineCreate:
     def _payload(self, **overrides: object) -> dict[str, object]:
         payload: dict[str, object] = {

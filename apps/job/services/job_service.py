@@ -599,9 +599,29 @@ def cost_line_data(line: CostLine) -> CostLineData:
     }
 
 
-def cost_set_data(cost_set: CostSet, *, include_lines: bool = True) -> CostSetData:
-    """Serialise one CostSet."""
-    lines = [cost_line_data(line) for line in cost_set.cost_lines.all()] if include_lines else []
+def visible_to(viewer: Staff, line: CostLine) -> bool:
+    """Whether the viewer may read the line: no one but the office reads another's time.
+
+    Owner, 2026-10-26: "Non-office Staff should not be able to READ or WRITE
+    another staff member's timesheets."
+    """
+    return viewer.is_office_staff or line.kind != "time" or line.staff_id in (None, viewer.id)
+
+
+def cost_set_data(cost_set: CostSet, *, lines_for: Staff | None) -> CostSetData:
+    """Serialise one CostSet: its summary, and the lines ``lines_for`` may read.
+
+    None is a summary alone, with no lines.
+    """
+    lines = (
+        []
+        if lines_for is None
+        else [
+            cost_line_data(line)
+            for line in cost_set.cost_lines.all()
+            if visible_to(lines_for, line)
+        ]
+    )
     return {
         "id": str(cost_set.id),
         "job": cost_set.job_id,
@@ -696,8 +716,8 @@ def _job_quote(job: Job) -> Quote | None:
         return None
 
 
-def job_detail_data(job: Job, *, summary_only: bool = False) -> JobDetailData:
-    """Serialise one Job."""
+def job_detail_data(job: Job, *, lines_for: Staff | None) -> JobDetailData:
+    """Serialise one Job, with the cost lines ``lines_for`` may read (none for None)."""
     quote = _job_quote(job)
     invoices = list(job.invoices.all())
     quote_sheet = getattr(job, "quote_sheet", None)
@@ -714,9 +734,9 @@ def job_detail_data(job: Job, *, summary_only: bool = False) -> JobDetailData:
         "created_at": job.created_at,
         "updated_at": job.updated_at,
         "description": job.description,
-        "latest_estimate": cost_set_data(job.latest_estimate, include_lines=not summary_only),
-        "latest_quote": cost_set_data(job.latest_quote, include_lines=not summary_only),
-        "latest_actual": cost_set_data(job.latest_actual, include_lines=not summary_only),
+        "latest_estimate": cost_set_data(job.latest_estimate, lines_for=lines_for),
+        "latest_quote": cost_set_data(job.latest_quote, lines_for=lines_for),
+        "latest_actual": cost_set_data(job.latest_actual, lines_for=lines_for),
         "job_status": job.status,
         "delivery_date": job.delivery_date,
         "paid": job.paid,
@@ -1011,7 +1031,7 @@ def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
 # ── Reads ────────────────────────────────────────────────────────────────
 
 
-def get_job_for_edit(job_id: UUID) -> JobEditData:
+def get_job_for_edit(job_id: UUID, viewer: Staff) -> JobEditData:
     """Fetch complete Job data for editing (job + events + company defaults)."""
     try:
         job = Job.objects.select_related("company").get(id=job_id)
@@ -1020,7 +1040,7 @@ def get_job_for_edit(job_id: UUID) -> JobEditData:
 
     events = JobEvent.objects.filter(job=job).select_related("staff").order_by("-timestamp")
     return {
-        "job": job_detail_data(job),
+        "job": job_detail_data(job, lines_for=viewer),
         "events": [job_event_data(event) for event in events],
         "company_defaults": _company_defaults_job_detail(),
     }
@@ -1034,7 +1054,7 @@ def get_job_summary(job_id: UUID) -> JobEditData:
         raise ValueError(gettext("Job with id %(job_id)s not found") % {"job_id": job_id}) from exc
 
     return {
-        "job": job_detail_data(job, summary_only=True),
+        "job": job_detail_data(job, lines_for=None),
         "events": [],
         "company_defaults": _company_defaults_job_detail(),
     }
@@ -2073,7 +2093,7 @@ class TimelineEntryData(TypedDict, total=False):
     updated_at: datetime
 
 
-def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- merges heterogeneous event and cost-line histories
+def get_job_timeline(job_id: UUID, viewer: Staff) -> list[TimelineEntryData]:  # noqa: C901 -- merges heterogeneous event and cost-line histories
     """Fetch the unified timeline combining JobEvents and CostLine data."""
     try:
         job = Job.objects.get(id=job_id)
@@ -2121,7 +2141,7 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
     staff_map = Staff.objects.in_bulk(staff_ids) if staff_ids else {}
 
     for cost_set in cost_sets:
-        for cost_line in cost_set.cost_lines.all():
+        for cost_line in [line for line in cost_set.cost_lines.all() if visible_to(viewer, line)]:
             staff_name = None
             if (staff_id := cost_line.ext_refs.get("staff_id")) and (
                 staff := staff_map.get(UUID(str(staff_id)))

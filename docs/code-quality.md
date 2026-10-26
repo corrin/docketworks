@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 130,307 (v1 172,577, -24%) |
-| tests | 96,616 (v1 50,869, +90%) |
+| code | 130,329 (v1 172,577, -24%) |
+| tests | 96,658 (v1 50,869, +90%) |
 | generated | 54,666 (v1 20,359, +169%) |
 
 ## Suppressions
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 261 |
-| non-test functions | 3163 |
+| non-test functions | 3164 |
 
 ## Broad type annotations
 
