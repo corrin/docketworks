@@ -24,6 +24,10 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)
 - [x] Found: through the office grid's endpoint any staff member could create time for a colleague; the entry owner rule now applies (owner, 2026-10-26)
 - [x] Non-office staff read no one else's time, through any endpoint (owner, 2026-10-26): the job, its actual costs and its timeline now show them only their own time lines; the timesheet, leave and report reads were already office-gated or owner-checked; the job sheet's per-person totals stay (owner)
+- [x] CodeRabbit (2026-10-26 05:07), 6 comments: refill after office-grid writes (fixed by the one entry writer, 9653205c); overtime check vs the quarter-hour rule and split General work rebuilt on every write (fixed, 332b95e3)
+- [x] CodeRabbit: after a reopen, clocking out leaves a filled day with no General work: clock_out rebuilds it (R16)
+- [x] CodeRabbit: test_hours_and_overtime's module docstring states the reverted break rule
+- [x] CodeRabbit: leaveRequest.previewTitle says days with time are skipped and filled with rostered hours (and the leave list's hoursColumnTitle)
 - [ ] Blocked on the owner: upgrade the dev machine to Ubuntu 26.04 (`! sudo do-release-upgrade`), so its gettext is production's 0.23.2
 - [x] Fresh review of `origin/main...HEAD` (2026-10-26); its findings:
 - [x] Review 1: a filled day whose General work is split at overtime is deleted and recreated on every write, so its approval and any office change to it are lost: the rebuild compares joined stretches (R14)

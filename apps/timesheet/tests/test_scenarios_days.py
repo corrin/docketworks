@@ -1340,6 +1340,25 @@ class TestSweepingHairyCases:
             )
         ]
 
+    def test_R16_clocking_out_after_a_reopen_brings_the_general_work_back(
+        self, office_staff: Staff, general_work: Job, worker: Staff
+    ) -> None:
+        """Swept 07:00-15:00; his finish is cleared (reopened), then he taps out at 15:00.
+
+        Reopened, the day has no end to fill to, so its General work goes;
+        the tap out gives it one again, and the General work comes back.
+        Guards attendance.clock_out's General work rebuild.
+        """
+        _clock(worker, "07:00", "15:00")
+        approval.sweep_person(worker, [DAY], office_staff)
+        attendance.set_clock_times(worker, DAY, time(7), None, worker)
+        assert _on(general_work, worker) == []
+
+        attendance.clock_out(worker, _at(DAY, "15:00"))
+
+        assert _on(general_work, worker) == STANDARD_GENERAL_WORK
+        assert _paid(worker) == Decimal("7.5")
+
 
 # ── V. Leave and days off ──────────────────────────────────────────────
 

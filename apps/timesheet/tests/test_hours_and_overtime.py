@@ -1,8 +1,8 @@
 """What the customer is billed and the worker paid for an entry (owner, 2026-10-25).
 
 An entry's hours are its start to stop less the breaks inside it; a break
-added, moved or taken off re-works the entries around it; the hours past the
-usual day are time and a half by default, charged so too.
+added, moved or taken off never changes an entry; the hours past the first 8
+worked are time and a half by default, charged so too.
 """
 
 from datetime import time, timedelta

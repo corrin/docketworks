@@ -685,6 +685,8 @@ def clock_out(
     worker: Staff, now: datetime, location: EntryLocation | None = None
 ) -> AttendanceData:
     """Finish the worker's day at ``now``. Only today's open day is stamped."""
+    # His lock first, as every write to his day takes it.
+    Staff.objects.select_for_update().filter(pk=worker.pk).first()
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=now.date()).first()
     if row is None:
         raise ClockingRefusedError(gettext("You are not clocked in today."))
@@ -703,6 +705,12 @@ def clock_out(
     row.save(update_fields=["clock_out", "clock_out_how", "updated_at"])
     _record(worker, row, "clocked_out", before, location=location)
     drop_breaks_after_finish(row, worker, location)
+    # A filled day's General work runs to the finish he has just given it.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        refill_general_work,
+    )
+
+    refill_general_work(worker, row.date, worker)
     return attendance_data(row)
 
 

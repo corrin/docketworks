@@ -179,7 +179,7 @@
     "upcomingHoursTitle": "Leave hours from today on, for the leave in the list below. The search box changes all three figures.",
     "officeClosedTitle": "Books public holiday leave for everyone rostered on the days you choose, when the whole shop is shut.",
     "officeClosureSourceTitle": "This leave was booked for everyone at once with Office closed.",
-    "hoursColumnTitle": "Total hours booked for this leave. Days the person wasn't rostered, or already had time entered, are not included.",
+    "hoursColumnTitle": "Total hours booked for this leave. Days the person wasn't rostered are not included, and a day that already had time entered takes only what was left of it.",
     "cancelTitle": "Deletes this leave and takes its hours off the timesheet."
   },
   "leaveRequest": {
@@ -210,7 +210,7 @@
     "saving": "Saving…",
     "save": "Save leave",
     "currentBalanceTitle": "The balance Xero holds for this person right now. Leave booked in DocketWorks only reaches Xero when that week's pay is posted, so it may not be taken off yet.",
-    "previewTitle": "Lists each day in the range the person is rostered, filled in with their rostered hours. Days outside their employment, days they're not rostered, and days that already have time entered are skipped.",
+    "previewTitle": "Lists each day in the range the person is rostered, with the hours of leave it takes: what is left of the rostered day once the time already entered is counted. Days outside their employment and days they're not rostered are skipped.",
     "hoursColumnTitle": "Hours of leave for this day: what is left of their rostered day once the time already entered is counted.",
     "employeeLockedTitle": "Can't be changed on existing leave. Cancel it and book new leave for the other person.",
     "saveNeedsPreviewTitle": "Preview the scheduled days first."
