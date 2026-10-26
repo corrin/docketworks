@@ -1359,6 +1359,46 @@ class TestSweepingHairyCases:
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         assert _paid(worker) == Decimal("7.5")
 
+    def test_R17_a_doubled_general_work_line_is_rebuilt_away(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Swept around 1h on Job X; a second copy of 07:00-08:30 appears; he renames Job X.
+
+        Together the lines still cover exactly the gaps, but two of them cover
+        07:00-08:30 and would pay it twice: the next write rebuilds them, even
+        one that leaves the gaps as they were.
+        Guards refill_general_work's "unchanged" check.
+        """
+        _clock(worker, "07:00", "15:00")
+        _enter(worker, worker, job, "1", "14:00", "15:00")
+        approval.sweep_person(worker, [DAY], office_staff)
+        first = CostLine.objects.get(
+            staff=worker, cost_set__job=general_work, meta__start_time="07:00:00"
+        )
+        CostLine.objects.create(
+            cost_set=first.cost_set,
+            kind="time",
+            quantity=first.quantity,
+            unit_cost=first.unit_cost,
+            unit_rev=first.unit_rev,
+            accounting_date=DAY,
+            staff=worker,
+            xero_pay_item_id=first.xero_pay_item_id,
+            labour_subtype_id=first.labour_subtype_id,
+            meta=dict(first.meta),
+        )
+        entry = CostLine.objects.get(staff=worker, cost_set__job=job)
+
+        workshop_timesheet_service.update_entry(
+            worker, {"entry_id": entry.id, "description": "Handrail"}
+        )
+
+        # 13:45-14:00 is what is left of the afternoon stretch.
+        assert _on(general_work, worker) == [
+            *STANDARD_GENERAL_WORK[:3],
+            ("13:45:00", "14:00:00", Decimal("0.25"), 1.0),
+        ]
+
 
 # ── V. Leave and days off ──────────────────────────────────────────────
 

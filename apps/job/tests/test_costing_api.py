@@ -561,6 +561,59 @@ class TestCostLineUpdate:
         assert response.status_code == 403, response.content
         assert not CostLine.objects.filter(staff=timesheet_worker).exists()
 
+    def test_time_in_actual_costs_is_only_ever_a_timesheet_entry(
+        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """A time row without the timesheet's mark would skip the one entry writer.
+
+        Its owner check, placement and overtime included: a worker could book a
+        colleague 8h of paid time (review, 2026-10-26).
+        Guards job_service.create_cost_line's refusal.
+        """
+        response = _workshop_client(workshop_staff).post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data={
+                "kind": "time",
+                "desc": None,
+                "quantity": "8.000",
+                "unit_cost": "48.00",
+                "unit_rev": "120.00",
+                "accounting_date": ACCOUNTING_DATE.isoformat(),
+                "staff": str(timesheet_worker.id),
+                "labour_subtype": str(LabourSubtype.default_workshop().id),
+                "xero_pay_item": str(job.default_xero_pay_item_id),
+                "meta": {},
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert not CostLine.objects.filter(staff=timesheet_worker).exists()
+
+    def test_a_cost_line_is_never_turned_into_time_in_actual_costs(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        """A material line patched to time for someone would be paid hours no entry made.
+
+        Guards job_service._update_cost_line's refusal.
+        """
+        line = _make_line(job.cost_sets.get(kind="actual"), quantity="8.000", unit_cost="48.00")
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={
+                "kind": "time",
+                "staff": str(timesheet_worker.id),
+                "labour_subtype": str(LabourSubtype.default_workshop().id),
+                "xero_pay_item": str(job.default_xero_pay_item_id),
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        line.refresh_from_db()
+        assert (line.kind, line.staff_id) == ("material", None)
+
     def test_a_worker_cannot_move_another_persons_entry(
         self, job: Job, company: Company, workshop_staff: Staff, timesheet_worker: Staff
     ) -> None:

@@ -31,7 +31,7 @@ from django.db.models import (
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.functional import Promise
-from django.utils.translation import gettext, gettext_lazy
+from django.utils.translation import gettext, gettext_lazy, gettext_noop
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
@@ -2358,6 +2358,10 @@ def bills_its_time(job: Job) -> bool:
     return not job.shop_job and job.status != "special"
 
 
+#: A person's time in actual costs has one writer, the workshop entry service.
+_TIME_IS_ENTERED = gettext_noop("A person's time is entered on the timesheet.")
+
+
 def _refuse_moving_a_non_entry(line: CostLine) -> None:
     """Refuse moving a line between jobs unless it is a person's time."""
     if not is_timesheet_entry(line):
@@ -2415,6 +2419,9 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         and data.get("managed_by") is None
     ):
         return _create_timesheet_entry(job, data, dict(meta), staff)
+    if kind == "actual" and data.get("kind") == "time" and data.get("managed_by") is None:
+        # Unmarked, it would skip the entry writer and its owner check.
+        raise InvalidInputError(gettext(_TIME_IS_ENTERED))
     return _create_cost_line(job, kind, data, staff)
 
 
@@ -2600,6 +2607,9 @@ def _update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     """Edit unowned costs; issuing material belongs to purchasing."""
     if "job_id" in data and data["job_id"] != line.cost_set.job_id:
         _refuse_moving_a_non_entry(line)
+    if line.cost_set.kind == "actual" and (data.get("kind") == "time" or data.get("staff")):
+        # A person's time is made only as a timesheet entry.
+        raise InvalidInputError(gettext(_TIME_IS_ENTERED))
     lock_costing_jobs([line.cost_set.job_id])
     # The lock is on the line alone (``of``): the joins for the snapshot's
     # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the
