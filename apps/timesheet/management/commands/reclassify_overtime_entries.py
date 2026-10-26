@@ -25,7 +25,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
 from apps.job.models.costing import CostLine
-from apps.job.services.time_entry_rates import PayItem, price_time_entry
+from apps.job.services.time_entry_rates import PayItem
 from apps.timesheet.services.xero_hours import (
     XeroWeekRow,
     build_staff_lookup,
@@ -420,6 +420,8 @@ class Command(BaseCommand):
             kind=costline.kind,
             desc=f"{costline.desc} {DESC_SUFFIX}",
             quantity=ot_hours.quantize(THREE_DP),
+            unit_cost=costline.unit_cost,
+            unit_rev=costline.unit_rev,
             accounting_date=costline.accounting_date,
             staff=costline.staff,
             labour_subtype=costline.labour_subtype,
@@ -431,24 +433,17 @@ class Command(BaseCommand):
 
 
 def _price_as_overtime(line: CostLine, ot_pay_item: PayItem) -> None:
-    """Price a line as the overtime Xero paid: its wage cost at the overtime rate.
+    """Make a line the overtime Xero paid: its own cost at the overtime rate.
 
-    The charge keeps its stored multiplier: this mends what was paid, and the
-    customer was billed as the entry stood.
+    The figures are the line's own, from the day the hours were worked: a
+    pay rise or a new charge-out rate since then plays no part. The charge is
+    left as the customer was billed; this mends what was paid.
     """
-    if line.staff is None:
-        raise CommandError(f"Time line {line.id} has no staff member to price it by.")
-    meta = dict(line.meta)
-    meta["wage_rate_multiplier"] = OT_MULTIPLIER
-    pricing = price_time_entry(
-        job=line.cost_set.job,
-        staff=line.staff,
-        meta=meta,
-        labour_subtype=line.labour_subtype,
-        pay_item_override=ot_pay_item,
+    ordinary = Decimal(str(line.meta["wage_rate_multiplier"]))
+    if ordinary <= 0:
+        raise CommandError(f"Time line {line.id} is unpaid, so it cannot be paid as overtime.")
+    line.unit_cost = (line.unit_cost / ordinary * Decimal(str(OT_MULTIPLIER))).quantize(
+        Decimal("0.01")
     )
-    meta.update(pricing.meta_updates())
-    line.meta = meta
-    line.unit_cost = pricing.unit_cost
-    line.unit_rev = pricing.unit_rev
-    line.xero_pay_item_id = pricing.pay_item_id
+    line.meta = {**line.meta, "wage_rate_multiplier": OT_MULTIPLIER}
+    line.xero_pay_item_id = ot_pay_item.id
