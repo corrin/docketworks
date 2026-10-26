@@ -2749,3 +2749,164 @@ So the localhost run reuses the dev instance's registered key, and the planned
 fake for the verify call is not built: the run keeps the real chain (OpenAI's
 CDN, domain verification, and a real model reply through the gateway).
 Localhost needs no allowlist entry; any other hostname still does.
+
+## 2026-10-25 — Timesheets pay the day right: overtime past the usual day, breaks never touch entries, leave fills the day (PR #228)
+
+PR #228 began as one bug: an hour entered 08:00–09:00, then the day's standard
+breaks put on, paid the 08:30 break twice. Fixing it by re-working entries
+around breaks grew seventeen defects in review, so the owner stopped the work
+and ruled the model from first principles, scenario by scenario. The rulings:
+
+Why approval exists (owner): "to FORCE the office to CHECK the entry", like
+a draft invoice against an approved one. "A worker can enter whatever they
+like. If it's a lie, the office catches it." So nothing is refused for being
+unusual; the office is shown it.
+
+Billing never waits for approval (owner): a job worked 9–11, collected and paid
+at 1pm, the timesheet approved at 4pm. "If you didn't bill unapproved time,
+you'd have given away free labour." Approval gates pay only.
+
+Breaks (owner): "Breaks are like 'start time'" — they come first, "months...
+years.... before time entries". Anyone, worker or office, adds, moves, resizes
+or deletes a break at any time, and that never changes an entry: Mary's
+approved New Year's Eve does not change when the factory start moves. The
+system records a standard break only where the day has room for it: one inside
+an entry whose hours exceed its span less that break is skipped, which is the
+bug the PR began with.
+
+Overtime (owner): "the first 8 hours is standard", N being the company's start
+to stop for the weekday, counted in save order. The hours past it default to
+time and a half, paid and charged ("It varies. The default is yes."). A rate
+someone chose stands and an edit never re-rates; Approve time marks "Overtime
+to check" where the hours at overtime differ from the hours past the usual day.
+The sweep warns: "Joe has done over 8h, converting some time to overtime" —
+"the overtime would be applied to the morning shift - that doesn't matter."
+Settled with it: urgent plus overtime is charged 1.5x, never 2.25x; salaried
+staff get no split; every hour on a public holiday (an office-closure line) is
+time and a half; no split piece is under a quarter hour.
+
+The sweep (owner): "the whole point is to fill the day with regular time...
+It won't affect how much we invoice out. Just make sure the employee gets paid
+the right amount." An entry approved over swept General work makes that General
+work give way.
+
+Leave (owner): the leave screen books whole days only; "for anything less, you
+enter time on the leave job." Booking leave sweeps the rest of the day into the
+leave job, replacing nothing, and warns when the day already had time: "Leave
+booked for <name> on <date>, but the day already had time entered: <h> put to
+leave." Time on a leave job is never work for overtime, whoever entered it.
+
+Also settled: no standard day is assumed, and
+no time accepted, outside a person's employment dates; a daylight-saving day
+counts the hours actually there.
+
+Findings.
+- 190 scenario tests were written first and run against main: every rule main
+  already had passed, every new rule failed. Each of the 19 new rules, broken
+  on purpose, fails its own scenario tests.
+- Salaried staff could save no time: their pricing meta (`salary_term_id`,
+  `pay_basis`) was refused by the time-line meta schema.
+- `approve_day` relied on its caller's transaction.
+- `reclassify_overtime_entries` left the line it split off at the ordinary wage.
+- With leave in whole days, part of a day's leave is time entered on the leave
+  job, which the overtime rule first counted as work, since it knew leave only
+  as lines the leave screen manages. Leave is now known by its job
+  (`xero_hours.leave_job_ids`), however it was entered.
+
+Deferred to the next PR: hours stored at high precision and rounded only where
+shown or posted (owner: "I tend to store in pretty high precision and round on
+display"). `CostLine.quantity` is three decimal places and shared with
+materials and stock, and its sums reach the Xero boundaries, so it is its own
+change.
+
+## 2026-10-26 — Entering is not approving; General work is a flag on the day (PR #228)
+
+Who does what (owner): "all staff, including the office, can do time
+entries. Can set clock in and clock out times, can set breaks, can sweep the
+rest of the day into general work... Then any office staff member has
+authority to approve timesheets. And as an extra convenience, they can make
+some quick edits to the timesheets before approving, including setting them to
+sweep." Entering and approving are two operations: "Just because the same
+person can do both, doesn't reduce it to one operation."
+
+- Time waits for approval whoever enters it, the office included, and any
+  change to an approved entry takes the approval off, whoever makes it. Only
+  approving approves: the approve button, and Approve time's "sweep and
+  approve" shortcut ("Sweep isn't exactly approval"). A leave request's lines
+  stay approved by the request.
+- "OFFICE HAS LESS AUTHORTITY TO CHANGE TIME SHEETS THAN STAFF": KAN-376's
+  lock that refused a worker's change to approved time ("Ask the office to
+  change it") goes; he changes his own time, and the change waits.
+- "of course office staff approve their own time". The rule recorded on
+  2026-10-25 that office staff's own time waits for another office person was
+  an AI proposal carried into the rulings by mistake, never the owner's.
+- The approved flag is the denormalisation of the approval audit log: every
+  approval is an `entry_approved` event, and a change that takes it off
+  records it in its own event (its before and after carry `approved`).
+
+General work (owner): "treat it more like a bit flag than a time entry. If
+true, then any time that isn't on a job or break is general work. That makes
+it easily expanded or shrunk as required." `AttendanceDay.general_work_fill`
+is the truth; the day's General work lines are rebuilt from its gaps after
+every write to the day, so every reader of time lines works unchanged. Made
+last, the General work is what goes past the usual day, and an entry Joe adds
+to a swept day ("2h on Job X", hours alone being how he enters nearly
+everything) takes its time from the General work, starting at 07:00 not
+15:00. Deleting a General work line turns the day's fill off; sweeping again
+turns it on.
+
+Finding: before this, time added after a sweep counted the General work toward
+the usual day, so a 2h job added to a swept day went to time and a half, and
+approval had to cut the General work out from under it afterwards.
+
+Overlap (owner): an entry typed over another's time (Job X 07:00-15:00, then
+Job Y 09:00-11:00) is saved beside it and both are billed, with the overlap
+warning, as on main.
+What timesheets are for (owner): "Staff should be paid from the time they
+arrive at work to the time they leave (less unpaid breaks). That's all they
+really care about. The office needs time per job reasonably accurate in order
+to bill customers. That's all they really care about. Neither wants to spend
+longer on paperwork than they have to... Neither needs to know what a staff
+member was doing at 10AM accurately. So that's what falls."
+
+Public holidays (owner): working one is time and a half because "Joe SHOULD
+have entered the time as 1.5x. If he didn't then he might have volunteered to
+work the holiday and not get 1.5x... it's up to Joe doing his data entry
+right, and the office gets the opportunity to override too." Predicting it is
+a bonus, nothing more. An office closure on a day that already has time
+entered is refused, saying so; "the office would then have to delete those
+time entries manually." The day's breaks are not entries and do not block it.
+
+A standard break skipped because an entry went through it does not come back
+when that entry is deleted after the sweep; General work fills it (owner:
+"Leave it"). The office sees the hours at approval.
+
+Whose time a person sees (owner): "Non-office Staff should not be able to
+READ or WRITE another staff member's timesheets." The office reads and writes
+anyone's.
+
+Findings (2026-10-26).
+- The office grid wrote a person's time through the generic cost-line
+  writer: no place in the day, no time checks, no employment dates, no
+  General work rebuild (a swept day with 2h added in the grid paid 9.5h),
+  and any staff member could create, edit or delete a colleague's time. A
+  person's time now has one writer, the workshop entry service, from every
+  screen.
+- The job, its actual costs and its timeline served every person's time
+  lines and wage costs to any staff member.
+- An entry on a filled day locked its job, then General work; a sweep locks
+  them the other way round, so the two could deadlock.
+- A filled day's General work split at overtime was rebuilt on every write,
+  losing its approval.
+- Changing the wage on an urgent job's entry dropped its charge to 1x, from
+  the workshop drawer on main as well.
+- The overtime repair command re-charged repaired hours at nothing and paid
+  them at today's wage; it now uses each line's own figures.
+- CI's `ubuntu-latest` moved to 26.04 on 2026-10-19; its gettext wraps one long
+  message differently from 24.04's, so the messages catalogue failed on every
+  push. The catalogue is written unwrapped and CI pinned to production's release.
+
+CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
+`ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
+CI while dev machines on 24.04 had 0.21; the two wrap a long message
+differently. The messages catalogue is now written unwrapped.

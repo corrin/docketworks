@@ -112,7 +112,7 @@ class TestGetJobForEdit:
             detail={"job_name": job.name},
         )
 
-        result = job_service.get_job_for_edit(job.id)
+        result = job_service.get_job_for_edit(job.id, office_staff)
 
         assert result["events"][0]["staff"] == "Office Staff"
         assert result["job"]["company_name"] == company.name
@@ -122,9 +122,9 @@ class TestGetJobForEdit:
         assert latest_actual is not None
         assert latest_actual["summary"]["profitMargin"] == 0.0
 
-    def test_missing_job_raises_value_error(self) -> None:
+    def test_missing_job_raises_value_error(self, office_staff: Staff) -> None:
         with pytest.raises(ValueError, match="not found"):
-            job_service.get_job_for_edit(uuid4())
+            job_service.get_job_for_edit(uuid4(), office_staff)
 
 
 class TestUpdateJob:
@@ -430,7 +430,7 @@ class TestTimeline:
             labour_subtype=LabourSubtype.default_workshop(),
         )
 
-        timeline = job_service.get_job_timeline(job.id)
+        timeline = job_service.get_job_timeline(job.id, office_staff)
 
         entry_types = {entry["entry_type"] for entry in timeline}
         assert "event" in entry_types

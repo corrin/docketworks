@@ -393,7 +393,7 @@ class TestApprovalControlsPay:
             start_date=monday,
             end_date=monday,
             note=None,
-            requested_days=[{"date": monday, "hours": Decimal("8")}],
+            requested_days=[monday],
             actor=payroll_superuser,
         )
 

@@ -17,7 +17,6 @@ import {
   calendarEvent,
   dayEndOf,
   distinctJobCount,
-  entryLockedFor,
   entryMarks,
   rateLabel,
   splitDayEntries,
@@ -142,6 +141,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             })
           }
           onAddBreak={() => setBreakSheet({ mode: 'add' })}
+          onGeneralWork={() => void clocking.fillWithGeneralWork(date)}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
           }
@@ -238,7 +238,6 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         {untimed.length > 0 && (
           <UntimedEntries
             entries={untimed}
-            isLocked={(entry) => entryLockedFor(entry, user)}
             deleting={day.saving}
             onEdit={openEdit}
             onDelete={(entryId) => void day.deleteEntry(entryId)}
@@ -268,7 +267,6 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
 
       <WorkshopTimesheetEntryDrawer
         state={drawer}
-        locked={drawer.mode === 'edit' && entryLockedFor(drawer.entry, user)}
         date={date}
         dayEntries={entries}
         dayStart={dayData?.default_entry_start.slice(0, 5) ?? ''}
@@ -290,13 +288,11 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
  */
 function UntimedEntries({
   entries,
-  isLocked,
   deleting,
   onEdit,
   onDelete,
 }: {
   entries: WorkshopTimesheetEntryOut[]
-  isLocked: (entry: WorkshopTimesheetEntryOut) => boolean
   deleting: boolean
   onEdit: (entryId: string) => void
   onDelete: (entryId: string) => void
@@ -362,7 +358,7 @@ function UntimedEntries({
                 size="icon"
                 className={TOUCH_TARGET_CLASS}
                 aria-label={t('myTime.deleteEntry')}
-                disabled={deleting || isLocked(entry)}
+                disabled={deleting}
                 data-automation-id={`WorkshopMyTimePage-untimed-delete-${entry.id}`}
                 onClick={() => onDelete(entry.id)}
               >

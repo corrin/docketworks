@@ -7,9 +7,9 @@ import {
   billingChangeFields,
   billsItsTime,
   calendarEvent,
+  cautionMarks,
   clockWords,
   distinctJobCount,
-  entryLockedFor,
   entryMarks,
   entryUpdateBody,
   eventTitle,
@@ -415,15 +415,6 @@ describe('entryMarks', () => {
   })
 })
 
-describe('entryLockedFor', () => {
-  it('locks an approved entry for a worker and leaves it open to the office', () => {
-    const approved = makeEntry({ approved: true })
-    expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
-    expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
-    expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
-  })
-})
-
 describe('clockWords', () => {
   const day: AttendanceOut = {
     state: 'not_clocked_in',
@@ -432,6 +423,7 @@ describe('clockWords', () => {
     here_hours: null,
     sent_late: false,
     cautions: [],
+    general_work_fill: false,
   }
 
   it('says where the day stands, with the hours the server worked out', () => {
@@ -479,5 +471,12 @@ describe('fillAfterRows', () => {
         { hours: null },
       ]),
     ).toEqual({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 4, to_go_hours: 3.5 })
+  })
+})
+
+describe('cautionMarks', () => {
+  it('marks a day whose overtime does not match the hours past the usual day', () => {
+    const marks = cautionMarks({ entered_late: false, remote_entry: false, overtime_check: true })
+    expect(marks.map((mark) => mark.label)).toEqual(['Overtime to check'])
   })
 })

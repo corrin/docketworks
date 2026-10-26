@@ -10,13 +10,6 @@ from pydantic import Field, StringConstraints
 from apps.core.schemas import NullableText, Quantity, ResponseSchema
 
 
-class LeaveDayInput(Schema):
-    """Operator-selected hours for one proposed date."""
-
-    date: date
-    hours: Annotated[Quantity, Field(gt=0)]
-
-
 class LeavePreviewRequest(Schema):
     """Employee and inclusive range to preview."""
 
@@ -54,7 +47,8 @@ class LeaveRequestWrite(Schema):
     start_date: date
     end_date: date
     note: NullableText = None
-    days: Annotated[list[LeaveDayInput], Field(min_length=1)]
+    # Whole days (owner, 2026-10-25): each takes what is left of its roster.
+    days: Annotated[list[date], Field(min_length=1)]
 
 
 class LeaveRequestUpdate(Schema):
@@ -64,7 +58,8 @@ class LeaveRequestUpdate(Schema):
     start_date: date
     end_date: date
     note: NullableText = None
-    days: Annotated[list[LeaveDayInput], Field(min_length=1)]
+    # Whole days (owner, 2026-10-25): each takes what is left of its roster.
+    days: Annotated[list[date], Field(min_length=1)]
 
 
 class LeaveDayOut(ResponseSchema):
@@ -99,6 +94,8 @@ class LeaveSaveOut(ResponseSchema):
 
     request: LeaveRequestOut
     skipped_days: list[LeavePreviewDayOut]
+    #: Days that already had time: leave took only what was left of them.
+    warnings: list[str]
 
 
 class LeaveSummaryOut(ResponseSchema):

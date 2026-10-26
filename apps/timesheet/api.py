@@ -59,6 +59,8 @@ from apps.timesheet.schemas import (
     ClockTimesRequest,
     DailyTimesheetSummaryOut,
     EntryLocationIn,
+    GeneralWorkFillOut,
+    GeneralWorkFillRequest,
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
@@ -601,6 +603,25 @@ def timesheets_my_day_standard_hours(
     return attendance.use_standard_hours(owner, payload.date, actor, _location(payload.location))
 
 
+@router.post(
+    "/timesheets/my-day/general-work/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_general_work",
+    response=GeneralWorkFillOut,
+    summary="Put the rest of a day on General work",
+    tags=["timesheets"],
+)
+@transaction.atomic
+def timesheets_my_day_general_work(
+    request: HttpRequest, payload: GeneralWorkFillRequest
+) -> dict[str, float]:
+    """Fill the rest of the caller's day with General work, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    hours = workshop_timesheet_service.fill_with_general_work(owner, payload.date, actor)
+    return {"swept_hours": float(hours)}
+
+
 @router.put(
     "/timesheets/my-day/times/",
     auth=self_service_auth,
@@ -633,38 +654,53 @@ def timesheets_my_day_times(
     summary="Work out an entry's finish from its hours, or its hours from its finish",
     tags=["timesheets"],
 )
-def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, and two of the three values
+def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, its job, and two of the three values
     request: HttpRequest,
     date: str,
-    start: time,
+    # None for an entry he gives no start: it starts where such an entry would.
+    start: time | None = None,
     # The same bounds as an entry's hours: zero, negative or too many is
     # refused as the entry endpoints refuse them, before any arithmetic.
     hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] | None = None,
     finish: time | None = None,
     staff_id: UUID | None = None,
+    # The entry's job, once chosen: leave is never overtime.
+    job_id: UUID | None = None,
 ) -> dict[str, object]:
     """Answer the entry drawer as he types: the one placement rule, nothing written.
 
     Given hours, the finish steps over the day's breaks; given a finish, the
-    hours are the span less the breaks inside it.
+    hours are the span less the breaks inside it. Either way it says how many
+    of them a new entry would put past his usual day, as overtime.
     """
     owner = _entry_owner(request, staff_id)
     day = _parse_date(date)
     if (hours is None) == (finish is None):
         raise HttpError(400, gettext("Give the hours or the finish, one of them."))
     breaks = workshop_timesheet_service.day_break_windows(owner, day)
-    if hours is not None:
-        return {
-            "start": start,
-            "finish": attendance.finish_in_the_day(start, hours, breaks),
-            "hours": float(hours),
-        }
-    if finish is None:  # narrowed for the type checker; refused above
-        raise HttpError(400, gettext("Give the hours or the finish, one of them."))
+    if start is None:
+        start = workshop_timesheet_service.next_entry_start(owner, day)
+    if hours is None:
+        if finish is None:  # narrowed for the type checker; refused above
+            raise HttpError(400, gettext("Give the hours or the finish, one of them."))
+        moved = attendance.clock_change_minutes(day, start, finish)
+        hours = attendance.hours_for(start, finish, breaks) + Decimal(moved) / Decimal(60)
+    else:
+        finish = attendance.finish_in_the_day(start, hours, breaks)
     return {
         "start": start,
         "finish": finish,
-        "hours": float(attendance.hours_for(start, finish, breaks)),
+        "hours": float(hours),
+        # What saving a new entry of these hours would put at overtime.
+        "overtime_hours": float(
+            workshop_timesheet_service.overtime_part(
+                owner,
+                day,
+                hours,
+                wage_rate_multiplier=workshop_timesheet_service.ORDINARY,
+                job_id=job_id,
+            )
+        ),
     }
 
 

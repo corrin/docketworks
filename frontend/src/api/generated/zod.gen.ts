@@ -184,6 +184,7 @@ export const zAttendanceOut = z.object({
     cautions: z.array(z.string()),
     clock_in: z.iso.time().nullable(),
     clock_out: z.iso.time().nullable(),
+    general_work_fill: z.boolean(),
     here_hours: z.number().nullable(),
     sent_late: z.boolean(),
     state: z.enum([
@@ -1596,6 +1597,25 @@ export const zFrontendErrorOut = z.object({
 });
 
 /**
+ * GeneralWorkFillOut
+ *
+ * How many hours the rest of the day put on General work.
+ */
+export const zGeneralWorkFillOut = z.object({
+    swept_hours: z.number()
+});
+
+/**
+ * GeneralWorkFillRequest
+ *
+ * Put the rest of a day on General work. ``staff_id`` is for the office.
+ */
+export const zGeneralWorkFillRequest = z.object({
+    date: z.iso.date(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
  * GroupedJobDeltaRejectionOut
  *
  * Wire contract for GroupedJobDeltaRejectionOut.
@@ -2753,16 +2773,6 @@ export const zLeaveCodeOut = z.enum([
 ]);
 
 /**
- * LeaveDayInput
- *
- * Operator-selected hours for one proposed date.
- */
-export const zLeaveDayInput = z.object({
-    date: z.iso.date(),
-    hours: z.number().gt(0)
-});
-
-/**
  * LeaveDayOut
  *
  * Persisted leave day and payroll-line identity.
@@ -2839,7 +2849,7 @@ export const zLeaveRequestOut = z.object({
  * Replace an existing leave request.
  */
 export const zLeaveRequestUpdate = z.object({
-    days: z.array(zLeaveDayInput).min(1),
+    days: z.array(z.iso.date()).min(1),
     end_date: z.iso.date(),
     leave_type_code: z.string(),
     note: z.string().min(1).nullish(),
@@ -2852,7 +2862,7 @@ export const zLeaveRequestUpdate = z.object({
  * Create a first-class leave request.
  */
 export const zLeaveRequestWrite = z.object({
-    days: z.array(zLeaveDayInput).min(1),
+    days: z.array(z.iso.date()).min(1),
     end_date: z.iso.date(),
     leave_type_code: z.string(),
     note: z.string().min(1).nullish(),
@@ -2867,7 +2877,8 @@ export const zLeaveRequestWrite = z.object({
  */
 export const zLeaveSaveOut = z.object({
     request: zLeaveRequestOut,
-    skipped_days: z.array(zLeavePreviewDayOut)
+    skipped_days: z.array(zLeavePreviewDayOut),
+    warnings: z.array(z.string())
 });
 
 /**
@@ -4091,6 +4102,7 @@ export const zPipelineWarningOut = z.object({
 export const zPlacementOut = z.object({
     finish: z.iso.time().nullable(),
     hours: z.number(),
+    overtime_hours: z.number(),
     start: z.iso.time()
 });
 
@@ -5857,6 +5869,17 @@ export const zSweepIn = z.object({
 });
 
 /**
+ * SweepOvertimeOut
+ *
+ * A day the sweep took past the usual day: some of it went to overtime.
+ */
+export const zSweepOvertimeOut = z.object({
+    message: z.string(),
+    staff_id: z.string(),
+    staff_name: z.string()
+});
+
+/**
  * SweepSkipOut
  *
  * A day the sweep left alone: there was no clocked time to sweep.
@@ -5871,10 +5894,10 @@ export const zSweepSkipOut = z.object({
 /**
  * SweepOut
  *
- * What the sweep put on General work, and the worker entries it approved with the days.
+ * What the sweep put on General work, and the days it left alone.
  */
 export const zSweepOut = z.object({
-    approved_count: z.int(),
+    overtime: z.array(zSweepOvertimeOut),
     skipped: z.array(zSweepSkipOut),
     swept_hours: z.number()
 });
@@ -6373,6 +6396,7 @@ export const zStaffApprovalOut = z.object({
     entered_hours: z.number(),
     entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
+    overtime_check: z.boolean(),
     remote_entry: z.boolean(),
     staff_id: z.uuid(),
     staff_name: z.string(),
@@ -9218,15 +9242,23 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
 
+export const zTimesheetsMyDayGeneralWorkBody = zGeneralWorkFillRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayGeneralWorkResponse = zGeneralWorkFillOut;
+
 export const zTimesheetsMyDayPlacementQuery = z.object({
     date: z.string(),
-    start: z.iso.time(),
+    start: z.iso.time().nullish(),
     hours: z.union([
         z.number().gte(0.01).lt(100000),
         z.string()
     ]).nullish(),
     finish: z.iso.time().nullish(),
-    staff_id: z.uuid().nullish()
+    staff_id: z.uuid().nullish(),
+    job_id: z.uuid().nullish()
 });
 
 /**

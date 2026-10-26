@@ -8,7 +8,9 @@ fails when the committed copy is stale instead of rewriting it.
 Locations are file-only (`--add-location=file`): line numbers would rewrite the
 file on every unrelated edit above a message, and the file is enough to find it.
 The POT-Creation-Date header is dropped for the same reason — it changes on
-every run and says nothing about the messages.
+every run and says nothing about the messages. Lines are not wrapped
+(`--no-wrap`): gettext 0.21 and 0.23 wrap a long message at different places,
+and the committed copy has to match whichever one a machine has.
 """
 
 import argparse
@@ -38,6 +40,7 @@ def regenerate() -> str:
         locale=["en_NZ"],
         add_location="file",
         no_obsolete=True,
+        no_wrap=True,
         ignore_patterns=IGNORE,
         verbosity=0,
     )

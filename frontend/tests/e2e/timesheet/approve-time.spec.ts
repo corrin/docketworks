@@ -13,7 +13,7 @@ import { z } from 'zod'
 
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
-import { getWorkshopStaff } from '../fixtures/api'
+import { getWorkshopStaff, seedTimesheetLabour } from '../fixtures/api'
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import {
@@ -126,11 +126,11 @@ test("office staff correct a person's clock times, and the screen holds at three
 
   await test.step("the day's breaks are listed, and one is corrected", async () => {
     const breaks = autoId(page, `ApproveTimePage-breaks-${staffId}`)
-    // All three are one kind of thing on the screen; the office set the day,
-    // so the breaks it put on start approved.
-    await expect(breaks).toContainText('Paid break 08:30 to 08:45 · Approved')
-    await expect(breaks).toContainText('Lunch 11:30 to 12:00 · Approved')
-    await expect(breaks).toContainText('Paid break 13:30 to 13:45 · Approved')
+    // All three are one kind of thing on the screen. Setting the day is
+    // entering, not approving (owner, 2026-10-26), so its breaks wait.
+    await expect(breaks).toContainText('Paid break 08:30 to 08:45 · Waiting')
+    await expect(breaks).toContainText('Lunch 11:30 to 12:00 · Waiting')
+    await expect(breaks).toContainText('Paid break 13:30 to 13:45 · Waiting')
 
     await breaks.getByRole('button', { name: 'Lunch 11:30 to 12:00' }).click()
     await autoId(page, 'BreakSheet-start').fill('12:00')
@@ -191,4 +191,35 @@ test('approving the last person waiting turns the day to complete', async ({
   await autoId(page, `ApproveTimePage-approve-${seeded.staff.id}`).click()
 
   await expect(standing).toHaveText('Day complete')
+})
+
+test('a short day carrying time and a half is marked for the office to check', async ({
+  authenticatedPage: page,
+  browser,
+  baseURL,
+}) => {
+  const origin = z.string().parse(baseURL)
+  // Eleven weeks back: a week no other spec books the workshop login on.
+  const week = mondayOf(shiftDate(getLatestWeekdayDate(), -77))
+  // A couple of ordinary hours and one at time and a half: nothing on the day
+  // is past the usual 8h, so its overtime is the office's to check (owner,
+  // 2026-10-25: an hour once split off stays at its rate when the rest goes).
+  const seeded = await asSuperuser(browser, origin, async (setup) => {
+    const labour = await seedLabourForWeek(setup, week)
+    await seedTimesheetLabour(setup, {
+      jobId: labour.jobId,
+      staffId: labour.staff.id,
+      labourSubtype: labour.labourSubtype,
+      date: labour.date,
+      hours: 1,
+      description: '[TEST] overtime on a short day',
+      wageRateMultiplier: 1.5,
+    })
+    return labour
+  })
+
+  await page.goto(`/timesheets/approve?date=${seeded.date}`)
+  await expect(autoId(page, `ApproveTimePage-row-${seeded.staff.id}`)).toContainText(
+    'Overtime to check',
+  )
 })

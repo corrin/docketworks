@@ -40,8 +40,8 @@ does not have.
 |---|---|
 | E2E specs ported | **69 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 279 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3777 collected |
+| API operations v2 exposes | 280 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3994 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -690,20 +690,12 @@ never a second stream.
 
 ## Open decisions — need YOUR answer
 
-1. **Cost-line write auth is looser than the timesheet reads.** The management reads are
-   superuser-only because they expose wage data, but the write path the entry grid uses is
-   plain authenticated: `job_jobs_cost_sets_actual_cost_lines_create` accepts an arbitrary
-   `staff` UUID with no ownership check, and cost-line PATCH/DELETE are likewise open — so
-   any authenticated staff member can attribute, edit or delete a colleague's time line,
-   bypassing the ownership rule the self-service endpoints enforce.
-   `job_jobs_cost_sets_retrieve` also serves every time line's wage-loaded `unit_cost` to
-   any staff. Your call whether writes gate on office/superuser, or on ownership.
-2. **WIP report "as at" semantics.** For a historical `date=` the cost side is bounded by
+1. **WIP report "as at" semantics.** For a historical `date=` the cost side is bounded by
    the report date but the invoiced amount is not (v1 identical), so invoices issued after
    the report date reduce historical net WIP; and the `total_rev == 0` inclusion gate drops
    cost-only jobs from the `method=cost` view (v1 identical). Both are faithful ports whose
    fix changes report numbers.
-3. **Two my-time rulings to ratify (ADR 0051).** (a) `timesheets_jobs_retrieve` is now
+2. **Two my-time rulings to ratify (ADR 0051).** (a) `timesheets_jobs_retrieve` is now
    self-service so the workshop job picker works for its own audience — which shows every
    staff member per-job charge-out `labour_rates`, `estimated_hours` and the whole-table `q`
    search, not just the four fields the picker reads. The ledger records the change; the
@@ -712,7 +704,7 @@ never a second stream.
    a weekend date with the flag off. Say whether workshop self-service should honour the
    flag.
 
-4. **The supplier email draft needs every operator to be a Workspace mailbox.** It is
+3. **The supplier email draft needs every operator to be a Workspace mailbox.** It is
    created by impersonating the signed-in operator's `office_email` through domain-wide
    delegation, so it fails for anyone whose login is not a real mailbox in the instance's
    Workspace domain. Exposure could not be measured here — the dev database is scrubbed to

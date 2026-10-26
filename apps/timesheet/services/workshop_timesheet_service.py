@@ -25,15 +25,17 @@ from django.utils.dateparse import parse_date
 from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
-from apps.core.errors import AccessDeniedError, ConflictError
-from apps.job.models import Job
+from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
+from apps.core.models import CompanyDefaults
+from apps.job.enums import CostLineOwner
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
     CostLineData,
+    a_change_takes_the_approval_off,
     cost_line_data,
     get_or_create_cost_set,
     move_time_line,
-    refuse_worker_change_to_approved,
     refuse_workflow_managed,
     update_latest_actual,
 )
@@ -49,6 +51,7 @@ from apps.timesheet.models import (
     SWEPT_GENERAL_WORK,
     UNTOUCHED_STANDARD_BREAK,
     AttendanceDay,
+    LeaveType,
     mark_break_edited,
 )
 from apps.timesheet.services import attendance, hour_categories
@@ -60,8 +63,13 @@ from apps.timesheet.services.attendance import (
     PendingDay,
 )
 from apps.timesheet.services.location import EntryLocation, saved_remotely
-from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.timesheet_events import (
+    record_day_event,
+    record_timesheet_event,
+    snapshot_if_entry,
+)
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
+from apps.timesheet.services.xero_hours import leave_job_ids
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +112,8 @@ class WorkshopEntryCreateData(TypedDict, total=False):
     is_billable: bool
     wage_rate_multiplier: Decimal
     bill_rate_multiplier: Decimal
+    #: The office grid's pick; the worker's default subtype when absent.
+    labour_subtype_id: UUID
 
 
 class WorkshopEntryUpdateData(TypedDict, total=False):
@@ -119,6 +129,7 @@ class WorkshopEntryUpdateData(TypedDict, total=False):
     is_billable: bool
     wage_rate_multiplier: Decimal
     bill_rate_multiplier: Decimal
+    labour_subtype_id: UUID
 
 
 class WorkshopEntryData(TypedDict):
@@ -219,7 +230,9 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
 _TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
 
 
-def _validate_time_consistency(start: time | None, end: time | None, hours: Decimal) -> None:
+def _validate_time_consistency(
+    day: date, start: time | None, end: time | None, hours: Decimal
+) -> None:
     """Refuse a start/end pair that is backwards or too short to hold ``hours``.
 
     An entry's hours are what is paid and billed; its times are a picture of
@@ -233,7 +246,11 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
     if end <= start:
         raise ValueError(gettext("The finish time must be after the start time."))
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
-    duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
+    # The night the clocks go back, an hour more passes than the clock shows.
+    minutes = Decimal(elapsed.total_seconds()) / 60 + attendance.clock_change_minutes(
+        day, start, end
+    )
+    duration = minutes / Decimal(60)
     if hours - duration > _TIME_AGREEMENT_TOLERANCE:
         raise ValueError(
             gettext(
@@ -415,9 +432,13 @@ def default_entry_start(
     """Return where his next entry starts: after his latest, else when he clocked in.
 
     Failing both, the standard start. A start that lands inside a break moves
-    to the end of it, since breaks are outside job time.
+    to the end of it, since breaks are outside job time. General work is the
+    rest of the day, not an entry: what he enters goes into it (owner,
+    2026-10-26), so an entry starts where his own entries end.
     """
-    finishes = [span[1] for line in entries if (span := timed_span(line))]
+    finishes = [
+        span[1] for line in entries if not is_general_work_fill(line) and (span := timed_span(line))
+    ]
     if finishes:
         start = max(finishes)
     elif row is not None:
@@ -425,6 +446,13 @@ def default_entry_start(
     else:
         start = attendance.standard_entry_start(day)
     return attendance.start_after_breaks(start, attendance.break_windows(day, row, break_lines))
+
+
+def next_entry_start(owner: Staff, day: date) -> time:
+    """Return where an entry he saves without times will start on the day."""
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+    return default_entry_start(day, row, entries, break_lines)
 
 
 def day_break_windows(staff: Staff, day: date) -> list[attendance.Window]:
@@ -441,6 +469,12 @@ def timed_span(line: CostLine) -> tuple[time, time] | None:
     if start is None or end is None:
         return None
     return start, end
+
+
+def timed_window(line: CostLine) -> attendance.Window | None:
+    """Return the stretch of the day the entry holds, when it has both times."""
+    span = timed_span(line)
+    return None if span is None else attendance.Window(*span)
 
 
 class ManagementStaffData(TypedDict):
@@ -557,12 +591,8 @@ def _placed(owner: Staff, day: date, hours: Decimal) -> _Placement:
     entry is saved without times, as it always could be, rather than refused
     or drawn shorter than the hours it holds.
     """
-    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
-    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
-    start = default_entry_start(day, row, entries, break_lines)
-    finish = attendance.finish_in_the_day(
-        start, hours, attendance.break_windows(day, row, break_lines)
-    )
+    start = next_entry_start(owner, day)
+    finish = attendance.finish_in_the_day(start, hours, day_break_windows(owner, day))
     if finish is None:
         return {}
     return {"start_time": start, "end_time": finish}
@@ -588,7 +618,6 @@ def create_entry(
     there was no entry to judge.
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
-    wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
 
     with transaction.atomic():
         # His day is read and placed on under a lock on him, so two entries
@@ -596,57 +625,415 @@ def create_entry(
         Staff.objects.select_for_update().filter(pk=owner.pk).first()
         if data.get("start_time") is None and data.get("end_time") is None:
             data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
-        _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
-        lock_costing_jobs([job.id])
-        cost_set = get_or_create_cost_set(job, "actual")
-        meta = pricing_meta(
-            staff=owner,
-            accounting_date=data["accounting_date"],
-            wage_rate_multiplier=wage_rate_multiplier,
-            bill_rate_multiplier=data.get("bill_rate_multiplier"),
-            is_billable=data.get("is_billable", True),
+        _validate_time_consistency(
+            data["accounting_date"], data.get("start_time"), data.get("end_time"), data["hours"]
         )
-        if source is not None:
-            meta["source"] = source
-        start_time = data.get("start_time")
-        end_time = data.get("end_time")
-        if start_time is not None:
-            meta["start_time"] = _format_time(start_time)
-        if end_time is not None:
-            meta["end_time"] = _format_time(end_time)
-
-        pricing = price_time_entry(job=job, staff=owner, meta=meta)
-        meta.update(pricing.meta_updates())
-
-        line = CostLine(
-            cost_set=cost_set,
-            kind="time",
-            desc=data.get("description") or None,
-            quantity=data["hours"],
-            unit_cost=pricing.unit_cost,
-            unit_rev=pricing.unit_rev,
-            accounting_date=data["accounting_date"],
-            staff=owner,
-            xero_pay_item_id=pricing.pay_item_id,
-            labour_subtype=pricing.labour_subtype,
-            ext_refs={},
-            meta=meta,
-            # Time the office enters is approved as it is saved, whoever it is
-            # for; a worker's own waits for the office.
-            approved=actor.is_office_staff,
-            remote_entry=source is None and saved_remotely(actor, location),
+        lock_costing_jobs(_with_general_work({job.id}))
+        _refuse_outside_employment(owner, data["accounting_date"])
+        is_break = job.id == attendance.break_job_id()
+        if not is_break:
+            _refuse_all_inside_a_break(owner, data)
+        overtime = overtime_part(
+            owner,
+            data["accounting_date"],
+            data["hours"],
+            wage_rate_multiplier=data.get("wage_rate_multiplier", ORDINARY),
+            job_id=job.id,
         )
-        line.save()
-        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
-        record_timesheet_event(
-            staff=actor,
-            event_type="entry_created",
-            line=line,
-            before=None,
-            trusted=not line.remote_entry,
-        )
-
+        if (
+            job.is_urgent
+            and data.get("bill_rate_multiplier") is None
+            and data.get("is_billable", True)
+        ):
+            # An urgent job is charged at time and a half whoever books it
+            # (owner): the default the office grid offers, here for everyone.
+            data = {**data, "bill_rate_multiplier": URGENT_CHARGE}
+        if overtime == 0:
+            line = _save_entry(actor, owner, job, data, location, source=source)
+        elif overtime == data["hours"]:
+            line = _save_entry(actor, owner, job, _at_overtime(data), location, source=source)
+        else:
+            ordinary, late = _split_at_overtime(owner, data, overtime)
+            line = _save_entry(actor, owner, job, ordinary, location, source=source)
+            _save_entry(actor, owner, job, late, location, source=source)
+        if source != SWEPT_GENERAL_WORK:
+            refill_general_work(owner, data["accounting_date"], actor)
     return entry_data(line)
+
+
+def _with_general_work(job_ids: set[UUID]) -> set[UUID]:
+    """Return the jobs a write to a day locks: its own and the General work it may rebuild.
+
+    Taken in one id-ordered step, as the sweep takes them: one after the
+    other, a sweep holding General work and waiting for this entry's job
+    would deadlock with it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    return job_ids if general_work_id is None else job_ids | {general_work_id}
+
+
+def is_general_work_fill(line: CostLine) -> bool:
+    """Whether the line is the General work filling the rest of a day, not an entry.
+
+    A fill line the office moved to a job is time on that job, billed to its
+    customer, and stays when the day's General work is made again.
+    """
+    source: object = line.meta.get("source")
+    return (
+        source == SWEPT_GENERAL_WORK
+        and line.cost_set.job_id == CompanyDefaults.get_solo().general_work_job_id
+    )
+
+
+def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
+    """Make a filled day's General work the time on no job and no break; return the hours made.
+
+    General work is "like a bit flag" (owner, 2026-10-26): on a day filled
+    with it, "any time that isn't on a job or break is general work". The flag
+    is the day's; these lines are its picture for every reader of time lines.
+    When the gaps change the lines are made again, last, so the hours past the
+    usual day are the General work's and the new lines wait for approval, as
+    any change does. When the gaps are as they were nothing is touched, so an
+    edit elsewhere takes no approval off. Called inside the write's
+    transaction, under his lock.
+    """
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    if row is None or not row.general_work_fill:
+        return Decimal(0)
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        raise ValueError(f"{owner} on {day} is filled with General work, but none is set up")
+    lines = day_time_lines(owner, day)
+    filled = [line for line in lines if is_general_work_fill(line)]
+    entries, break_lines = attendance.split_breaks(
+        [line for line in lines if not is_general_work_fill(line)]
+    )
+    # Still clocked in: the day has no end to fill to yet.
+    windows = attendance.unallocated_windows(day, row, entries, break_lines) or []
+    current = [window for line in filled if (window := timed_window(line)) is not None]
+    # Compared as joined stretches: the overtime split cuts one gap into two lines.
+    if len(current) == len(filled) and attendance.merged_minutes(
+        current
+    ) == attendance.merged_minutes(windows):
+        return Decimal(0)
+    lock_costing_jobs([general_work_id])
+    for line in filled:
+        _delete_line(actor, line, None)
+    for window in windows:
+        create_entry(
+            actor,
+            owner,
+            {
+                "job_id": general_work_id,
+                "accounting_date": day,
+                "hours": attendance.hours_for(window.start, window.end, []),
+                "start_time": window.start,
+                "end_time": window.end,
+                # A shop job's time is billed to nobody; the model refuses otherwise.
+                "is_billable": False,
+            },
+            source=SWEPT_GENERAL_WORK,
+        )
+    return sum((attendance.hours_for(each.start, each.end, []) for each in windows), Decimal(0))
+
+
+def fill_with_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
+    """Put the rest of his day on General work from now on; return the hours it made.
+
+    Entering, not approving: anyone fills their own day ("I can't be bothered
+    to enter the rest"), the office anyone's (owner, 2026-10-26). The rest of
+    a day runs to its clock-out, so a day needs both clock times first.
+    """
+    if actor.id != owner.id and not actor.is_office_staff:
+        raise AccessDeniedError(gettext("Only office staff fill another person's day."))
+    # His lock first, as every write to his day takes it.
+    Staff.objects.select_for_update().filter(pk=owner.pk).first()
+    row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
+    if row is None or row.clock_out is None:
+        raise ConflictError(
+            gettext("Set the day's clock times before putting the rest of it on General work.")
+        )
+    if not row.general_work_fill:
+        row.general_work_fill = True
+        row.save(update_fields=["general_work_fill", "updated_at"])
+        record_day_event(
+            staff=actor,
+            worker=owner,
+            day=day,
+            event_type="general_work_on",
+            before=None,
+            after=None,
+            trusted=not saved_remotely(actor, None),
+        )
+    return refill_general_work(owner, day, actor)
+
+
+def _refuse_outside_employment(owner: Staff, day: date) -> None:
+    """Refuse time on a day he was not employed: before he started, or after he left."""
+    if owner.is_active_on(day):
+        return
+    if day < owner.employment_start_date:
+        raise InvalidInputError(
+            gettext("%(name)s starts on %(date)s, so time before it can't be entered.")
+            % {"name": owner.get_display_full_name(), "date": owner.employment_start_date}
+        )
+    if owner.date_left is None:
+        raise ValueError(f"{owner.id} is not employed on {day} yet has no leaving date")
+    raise InvalidInputError(
+        gettext("%(name)s's last day was %(date)s, so time after it can't be entered.")
+        % {
+            "name": owner.get_display_full_name(),
+            "date": owner.date_left - timedelta(days=1),
+        }
+    )
+
+
+def _refuse_all_inside_a_break(owner: Staff, data: WorkshopEntryCreateData) -> None:
+    """Refuse an entry that sits wholly inside one of his breaks: it holds no work.
+
+    He was on the break, or he worked through it and the break should go;
+    the refusal says which, rather than saving an entry of nothing.
+    """
+    start, end = data.get("start_time"), data.get("end_time")
+    if start is None or end is None:
+        return
+    day = data["accounting_date"]
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    _, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+    for each in attendance.day_breaks(day, row, break_lines):
+        if each["start"] <= start and end <= each["end"]:
+            name = each["name"].lower()
+            raise InvalidInputError(
+                gettext(
+                    "That is all inside your %(name)s. If you worked through it, "
+                    "delete the %(name)s."
+                )
+                % {"name": name}
+            )
+
+
+#: The rate time is at unless he chose another, and the rate the hours past his
+#: usual day default to (owner, 2026-10-24).
+ORDINARY = Decimal("1.0")
+OVERTIME = Decimal("1.5")
+#: What an urgent job is charged at by default, as the office grid offers it.
+URGENT_CHARGE = Decimal("1.5")
+#: The smallest piece an entry is split into at the overtime point: below it,
+#: the whole entry takes the rate of its larger part.
+SMALLEST_SPLIT = Decimal("0.25")
+
+
+def overtime_part(
+    owner: Staff,
+    day: date,
+    hours: Decimal,
+    *,
+    wage_rate_multiplier: Decimal,
+    job_id: UUID | None,
+) -> Decimal:
+    """Return how many of a new entry's hours default to time and a half.
+
+    ``job_id`` is None when the job is not chosen yet: the answer is then
+    for ordinary work.
+
+    Only an entry at ordinary time takes the default: a rate someone chose
+    stands, and a break is never overtime. On a public holiday every hour
+    is time and a half; otherwise the hours past his usual day are. A piece
+    under a quarter hour is not split off: the entry goes whole to the rate
+    of its larger part.
+    """
+    if (
+        wage_rate_multiplier != ORDINARY
+        or job_id == attendance.break_job_id()
+        or job_id in leave_job_ids()
+    ):
+        return Decimal(0)
+    overtime = overtime_hours(
+        owner,
+        day,
+        hours,
+        general_work_counts=job_id == CompanyDefaults.get_solo().general_work_job_id,
+    )
+    ordinary = hours - overtime
+    if 0 < min(overtime, ordinary) < SMALLEST_SPLIT:
+        return hours if overtime > ordinary else Decimal(0)
+    return overtime
+
+
+def on_a_public_holiday(owner: Staff, day: date) -> bool:
+    """Whether the day is a public holiday for him: the office closure gave him its holiday."""
+    holiday_job = (
+        LeaveType.objects.filter(code=LeaveType.Code.PUBLIC_HOLIDAY)
+        .values_list("job_id", flat=True)
+        .first()
+    )
+    if holiday_job is None:
+        # No public-holiday leave set up: no closure has given anyone a holiday.
+        return False
+    return CostLine.objects.filter(
+        kind="time",
+        staff=owner,
+        accounting_date=day,
+        managed_by=CostLineOwner.LEAVE,
+        cost_set__job_id=holiday_job,
+    ).exists()
+
+
+def _charge_urgent_at_least(job: Job, meta: dict[str, object]) -> None:
+    """Re-derive a dropped charge as on create: an urgent job's at time and a half at least.
+
+    The higher of the two applies, never both (owner): a charge someone set stands.
+    """
+    if not job.is_urgent or "bill_rate_multiplier" in meta or not meta["is_billable"]:
+        return
+    wage = Decimal(str(meta["wage_rate_multiplier"]))
+    meta["bill_rate_multiplier"] = float(max(URGENT_CHARGE, wage))
+
+
+def _at_overtime(data: WorkshopEntryCreateData) -> WorkshopEntryCreateData:
+    """Return the entry at time and a half, charged at least that when it is billed at all."""
+    late: WorkshopEntryCreateData = {**data, "wage_rate_multiplier": OVERTIME}
+    given = data.get("bill_rate_multiplier")
+    if given is not None and data.get("is_billable", True):
+        # The higher of the two applies, never both (owner): an urgent job's
+        # overtime is charged at time and a half, not two and a quarter.
+        late["bill_rate_multiplier"] = max(given, OVERTIME)
+    return late
+
+
+def overtime_hours(
+    owner: Staff,
+    day: date,
+    hours: Decimal,
+    *,
+    already_on_the_day: bool = True,
+    general_work_counts: bool = False,
+) -> Decimal:
+    """Return how many of ``hours``, added to his day, fall past his usual day.
+
+    ``already_on_the_day`` False asks of ``hours`` alone: how many of a day of
+    that many hours are past the usual day. The General work filling the day
+    is rebuilt after anything he enters, so it counts toward the usual day
+    only for the General work itself (``general_work_counts``): the hours past
+    the usual day are always the General work's.
+
+    The first hours of a day are ordinary and the rest time and a half
+    (owner, 2026-10-25: "the first 8 hours is standard"). The usual day is the
+    company's start to stop for the weekday, so a weekend has none. Only time
+    on jobs counts: a break or leave is not work.
+    """
+    standard = attendance.standard_day(day)
+    # Salary pays no overtime earnings: its hours allocate a fixed cost.
+    if standard is None or owner.pay_basis == "salary":
+        return Decimal(0)
+    if on_a_public_holiday(owner, day):
+        return hours
+    usual = attendance.hours_for(standard.start, standard.end, [])
+    worked = Decimal(0)
+    if already_on_the_day:
+        entries, _ = attendance.split_breaks(day_time_lines(owner, day))
+        leave = leave_job_ids()
+        worked = sum(
+            (
+                line.quantity
+                for line in entries
+                if line.cost_set.job_id not in leave
+                and (general_work_counts or not is_general_work_fill(line))
+            ),
+            Decimal(0),
+        )
+    return min(hours, max(hours - (usual - worked), Decimal(0)))
+
+
+def _split_at_overtime(
+    owner: Staff, data: WorkshopEntryCreateData, overtime: Decimal
+) -> tuple[WorkshopEntryCreateData, WorkshopEntryCreateData]:
+    """Split an entry where its hours pass his usual day: the ordinary part, then the rest.
+
+    The two rates are two lines, since a line is paid and charged at one. The
+    split falls where the ordinary hours end, stepping over his breaks; with
+    no times (past midnight) the two keep none.
+    """
+    ordinary_hours = data["hours"] - overtime
+    start, end = data.get("start_time"), data.get("end_time")
+    ordinary: WorkshopEntryCreateData = {**data, "hours": ordinary_hours}
+    late: WorkshopEntryCreateData = {**_at_overtime(data), "hours": overtime}
+    if start is None or end is None:
+        return ordinary, late
+    breaks = day_break_windows(owner, data["accounting_date"])
+    split = attendance.finish_in_the_day(start, ordinary_hours, breaks)
+    if split is None:
+        raise ValueError(f"Hours ending at {end:%H:%M} split past midnight from {start:%H:%M}")
+    ordinary["end_time"] = split
+    late["start_time"] = attendance.start_after_breaks(split, breaks)
+    return ordinary, late
+
+
+def _save_entry(  # noqa: PLR0913 -- the entry, whose it is, who saves it, where from and why
+    actor: Staff,
+    owner: Staff,
+    job: Job,
+    data: WorkshopEntryCreateData,
+    location: EntryLocation | None,
+    *,
+    source: str | None,
+) -> CostLine:
+    """Price and save one time line, recording who made it."""
+    wage_rate_multiplier = data.get("wage_rate_multiplier", ORDINARY)
+    cost_set = get_or_create_cost_set(job, "actual")
+    meta = pricing_meta(
+        staff=owner,
+        accounting_date=data["accounting_date"],
+        wage_rate_multiplier=wage_rate_multiplier,
+        bill_rate_multiplier=data.get("bill_rate_multiplier"),
+        is_billable=data.get("is_billable", True),
+    )
+    if source is not None:
+        meta["source"] = source
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+    if start_time is not None:
+        meta["start_time"] = _format_time(start_time)
+    if end_time is not None:
+        meta["end_time"] = _format_time(end_time)
+
+    subtype_id = data.get("labour_subtype_id")
+    pricing = price_time_entry(
+        job=job,
+        staff=owner,
+        meta=meta,
+        labour_subtype=None if subtype_id is None else LabourSubtype.objects.get(id=subtype_id),
+    )
+    meta.update(pricing.meta_updates())
+
+    line = CostLine(
+        cost_set=cost_set,
+        kind="time",
+        desc=data.get("description") or None,
+        quantity=data["hours"],
+        unit_cost=pricing.unit_cost,
+        unit_rev=pricing.unit_rev,
+        accounting_date=data["accounting_date"],
+        staff=owner,
+        xero_pay_item_id=pricing.pay_item_id,
+        labour_subtype=pricing.labour_subtype,
+        ext_refs={},
+        meta=meta,
+        # Waiting, whoever enters it: entering and approving are two
+        # operations, even by one person (owner, 2026-10-26).
+        approved=False,
+        remote_entry=source is None and saved_remotely(actor, location),
+    )
+    line.save()
+    update_latest_actual(job, cost_set.rev, cost_set.id, actor)
+    record_timesheet_event(
+        staff=actor,
+        event_type="entry_created",
+        line=line,
+        before=None,
+        trusted=not line.remote_entry,
+    )
+    return line
 
 
 def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
@@ -665,14 +1052,19 @@ def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
     return line
 
 
-def _apply_billing_changes(meta: dict[str, object], data: WorkshopEntryUpdateData) -> bool:
-    """Fold billing-related patch fields into ``meta``; report whether to reprice.
+def _apply_billing_changes(
+    line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData
+) -> bool:
+    """Fold the pricing patch fields into the line and ``meta``; report whether to reprice.
 
     Drop the stored ``bill_rate_multiplier`` when ``is_billable`` flips back to
     true so the rate pipeline re-derives it from the wage multiplier rather
     than leaving the line at zero.
     """
     reprice = False
+    if "labour_subtype_id" in data:
+        line.labour_subtype = LabourSubtype.objects.get(id=data["labour_subtype_id"])
+        reprice = True
     if "is_billable" in data:
         meta["is_billable"] = data["is_billable"]
         if data["is_billable"]:
@@ -755,17 +1147,25 @@ def update_entry(
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
-        lock_costing_jobs(job_ids)
+        lock_costing_jobs(_with_general_work(job_ids))
         line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError(
                 gettext("This entry moved to another job. Reload before editing it.")
             )
-        refuse_worker_change_to_approved(line, actor)
+        if is_general_work_fill(line) and {"start_time", "end_time", "hours"} & data.keys():
+            raise InvalidInputError(
+                gettext(
+                    "General work fills the time not on a job or a break. "
+                    "Change the entries or breaks around it."
+                )
+            )
         before = snapshot_if_entry(line)
+        day_before = line.accounting_date
+        a_change_takes_the_approval_off(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
-        reprice = _apply_billing_changes(meta, data)
+        reprice = _apply_billing_changes(line, meta, data)
 
         job = line.cost_set.job
         moved_cost_set = None
@@ -783,6 +1183,7 @@ def update_entry(
             reprice = True
 
         if reprice:
+            _charge_urgent_at_least(job, meta)
             pricing = price_time_entry(
                 job=job, staff=_owner_of(line), meta=meta, labour_subtype=line.labour_subtype
             )
@@ -801,7 +1202,10 @@ def update_entry(
         # Validated on the merged entry, not the patch alone: a PATCH that moves
         # one time can break agreement with the stored other half.
         _validate_time_consistency(
-            _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
+            line.accounting_date,
+            _meta_time(meta, "start_time"),
+            _meta_time(meta, "end_time"),
+            line.quantity,
         )
 
         # Changed by someone: no longer the default the finish may take away.
@@ -822,6 +1226,9 @@ def update_entry(
             before=before,
             trusted=not remote,
         )
+        owner = _owner_of(line)
+        for day in {day_before, line.accounting_date}:
+            refill_general_work(owner, day, actor)
 
     return entry_data(line)
 
@@ -833,7 +1240,7 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
     # His lock before the jobs', as every write to his day takes them.
     Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
     job_id = line.cost_set.job_id
-    lock_costing_jobs([job_id])
+    lock_costing_jobs(_with_general_work({job_id}))
     # Locked on the line alone: the snapshot's joins are nullable, which
     # Postgres refuses under FOR UPDATE.
     line = (
@@ -847,7 +1254,16 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         line, actor, gettext("You can only delete your own timesheet entries.")
     )
     refuse_workflow_managed(line, "cancel")
-    refuse_worker_change_to_approved(line, actor)
+    owner, day = _owner_of(line), line.accounting_date
+    if is_general_work_fill(line):
+        _general_work_off(owner, day, actor, location)
+        return
+    _delete_line(actor, line, location)
+    refill_general_work(owner, day, actor)
+
+
+def _delete_line(actor: Staff, line: CostLine, location: EntryLocation | None) -> None:
+    """Delete one time line the caller holds locked, recording who did."""
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(
@@ -857,5 +1273,31 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         before=snapshot_if_entry(line),
         trusted=not saved_remotely(actor, location),
     )
+    entry_id = line.id
     line.delete()
     logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)
+
+
+def _general_work_off(
+    owner: Staff, day: date, actor: Staff, location: EntryLocation | None
+) -> None:
+    """Take the day's General work off, all of it: one line deleted is the fill turned off.
+
+    A refill would put a single deleted line straight back; sweeping the day
+    again turns it on.
+    """
+    AttendanceDay.objects.filter(staff=owner, date=day).update(
+        general_work_fill=False, updated_at=timezone.now()
+    )
+    record_day_event(
+        staff=actor,
+        worker=owner,
+        day=day,
+        event_type="general_work_off",
+        before=None,
+        after=None,
+        trusted=not saved_remotely(actor, location),
+    )
+    for each in day_time_lines(owner, day):
+        if is_general_work_fill(each):
+            _delete_line(actor, each, location)

@@ -53,6 +53,7 @@ class TestClockTaps:
             "here_hours": None,
             "sent_late": False,
             "cautions": [],
+            "general_work_fill": False,
         }
         assert finished["state"] == "clocked_out"
         assert finished["clock_out"] == time(15, 1)

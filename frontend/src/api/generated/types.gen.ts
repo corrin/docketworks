@@ -410,6 +410,10 @@ export type AttendanceOut = {
      */
     clock_out: string | null;
     /**
+     * General Work Fill
+     */
+    general_work_fill: boolean;
+    /**
      * Here Hours
      */
     here_hours: number | null;
@@ -3933,6 +3937,34 @@ export type FrontendErrorOut = {
 };
 
 /**
+ * GeneralWorkFillOut
+ *
+ * How many hours the rest of the day put on General work.
+ */
+export type GeneralWorkFillOut = {
+    /**
+     * Swept Hours
+     */
+    swept_hours: number;
+};
+
+/**
+ * GeneralWorkFillRequest
+ *
+ * Put the rest of a day on General work. ``staff_id`` is for the office.
+ */
+export type GeneralWorkFillRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+};
+
+/**
  * GroupedJobDeltaRejectionListResponse
  *
  * Wire contract for GroupedJobDeltaRejectionListResponse.
@@ -6492,22 +6524,6 @@ export type LeaveBalanceOut = {
 export type LeaveCodeOut = 'annual_leave' | 'sick_leave' | 'unpaid_leave' | 'bereavement_leave' | 'public_holiday';
 
 /**
- * LeaveDayInput
- *
- * Operator-selected hours for one proposed date.
- */
-export type LeaveDayInput = {
-    /**
-     * Date
-     */
-    date: string;
-    /**
-     * Hours
-     */
-    hours: number;
-};
-
-/**
  * LeaveDayOut
  *
  * Persisted leave day and payroll-line identity.
@@ -6697,7 +6713,7 @@ export type LeaveRequestUpdate = {
     /**
      * Days
      */
-    days: Array<LeaveDayInput>;
+    days: Array<string>;
     /**
      * End Date
      */
@@ -6725,7 +6741,7 @@ export type LeaveRequestWrite = {
     /**
      * Days
      */
-    days: Array<LeaveDayInput>;
+    days: Array<string>;
     /**
      * End Date
      */
@@ -6759,6 +6775,10 @@ export type LeaveSaveOut = {
      * Skipped Days
      */
     skipped_days: Array<LeavePreviewDayOut>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
 };
 
 /**
@@ -9299,6 +9319,10 @@ export type PlacementOut = {
      */
     hours: number;
     /**
+     * Overtime Hours
+     */
+    overtime_hours: number;
+    /**
      * Start
      */
     start: string;
@@ -11081,6 +11105,10 @@ export type StaffApprovalOut = {
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Overtime Check
+     */
+    overtime_check: boolean;
     /**
      * Remote Entry
      */
@@ -12886,13 +12914,13 @@ export type SweepIn = {
 /**
  * SweepOut
  *
- * What the sweep put on General work, and the worker entries it approved with the days.
+ * What the sweep put on General work, and the days it left alone.
  */
 export type SweepOut = {
     /**
-     * Approved Count
+     * Overtime
      */
-    approved_count: number;
+    overtime: Array<SweepOvertimeOut>;
     /**
      * Skipped
      */
@@ -12901,6 +12929,26 @@ export type SweepOut = {
      * Swept Hours
      */
     swept_hours: number;
+};
+
+/**
+ * SweepOvertimeOut
+ *
+ * A day the sweep took past the usual day: some of it went to overtime.
+ */
+export type SweepOvertimeOut = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
 };
 
 /**
@@ -20432,6 +20480,22 @@ export type TimesheetsMyDayClockResponses = {
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
 
+export type TimesheetsMyDayGeneralWorkData = {
+    body: GeneralWorkFillRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/general-work/';
+};
+
+export type TimesheetsMyDayGeneralWorkResponses = {
+    /**
+     * OK
+     */
+    200: GeneralWorkFillOut;
+};
+
+export type TimesheetsMyDayGeneralWorkResponse = TimesheetsMyDayGeneralWorkResponses[keyof TimesheetsMyDayGeneralWorkResponses];
+
 export type TimesheetsMyDayPlacementData = {
     body?: never;
     path?: never;
@@ -20443,7 +20507,7 @@ export type TimesheetsMyDayPlacementData = {
         /**
          * Start
          */
-        start: string;
+        start?: string | null;
         /**
          * Hours
          */
@@ -20456,6 +20520,10 @@ export type TimesheetsMyDayPlacementData = {
          * Staff Id
          */
         staff_id?: string | null;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
     };
     url: '/api/timesheets/my-day/placement/';
 };

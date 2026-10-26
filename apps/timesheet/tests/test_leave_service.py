@@ -50,11 +50,12 @@ MONDAY = next_monday()
 TUESDAY = MONDAY + timedelta(days=1)
 
 
-def requested(*days: tuple[date, str]) -> list[leave_service.RequestedDay]:
-    return [{"date": day, "hours": Decimal(hours)} for day, hours in days]
+def requested(*days: date) -> list[date]:
+    """Whole days, as the leave screen books them (owner, 2026-10-25)."""
+    return list(days)
 
 
-def test_create_request_projects_partial_days_to_payroll_lines(
+def test_create_request_projects_each_whole_day_to_a_payroll_line(
     worker: Staff, company: Company, superuser: Staff
 ) -> None:
     leave_job = make_leave_job(company, superuser, "Annual Leave")
@@ -65,15 +66,16 @@ def test_create_request_projects_partial_days_to_payroll_lines(
         start_date=MONDAY,
         end_date=TUESDAY,
         note="Family trip",
-        requested_days=requested((MONDAY, "4"), (TUESDAY, "8")),
+        requested_days=requested(MONDAY, TUESDAY),
         actor=superuser,
     )
 
     request = LeaveRequest.objects.get(id=UUID(result["request"]["id"]))
     assert request.days.count() == 2
-    assert result["request"]["total_hours"] == Decimal("12")
+    # Each day takes its scheduled 8h: the request carries no hours.
+    assert result["request"]["total_hours"] == Decimal("16")
     lines = CostLine.objects.filter(managed_by="leave").order_by("accounting_date")
-    assert list(lines.values_list("quantity", flat=True)) == [Decimal("4"), Decimal("8")]
+    assert list(lines.values_list("quantity", flat=True)) == [Decimal("8"), Decimal("8")]
     assert all(line.staff_id == worker.id for line in lines)
     assert all(line.xero_pay_item_id == leave_job.default_xero_pay_item_id for line in lines)
     assert all(line.meta["is_billable"] is False for line in lines)
@@ -99,7 +101,7 @@ def test_unpaid_leave_projects_at_zero_wage_so_it_costs_nothing_and_pays_nothing
         start_date=MONDAY,
         end_date=MONDAY,
         note=None,
-        requested_days=requested((MONDAY, "8")),
+        requested_days=requested(MONDAY),
         actor=superuser,
     )
 
@@ -120,7 +122,7 @@ def test_paid_leave_still_projects_at_the_full_wage(
         start_date=MONDAY,
         end_date=MONDAY,
         note=None,
-        requested_days=requested((MONDAY, "8")),
+        requested_days=requested(MONDAY),
         actor=superuser,
     )
 
@@ -129,7 +131,7 @@ def test_paid_leave_still_projects_at_the_full_wage(
     assert line.total_cost > Decimal("0")
 
 
-def test_conflicting_days_are_skipped_but_available_days_are_saved(
+def test_a_worked_day_takes_none_of_the_leave_and_the_rest_take_it_whole(
     worker: Staff, company: Company, job: Job, superuser: Staff
 ) -> None:
     make_leave_job(company, superuser, "Sick Leave")
@@ -141,12 +143,14 @@ def test_conflicting_days_are_skipped_but_available_days_are_saved(
         start_date=MONDAY,
         end_date=TUESDAY,
         note=None,
-        requested_days=requested((MONDAY, "8"), (TUESDAY, "8")),
+        requested_days=requested(MONDAY, TUESDAY),
         actor=superuser,
     )
 
-    assert [day["date"] for day in result["skipped_days"]] == [MONDAY]
-    assert [day.date for day in LeaveDay.objects.all()] == [TUESDAY]
+    # Monday's 8h are worked, so it takes none of the leave; Tuesday takes the day.
+    assert result["skipped_days"] == []
+    assert [(day.date, day.hours) for day in LeaveDay.objects.all()] == [(TUESDAY, Decimal("8"))]
+    assert len(result["warnings"]) == 1
 
 
 def test_a_day_with_only_breaks_on_it_still_takes_leave(
@@ -172,7 +176,7 @@ def test_update_replaces_days_and_delete_removes_every_projection(
         start_date=MONDAY,
         end_date=MONDAY,
         note=None,
-        requested_days=requested((MONDAY, "8")),
+        requested_days=requested(MONDAY),
         actor=superuser,
     )
     request_id = UUID(created["request"]["id"])
@@ -184,12 +188,12 @@ def test_update_replaces_days_and_delete_removes_every_projection(
         start_date=TUESDAY,
         end_date=TUESDAY,
         note="Changed",
-        requested_days=requested((TUESDAY, "3")),
+        requested_days=requested(TUESDAY),
         actor=superuser,
     )
 
     assert not CostLine.objects.filter(id=old_line_id).exists()
-    assert updated["request"]["total_hours"] == Decimal("3")
+    assert updated["request"]["total_hours"] == Decimal("8")
     leave_service.delete_leave_request(request_id)
     assert not LeaveRequest.objects.exists()
     assert not LeaveDay.objects.exists()
@@ -206,7 +210,7 @@ def test_generic_cost_line_writes_refuse_managed_leave(
         start_date=MONDAY,
         end_date=MONDAY,
         note=None,
-        requested_days=requested((MONDAY, "8")),
+        requested_days=requested(MONDAY),
         actor=superuser,
     )
     line = CostLine.objects.get(managed_by="leave")
@@ -520,24 +524,6 @@ def test_office_closure_creates_one_public_holiday_request_per_payroll_staff(
 class TestRequestedDayRules:
     """What a leave request refuses, and what each refusal protects."""
 
-    def test_hours_beyond_the_days_roster_are_refused(
-        self, worker: Staff, company: Company, superuser: Staff
-    ) -> None:
-        """Payroll integrity: an 8-hour day cannot be paid 12 hours of leave."""
-        make_leave_job(company, superuser, "Annual Leave")
-
-        with pytest.raises(ValidationError, match="no more than the scheduled"):
-            leave_service.create_leave_request(
-                staff_id=worker.id,
-                leave_type_code=LeaveType.Code.ANNUAL,
-                start_date=MONDAY,
-                end_date=MONDAY,
-                note=None,
-                requested_days=requested((MONDAY, "12")),
-                actor=superuser,
-            )
-        assert not LeaveRequest.objects.exists()
-
     def test_the_same_date_may_not_be_supplied_twice(
         self, worker: Staff, company: Company, superuser: Staff
     ) -> None:
@@ -551,7 +537,7 @@ class TestRequestedDayRules:
                 start_date=MONDAY,
                 end_date=TUESDAY,
                 note=None,
-                requested_days=requested((MONDAY, "4"), (MONDAY, "4")),
+                requested_days=requested(MONDAY, MONDAY),
                 actor=superuser,
             )
         assert not LeaveRequest.objects.exists()
@@ -569,15 +555,18 @@ class TestRequestedDayRules:
                 start_date=MONDAY,
                 end_date=MONDAY,
                 note=None,
-                requested_days=requested((TUESDAY, "8")),
+                requested_days=requested(TUESDAY),
                 actor=superuser,
             )
         assert not LeaveRequest.objects.exists()
 
-    def test_a_request_whose_every_day_conflicts_saves_nothing(
+    def test_a_request_whose_every_day_is_already_full_saves_nothing(
         self, worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
-        """Refused outright rather than persisted as a request with no days."""
+        """Refused outright rather than persisted as a request with no days.
+
+        Guards leave_service._validated_days.
+        """
         make_leave_job(company, superuser, "Annual Leave")
         make_time_line(job, worker, accounting_date=MONDAY)
 
@@ -588,11 +577,10 @@ class TestRequestedDayRules:
                 start_date=MONDAY,
                 end_date=MONDAY,
                 note=None,
-                requested_days=requested((MONDAY, "8")),
+                requested_days=requested(MONDAY),
                 actor=superuser,
             )
         assert not LeaveRequest.objects.exists()
-        assert not LeaveDay.objects.exists()
 
     def test_a_reversed_date_range_is_refused(self, worker: Staff) -> None:
         """An empty range would otherwise preview as simply having no days."""
@@ -703,18 +691,23 @@ class TestOfficeClosure:
         assert by_staff[str(worker.id)]["available_hours"] == Decimal("8")
         assert by_staff[str(other_worker.id)]["available_hours"] == Decimal("0")
 
-    def test_a_staff_member_with_no_available_day_is_skipped_not_given_an_empty_request(
+    def test_a_closure_over_a_day_someone_has_time_on_is_refused(
         self, worker: Staff, other_worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
+        """Refused for everyone, not just Otto: the office deletes his time first.
+
+        Owner, 2026-10-26. Guards leave_service.create_office_closure.
+        """
+        del worker  # Rostered and free that day, and still given no holiday.
         make_public_holiday_job(company, superuser)
-        make_time_line(job, other_worker, accounting_date=MONDAY)
+        make_time_line(job, other_worker, accounting_date=MONDAY, hours="2.000")
 
-        result = leave_service.create_office_closure(
-            start_date=MONDAY, end_date=MONDAY, note=None, actor=superuser
-        )
+        with pytest.raises(ValidationError, match="already has time entered"):
+            leave_service.create_office_closure(
+                start_date=MONDAY, end_date=MONDAY, note=None, actor=superuser
+            )
 
-        assert {row["staff_id"] for row in result["requests"]} == {str(worker.id)}
-        assert not LeaveRequest.objects.filter(staff=other_worker).exists()
+        assert not LeaveRequest.objects.exists()
 
     def test_a_closure_nobody_can_take_is_refused_outright(
         self, worker: Staff, other_worker: Staff, company: Company, superuser: Staff
@@ -803,7 +796,7 @@ class TestLeaveMappingRules:
                 start_date=MONDAY,
                 end_date=MONDAY,
                 note=None,
-                requested_days=requested((MONDAY, "8")),
+                requested_days=requested(MONDAY),
                 actor=worker,
             )
 

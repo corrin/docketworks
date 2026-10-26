@@ -8,10 +8,11 @@ summary endpoint (margin-on-revenue formula per the 2026-08-02 user
 decision, conditional GET).
 """
 
+from collections.abc import Callable, Iterable
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -27,10 +28,11 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.errors import AccessDeniedError, ConflictError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.job_service import update_cost_line
 from apps.purchasing.models import Stock
 from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.services import workshop_timesheet_service
 from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
@@ -116,6 +118,62 @@ class TestCostSetRetrieve:
 
         assert response.status_code == 200
         assert response.json()["rev"] == 2
+
+
+class TestWhoseTimeIsRead:
+    """Non-office staff read no one else's time; the office reads anyone's (owner, 2026-10-26)."""
+
+    @pytest.fixture
+    def two_people(
+        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> tuple[str, str]:
+        mine = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="2.000")
+        theirs = make_time_line(job, timesheet_worker, accounting_date=ACCOUNTING_DATE)
+        return str(mine.id), str(theirs.id)
+
+    def test_the_actual_costs_show_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.cost_set_data's filter on the viewer."""
+        mine, _ = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/cost_sets/actual/")
+
+        assert response.status_code == 200, response.content
+        assert [line["id"] for line in response.json()["cost_lines"]] == [mine]
+
+    def test_the_job_shows_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.job_detail_data passing the viewer to its cost sets."""
+        mine, _ = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/")
+
+        assert response.status_code == 200, response.content
+        actual = response.json()["data"]["job"]["latest_actual"]
+        assert [line["id"] for line in actual["cost_lines"]] == [mine]
+
+    def test_the_timeline_shows_a_worker_only_his_own_time(
+        self, job: Job, workshop_staff: Staff, two_people: tuple[str, str]
+    ) -> None:
+        """Guards job_service.get_job_timeline's filter on the viewer."""
+        mine, theirs = two_people
+
+        response = _workshop_client(workshop_staff).get(f"/api/job/jobs/{job.id}/timeline/")
+
+        assert response.status_code == 200, response.content
+        ids = {str(entry["id"]) for entry in response.json()["timeline"]}
+        assert mine in ids
+        assert theirs not in ids
+
+    def test_the_office_reads_everyones_time(
+        self, client: Client, job: Job, two_people: tuple[str, str]
+    ) -> None:
+        response = client.get(f"/api/job/jobs/{job.id}/cost_sets/actual/")
+
+        assert response.status_code == 200, response.content
+        assert {line["id"] for line in response.json()["cost_lines"]} == set(two_people)
 
 
 class TestCostLineCreate:
@@ -477,6 +535,32 @@ class TestCostLineUpdate:
         assert response.status_code == 200, response.content
         assert CostLine.objects.get(id=line_id).cost_set.job_id == destination.id
 
+    def test_a_worker_cannot_enter_time_for_a_colleague(
+        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """Staff enter their own time; the office enters anyone's (owner, 2026-10-26).
+
+        Guards job_service._create_timesheet_entry's owner check.
+        """
+        response = _workshop_client(workshop_staff).post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data={
+                "kind": "time",
+                "desc": None,
+                "quantity": "1.000",
+                "accounting_date": ACCOUNTING_DATE.isoformat(),
+                "meta": {
+                    "created_from_timesheet": True,
+                    "staff_id": str(timesheet_worker.id),
+                    "wage_rate_multiplier": 1.0,
+                },
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403, response.content
+        assert not CostLine.objects.filter(staff=timesheet_worker).exists()
+
     def test_a_worker_cannot_move_another_persons_entry(
         self, job: Job, company: Company, workshop_staff: Staff, timesheet_worker: Staff
     ) -> None:
@@ -493,72 +577,81 @@ class TestCostLineUpdate:
         )
 
         assert response.status_code == 403, response.content
-        assert "Only office staff move another person's time" in response.json()["detail"]
+        assert "You can only update your own timesheet entries" in response.json()["detail"]
         assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert not TimesheetEvent.objects.filter(
             cost_line_id=line_id, event_type="entry_moved"
         ).exists()
 
-    def test_move_rechecks_owner_after_the_initial_read(
+    def test_move_rechecks_owner_after_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
         self,
         client: Client,
         job: Job,
         office_staff: Staff,
         workshop_staff: Staff,
         timesheet_worker: Staff,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The locked owner, not the API's earlier instance, authorizes a move."""
+        """The owner read under the locks, not the one first read, authorizes a move.
+
+        The entry is handed to another person while the move waits for its
+        job locks, as a second transaction would.
+        Guards workshop_timesheet_service.update_entry's re-read after locking.
+        """
         line_id = self._create_timesheet_line(client, job, workshop_staff)
-        stale = CostLine.objects.select_related("cost_set").get(id=line_id)
-        current = CostLine.objects.get(id=line_id)
-        update_cost_line(
-            current, {"meta": {**current.meta, "staff_id": str(timesheet_worker.id)}}, office_staff
-        )
         assert job.company is not None
         destination = make_job(job.company, office_staff, name="Destination")
         events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
         summaries = list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
+        _while_locking_jobs(
+            monkeypatch,
+            lambda: _hand_to(line_id, timesheet_worker),
+        )
 
         with pytest.raises(AccessDeniedError):
-            update_cost_line(stale, {"job_id": destination.id}, workshop_staff)
+            update_cost_line(
+                CostLine.objects.get(id=line_id), {"job_id": destination.id}, workshop_staff
+            )
 
-        current.refresh_from_db()
-        assert current.cost_set.job_id == job.id
-        assert current.staff_id == timesheet_worker.id
+        # Not moved. (The hand-over ran inside the refused transaction, so it
+        # rolled back with it; another writer's would have stood.)
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
         assert (
             list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
             == summaries
         )
 
-    def test_move_refuses_a_source_changed_since_the_initial_read(
+    def test_move_refuses_a_source_changed_since_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
         self,
         client: Client,
         job: Job,
         company: Company,
         office_staff: Staff,
         timesheet_worker: Staff,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Do not acquire a new source lock after already locking the entry row."""
+        """An entry moved elsewhere while this move waited for its locks is refused.
+
+        The locks taken were for the job first read; the entry is no longer
+        there, so taking another job's lock now could deadlock.
+        Guards workshop_timesheet_service.update_entry's check after locking.
+        """
         line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        stale = CostLine.objects.select_related("cost_set").get(id=line_id)
+        elsewhere = make_job(company, office_staff, name="Elsewhere")
         destination = make_job(company, office_staff, name="Destination")
-        current = update_cost_line(
-            CostLine.objects.get(id=line_id), {"job_id": destination.id}, office_staff
-        )
+        _while_locking_jobs(monkeypatch, lambda: _move_to(line_id, elsewhere))
         events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
-        summaries = list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
 
         with pytest.raises(ConflictError, match="moved to another job"):
-            update_cost_line(stale, {"job_id": job.id}, office_staff)
+            update_cost_line(
+                CostLine.objects.get(id=line_id), {"job_id": destination.id}, office_staff
+            )
 
-        current.refresh_from_db()
-        assert current.cost_set.job_id == destination.id
+        # Not moved to the destination. (The other move ran inside the refused
+        # transaction, so it rolled back with it; another writer's would have stood.)
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
-        assert (
-            list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
-            == summaries
-        )
 
     def test_patch_job_id_onto_a_shop_job_makes_the_entry_unbillable(
         self, client: Client, job: Job, office_staff: Staff, timesheet_worker: Staff
@@ -865,29 +958,31 @@ class TestCostLineDelete:
         assert client.delete(f"/api/job/cost_lines/{uuid4()}/delete/").status_code == 404
 
 
-class TestApprovedTimeIsLockedForWorkers:
+class TestApprovedTimeThroughTheCostLineApi:
     """The cost-line endpoints are a second door to a worker's time entries (KAN-376)."""
 
-    def test_worker_cannot_change_an_approved_entry_through_the_cost_line_api(
+    def test_worker_changes_an_approved_entry_and_it_waits_for_the_office_again(
         self, job: Job, workshop_staff: Staff
     ) -> None:
+        """Staff change their own time, approved or not (owner, 2026-10-26)."""
         line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
+        other = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="1.000")
         worker = _workshop_client(workshop_staff)
 
         edit = worker.patch(
             f"/api/job/cost_lines/{line.id}/",
-            data={"quantity": "9.000"},
+            data={"quantity": "3.000"},
             content_type="application/json",
         )
-        delete = worker.delete(f"/api/job/cost_lines/{line.id}/delete/")
+        delete = worker.delete(f"/api/job/cost_lines/{other.id}/delete/")
 
-        assert edit.status_code == 409
-        assert "approved" in edit.json()["detail"]
-        assert delete.status_code == 409
+        assert edit.status_code == 200
+        assert edit.json()["approved"] is False
+        assert delete.status_code == 204
         line.refresh_from_db()
-        assert line.quantity == Decimal("4.000")
+        assert (line.quantity, line.approved) == (Decimal("3.000"), False)
 
-    def test_office_changes_an_approved_entry(
+    def test_an_office_change_to_an_approved_entry_takes_the_approval_off(
         self, client: Client, job: Job, workshop_staff: Staff
     ) -> None:
         line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
@@ -899,10 +994,12 @@ class TestApprovedTimeIsLockedForWorkers:
         )
 
         assert response.status_code == 200
-        assert response.json()["approved"] is True
+        assert response.json()["approved"] is False
 
-    def test_the_lock_leaves_approved_material_alone(self, job: Job, workshop_staff: Staff) -> None:
-        """Material approval is a stock matter with its own rules; the lock is about pay."""
+    def test_a_workers_change_leaves_approved_material_approved(
+        self, job: Job, workshop_staff: Staff
+    ) -> None:
+        """Material approval is a stock matter with its own rules; this one is about pay."""
         line = _make_line(job.cost_sets.get(kind="actual"))
         assert line.approved
 
@@ -913,6 +1010,7 @@ class TestApprovedTimeIsLockedForWorkers:
         )
 
         assert response.status_code == 200
+        assert response.json()["approved"] is True
 
 
 class TestCopyEstimateToQuote:
@@ -1329,3 +1427,32 @@ def test_cost_lines_use_creation_order_with_uuid_ties(client: Client, job: Job, 
     assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
         str(line.id) for line in expected
     ]
+
+
+def _while_locking_jobs(monkeypatch: pytest.MonkeyPatch, change: Callable[[], None]) -> None:
+    """Run ``change`` the first time the entry service locks jobs, as another writer would."""
+    real = lock_costing_jobs
+    done: list[bool] = []
+
+    def lock_then_change(job_ids: Iterable[UUID]) -> None:
+        real(job_ids)
+        if not done:
+            done.append(True)
+            change()
+
+    monkeypatch.setattr(workshop_timesheet_service, "lock_costing_jobs", lock_then_change)
+
+
+def _hand_to(line_id: str, person: Staff) -> None:
+    """Make the entry another person's, behind the service's back."""
+    line = CostLine.objects.get(id=line_id)
+    CostLine.objects.filter(id=line_id).update(
+        staff=person, meta={**line.meta, "staff_id": str(person.id)}
+    )
+
+
+def _move_to(line_id: str, destination: Job) -> None:
+    """Put the entry on another job, behind the service's back."""
+    CostLine.objects.filter(id=line_id).update(
+        cost_set=CostSet.objects.get(job=destination, kind="actual")
+    )

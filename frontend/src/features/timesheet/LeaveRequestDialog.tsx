@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
@@ -9,7 +10,7 @@ import {
   timesheetsLeavePreviewCreateMutation,
   timesheetsLeaveRequestsCreateMutation,
   timesheetsLeaveRequestsUpdateMutation,
-  type LeaveDayInput,
+  type LeaveDayOut,
   type LeaveRequestOut,
   type LeaveTypeOut,
   type TimesheetStaffOut,
@@ -23,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { localIsoDate } from '@/lib/format'
+import { formatHoursDisplay, localIsoDate } from '@/lib/format'
 import { INPUT_CLASS } from '@/components/ui/field'
 
 interface Props {
@@ -97,7 +98,9 @@ function LeaveRequestForm({
   const [startDate, setStartDate] = useState(request?.start_date ?? localIsoDate())
   const [endDate, setEndDate] = useState(request?.end_date ?? localIsoDate())
   const [note, setNote] = useState(request?.note ?? '')
-  const [days, setDays] = useState<LeaveDayInput[]>(
+  // Whole days (owner, 2026-10-25): the hours shown are what each day puts
+  // to leave, the server's to work out; only the dates are sent.
+  const [days, setDays] = useState<Pick<LeaveDayOut, 'date' | 'hours'>[]>(
     () => request?.days.map((day) => ({ date: day.date, hours: day.hours })) ?? [],
   )
   const [previewMessage, setPreviewMessage] = useState<string | null>(null)
@@ -146,18 +149,21 @@ function LeaveRequestForm({
       start_date: startDate,
       end_date: endDate,
       note: note.trim() || null,
-      days,
+      days: days.map((day) => day.date),
     }
     setSaving(true)
     try {
       const result = request
         ? await updateMutation.mutateAsync({ path: { request_id: request.id }, body })
         : await createMutation.mutateAsync({ body: { ...body, staff_id: staffId } })
-      if (result.skipped_days.length > 0) {
-        setPreviewMessage(
-          t('leaveRequest.conflictingSkipped', { skipped: result.skipped_days.length }),
-        )
-      }
+      // The dialog closes on save, so what the office must know goes in a toast.
+      const notes = [
+        ...(result.skipped_days.length > 0
+          ? [t('leaveRequest.skippedDays', { skipped: result.skipped_days.length })]
+          : []),
+        ...result.warnings,
+      ]
+      if (notes.length > 0) toast.warning(notes.join(' '))
       await onSaved()
       onOpenChange(false)
     } catch (caught) {
@@ -301,28 +307,15 @@ function LeaveRequestForm({
             <span>{t('leaveRequest.dateColumn')}</span>
             <span title={t('leaveRequest.hoursColumnTitle')}>{t('leaveRequest.hoursColumn')}</span>
           </div>
-          {days.map((day, index) => (
+          {days.map((day) => (
             <div
               key={day.date}
               className="grid grid-cols-[1fr_8rem] items-center border-t border-slate-100 px-3 py-2 text-sm"
             >
               <span>{day.date}</span>
-              <input
-                aria-label={t('leaveRequest.hoursFor', { date: day.date })}
-                type="number"
-                data-automation-id={`LeaveRequestDialog-hours-${day.date}`}
-                min="0.001"
-                step="0.5"
-                className={INPUT_CLASS}
-                value={day.hours}
-                onChange={(event) =>
-                  setDays((current) =>
-                    current.map((row, rowIndex) =>
-                      rowIndex === index ? { ...row, hours: Number(event.target.value) } : row,
-                    ),
-                  )
-                }
-              />
+              <span data-automation-id={`LeaveRequestDialog-hours-${day.date}`}>
+                {formatHoursDisplay(day.hours)}
+              </span>
             </div>
           ))}
         </div>

@@ -62,6 +62,10 @@ from apps.purchasing.services.purchase_order_service import (  # noqa: E402
 EXAMPLE_CAP = 3
 
 
+#: An office reader, unsaved: the office reads every line, so every line is checked.
+_EVERY_LINE = Staff(is_office_staff=True)
+
+
 class SerializerResult(TypedDict):
     """One test method's outcome, matching v1's result shape."""
 
@@ -163,7 +167,9 @@ class SerializerTester:
             "JobDetail",
             queryset.iterator(chunk_size=100),
             queryset.count(),
-            lambda job: _validated(JobDetail, job_service.job_detail_data(job)),
+            lambda job: _validated(
+                JobDetail, job_service.job_detail_data(job, lines_for=_EVERY_LINE)
+            ),
             verbose=self.verbose,
         )
 
@@ -197,7 +203,9 @@ class SerializerTester:
             "CostSetOut",
             queryset.iterator(chunk_size=100),
             queryset.count(),
-            lambda cost_set: _validated(CostSetOut, job_service.cost_set_data(cost_set)),
+            lambda cost_set: _validated(
+                CostSetOut, job_service.cost_set_data(cost_set, lines_for=_EVERY_LINE)
+            ),
             verbose=self.verbose,
         )
 

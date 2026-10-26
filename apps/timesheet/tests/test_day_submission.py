@@ -141,8 +141,9 @@ class TestPlacement:
         back = worker_client.get(f"{query}&finish=14:00").json()
         neither = worker_client.get(query)
 
-        assert forward == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
-        assert back == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
+        six = {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0, "overtime_hours": 0.0}
+        assert forward == six
+        assert back == six
         assert neither.status_code == 400
         for refused in ("0", "-1", "100000"):
             assert worker_client.get(f"{query}&hours={refused}").status_code == 422
@@ -479,9 +480,7 @@ class TestBreaks:
         assert straddling is not None and straddling["to_fill_hours"] == 8.25
         assert outside is not None and outside["to_fill_hours"] == 8.5
 
-    def test_a_break_is_moved_as_the_entry_it_is(
-        self, worker: Staff, office_staff: Staff, break_job: Job
-    ) -> None:
+    def test_a_break_is_moved_as_the_entry_it_is(self, worker: Staff, break_job: Job) -> None:
         _clocked(worker)
         morning = CostLine.objects.filter(staff=worker, cost_set__job=break_job).first()
         assert morning is not None
@@ -489,11 +488,10 @@ class TestBreaks:
         attendance.change_break(morning.id, time(9, 0), time(9, 15), worker)
         morning.refresh_from_db()
         assert (morning.meta["start_time"], morning.meta["end_time"]) == ("09:00:00", "09:15:00")
-        # Once the office approves it, it is locked for him like any approved time.
+        # Approved, it is still his to change like any of his time (owner,
+        # 2026-10-26: the office has less authority over a timesheet than he does).
         CostLine.objects.filter(pk=morning.pk).update(approved=True)
-        with pytest.raises(ConflictError, match="approved"):
-            attendance.remove_break(morning.id, worker)
-        attendance.remove_break(morning.id, office_staff)
+        attendance.remove_break(morning.id, worker)
         assert not CostLine.objects.filter(pk=morning.pk).exists()
 
     def test_a_job_entry_is_not_a_break(self, worker: Staff, job: Job) -> None:
@@ -619,7 +617,11 @@ class TestEntryTimes:
     def test_hours_that_would_run_past_midnight_are_saved_without_times(
         self, worker_client: Client, worker: Staff, job: Job
     ) -> None:
-        """Hours are the truth: twelve hours from one o'clock still save, with no picture."""
+        """Hours are the truth: twelve hours from one o'clock still save, with no picture.
+
+        Past his usual eight with the five before them, nine of the twelve are
+        time and a half: two lines, both without times.
+        """
         _clocked(worker, time(7, 0), time(15, 0))
         body = {"job_id": str(job.id), "accounting_date": DAY.isoformat()}
         worker_client.post(DAY_URL, data={**body, "hours": "5"}, content_type="application/json")
@@ -629,8 +631,17 @@ class TestEntryTimes:
         )
 
         assert late.status_code == 201, late.content
-        assert (late.json()["start_time"], late.json()["end_time"]) == (None, None)
-        assert late.json()["hours"] == 12.0
+        lines = CostLine.objects.filter(staff=worker, cost_set__job=job).order_by("created_at")
+        assert [
+            (
+                # An entry with no times has neither key.
+                line.meta.get("start_time"),
+                line.meta.get("end_time"),
+                line.quantity,
+                line.meta["wage_rate_multiplier"],
+            )
+            for line in lines[1:]
+        ] == [(None, None, Decimal("3.000"), 1.0), (None, None, Decimal("9.000"), 1.5)]
 
     def test_an_entry_saved_without_times_is_placed_after_the_previous_one(
         self, worker_client: Client, worker: Staff, job: Job

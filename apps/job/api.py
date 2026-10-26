@@ -282,7 +282,7 @@ def get_full_job(
     if _not_modified(request, response, _current_job_etag(job_id)):
         return Status(304, None)
     try:
-        job_data = job_service.get_job_for_edit(job_id)
+        job_data = job_service.get_job_for_edit(job_id, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return {"success": True, "data": job_data}
@@ -302,7 +302,7 @@ def _update_job(
             request_ip=request.META.get("REMOTE_ADDR"),
         )
         # Return complete job data for frontend reactivity
-        job_data = job_service.get_job_for_edit(job_id)
+        job_data = job_service.get_job_for_edit(job_id, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = _job_etag(updated_job)
@@ -547,7 +547,7 @@ def job_rest_jobs_events_create(
 def job_jobs_timeline_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, object]:
     """Fetch the unified job timeline (events + cost lines, newest first)."""
     try:
-        return {"timeline": job_service.get_job_timeline(job_id)}
+        return {"timeline": job_service.get_job_timeline(job_id, authenticated_staff(request))}
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
@@ -574,7 +574,7 @@ def job_jobs_undo_change_create(
             undo_change_id=payload.undo_change_id,
             request_ip=request.META.get("REMOTE_ADDR"),
         )
-        job_data = job_service.get_job_for_edit(job_id)
+        job_data = job_service.get_job_for_edit(job_id, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = _job_etag(updated_job)
@@ -824,7 +824,7 @@ def job_jobs_cost_sets_retrieve(
     cost_set = job_service.get_latest_cost_set(job, kind)
     if cost_set is None:
         raise HttpError(404, gettext("This job has no %(kind)s costs and revenue") % {"kind": kind})
-    return job_service.cost_set_data(cost_set)
+    return job_service.cost_set_data(cost_set, lines_for=authenticated_staff(request))
 
 
 def _create_cost_line(

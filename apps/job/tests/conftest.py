@@ -13,6 +13,7 @@ from apps.company.models import Company
 from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
+from apps.timesheet.tests.conftest import EMPLOYED_SINCE
 
 PASSWORD = "s3cret-Pass!"
 
@@ -34,6 +35,7 @@ def office_staff() -> Staff:
     wage_rate 48.00).
     """
     return Staff.objects.create_user(
+        employment_start_date=EMPLOYED_SINCE,
         office_email="job-office@example.com",
         password=PASSWORD,
         first_name="Office",
@@ -47,6 +49,7 @@ def office_staff() -> Staff:
 def workshop_staff() -> Staff:
     """A non-office staff member (read-only on the job endpoints)."""
     return Staff.objects.create_user(
+        employment_start_date=EMPLOYED_SINCE,
         office_email="job-workshop@example.com",
         password=PASSWORD,
         first_name="Workshop",
@@ -60,6 +63,7 @@ def workshop_staff() -> Staff:
 def unpaid_staff() -> Staff:
     """A staff member whose wage rate was never configured (pricing must refuse)."""
     return Staff.objects.create_user(
+        employment_start_date=EMPLOYED_SINCE,
         office_email="job-unpaid@example.com",
         password=PASSWORD,
         first_name="Unpriced",
@@ -77,6 +81,7 @@ def timesheet_worker() -> Staff:
     loading calculation and the default-subtype assignment need.
     """
     return Staff.objects.create_user(
+        employment_start_date=EMPLOYED_SINCE,
         office_email="job-timesheet-worker@example.com",
         password=PASSWORD,
         first_name="Tina",

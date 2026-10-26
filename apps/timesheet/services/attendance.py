@@ -9,11 +9,13 @@ constraints state the same facts about a row and are the backstop, never the
 message.
 """
 
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, NamedTuple, TypedDict
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext, gettext_noop
@@ -25,7 +27,6 @@ from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import (
-    SWEPT_GENERAL_WORK,
     UNTOUCHED_STANDARD_BREAK,
     AttendanceDay,
     ClockHow,
@@ -52,6 +53,8 @@ class AttendanceData(TypedDict):
     #: "Did not clock in", "Did not clock out". Empty for times tapped at the
     #: workshop and for times the office itself set.
     cautions: list[str]
+    #: The rest of the day is General work, as the sweep or he set it.
+    general_work_fill: bool
 
 
 class ClockingRefusedError(ConflictError):
@@ -356,7 +359,7 @@ def unallocated_windows(
     first, last = _minutes(day_start), _minutes(day_end)
     windows: list[Window] = []
     free_from, floor = first, 0
-    for taken_start, taken_end in [*_merged(occupied), (24 * 60, 24 * 60)]:
+    for taken_start, taken_end in [*merged_minutes(occupied), (24 * 60, 24 * 60)]:
         # Each bound rounds to its quarter, but never into the entry or break
         # beside it: those minutes are already paid.
         start = max(_minutes(to_quarter(_time_of(free_from))), floor)
@@ -370,8 +373,8 @@ def _time_of(minutes: int) -> time:
     return time(minutes // 60, minutes % 60)
 
 
-def _merged(windows: list[Window]) -> list[tuple[int, int]]:
-    """Return breaks as minute stretches in order, with overlapping ones joined."""
+def merged_minutes(windows: list[Window]) -> list[tuple[int, int]]:
+    """Return windows as minute stretches in order, with overlapping or touching ones joined."""
     merged: list[tuple[int, int]] = []
     for start, end in sorted((_minutes(each.start), _minutes(each.end)) for each in windows):
         if merged and start <= merged[-1][1]:
@@ -388,8 +391,13 @@ def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
     """
     return sum(
         max(min(last, break_end) - max(first, break_start), 0)
-        for break_start, break_end in _merged(breaks)
+        for break_start, break_end in merged_minutes(breaks)
     )
+
+
+def break_minutes_in(span: Window, breaks: list[Window]) -> int:
+    """Return how many minutes of ``span`` the breaks cover, overlapping ones counted once."""
+    return _minutes_inside(_minutes(span.start), _minutes(span.end), breaks)
 
 
 _LAST_MINUTE = 24 * 60 - 1
@@ -410,7 +418,7 @@ def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time
     """
     cursor = _minutes(start)
     remaining = int((hours * 60).to_integral_value(ROUND_HALF_UP))
-    for break_start, break_end in _merged(breaks):
+    for break_start, break_end in merged_minutes(breaks):
         if break_end <= cursor:
             continue
         if break_start <= cursor:
@@ -433,6 +441,20 @@ def start_after_breaks(start: time, breaks: list[Window]) -> time:
         # A break is a time of day and ends by 23:59, so this cannot be reached.
         raise ValueError(f"Stepping past the breaks from {start:%H:%M} left the day.")
     return stepped
+
+
+def clock_change_minutes(day: date, start: time, finish: time) -> int:
+    """Return the minutes the clocks moved between two times of the day: -60, 0 or 60.
+
+    On the day the clocks go forward, 01:00 to 04:00 is two hours worked, not
+    three; on the day they go back it is four. Every other day it is nothing.
+    """
+    zone = ZoneInfo(settings.TIME_ZONE)
+    elapsed = datetime.combine(day, finish, zone).astimezone(UTC) - datetime.combine(
+        day, start, zone
+    ).astimezone(UTC)
+    on_the_clock = _minutes(finish) - _minutes(start)
+    return int(elapsed.total_seconds() // 60) - on_the_clock
 
 
 def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
@@ -514,6 +536,7 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
             "here_hours": None,
             "sent_late": False,
             "cautions": [],
+            "general_work_fill": False,
         }
     return {
         "state": day_state(row),
@@ -523,6 +546,7 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
         "sent_late": row.submitted_at is not None
         and timezone.localdate(row.submitted_at) > row.date,
         "cautions": clock_cautions(row),
+        "general_work_fill": row.general_work_fill,
     }
 
 
@@ -661,6 +685,8 @@ def clock_out(
     worker: Staff, now: datetime, location: EntryLocation | None = None
 ) -> AttendanceData:
     """Finish the worker's day at ``now``. Only today's open day is stamped."""
+    # His lock first, as every write to his day takes it.
+    Staff.objects.select_for_update().filter(pk=worker.pk).first()
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=now.date()).first()
     if row is None:
         raise ClockingRefusedError(gettext("You are not clocked in today."))
@@ -679,6 +705,12 @@ def clock_out(
     row.save(update_fields=["clock_out", "clock_out_how", "updated_at"])
     _record(worker, row, "clocked_out", before, location=location)
     drop_breaks_after_finish(row, worker, location)
+    # A filled day's General work runs to the finish he has just given it.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        refill_general_work,
+    )
+
+    refill_general_work(worker, row.date, worker)
     return attendance_data(row)
 
 
@@ -746,7 +778,12 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     _record(actor, row, "clock_times_set", before, location=location)
     generate_default_breaks(row, actor, location)
     drop_breaks_after_finish(row, actor, location)
-    drop_sweep_outside_clock(row, actor, location)
+    # A filled day's General work follows the new times (owner, 2026-10-26).
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        refill_general_work,
+    )
+
+    refill_general_work(owner, day, actor)
     return attendance_data(row)
 
 
@@ -827,10 +864,19 @@ def generate_default_breaks(
     """
     if row.breaks_generated:
         return
+    # Call-time import: the entry writes live in the module that reads this
+    # one for the day's attendance.
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        day_time_lines,
+    )
+
+    entries, _ = split_breaks(day_time_lines(row.staff, row.date))
     for each in _default_breaks():
         # A day given both times at once has no break he was not there for.
         ends_after = row.clock_out is not None and each.window.end > row.clock_out
         if each.window.start < row.clock_in or ends_after:
+            continue
+        if any(_no_room_for(each.window, line) for line in entries):
             continue
         _create_break(
             row.staff,
@@ -844,6 +890,22 @@ def generate_default_breaks(
         )
     row.breaks_generated = True
     row.save(update_fields=["breaks_generated", "updated_at"])
+
+
+def _no_room_for(window: Window, line: CostLine) -> bool:
+    """Whether an entry already on the day holds the time a standard break would take.
+
+    Breaks come before entries (owner, 2026-10-25), so a standard break is
+    recorded wherever the day is free and never changes an entry. An entry
+    whose hours fill its span, such as 08:00-09:00 booked as an hour, was
+    worked through that break: putting it on would pay the quarter hour
+    twice, so it is left off. One placed around the planned break has room.
+    """
+    span = _line_window(line)
+    if span is None or span.end <= window.start or window.end <= span.start:
+        return False
+    room = _minutes(span.end) - _minutes(span.start) - break_minutes_in(span, [window])
+    return line.quantity * 60 > room
 
 
 def drop_breaks_after_finish(
@@ -865,43 +927,6 @@ def drop_breaks_after_finish(
         if line.meta.get("source") != UNTOUCHED_STANDARD_BREAK or window is None:
             continue
         if window.end > row.clock_out:
-            delete_entry(actor, line.id, location)
-
-
-def drop_sweep_outside_clock(
-    row: AttendanceDay, actor: Staff, location: EntryLocation | None = None
-) -> None:
-    """Take off the sweep's General work entries the day's clock times no longer cover.
-
-    The sweep made them from the clock times as they stood; a later finish of
-    15:00 leaves 15:00 to 17:00 on General work that he was not here for, and
-    paid. One reaching outside the new times goes whole, leaving any stretch
-    still clocked for the office to sweep again. Bounds are on quarter hours,
-    as the sweep set them. A worker cannot take off the office's approved
-    entry, so his own change to such a day is refused and the office makes it.
-    """
-    general_work_id = CompanyDefaults.get_solo().general_work_job_id
-    if general_work_id is None:
-        return
-    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
-        delete_entry,
-    )
-
-    first = to_quarter(row.clock_in)
-    last = None if row.clock_out is None else to_quarter(row.clock_out)
-    swept = CostLine.objects.filter(
-        cost_set__kind="actual",
-        cost_set__job_id=general_work_id,
-        kind="time",
-        staff=row.staff,
-        accounting_date=row.date,
-        meta__source=SWEPT_GENERAL_WORK,
-    )
-    for line in swept:
-        window = _line_window(line)
-        if window is None:
-            raise ValueError(f"Swept General work line {line.id} has no start and stop")
-        if window.start < first or (last is not None and window.end > last):
             delete_entry(actor, line.id, location)
 
 

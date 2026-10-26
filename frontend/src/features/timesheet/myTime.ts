@@ -73,6 +73,8 @@ export function cautionMarks(flags: {
   remote_entry: boolean
   /** A person's day only: how it was clocked and sent, as the server words it. */
   clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
+  /** A person's day only: the hours at overtime differ from the hours past the usual day. */
+  overtime_check?: boolean
 }): CautionMark[] {
   const marks: CautionMark[] = []
   if (flags.clock !== undefined) marks.push(...flags.clock.cautions.map((label) => ({ label })))
@@ -90,6 +92,11 @@ export function cautionMarks(flags: {
     marks.push({
       label: i18n.t('timesheet:marks.sentLate'),
       title: i18n.t('timesheet:marks.sentLateTitle'),
+    })
+  if (flags.overtime_check)
+    marks.push({
+      label: i18n.t('timesheet:marks.overtimeCheck'),
+      title: i18n.t('timesheet:marks.overtimeCheckTitle'),
     })
   return marks
 }
@@ -127,18 +134,6 @@ export function clockWords(day: AttendanceOut): string {
   return day.state === 'sent'
     ? i18n.t('timesheet:clock.sent', { span, here })
     : i18n.t('timesheet:clock.clockedOut', { span, here })
-}
-
-/**
- * Whether this person may no longer change the entry. Approved time is what
- * payroll pays, so only the office changes it; the server refuses the write
- * either way, and this keeps the drawer from offering one it will refuse.
- */
-export function entryLockedFor(
-  entry: WorkshopTimesheetEntryOut,
-  user: { is_office_staff: boolean },
-): boolean {
-  return entry.approved && !user.is_office_staff
 }
 
 const TIME_PATTERN = /^(\d{2}):(\d{2})/

@@ -598,21 +598,23 @@ class TestEntrySequencing:
 class TestApprovalStatus:
     """What the worker sees and may change once the office approves (KAN-376)."""
 
-    def test_worker_cannot_edit_or_delete_an_approved_entry(
+    def test_worker_edits_an_approved_entry_and_it_waits_for_the_office_again(
         self, worker_client: Client, job: Job, worker: Staff
     ) -> None:
+        """Staff change their own time, approved or not (owner, 2026-10-26)."""
         line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
+        other = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="1.000")
 
         edit = worker_client.patch(
-            URL, data={"entry_id": str(line.id), "hours": "9.00"}, content_type="application/json"
+            URL, data={"entry_id": str(line.id), "hours": "3.00"}, content_type="application/json"
         )
-        delete = worker_client.delete(f"{URL}?entry_id={line.id}")
+        delete = worker_client.delete(f"{URL}?entry_id={other.id}")
 
-        assert edit.status_code == 409
-        assert "approved" in edit.json()["detail"]
-        assert delete.status_code == 409
+        assert edit.status_code == 200
+        assert edit.json()["approved"] is False
+        assert delete.status_code == 204
         line.refresh_from_db()
-        assert line.quantity == Decimal("4.000")
+        assert (line.quantity, line.approved) == (Decimal("3.000"), False)
 
     def test_worker_still_changes_an_entry_that_is_waiting(
         self, worker_client: Client, job: Job, worker: Staff
@@ -626,7 +628,7 @@ class TestApprovalStatus:
         assert response.status_code == 200
         assert response.json()["approved"] is False
 
-    def test_office_edit_keeps_an_entry_approved(self, office_staff: Staff, job: Job) -> None:
+    def test_an_office_edit_takes_the_approval_off(self, office_staff: Staff, job: Job) -> None:
         line = make_time_line(job, office_staff, accounting_date=ENTRY_DATE, hours="4.000")
 
         response = authenticated_client(office_staff).patch(
@@ -634,7 +636,7 @@ class TestApprovalStatus:
         )
 
         assert response.status_code == 200
-        assert response.json()["approved"] is True
+        assert response.json()["approved"] is False
         line.refresh_from_db()
         assert line.quantity == Decimal("5.000")
 
@@ -816,7 +818,7 @@ class TestOfficeActsForAWorker:
         [event] = TimesheetEvent.objects.filter(cost_line_id=line.id, event_type="entry_updated")
         assert event.staff_id == cheaper_office.id
 
-    def test_office_corrects_an_approved_entry_and_it_stays_approved(
+    def test_office_corrects_an_approved_entry_and_it_waits_to_be_approved_again(
         self, office_staff: Staff, job: Job, worker: Staff
     ) -> None:
         line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
@@ -828,9 +830,10 @@ class TestOfficeActsForAWorker:
         assert response.status_code == 200, response.content
         line.refresh_from_db()
         assert line.quantity == Decimal("3.000")
-        assert line.approved is True
+        # Entering and approving are two operations (owner, 2026-10-26).
+        assert line.approved is False
 
-    def test_time_the_office_enters_for_a_worker_is_theirs_and_approved(
+    def test_time_the_office_enters_for_a_worker_is_theirs_and_waits_for_approval(
         self, office_staff: Staff, job: Job, worker: Staff
     ) -> None:
         entry = _create(authenticated_client(office_staff), job, staff_id=str(worker.id))
@@ -839,7 +842,7 @@ class TestOfficeActsForAWorker:
         assert line.staff_id == worker.id
         assert line.meta["staff_id"] == str(worker.id)
         assert line.unit_cost == Decimal("48.00")
-        assert line.approved is True
+        assert line.approved is False
         assert line.remote_entry is False
 
     def test_a_worker_cannot_enter_time_for_someone_else(

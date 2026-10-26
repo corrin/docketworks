@@ -16,7 +16,8 @@ const SKIP_KEYS = {
   no_clock_times: 'noClockTimes',
 } as const satisfies Record<SweepSkipOut['reason'], string>
 
-/** What a sweep did, in words: the hours moved, then each day it left alone. */
+/** What a sweep did, in words: the hours moved, each day it left alone, then
+    each person it took past the usual day (the server words those). */
 export function sweepWords(result: SweepOut): string {
   const moved = i18n.t('timesheet:sweep.moved', {
     hours: formatHoursDisplay(result.swept_hours),
@@ -28,9 +29,16 @@ export function sweepWords(result: SweepOut): string {
       reason: i18n.t(`timesheet:sweep.skip.${SKIP_KEYS[skip.reason]}`),
     }),
   )
-  return skipped.length === 0
-    ? moved
-    : i18n.t('timesheet:sweep.withSkipped', { moved, skipped: skipped.join(', ') })
+  const words =
+    skipped.length === 0
+      ? moved
+      : i18n.t('timesheet:sweep.withSkipped', { moved, skipped: skipped.join(', ') })
+  return result.overtime.length === 0
+    ? words
+    : i18n.t('timesheet:sweep.withOvertime', {
+        words,
+        overtime: result.overtime.map((each) => each.message).join(' '),
+      })
 }
 
 /**
@@ -50,7 +58,9 @@ export function useSweep() {
       toast.error(apiErrorMessage(error, failure))
       return
     }
-    toast.success(sweepWords(result))
+    // Overtime the sweep booked is the office's to check (owner, 2026-10-25).
+    if (result.overtime.length === 0) toast.success(sweepWords(result))
+    else toast.warning(sweepWords(result))
     void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
     void queryClient.invalidateQueries({ queryKey: timesheetsWeeklyRetrieveQueryKey() })
   }

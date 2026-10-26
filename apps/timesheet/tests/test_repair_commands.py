@@ -364,7 +364,53 @@ class TestReclassifyOvertimeEntries:
         assert new_line.xero_pay_item is not None
         assert new_line.xero_pay_item.name == "Time and one half"
         assert new_line.accounting_date == TUESDAY
-        assert new_line.unit_cost == split_line.unit_cost
+        # Paid as the overtime Xero paid: half as much again; charged as billed.
+        assert new_line.unit_cost == split_line.unit_cost * Decimal("1.5")
+        assert new_line.unit_rev == split_line.unit_rev
+        assert whole_line.unit_cost == split_line.unit_cost * Decimal("1.5")
+
+    def test_apply_keeps_the_lines_own_wage_and_charge(self, tmp_path: Path, job: Job) -> None:
+        """A customer line entered at 50.00 cost and 130.00 charge, since repriced.
+
+        The repair makes the overtime Xero paid: the cost becomes half as much
+        again of what the line itself cost, and the customer's charge is left
+        as it was billed. Today's wage and charge-out rate play no part.
+        Guards reclassify_overtime_entries._price_as_overtime.
+        """
+        staff = make_staff("rc-c@example.com", first_name="Custy", last_name="Worker")
+        line = make_time_line(
+            job, staff, accounting_date=TUESDAY, unit_cost="50.00", unit_rev="130.00"
+        )
+        csv_path = tmp_path / "reviewed.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=reclassify_command_module.PREVIEW_COLUMNS)
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "week_start": MONDAY.isoformat(),
+                    "staff_name": staff.get_display_name(),
+                    "staff_id": str(staff.id),
+                    "job_name": job.name,
+                    "job_id": str(job.id),
+                    "costline_id": str(line.id),
+                    "action": "split",
+                    "ot_hours": "3",
+                    "remaining_hours": "5",
+                    "accounting_date": TUESDAY.isoformat(),
+                    "unit_cost": "50.00",
+                    "xero_ot": "3",
+                    "jm_ot": "0",
+                    "ot_gap": "3",
+                }
+            )
+
+        _run("reclassify_overtime_entries", "--apply", str(csv_path))
+
+        line.refresh_from_db()
+        overtime = CostLine.objects.get(cost_set=job.latest_actual, quantity=Decimal("3.000"))
+        assert (line.unit_cost, line.unit_rev) == (Decimal("50.00"), Decimal("130.00"))
+        # 50.00 x 1.5 = 75.00 paid; charged 130.00, as the hours were billed.
+        assert (overtime.unit_cost, overtime.unit_rev) == (Decimal("75.00"), Decimal("130.00"))
 
     def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")

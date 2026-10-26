@@ -404,11 +404,8 @@ class Command(BaseCommand):
     @staticmethod
     def _reclassify_costline(costline: CostLine, ot_pay_item: PayItem) -> None:
         """Reclassify a whole CostLine as overtime."""
-        costline.xero_pay_item_id = ot_pay_item.id
         costline.desc = f"{costline.desc} {DESC_SUFFIX}"
-        meta = dict(costline.meta or {})
-        meta["wage_rate_multiplier"] = OT_MULTIPLIER
-        costline.meta = meta
+        _price_as_overtime(costline, ot_pay_item)
         costline.save()
 
     @staticmethod
@@ -418,8 +415,6 @@ class Command(BaseCommand):
         costline.quantity = (costline.quantity - ot_hours).quantize(THREE_DP)
         costline.save()
 
-        meta = dict(costline.meta or {})
-        meta["wage_rate_multiplier"] = OT_MULTIPLIER
         new_line = CostLine(
             cost_set=costline.cost_set,
             kind=costline.kind,
@@ -429,9 +424,26 @@ class Command(BaseCommand):
             unit_rev=costline.unit_rev,
             accounting_date=costline.accounting_date,
             staff=costline.staff,
-            xero_pay_item_id=ot_pay_item.id,
             labour_subtype=costline.labour_subtype,
-            meta=meta,
+            meta=dict(costline.meta),
         )
+        _price_as_overtime(new_line, ot_pay_item)
         new_line.save()
         return new_line
+
+
+def _price_as_overtime(line: CostLine, ot_pay_item: PayItem) -> None:
+    """Make a line the overtime Xero paid: its own cost at the overtime rate.
+
+    The figures are the line's own, from the day the hours were worked: a
+    pay rise or a new charge-out rate since then plays no part. The charge is
+    left as the customer was billed; this mends what was paid.
+    """
+    ordinary = Decimal(str(line.meta["wage_rate_multiplier"]))
+    if ordinary <= 0:
+        raise CommandError(f"Time line {line.id} is unpaid, so it cannot be paid as overtime.")
+    line.unit_cost = (line.unit_cost / ordinary * Decimal(str(OT_MULTIPLIER))).quantize(
+        Decimal("0.01")
+    )
+    line.meta = {**line.meta, "wage_rate_multiplier": OT_MULTIPLIER}
+    line.xero_pay_item_id = ot_pay_item.id

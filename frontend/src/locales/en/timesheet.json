@@ -3,6 +3,7 @@
     "moved": "{{hours}} booked to General work.",
     "skippedDay": "{{name}} on {{date}} ({{reason}})",
     "withSkipped": "{{moved}} Not booked: {{skipped}}.",
+    "withOvertime": "{{words}} {{overtime}}",
     "skip": {
       "stillClockedIn": "still clocked in",
       "noClockTimes": "no clock in or out"
@@ -23,7 +24,9 @@
     "sentLate": "Sent late",
     "enteredLateTitle": "Some of the waiting time was entered on a later day than the day it's for.",
     "remoteEntryTitle": "Some of the waiting time was entered from a phone that was away from the workshop, or that didn't give its location.",
-    "sentLateTitle": "They sent this day to the office on a later day."
+    "sentLateTitle": "They sent this day to the office on a later day.",
+    "overtimeCheck": "Overtime to check",
+    "overtimeCheckTitle": "The hours at time and a half don't match the hours past the usual day."
   },
   "clock": {
     "noStandardHours": "No standard hours on this day. Set the times.",
@@ -55,6 +58,7 @@
     "withApproval": "{{kind}} {{span}} · {{approval}}"
   },
   "myDay": {
+    "generalWorkFailed": "Couldn't put the rest of the day on General work.",
     "entrySaveFailed": "The entry could not be saved.",
     "entryUpdateFailed": "The entry could not be updated.",
     "entryDeleteFailed": "The entry could not be deleted.",
@@ -175,7 +179,7 @@
     "upcomingHoursTitle": "Leave hours from today on, for the leave in the list below. The search box changes all three figures.",
     "officeClosedTitle": "Books public holiday leave for everyone rostered on the days you choose, when the whole shop is shut.",
     "officeClosureSourceTitle": "This leave was booked for everyone at once with Office closed.",
-    "hoursColumnTitle": "Total hours booked for this leave. Days the person wasn't rostered, or already had time entered, are not included.",
+    "hoursColumnTitle": "Total hours booked for this leave. Days the person wasn't rostered are not included, and a day that already had time entered takes only what was left of it.",
     "cancelTitle": "Deletes this leave and takes its hours off the timesheet."
   },
   "leaveRequest": {
@@ -185,7 +189,7 @@
     "unavailableSkipped_one": "{{count}} unavailable day will be skipped.",
     "unavailableSkipped_other": "{{count}} unavailable days will be skipped.",
     "previewFailed": "Could not preview leave.",
-    "conflictingSkipped": "{{skipped}} conflicting day(s) were skipped.",
+    "skippedDays": "{{skipped}} day(s) were skipped: not rostered, or outside employment dates.",
     "saveFailed": "Could not save leave.",
     "employee": "Employee",
     "selectEmployee": "Select employee",
@@ -202,13 +206,12 @@
     "preview": "Preview scheduled days",
     "dateColumn": "Date",
     "hoursColumn": "Hours",
-    "hoursFor": "Hours for {{date}}",
     "cancel": "Cancel",
     "saving": "Saving…",
     "save": "Save leave",
     "currentBalanceTitle": "The balance Xero holds for this person right now. Leave booked in DocketWorks only reaches Xero when that week's pay is posted, so it may not be taken off yet.",
-    "previewTitle": "Lists each day in the range the person is rostered, filled in with their rostered hours. Days outside their employment, days they're not rostered, and days that already have time entered are skipped.",
-    "hoursColumnTitle": "Hours of leave for this day. It can't be more than they're rostered for that day.",
+    "previewTitle": "Lists each day in the range the person is rostered, with the hours of leave it takes: what is left of the rostered day once the time already entered is counted. Days outside their employment and days they're not rostered are skipped.",
+    "hoursColumnTitle": "Hours of leave for this day: what is left of their rostered day once the time already entered is counted.",
     "employeeLockedTitle": "Can't be changed on existing leave. Cancel it and book new leave for the other person.",
     "saveNeedsPreviewTitle": "Preview the scheduled days first."
   },
@@ -227,6 +230,7 @@
     "addJob": "Add a job",
     "anotherJob": "Another job",
     "send": "Send to office",
+    "sendWithOvertime": "Send with overtime",
     "notYet": "Not yet"
   },
   "clockTimesForm": {
@@ -248,6 +252,9 @@
     "fillAndSend": "Fill and send",
     "clockBackIn": "Clock back in",
     "addBreak": "Add a break",
+    "generalWork": "Rest of the day to General work",
+    "generalWorkTitle": "Puts the time on no job and no break onto General work. Anything you enter later takes its time from it.",
+    "generalWorkOn": "The rest of the day is General work.",
     "setTimes": "Set times",
     "changeTimes": "Change times"
   },
@@ -462,14 +469,17 @@
     "approveDayTitle": "Approves every waiting entry this person has today, so it's paid at the next post. Approval can't be undone; to change an entry afterwards, correct it here."
   },
   "entryDrawer": {
+    "overtime": {
+      "title": "This takes you past your usual day",
+      "body": "{{hours}} of this is past your usual day, so it will be overtime, at time and a half.",
+      "save": "Save with overtime"
+    },
     "bookOwnTime": "Book your own time for {{date}}.",
     "overlapsBooked": "You are already booked for that time. Were you doing two things at once?",
     "entryOn": "#{{number}} {{name}} on {{date}}",
     "addTitle": "Add entry",
-    "approvedTitle": "Approved entry",
     "editTitle": "Edit entry",
     "timesFailed": "The times could not be worked out.",
-    "locked": "The office has approved this entry. Ask the office to change it.",
     "job": "Job",
     "selectJob": "Select a job",
     "jobLabel": "#{{number}} {{name}}",
@@ -492,7 +502,6 @@
     "descriptionPlaceholder": "What was done",
     "add": "Add entry",
     "save": "Save changes",
-    "close": "Close",
     "cancel": "Cancel",
     "delete": "Delete",
     "workingOutFinish": "Working out the finish from the hours and your breaks…",

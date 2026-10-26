@@ -39,12 +39,6 @@ def _validation_message(exc: DjangoValidationError) -> str:
     return "; ".join(exc.messages)
 
 
-def _requested_days(
-    payload: LeaveRequestWrite | LeaveRequestUpdate,
-) -> list[leave_service.RequestedDay]:
-    return [{"date": row.date, "hours": row.hours} for row in payload.days]
-
-
 @router.get(
     "/timesheets/leave/requests/",
     operation_id="timesheets_leave_requests_list",
@@ -92,7 +86,7 @@ def create_request(request: HttpRequest, payload: LeaveRequestWrite) -> leave_se
             start_date=payload.start_date,
             end_date=payload.end_date,
             note=payload.note,
-            requested_days=_requested_days(payload),
+            requested_days=payload.days,
             actor=authenticated_staff(request),
         )
     except Staff.DoesNotExist as exc:
@@ -119,7 +113,7 @@ def update_request(
             start_date=payload.start_date,
             end_date=payload.end_date,
             note=payload.note,
-            requested_days=_requested_days(payload),
+            requested_days=payload.days,
             actor=authenticated_staff(request),
         )
     except LeaveRequest.DoesNotExist as exc:
