@@ -35,4 +35,4 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] Review 7: a sweep on a worked public holiday says "has done over 8h" whatever the hours: it now says he worked a public holiday (R15)
 - [x] Review: job migration 0018's CHECK constraint: not this branch's; it is on production already and has run there
 - [ ] Full E2E green with `--max-failures=0` (blocked: the owner runs `powercfg.exe /change standby-timeout-ac 0` first)
-- [ ] `docs/rewrite-status.md` and `docs/rewrite-history.md` updated
+- [x] `docs/rewrite-status.md` and `docs/rewrite-history.md` updated

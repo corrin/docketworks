@@ -2885,6 +2885,27 @@ Whose time a person sees (owner): "Non-office Staff should not be able to
 READ or WRITE another staff member's timesheets." The office reads and writes
 anyone's.
 
+Findings (2026-10-26).
+- The office grid wrote a person's time through the generic cost-line
+  writer: no place in the day, no time checks, no employment dates, no
+  General work rebuild (a swept day with 2h added in the grid paid 9.5h),
+  and any staff member could create, edit or delete a colleague's time. A
+  person's time now has one writer, the workshop entry service, from every
+  screen.
+- The job, its actual costs and its timeline served every person's time
+  lines and wage costs to any staff member.
+- An entry on a filled day locked its job, then General work; a sweep locks
+  them the other way round, so the two could deadlock.
+- A filled day's General work split at overtime was rebuilt on every write,
+  losing its approval.
+- Changing the wage on an urgent job's entry dropped its charge to 1x, from
+  the workshop drawer on main as well.
+- The overtime repair command re-charged repaired hours at nothing and paid
+  them at today's wage; it now uses each line's own figures.
+- CI's `ubuntu-latest` moved to 26.04 on 2026-10-19; its gettext wraps one long
+  message differently from 24.04's, so the messages catalogue failed on every
+  push. The catalogue is written unwrapped and CI pinned to production's release.
+
 CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
 CI while dev machines on 24.04 had 0.21; the two wrap a long message
