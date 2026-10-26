@@ -15,7 +15,7 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] A public holiday missed for someone whose day was already full: not a defect, Joe enters 1.5× himself (owner, 2026-10-26)
 - [ ] An office closure on a day that already has time entered is refused, saying so (owner, 2026-10-26)
 - [ ] The General work rebuild locks jobs out of id order; prove or rule out a deadlock against a sweep
-- [ ] A split overtime line's pay item isn't asserted
+- [x] A split overtime line's pay item isn't asserted: E1b, which fails when the overtime piece posts as Ordinary Time
 - [x] Office-grid writes save times without checking them (a stop before the start, more hours than the span): fixed by the same change
 - [x] Found: the office grid skipped the employment-dates rule; fixed by the same change
 - [ ] Check whether these from the reverted model still hold: a standard break skipped because he worked through it doesn't come back when that entry is deleted; the fill-day sheet doesn't warn of overtime before sending

@@ -203,6 +203,25 @@ def test_E1_a_long_day_on_one_job_is_eight_ordinary_then_time_and_a_half(
     ]
 
 
+def test_E1b_the_hour_past_eight_is_paid_through_the_overtime_earnings_rate(
+    worker: Staff, job: Job
+) -> None:
+    """As E1: the 8h post to Xero as Ordinary Time, the hour past them as Time and one half.
+
+    The pay item, not the multiplier, is what Xero pays by.
+    Guards time_entry_rates.resolve_xero_pay_item, which each piece is priced through.
+    """
+    _clock(worker, "07:00", "17:00")
+
+    _drawer(worker, job, "9", "07:00", "17:00")
+
+    lines = CostLine.objects.filter(staff=worker, cost_set__job=job).order_by("created_at")
+    assert [(line.quantity, line.xero_pay_item.name) for line in lines if line.xero_pay_item] == [
+        (Decimal("8.000"), "Ordinary Time"),
+        (Decimal("1.000"), "Time and one half"),
+    ]
+
+
 def test_E2_the_hour_past_eight_belongs_to_the_job_worked_then(
     worker: Staff, job: Job, job_y: Job
 ) -> None:
