@@ -490,11 +490,12 @@ def test_E14_nine_hours_entered_in_the_office_grid_is_eight_then_one_at_time_and
     """
     _grid(office_staff, job, worker, "9", bill=1.0)
 
-    # No times on a grid row. Office-entered time waits for approval like any.
+    # Placed from 07:00 around the breaks, as from his phone. Office-entered
+    # time waits for approval like any.
     assert _lines(job, worker) == [
-        ("untimed", "8.000", 1.0, 1.0, "48.00", "120.00", False),
+        ("07:00-16:00", "8.000", 1.0, 1.0, "48.00", "120.00", False),
         # 9 - 8 = 1h: 48 x 1.5 = 72, charged by default at 120 x 1.5 = 180.
-        ("untimed", "1.000", 1.5, 1.5, "72.00", "180.00", False),
+        ("16:00-17:00", "1.000", 1.5, 1.5, "72.00", "180.00", False),
     ]
 
 
@@ -574,9 +575,9 @@ def test_F1_the_office_grid_charges_an_urgent_job_at_time_and_a_half(
 
     _grid(office_staff, job, worker, "2", bill=1.5)
 
-    # 48 x 1 = 48; 120 x 1.5 = 180.
+    # 48 x 1 = 48; 120 x 1.5 = 180. Placed from 07:00, around the 08:30 break.
     assert _lines(job, worker) == [
-        ("untimed", "2.000", 1.0, 1.5, "48.00", "180.00", False),
+        ("07:00-09:15", "2.000", 1.0, 1.5, "48.00", "180.00", False),
     ]
 
 

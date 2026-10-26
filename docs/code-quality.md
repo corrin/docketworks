@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 130,129 (v1 172,577, -25%) |
-| tests | 96,177 (v1 50,869, +89%) |
+| code | 130,156 (v1 172,577, -25%) |
+| tests | 96,286 (v1 50,869, +89%) |
 | generated | 54,666 (v1 20,359, +169%) |
 
 ## Suppressions
@@ -31,11 +31,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 814 |
+| TOTAL suppressions | 818 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 159 |
+| noqa: PLC0415 | 161 |
 | noqa: E402 | 108 |
-| noqa: PLR0913 | 73 |
+| noqa: PLR0913 | 75 |
 | noqa: ARG002 | 49 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 446 |
-| except handlers | 475 |
-| re-raises or converts | 307 |
+| try statements | 445 |
+| except handlers | 474 |
+| re-raises or converts | 306 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 261 |
-| non-test functions | 3156 |
+| non-test functions | 3160 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 709 |
+| object annotations | 711 |
 
 ## Wire contract (response side)
 

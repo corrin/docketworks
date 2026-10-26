@@ -2323,26 +2323,17 @@ msgid "labour_subtype is required for time lines."
 msgstr ""
 
 #: apps/job/services/job_service.py
+#, python-format
+msgid "Time is priced from the person's wage and the job's rates: %(fields)s."
+msgstr ""
+
+#: apps/job/services/job_service.py
 msgid "This line belongs to a stock movement; correct it through purchasing."
 msgstr ""
 
 #: apps/job/services/job_service.py
 #, python-format
 msgid "This line belongs to a leave request; %(remedy)s it from Timesheets → Leave."
-msgstr ""
-
-#: apps/job/services/job_service.py
-#: apps/timesheet/services/workshop_timesheet_service.py
-msgid "This entry moved to another job. Reload before editing it."
-msgstr ""
-
-#: apps/job/services/job_service.py
-msgid "Only office staff move another person's time."
-msgstr ""
-
-#: apps/job/services/job_service.py
-#, python-format
-msgid "Job %(job_id)s does not exist."
 msgstr ""
 
 #: apps/job/services/job_service.py
@@ -4060,6 +4051,10 @@ msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "You can only update your own timesheet entries."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid "This entry moved to another job. Reload before editing it."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

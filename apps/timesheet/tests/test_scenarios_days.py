@@ -30,6 +30,7 @@ from apps.timesheet.services.workshop_timesheet_service import WorkshopEntryCrea
 from apps.timesheet.tests import test_approval
 from apps.timesheet.tests.conftest import (
     WEEK_START,
+    authenticated_client,
     make_leave_job,
     make_public_holiday_job,
     make_staff,
@@ -148,6 +149,25 @@ def _on(job: Job, person: Staff, day: date = DAY) -> list[Line]:
             staff=person, cost_set__job=job, accounting_date=day, kind="time"
         )
     )
+
+
+def _grid_time(person: Staff, hours: str) -> dict[str, object]:
+    """A time row as the office's cost grid saves it for him on DAY."""
+    return {
+        "kind": "time",
+        "desc": None,
+        "quantity": hours,
+        "accounting_date": DAY.isoformat(),
+        "ext_refs": {},
+        "labour_subtype": str(LabourSubtype.default_workshop().id),
+        "meta": {
+            "created_from_timesheet": True,
+            "staff_id": str(person.id),
+            "date": DAY.isoformat(),
+            "is_billable": True,
+            "wage_rate_multiplier": 1,
+        },
+    }
 
 
 def _paid(person: Staff, day: date = DAY) -> Decimal:
@@ -1147,6 +1167,70 @@ class TestSweepingHairyCases:
             *STANDARD_GENERAL_WORK[2:],
         ]
         assert _billed(worker) == Decimal("180")
+
+    def test_R10_the_office_grid_adding_time_to_a_swept_day_takes_it_from_general_work(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """Swept 07:00-15:00; the office adds his 2h on Job X from the job's cost grid.
+
+        He is paid for the day once: the General work gives way to the 2h.
+        Guards job_service.create_cost_line's General work rebuild.
+        """
+        _clock(worker, "07:00", "15:00")
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        response = authenticated_client(office_staff).post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data=_grid_time(worker, "2"),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201, response.content
+        assert sum(hours for *_, hours, _ in _on(general_work, worker)) == Decimal("5")
+        assert _paid(worker) == Decimal("7.5")
+
+    def test_R11_the_office_grid_changing_hours_on_a_swept_day_moves_the_general_work(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """He entered 2h on Job X and was swept; the office makes it 3h in the cost grid.
+
+        Guards job_service.update_cost_line's General work rebuild.
+        """
+        _clock(worker, "07:00", "15:00")
+        _enter(worker, worker, job, "2")
+        approval.sweep_person(worker, [DAY], office_staff)
+        entry = CostLine.objects.get(staff=worker, cost_set__job=job)
+
+        response = authenticated_client(office_staff).patch(
+            f"/api/job/cost_lines/{entry.id}/",
+            data={"quantity": "3"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        assert sum(hours for *_, hours, _ in _on(job, worker)) == Decimal("3")
+        assert sum(hours for *_, hours, _ in _on(general_work, worker)) == Decimal("4")
+        assert _paid(worker) == Decimal("7.5")
+
+    def test_R12_the_office_grid_deleting_time_on_a_swept_day_gives_it_to_general_work(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """He entered 2h on Job X and was swept; the office deletes it in the cost grid.
+
+        Guards job_service.delete_cost_line's General work rebuild.
+        """
+        _clock(worker, "07:00", "15:00")
+        _enter(worker, worker, job, "2")
+        approval.sweep_person(worker, [DAY], office_staff)
+        entry = CostLine.objects.get(staff=worker, cost_set__job=job)
+
+        response = authenticated_client(office_staff).delete(
+            f"/api/job/cost_lines/{entry.id}/delete/"
+        )
+
+        assert response.status_code == 204, response.content
+        assert _on(general_work, worker) == STANDARD_GENERAL_WORK
+        assert _paid(worker) == Decimal("7.5")
 
 
 # ── V. Leave and days off ──────────────────────────────────────────────

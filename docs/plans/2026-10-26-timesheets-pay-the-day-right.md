@@ -11,11 +11,12 @@ Timesheets pay the day right (owner rulings 2026-10-25 and 2026-10-26, in `docs/
 ## Open issues
 Everything found goes here the moment it's found. The PR merges when this list is empty.
 
-- [ ] Edits through the cost-line endpoint (office grid) don't rebuild a filled day's General work
+- [x] Edits through the cost-line endpoint (office grid) don't rebuild a filled day's General work: the grid's time now goes through the workshop entry service, the one writer of a person's time
 - [ ] A public holiday (office closure) is missed for someone whose day was already full, so their time that day isn't paid at 1.5×
 - [ ] The General work rebuild locks jobs out of id order; prove or rule out a deadlock against a sweep
 - [ ] A split overtime line's pay item isn't asserted
-- [ ] Office-grid writes save times without checking them (a stop before the start, more hours than the span)
+- [x] Office-grid writes save times without checking them (a stop before the start, more hours than the span): fixed by the same change
+- [x] Found: the office grid skipped the employment-dates rule; fixed by the same change
 - [ ] Check whether these from the reverted model still hold: a standard break skipped because he worked through it doesn't come back when that entry is deleted; the fill-day sheet doesn't warn of overtime before sending
 - [x] Job Y typed over Job X: both saved and billed, with the overlap warning (owner, 2026-10-26)
 - [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)

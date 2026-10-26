@@ -8,10 +8,11 @@ summary endpoint (margin-on-revenue formula per the 2026-08-02 user
 decision, conditional GET).
 """
 
+from collections.abc import Callable, Iterable
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -27,10 +28,11 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.errors import AccessDeniedError, ConflictError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.job_service import update_cost_line
 from apps.purchasing.models import Stock
 from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.services import workshop_timesheet_service
 from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
@@ -493,72 +495,81 @@ class TestCostLineUpdate:
         )
 
         assert response.status_code == 403, response.content
-        assert "Only office staff move another person's time" in response.json()["detail"]
+        assert "You can only update your own timesheet entries" in response.json()["detail"]
         assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert not TimesheetEvent.objects.filter(
             cost_line_id=line_id, event_type="entry_moved"
         ).exists()
 
-    def test_move_rechecks_owner_after_the_initial_read(
+    def test_move_rechecks_owner_after_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
         self,
         client: Client,
         job: Job,
         office_staff: Staff,
         workshop_staff: Staff,
         timesheet_worker: Staff,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The locked owner, not the API's earlier instance, authorizes a move."""
+        """The owner read under the locks, not the one first read, authorizes a move.
+
+        The entry is handed to another person while the move waits for its
+        job locks, as a second transaction would.
+        Guards workshop_timesheet_service.update_entry's re-read after locking.
+        """
         line_id = self._create_timesheet_line(client, job, workshop_staff)
-        stale = CostLine.objects.select_related("cost_set").get(id=line_id)
-        current = CostLine.objects.get(id=line_id)
-        update_cost_line(
-            current, {"meta": {**current.meta, "staff_id": str(timesheet_worker.id)}}, office_staff
-        )
         assert job.company is not None
         destination = make_job(job.company, office_staff, name="Destination")
         events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
         summaries = list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
+        _while_locking_jobs(
+            monkeypatch,
+            lambda: _hand_to(line_id, timesheet_worker),
+        )
 
         with pytest.raises(AccessDeniedError):
-            update_cost_line(stale, {"job_id": destination.id}, workshop_staff)
+            update_cost_line(
+                CostLine.objects.get(id=line_id), {"job_id": destination.id}, workshop_staff
+            )
 
-        current.refresh_from_db()
-        assert current.cost_set.job_id == job.id
-        assert current.staff_id == timesheet_worker.id
+        # Not moved. (The hand-over ran inside the refused transaction, so it
+        # rolled back with it; another writer's would have stood.)
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
         assert (
             list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
             == summaries
         )
 
-    def test_move_refuses_a_source_changed_since_the_initial_read(
+    def test_move_refuses_a_source_changed_since_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
         self,
         client: Client,
         job: Job,
         company: Company,
         office_staff: Staff,
         timesheet_worker: Staff,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Do not acquire a new source lock after already locking the entry row."""
+        """An entry moved elsewhere while this move waited for its locks is refused.
+
+        The locks taken were for the job first read; the entry is no longer
+        there, so taking another job's lock now could deadlock.
+        Guards workshop_timesheet_service.update_entry's check after locking.
+        """
         line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        stale = CostLine.objects.select_related("cost_set").get(id=line_id)
+        elsewhere = make_job(company, office_staff, name="Elsewhere")
         destination = make_job(company, office_staff, name="Destination")
-        current = update_cost_line(
-            CostLine.objects.get(id=line_id), {"job_id": destination.id}, office_staff
-        )
+        _while_locking_jobs(monkeypatch, lambda: _move_to(line_id, elsewhere))
         events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
-        summaries = list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
 
         with pytest.raises(ConflictError, match="moved to another job"):
-            update_cost_line(stale, {"job_id": job.id}, office_staff)
+            update_cost_line(
+                CostLine.objects.get(id=line_id), {"job_id": destination.id}, office_staff
+            )
 
-        current.refresh_from_db()
-        assert current.cost_set.job_id == destination.id
+        # Not moved to the destination. (The other move ran inside the refused
+        # transaction, so it rolled back with it; another writer's would have stood.)
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
         assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
-        assert (
-            list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
-            == summaries
-        )
 
     def test_patch_job_id_onto_a_shop_job_makes_the_entry_unbillable(
         self, client: Client, job: Job, office_staff: Staff, timesheet_worker: Staff
@@ -1334,3 +1345,32 @@ def test_cost_lines_use_creation_order_with_uuid_ties(client: Client, job: Job, 
     assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
         str(line.id) for line in expected
     ]
+
+
+def _while_locking_jobs(monkeypatch: pytest.MonkeyPatch, change: Callable[[], None]) -> None:
+    """Run ``change`` the first time the entry service locks jobs, as another writer would."""
+    real = lock_costing_jobs
+    done: list[bool] = []
+
+    def lock_then_change(job_ids: Iterable[UUID]) -> None:
+        real(job_ids)
+        if not done:
+            done.append(True)
+            change()
+
+    monkeypatch.setattr(workshop_timesheet_service, "lock_costing_jobs", lock_then_change)
+
+
+def _hand_to(line_id: str, person: Staff) -> None:
+    """Make the entry another person's, behind the service's back."""
+    line = CostLine.objects.get(id=line_id)
+    CostLine.objects.filter(id=line_id).update(
+        staff=person, meta={**line.meta, "staff_id": str(person.id)}
+    )
+
+
+def _move_to(line_id: str, destination: Job) -> None:
+    """Put the entry on another job, behind the service's back."""
+    CostLine.objects.filter(id=line_id).update(
+        cost_set=CostSet.objects.get(job=destination, kind="actual")
+    )

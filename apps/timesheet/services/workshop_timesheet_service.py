@@ -28,7 +28,7 @@ from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
     CostLineData,
@@ -112,6 +112,8 @@ class WorkshopEntryCreateData(TypedDict, total=False):
     is_billable: bool
     wage_rate_multiplier: Decimal
     bill_rate_multiplier: Decimal
+    #: The office grid's pick; the worker's default subtype when absent.
+    labour_subtype_id: UUID
 
 
 class WorkshopEntryUpdateData(TypedDict, total=False):
@@ -127,6 +129,7 @@ class WorkshopEntryUpdateData(TypedDict, total=False):
     is_billable: bool
     wage_rate_multiplier: Decimal
     bill_rate_multiplier: Decimal
+    labour_subtype_id: UUID
 
 
 class WorkshopEntryData(TypedDict):
@@ -961,7 +964,13 @@ def _save_entry(  # noqa: PLR0913 -- the entry, whose it is, who saves it, where
     if end_time is not None:
         meta["end_time"] = _format_time(end_time)
 
-    pricing = price_time_entry(job=job, staff=owner, meta=meta)
+    subtype_id = data.get("labour_subtype_id")
+    pricing = price_time_entry(
+        job=job,
+        staff=owner,
+        meta=meta,
+        labour_subtype=None if subtype_id is None else LabourSubtype.objects.get(id=subtype_id),
+    )
     meta.update(pricing.meta_updates())
 
     line = CostLine(
@@ -1010,14 +1019,19 @@ def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
     return line
 
 
-def _apply_billing_changes(meta: dict[str, object], data: WorkshopEntryUpdateData) -> bool:
-    """Fold billing-related patch fields into ``meta``; report whether to reprice.
+def _apply_billing_changes(
+    line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData
+) -> bool:
+    """Fold the pricing patch fields into the line and ``meta``; report whether to reprice.
 
     Drop the stored ``bill_rate_multiplier`` when ``is_billable`` flips back to
     true so the rate pipeline re-derives it from the wage multiplier rather
     than leaving the line at zero.
     """
     reprice = False
+    if "labour_subtype_id" in data:
+        line.labour_subtype = LabourSubtype.objects.get(id=data["labour_subtype_id"])
+        reprice = True
     if "is_billable" in data:
         meta["is_billable"] = data["is_billable"]
         if data["is_billable"]:
@@ -1118,7 +1132,7 @@ def update_entry(
         a_change_takes_the_approval_off(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
-        reprice = _apply_billing_changes(meta, data)
+        reprice = _apply_billing_changes(line, meta, data)
 
         job = line.cost_set.job
         moved_cost_set = None

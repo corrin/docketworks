@@ -208,7 +208,10 @@ class TestOfficePath:
         *_, updated = _events(line.id)
         assert updated.event_type == "entry_updated"
         assert updated.staff == office_staff
-        assert updated.description == "Hours changed from '2.000' to '3.000'"
+        # The 2h were placed from 07:00, around the 08:30 break; the finish follows the hours.
+        assert updated.description == (
+            "End changed from '09:15:00' to '10:15:00'. Hours changed from '2.000' to '3.000'"
+        )
 
     def test_deleting_records_entry_deleted(
         self, job: Job, worker: Staff, office_staff: Staff
