@@ -2877,6 +2877,10 @@ a bonus, nothing more. An office closure on a day that already has time
 entered is refused, saying so; "the office would then have to delete those
 time entries manually." The day's breaks are not entries and do not block it.
 
+A standard break skipped because an entry went through it does not come back
+when that entry is deleted after the sweep; General work fills it (owner:
+"Leave it"). The office sees the hours at approval.
+
 CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
 CI while dev machines on 24.04 had 0.21; the two wrap a long message
