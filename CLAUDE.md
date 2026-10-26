@@ -8,9 +8,10 @@ the ADR.
 
 ## Where things are
 
-- [`docs/rewrite-status.md`](docs/rewrite-status.md) is the only to-do list: read it before
-  picking up work and update it at the end of every slice. It only shrinks; anything that is
-  not a task — a ruling, a finding, a measurement — goes to
+- [`docs/rewrite-status.md`](docs/rewrite-status.md) is the backlog: read it before picking up
+  work and update it at the end of every slice. A PR's own open issues live in its plan, in
+  [`docs/plans/`](docs/plans/). The backlog only shrinks; anything that is not a task — a
+  ruling, a finding, a measurement — goes to
   [`docs/rewrite-history.md`](docs/rewrite-history.md). A Jira ticket (KAN) is the authority
   wherever one exists.
 - [`docs/adr/`](docs/adr/README.md): read the index before non-trivial work; ADRs win over habit.
@@ -47,9 +48,8 @@ improve a slow check within that tier. Gate weakening and new baselines are proh
 - Done means the E2E spec passes. Report progress as specs green, never as endpoints or
   components written. Nothing releases without the suite green. UAT verification and PVT are
   `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
-- Commit each verified slice as soon as it is complete,
-  staging explicit paths; push every commit; open a draft PR at the first push and mark it ready
-  when the work is. A green unit run is a commit boundary. A generated artifact carrying another
+- Commit each verified slice as soon as it is complete, staging explicit paths, and push every
+  commit. A green unit run is a commit boundary. A generated artifact carrying another
   workstream's changes is partial-staged, or the overlap is reported before committing.
 - A screen that renders a collection is tested at production volume;
   `docs/prod-data-shape.yml` holds the counts (ADR 0054).
