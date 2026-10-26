@@ -126,11 +126,11 @@ test("office staff correct a person's clock times, and the screen holds at three
 
   await test.step("the day's breaks are listed, and one is corrected", async () => {
     const breaks = autoId(page, `ApproveTimePage-breaks-${staffId}`)
-    // All three are one kind of thing on the screen; the office set the day,
-    // so the breaks it put on start approved.
-    await expect(breaks).toContainText('Paid break 08:30 to 08:45 · Approved')
-    await expect(breaks).toContainText('Lunch 11:30 to 12:00 · Approved')
-    await expect(breaks).toContainText('Paid break 13:30 to 13:45 · Approved')
+    // All three are one kind of thing on the screen. Setting the day is
+    // entering, not approving (owner, 2026-10-26), so its breaks wait.
+    await expect(breaks).toContainText('Paid break 08:30 to 08:45 · Waiting')
+    await expect(breaks).toContainText('Lunch 11:30 to 12:00 · Waiting')
+    await expect(breaks).toContainText('Paid break 13:30 to 13:45 · Waiting')
 
     await breaks.getByRole('button', { name: 'Lunch 11:30 to 12:00' }).click()
     await autoId(page, 'BreakSheet-start').fill('12:00')

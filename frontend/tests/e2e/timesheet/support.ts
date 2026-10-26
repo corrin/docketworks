@@ -123,7 +123,7 @@ export async function seedLabourForWeek(page: Page, week: string): Promise<Seede
   // point, sixteen digits, and the server refuses a quantity over ten.
   const hours = (200 + (Math.floor(Date.now() / 1000) % 60)) / 100
 
-  await seedTimesheetLabour(page, {
+  const lineId = await seedTimesheetLabour(page, {
     jobId,
     staffId: staff.id,
     labourSubtype: labourRate.labour_subtype,
@@ -131,6 +131,14 @@ export async function seedLabourForWeek(page: Page, week: string): Promise<Seede
     hours,
     description: '[TEST] payroll posting',
   })
+  // Entered, then approved: two operations, even by the office (owner,
+  // 2026-10-26). Payroll pays approved time, which these hours are for.
+  const approval = await page.request.post(`/api/job/cost_lines/${lineId}/approve/`)
+  if (!approval.ok()) {
+    throw new Error(
+      `Approving the seeded hours answered ${approval.status()}: ${await approval.text()}`,
+    )
+  }
   return { staff, hours, jobId, labourSubtype: labourRate.labour_subtype, date: seedDate }
 }
 
