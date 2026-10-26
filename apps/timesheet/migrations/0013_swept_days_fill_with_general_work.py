@@ -21,10 +21,17 @@ def flag_swept_days(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) ->
     alias = schema_editor.connection.alias
     lines = apps.get_model("job", "CostLine").objects.using(alias)
     days = apps.get_model("timesheet", "AttendanceDay").objects.using(alias)
+    general_work_id = (
+        apps.get_model("core", "CompanyDefaults")
+        .objects.using(alias)
+        .values_list("general_work_job_id", flat=True)
+        .first()
+    )
+    # A swept line the office moved to a job is that job's time, not the day's fill.
     swept = set(
-        lines.filter(kind="time", meta__source="general_work_sweep").values_list(
-            "staff_id", "accounting_date"
-        )
+        lines.filter(
+            kind="time", meta__source="general_work_sweep", cost_set__job_id=general_work_id
+        ).values_list("staff_id", "accounting_date")
     )
     flagged = 0
     for staff_id, day in swept:
@@ -36,6 +43,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("timesheet", "0012_attendanceday_general_work_fill"),
         ("job", "0019_trim_undo_fields"),
+        ("core", "0014_general_work_job"),
     ]
 
     operations = [

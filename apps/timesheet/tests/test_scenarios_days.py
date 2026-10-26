@@ -1118,6 +1118,37 @@ class TestSweepingHairyCases:
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         assert _paid(worker) == Decimal("7.5")
 
+    def test_R9_swept_general_work_the_office_moved_to_a_job_stays_on_the_job(
+        self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
+    ) -> None:
+        """The office moved the swept 07:00-08:30 to Job X; then a break went in.
+
+        A moved line is time on Job X, billed to its customer: the next change
+        to the day rebuilds only the General work around it.
+
+        Guards workshop_timesheet_service.is_general_work_fill, which the
+        refill deletes by.
+        """
+        _clock(worker, "07:00", "15:00")
+        approval.sweep_person(worker, [DAY], office_staff)
+        first = CostLine.objects.get(
+            staff=worker, cost_set__job=general_work, meta__start_time="07:00:00"
+        )
+        workshop_timesheet_service.update_entry(
+            office_staff, {"entry_id": first.id, "job_id": job.id}
+        )
+
+        attendance.add_break(worker, DAY, time(10), time(10, 15), paid=True, actor=worker)
+
+        assert _on(job, worker) == [("07:00:00", "08:30:00", Decimal("1.5"), 1.0)]
+        # 08:45-10:00 1.25 + 10:15-11:30 1.25, then the afternoon as usual.
+        assert _on(general_work, worker) == [
+            ("08:45:00", "10:00:00", Decimal("1.25"), 1.0),
+            ("10:15:00", "11:30:00", Decimal("1.25"), 1.0),
+            *STANDARD_GENERAL_WORK[2:],
+        ]
+        assert _billed(worker) == Decimal("180")
+
 
 # ── V. Leave and days off ──────────────────────────────────────────────
 

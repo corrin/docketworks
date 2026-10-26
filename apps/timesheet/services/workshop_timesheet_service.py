@@ -659,9 +659,16 @@ def create_entry(
 
 
 def is_general_work_fill(line: CostLine) -> bool:
-    """Whether the line is the General work filling the rest of a day, not an entry."""
+    """Whether the line is the General work filling the rest of a day, not an entry.
+
+    A fill line the office moved to a job is time on that job, billed to its
+    customer, and stays when the day's General work is made again.
+    """
     source: object = line.meta.get("source")
-    return source == SWEPT_GENERAL_WORK
+    return (
+        source == SWEPT_GENERAL_WORK
+        and line.cost_set.job_id == CompanyDefaults.get_solo().general_work_job_id
+    )
 
 
 def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
