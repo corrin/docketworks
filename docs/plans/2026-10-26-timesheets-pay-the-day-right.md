@@ -14,7 +14,7 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] Edits through the cost-line endpoint (office grid) don't rebuild a filled day's General work: the grid's time now goes through the workshop entry service, the one writer of a person's time
 - [x] A public holiday missed for someone whose day was already full: not a defect, Joe enters 1.5× himself (owner, 2026-10-26)
 - [ ] An office closure on a day that already has time entered is refused, saying so (owner, 2026-10-26)
-- [ ] The General work rebuild locks jobs out of id order; prove or rule out a deadlock against a sweep
+- [x] The General work rebuild locks jobs out of id order; prove or rule out a deadlock against a sweep: real (an entry held its job and waited for General work, a sweep the reverse); an entry now locks both in one id-ordered step
 - [x] A split overtime line's pay item isn't asserted: E1b, which fails when the overtime piece posts as Ordinary Time
 - [x] Office-grid writes save times without checking them (a stop before the start, more hours than the span): fixed by the same change
 - [x] Found: the office grid skipped the employment-dates rule; fixed by the same change

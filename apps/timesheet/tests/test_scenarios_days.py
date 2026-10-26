@@ -9,6 +9,7 @@ hand from the company defaults: the usual day 07:00-15:00, paid breaks
 (40.00 + 20% loading) and the customer job charges 120.00.
 """
 
+from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -21,7 +22,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay, LeaveType
 from apps.timesheet.services import approval, attendance, leave_service, workshop_timesheet_service
@@ -1252,6 +1253,36 @@ class TestSweepingHairyCases:
         assert response.status_code == 204, response.content
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         assert _paid(worker) == Decimal("7.5")
+
+    def test_R13_an_entry_on_a_filled_day_locks_its_jobs_in_one_step(
+        self,
+        office_staff: Staff,
+        job: Job,
+        general_work: Job,
+        worker: Staff,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """He adds 2h on Job X to his swept day.
+
+        The entry's job and the General work it rebuilds are locked together,
+        in id order, as the sweep locks them: one after the other, a sweep of
+        someone else holding General work and waiting for Job X would deadlock.
+        Guards workshop_timesheet_service.create_entry's job locks.
+        """
+        _clock(worker, "07:00", "15:00")
+        approval.sweep_person(worker, [DAY], office_staff)
+        locked: list[set[UUID]] = []
+        real = lock_costing_jobs
+
+        def recording(job_ids: Iterable[UUID]) -> None:
+            locked.append(set(job_ids))
+            real(job_ids)
+
+        monkeypatch.setattr(workshop_timesheet_service, "lock_costing_jobs", recording)
+
+        _enter(worker, worker, job, "2")
+
+        assert locked[0] == {job.id, general_work.id}
 
 
 # ── V. Leave and days off ──────────────────────────────────────────────

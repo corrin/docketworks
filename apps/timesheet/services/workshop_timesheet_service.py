@@ -628,7 +628,7 @@ def create_entry(
         _validate_time_consistency(
             data["accounting_date"], data.get("start_time"), data.get("end_time"), data["hours"]
         )
-        lock_costing_jobs([job.id])
+        lock_costing_jobs(_with_general_work({job.id}))
         _refuse_outside_employment(owner, data["accounting_date"])
         is_break = job.id == attendance.break_job_id()
         if not is_break:
@@ -659,6 +659,17 @@ def create_entry(
         if source != SWEPT_GENERAL_WORK:
             refill_general_work(owner, data["accounting_date"], actor)
     return entry_data(line)
+
+
+def _with_general_work(job_ids: set[UUID]) -> set[UUID]:
+    """Return the jobs a write to a day locks: its own and the General work it may rebuild.
+
+    Taken in one id-ordered step, as the sweep takes them: one after the
+    other, a sweep holding General work and waiting for this entry's job
+    would deadlock with it.
+    """
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    return job_ids if general_work_id is None else job_ids | {general_work_id}
 
 
 def is_general_work_fill(line: CostLine) -> bool:
@@ -1114,7 +1125,7 @@ def update_entry(
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
-        lock_costing_jobs(job_ids)
+        lock_costing_jobs(_with_general_work(job_ids))
         line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError(
@@ -1206,7 +1217,7 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
     # His lock before the jobs', as every write to his day takes them.
     Staff.objects.select_for_update().filter(pk=_owner_of(line).pk).first()
     job_id = line.cost_set.job_id
-    lock_costing_jobs([job_id])
+    lock_costing_jobs(_with_general_work({job_id}))
     # Locked on the line alone: the snapshot's joins are nullable, which
     # Postgres refuses under FOR UPDATE.
     line = (
