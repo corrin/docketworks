@@ -2881,6 +2881,10 @@ A standard break skipped because an entry went through it does not come back
 when that entry is deleted after the sweep; General work fills it (owner:
 "Leave it"). The office sees the hours at approval.
 
+Whose time a person sees (owner): "Non-office Staff should not be able to
+READ or WRITE another staff member's timesheets." The office reads and writes
+anyone's.
+
 CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
 CI while dev machines on 24.04 had 0.21; the two wrap a long message

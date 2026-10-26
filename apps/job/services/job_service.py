@@ -2403,6 +2403,7 @@ def _create_timesheet_entry(
     from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
         WorkshopEntryCreateData,
         create_entry,
+        entry_owner,
     )
 
     entry: WorkshopEntryCreateData = {
@@ -2421,7 +2422,8 @@ def _create_timesheet_entry(
     subtype = data.get("labour_subtype")
     if subtype is not None:
         entry["labour_subtype_id"] = subtype
-    owner = _timesheet_pricing_staff(meta, data)
+    # Staff enter their own time; the office enters anyone's (owner, 2026-10-26).
+    owner = entry_owner(staff, _timesheet_pricing_staff(meta, data).id)
     created = create_entry(staff, owner, entry)
     return CostLine.objects.select_related("cost_set__job").get(id=created["id"])
 

@@ -479,6 +479,32 @@ class TestCostLineUpdate:
         assert response.status_code == 200, response.content
         assert CostLine.objects.get(id=line_id).cost_set.job_id == destination.id
 
+    def test_a_worker_cannot_enter_time_for_a_colleague(
+        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """Staff enter their own time; the office enters anyone's (owner, 2026-10-26).
+
+        Guards job_service._create_timesheet_entry's owner check.
+        """
+        response = _workshop_client(workshop_staff).post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data={
+                "kind": "time",
+                "desc": None,
+                "quantity": "1.000",
+                "accounting_date": ACCOUNTING_DATE.isoformat(),
+                "meta": {
+                    "created_from_timesheet": True,
+                    "staff_id": str(timesheet_worker.id),
+                    "wage_rate_multiplier": 1.0,
+                },
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403, response.content
+        assert not CostLine.objects.filter(staff=timesheet_worker).exists()
+
     def test_a_worker_cannot_move_another_persons_entry(
         self, job: Job, company: Company, workshop_staff: Staff, timesheet_worker: Staff
     ) -> None:
