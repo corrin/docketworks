@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 
+import { shiftDate } from '../../../src/lib/dates'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
 import {
@@ -48,7 +49,9 @@ test.describe.serial('moving a timesheet entry to another job', () => {
   let sourceNumber = 0
   let destinationUrl = ''
   let destinationNumber = 0
-  const date = getLatestWeekdayDate()
+  // A weekday of its own, well back: the latest weekday collects other specs'
+  // time, and past 8h worked a new entry splits off its overtime.
+  const date = shiftDate(getLatestWeekdayDate(), -7 * 14)
 
   test('create the source and destination jobs', async ({ authenticatedPage: page }) => {
     sourceUrl = await createTestJob(page, 'MoveFrom')
