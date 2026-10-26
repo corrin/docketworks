@@ -3069,8 +3069,7 @@ export const zNotebookLmLinkOut = z.object({
 export const zOfficeClosureOut = z.object({
     batch_id: z.string(),
     requests: z.array(zLeaveRequestOut),
-    skipped_days: z.array(zLeavePreviewDayOut),
-    warnings: z.array(z.string())
+    skipped_days: z.array(zLeavePreviewDayOut)
 });
 
 /**

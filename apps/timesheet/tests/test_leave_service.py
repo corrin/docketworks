@@ -691,29 +691,23 @@ class TestOfficeClosure:
         assert by_staff[str(worker.id)]["available_hours"] == Decimal("8")
         assert by_staff[str(other_worker.id)]["available_hours"] == Decimal("0")
 
-    def test_a_staff_member_whose_day_is_already_full_gets_no_holiday_and_a_warning(
+    def test_a_closure_over_a_day_someone_has_time_on_is_refused(
         self, worker: Staff, other_worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
-        """Leave fills what is left of the day (owner, 2026-10-25); a full day has nothing left.
+        """Refused for everyone, not just Otto: the office deletes his time first.
 
-        Guards leave_service.preview_leave and create_office_closure.
+        Owner, 2026-10-26. Guards leave_service.create_office_closure.
         """
+        del worker  # Rostered and free that day, and still given no holiday.
         make_public_holiday_job(company, superuser)
-        make_time_line(job, other_worker, accounting_date=MONDAY)
+        make_time_line(job, other_worker, accounting_date=MONDAY, hours="2.000")
 
-        result = leave_service.create_office_closure(
-            start_date=MONDAY, end_date=MONDAY, note=None, actor=superuser
-        )
-
-        # 8h scheduled less his 8h worked = 0h of holiday, and the office is told.
-        assert not LeaveRequest.objects.filter(staff=other_worker).exists()
-        assert LeaveDay.objects.get(staff=worker).hours == Decimal("8")
-        assert result["warnings"] == [
-            (
-                f"Leave booked for {other_worker.get_display_name()} on {MONDAY.isoformat()}, "
-                "but the day already had time entered: 0h put to leave."
+        with pytest.raises(ValidationError, match="already has time entered"):
+            leave_service.create_office_closure(
+                start_date=MONDAY, end_date=MONDAY, note=None, actor=superuser
             )
-        ]
+
+        assert not LeaveRequest.objects.exists()
 
     def test_a_closure_nobody_can_take_is_refused_outright(
         self, worker: Staff, other_worker: Staff, company: Company, superuser: Staff

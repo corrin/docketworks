@@ -12,7 +12,8 @@ Timesheets pay the day right (owner rulings 2026-10-25 and 2026-10-26, in `docs/
 Everything found goes here the moment it's found. The PR merges when this list is empty.
 
 - [x] Edits through the cost-line endpoint (office grid) don't rebuild a filled day's General work: the grid's time now goes through the workshop entry service, the one writer of a person's time
-- [ ] A public holiday (office closure) is missed for someone whose day was already full, so their time that day isn't paid at 1.5×
+- [x] A public holiday missed for someone whose day was already full: not a defect, Joe enters 1.5× himself (owner, 2026-10-26)
+- [ ] An office closure on a day that already has time entered is refused, saying so (owner, 2026-10-26)
 - [ ] The General work rebuild locks jobs out of id order; prove or rule out a deadlock against a sweep
 - [ ] A split overtime line's pay item isn't asserted
 - [x] Office-grid writes save times without checking them (a stop before the start, more hours than the span): fixed by the same change

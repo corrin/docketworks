@@ -31,6 +31,7 @@ from apps.timesheet.tests import test_approval
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
+    make_break_line,
     make_leave_job,
     make_public_holiday_job,
     make_staff,
@@ -1073,7 +1074,7 @@ class TestSweepingHairyCases:
         # 7.5 + 0.5 leave.
         assert _paid(worker) == Decimal("8")
 
-    def test_R7_an_office_closure_over_a_swept_day_keeps_its_general_work_and_warns(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, leave set-up and people
+    def test_R7_an_office_closure_over_a_day_with_time_is_refused(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, leave set-up and people
         self,
         office_staff: Staff,
         company: Company,
@@ -1082,36 +1083,56 @@ class TestSweepingHairyCases:
         worker: Staff,
         other_worker: Staff,
     ) -> None:
-        """Monday was swept for everyone; then the office closes Monday and Tuesday.
+        """Monday was swept for everyone; then the office tries to close Monday and Tuesday.
 
-        As R6, for every person: Monday keeps its General work and the holiday
-        fills only what is left, with a warning per person; Tuesday is a whole
-        holiday.
-        Guards leave_service.create_office_closure over swept days.
+        Refused, naming each person and day with time (owner, 2026-10-26):
+        the office deletes that time first. Nothing is booked, Tuesday included.
+        Guards leave_service.create_office_closure.
         """
         holiday = make_public_holiday_job(company, superuser)
         tuesday = DAY + timedelta(days=1)
         approval.sweep_everyone([DAY], office_staff)
 
-        result = leave_service.create_office_closure(
-            start_date=DAY, end_date=tuesday, note="Office closed", actor=superuser
-        )
+        with pytest.raises(ValidationError) as refused:
+            leave_service.create_office_closure(
+                start_date=DAY, end_date=tuesday, note="Office closed", actor=superuser
+            )
 
-        assert result["skipped_days"] == []
-        # Monday had 7.5h paid already: 8 - 7.5 = 0.5h to the holiday, warned.
-        # Tuesday had nothing on it: no warning.
-        assert sorted(result["warnings"]) == sorted(
-            [_leave_warning(person, DAY, "30m") for person in (worker, other_worker)]
-        )
+        assert refused.value.messages == [
+            (
+                "The office can't close on a day that already has time entered: "
+                f"{other_worker.get_display_name()} on {DAY.isoformat()}, "
+                f"{worker.get_display_name()} on {DAY.isoformat()}. Delete that time first."
+            )
+        ]
+        assert not CostLine.objects.filter(cost_set__job=holiday).exists()
         for person in (worker, other_worker):
             assert _on(general_work, person) == STANDARD_GENERAL_WORK
-            holiday_hours = {
-                line.accounting_date: line.quantity
-                for line in CostLine.objects.filter(staff=person, cost_set__job=holiday)
-            }
-            assert holiday_hours == {DAY: Decimal("0.5"), tuesday: Decimal("8")}
-            assert _paid(person) == Decimal("8")
-            assert _paid(person, tuesday) == Decimal("8")
+
+    def test_R7b_breaks_alone_do_not_stop_an_office_closure(
+        self,
+        company: Company,
+        superuser: Staff,
+        worker: Staff,
+        other_worker: Staff,
+        break_job: Job,
+    ) -> None:
+        """Monday holds only his standard breaks; the office closes Monday.
+
+        The day's breaks are not entries (owner, 2026-10-26).
+        Guards leave_service.create_office_closure's check for time entered.
+        """
+        make_public_holiday_job(company, superuser)
+        make_break_line(break_job, worker, DAY, hours="0.250")
+
+        result = leave_service.create_office_closure(
+            start_date=DAY, end_date=DAY, note="Office closed", actor=superuser
+        )
+
+        assert {row["staff_id"] for row in result["requests"]} == {
+            str(worker.id),
+            str(other_worker.id),
+        }
 
     def test_R8_swept_general_work_the_office_deleted_is_swept_again(
         self, office_staff: Staff, general_work: Job, worker: Staff

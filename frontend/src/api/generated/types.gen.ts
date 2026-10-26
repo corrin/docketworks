@@ -7137,10 +7137,6 @@ export type OfficeClosureOut = {
      * Skipped Days
      */
     skipped_days: Array<LeavePreviewDayOut>;
-    /**
-     * Warnings
-     */
-    warnings: Array<string>;
 };
 
 /**

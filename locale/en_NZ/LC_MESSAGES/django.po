@@ -3932,6 +3932,11 @@ msgid "Xero returned no %(leave_type)s balance for %(staff)s."
 msgstr ""
 
 #: apps/timesheet/services/leave_service.py
+#, python-format
+msgid "The office can't close on a day that already has time entered: %(days)s. Delete that time first."
+msgstr ""
+
+#: apps/timesheet/services/leave_service.py
 msgid "No available office-closure days remain to save."
 msgstr ""
 

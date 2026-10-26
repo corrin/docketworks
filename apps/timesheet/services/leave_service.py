@@ -19,7 +19,7 @@ from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineWriteData, create_cost_line, update_latest_actual
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
-from apps.timesheet.services.attendance import duration_words
+from apps.timesheet.services.attendance import break_job_id, duration_words
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
 from apps.timesheet.services.workshop_timesheet_service import pricing_meta
@@ -121,7 +121,6 @@ class OfficeClosureResult(TypedDict):
     batch_id: str
     requests: list[LeaveRequestData]
     skipped_days: list[PreviewDay]
-    warnings: list[str]
 
 
 class LeaveBalanceData(TypedDict):
@@ -522,30 +521,54 @@ def preview_office_closure(*, start_date: date, end_date: date) -> OfficeClosure
     }
 
 
+def _refuse_closing_over_time(preview: OfficeClosurePreviewData) -> None:
+    """Refuse a closure on any day someone already has time entered (owner, 2026-10-26).
+
+    The office deletes that time first. The day's breaks are not entries.
+    """
+    staff_ids = [row["staff_id"] for row in preview["staff"]]
+    entered = CostLine.objects.filter(
+        kind="time",
+        cost_set__kind="actual",
+        staff_id__in=staff_ids,
+        accounting_date__range=(preview["start_date"], preview["end_date"]),
+    )
+    breaks = break_job_id()
+    if breaks is not None:
+        entered = entered.exclude(cost_set__job_id=breaks)
+    pairs = set(entered.values_list("staff_id", "accounting_date"))
+    people = {person.id: person for person in Staff.objects.filter(id__in={p for p, _ in pairs})}
+    order = {staff_id: index for index, staff_id in enumerate(staff_ids)}
+    found = sorted(pairs, key=lambda pair: (order[str(pair[0])], pair[1]))
+    if not found:
+        return
+    raise ValidationError(
+        gettext(
+            "The office can't close on a day that already has time entered: %(days)s. "
+            "Delete that time first."
+        )
+        % {
+            "days": ", ".join(
+                f"{people[who].get_display_name()} on {day.isoformat()}" for who, day in found
+            )
+        }
+    )
+
+
 @transaction.atomic
 def create_office_closure(
     *, start_date: date, end_date: date, note: str | None, actor: Staff
 ) -> OfficeClosureResult:
     """Create a batched public-holiday request for every affected employee."""
     preview = preview_office_closure(start_date=start_date, end_date=end_date)
+    _refuse_closing_over_time(preview)
     batch_id = uuid.uuid4()
     requests: list[LeaveRequestData] = []
     skipped: list[PreviewDay] = []
-    warnings: list[str] = []
     for staff_preview in preview["staff"]:
         available = [row for row in staff_preview["days"] if row["available"]]
         skipped.extend(row for row in staff_preview["days"] if not row["available"])
         if not available:
-            continue
-        if not any(row["hours"] > 0 for row in available):
-            # His days are already full: no request, and the office is told.
-            warnings.extend(
-                _filled_warnings(
-                    Staff.objects.get(id=staff_preview["staff_id"]),
-                    staff_preview,
-                    [{"date": row["date"], "hours": row["hours"]} for row in available],
-                )
-            )
             continue
         requested = [row["date"] for row in available]
         result = create_leave_request(
@@ -561,12 +584,10 @@ def create_office_closure(
         )
         requests.append(result["request"])
         skipped.extend(result["skipped_days"])
-        warnings.extend(result["warnings"])
     if not requests:
         raise ValidationError(gettext("No available office-closure days remain to save."))
     return {
         "batch_id": str(batch_id),
         "requests": requests,
         "skipped_days": skipped,
-        "warnings": warnings,
     }

@@ -8007,16 +8007,10 @@ components:
             $ref: '#/components/schemas/LeavePreviewDayOut'
           title: Skipped Days
           type: array
-        warnings:
-          items:
-            type: string
-          title: Warnings
-          type: array
       required:
       - batch_id
       - requests
       - skipped_days
-      - warnings
       title: OfficeClosureOut
       type: object
     OfficeClosurePreviewOut:

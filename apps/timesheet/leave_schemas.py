@@ -146,8 +146,6 @@ class OfficeClosureOut(ResponseSchema):
     batch_id: str
     requests: list[LeaveRequestOut]
     skipped_days: list[LeavePreviewDayOut]
-    #: Days that already had time: the holiday took only what was left of them.
-    warnings: list[str]
 
 
 #: Opus: A named union on the wire, not a bare string. The three surfaces are a

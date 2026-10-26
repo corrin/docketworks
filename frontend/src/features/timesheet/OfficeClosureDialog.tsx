@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import { useMutation } from '@tanstack/react-query'
 
 import {
@@ -105,9 +104,7 @@ function OfficeClosureForm({
     setError(null)
     setSaving(true)
     try {
-      const result = await createMutation.mutateAsync({ body })
-      // The dialog closes on save: days that already had time go in a toast.
-      if (result.warnings.length > 0) toast.warning(result.warnings.join(' '))
+      await createMutation.mutateAsync({ body })
       await onSaved()
       onOpenChange(false)
     } catch (caught) {

@@ -62,25 +62,4 @@ describe('OfficeClosureDialog', () => {
       document.querySelector('[data-automation-id="OfficeClosureDialog-preview-result"]'),
     ).toBeNull()
   })
-
-  it("shows the server's warnings once the closure is made, since the dialog closes", async () => {
-    const warning =
-      'Leave booked for Joe on 2030-01-01, but the day already had time entered: 0h put to leave.'
-    server.use(
-      http.post('*/api/timesheets/leave/office-closure/preview/', () =>
-        HttpResponse.json({ available_staff: 1, available_hours: 8, staff: [] }),
-      ),
-      http.post('*/api/timesheets/leave/office-closure/', () =>
-        HttpResponse.json({ batch_id: 'b1', requests: [], skipped_days: [], warnings: [warning] }),
-      ),
-    )
-    const user = userEvent.setup()
-    renderWithProviders(<Host />)
-
-    await user.click(await waitFor(() => autoId('OfficeClosureDialog-preview')))
-    await waitFor(() => autoId('OfficeClosureDialog-preview-result'))
-    await user.click(autoId('OfficeClosureDialog-submit'))
-
-    expect(await screen.findByText(warning)).toBeTruthy()
-  })
 })

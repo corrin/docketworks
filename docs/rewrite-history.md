@@ -2869,6 +2869,14 @@ to bill customers. That's all they really care about. Neither wants to spend
 longer on paperwork than they have to... Neither needs to know what a staff
 member was doing at 10AM accurately. So that's what falls."
 
+Public holidays (owner): working one is time and a half because "Joe SHOULD
+have entered the time as 1.5x. If he didn't then he might have volunteered to
+work the holiday and not get 1.5x... it's up to Joe doing his data entry
+right, and the office gets the opportunity to override too." Predicting it is
+a bonus, nothing more. An office closure on a day that already has time
+entered is refused, saying so; "the office would then have to delete those
+time entries manually." The day's breaks are not entries and do not block it.
+
 CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
 CI while dev machines on 24.04 had 0.21; the two wrap a long message
