@@ -4,7 +4,9 @@ from collections.abc import Iterator
 from datetime import date, time, timedelta
 
 import pytest
+from django.db import connection
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -75,6 +77,28 @@ class TestApproveDay:
         events = TimesheetEvent.objects.filter(event_type="entry_approved")
         assert {event.cost_line_id for event in events} == {first.id, second.id}
         assert {event.staff_id for event in events} == {office_staff.id}
+
+    def test_approving_a_day_costs_a_few_queries_a_line(
+        self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
+    ) -> None:
+        """Approval changes no figure, so it re-runs none of a line's checks or sums.
+
+        Sweeping everyone approves every line of every day: at 35 queries a line,
+        a day of 12 people took longer than the office should wait.
+        Guards CostLine.save's approval-only path, which approve_line takes.
+        """
+
+        def queries_to_approve(person: Staff, lines: int) -> int:
+            for _ in range(lines):
+                make_time_line(job, person, accounting_date=DAY, hours="1.000", approved=False)
+            with CaptureQueriesContext(connection) as captured:
+                approval.approve_day(person, DAY, office_staff)
+            return len(captured)
+
+        two = queries_to_approve(worker, 2)
+        eight = queries_to_approve(other_worker, 8)
+
+        assert (eight - two) / 6 <= 6
 
     def test_approve_day_skips_leave_lines(
         self, office_staff: Staff, company: Company, superuser: Staff, worker: Staff

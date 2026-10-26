@@ -129,7 +129,15 @@ test('sweeping everyone on a day sweeps a person the office clocked', async ({
     `Book ${formatHoursDisplay(HOURS_FOR_JOBS)} to General work`,
   )
 
+  // Sweeping everyone books a whole day for each person rostered, seconds of
+  // work: wait for its answer, then read what the office is told.
+  const sweptDay = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/timesheets/approvals/sweep/' &&
+      response.request().method() === 'POST',
+  )
   await autoId(page, 'ApproveTimePage-sweep-day').click()
+  expect((await sweptDay).ok()).toBe(true)
 
   // Everyone rostered that day is swept with them, so the total is not theirs alone.
   await expect(page.getByText(/booked to General work\./).first()).toBeVisible()

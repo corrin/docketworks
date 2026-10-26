@@ -2345,6 +2345,9 @@ def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
 
 def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
     """Point the job at its newest actual cost set."""
+    if job.latest_actual_id == cost_set_id:
+        # Already there: saving a line touches the job itself.
+        return
     if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
         job.latest_actual_id = cost_set_id
         job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
