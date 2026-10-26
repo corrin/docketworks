@@ -1238,7 +1238,9 @@ def _general_work_off(
     A refill would put a single deleted line straight back; sweeping the day
     again turns it on.
     """
-    AttendanceDay.objects.filter(staff=owner, date=day).update(general_work_fill=False)
+    AttendanceDay.objects.filter(staff=owner, date=day).update(
+        general_work_fill=False, updated_at=timezone.now()
+    )
     record_day_event(
         staff=actor,
         worker=owner,

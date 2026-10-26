@@ -221,8 +221,7 @@ class TestNobodyFillsInAnything:
         """
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        # 1.5 + 2.75 + 1.5 + 1.25 = 7h of General work; the breaks and General
-        # work are the office's, approved as saved, so nothing else is approved.
+        # 1.5 + 2.75 + 1.5 + 1.25 = 7h of General work, then the day is approved.
         assert result == {"swept_hours": 7.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         # 7h + two 0.25h paid breaks.

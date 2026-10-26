@@ -414,7 +414,6 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
 
       <WorkshopTimesheetEntryDrawer
         state={correction?.drawer ?? { mode: 'closed' }}
-        // Approved time is locked for the worker, never for the office.
         date={date}
         dayEntries={correcting?.entries ?? []}
         dayStart={correcting?.default_entry_start.slice(0, 5) ?? ''}

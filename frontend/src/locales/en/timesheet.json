@@ -189,7 +189,7 @@
     "unavailableSkipped_one": "{{count}} unavailable day will be skipped.",
     "unavailableSkipped_other": "{{count}} unavailable days will be skipped.",
     "previewFailed": "Could not preview leave.",
-    "conflictingSkipped": "{{skipped}} conflicting day(s) were skipped.",
+    "skippedDays": "{{skipped}} day(s) were skipped: not rostered, or outside employment dates.",
     "saveFailed": "Could not save leave.",
     "employee": "Employee",
     "selectEmployee": "Select employee",

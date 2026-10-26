@@ -159,7 +159,7 @@ function LeaveRequestForm({
       // The dialog closes on save, so what the office must know goes in a toast.
       const notes = [
         ...(result.skipped_days.length > 0
-          ? [t('leaveRequest.conflictingSkipped', { skipped: result.skipped_days.length })]
+          ? [t('leaveRequest.skippedDays', { skipped: result.skipped_days.length })]
           : []),
         ...result.warnings,
       ]
