@@ -2862,6 +2862,12 @@ approval had to cut the General work out from under it afterwards.
 Overlap (owner): an entry typed over another's time (Job X 07:00-15:00, then
 Job Y 09:00-11:00) is saved beside it and both are billed, with the overlap
 warning, as on main.
+What timesheets are for (owner): "Staff should be paid from the time they
+arrive at work to the time they leave (less unpaid breaks). That's all they
+really care about. The office needs time per job reasonably accurate in order
+to bill customers. That's all they really care about. Neither wants to spend
+longer on paperwork than they have to... Neither needs to know what a staff
+member was doing at 10AM accurately. So that's what falls."
 
 CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
