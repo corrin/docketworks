@@ -412,7 +412,7 @@ class TestSweep:
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert result == {"swept_hours": 1.5, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 1.5, "skipped": [], "overtime": []}
         assert _general_work_hours(general_work, worker) == ["1.500"]
         swept = CostLine.objects.get(cost_set__job=general_work, staff=worker)
         assert swept.approved
@@ -432,7 +432,6 @@ class TestSweep:
         result = approval.sweep_person(worker, [DAY], office_staff)
 
         assert result["swept_hours"] == 0.0
-        assert result["approved_count"] == 0
         assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
             (str(worker.id), "still_clocked_in")
         ]
@@ -451,7 +450,7 @@ class TestSweep:
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert result == {"swept_hours": 0.0, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         assert _general_work_hours(general_work, worker) == []
         own.refresh_from_db()
         assert own.approved
@@ -512,7 +511,6 @@ class TestSweep:
         assert one.status_code == 200, one.content
         assert one.json() == {
             "swept_hours": 3.0,
-            "approved_count": 0,
             "skipped": [],
             "overtime": [],
         }
@@ -636,20 +634,18 @@ class TestSweep:
     def test_a_clock_change_takes_off_swept_time_it_no_longer_covers(
         self, office_staff: Staff, general_work: Job, worker: Staff
     ) -> None:
-        """Guards attendance.drop_sweep_outside_clock: an earlier finish is not paid after it."""
+        """Guards attendance.set_clock_times: a filled day's General work follows its times."""
         attendance.set_clock_times(worker, DAY, time(6, 0), time(8, 0), worker)
         approval.sweep_person(worker, [DAY], office_staff)
 
         attendance.set_clock_times(worker, DAY, time(6, 0), time(7, 0), office_staff)
 
-        assert _general_work_entries(general_work, worker) == []
-        approval.sweep_person(worker, [DAY], office_staff)
         assert _general_work_entries(general_work, worker) == [("06:00:00", "07:00:00", "1.000")]
 
     def test_a_clock_change_keeps_swept_time_it_still_covers(
         self, office_staff: Staff, general_work: Job, worker: Staff
     ) -> None:
-        """Guards attendance.drop_sweep_outside_clock: bounds are the sweep's quarter hours."""
+        """Guards workshop_timesheet_service.refill_general_work: bounds are on quarter hours."""
         attendance.set_clock_times(worker, DAY, time(6, 52), time(8, 8), worker)
         approval.sweep_person(worker, [DAY], office_staff)
 

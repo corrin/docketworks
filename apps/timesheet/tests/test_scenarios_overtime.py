@@ -490,11 +490,11 @@ def test_E14_nine_hours_entered_in_the_office_grid_is_eight_then_one_at_time_and
     """
     _grid(office_staff, job, worker, "9", bill=1.0)
 
-    # No times on a grid row. Office-entered time is approved as it is saved.
+    # No times on a grid row. Office-entered time waits for approval like any.
     assert _lines(job, worker) == [
-        ("untimed", "8.000", 1.0, 1.0, "48.00", "120.00", True),
+        ("untimed", "8.000", 1.0, 1.0, "48.00", "120.00", False),
         # 9 - 8 = 1h: 48 x 1.5 = 72, charged by default at 120 x 1.5 = 180.
-        ("untimed", "1.000", 1.5, 1.5, "72.00", "180.00", True),
+        ("untimed", "1.000", 1.5, 1.5, "72.00", "180.00", False),
     ]
 
 
@@ -524,7 +524,7 @@ def test_E16_swept_general_work_past_eight_is_paid_time_and_a_half_and_billed_no
 ) -> None:
     """Swept General work past 8h: paid 1.5x, charged nothing (shop job).
 
-    Guards approval._put_on_general_work through workshop_timesheet_service.create_entry.
+    Guards workshop_timesheet_service.refill_general_work (through create_entry).
     """
     _clock(worker, "07:00", "17:00")
 
@@ -576,7 +576,7 @@ def test_F1_the_office_grid_charges_an_urgent_job_at_time_and_a_half(
 
     # 48 x 1 = 48; 120 x 1.5 = 180.
     assert _lines(job, worker) == [
-        ("untimed", "2.000", 1.0, 1.5, "48.00", "180.00", True),
+        ("untimed", "2.000", 1.0, 1.5, "48.00", "180.00", False),
     ]
 
 
@@ -888,7 +888,7 @@ def test_P11_the_sweep_after_an_overtime_split_is_all_time_and_a_half(
 ) -> None:
     """The sweep after an overtime split: the General work it adds is past 8h, so all 1.5x.
 
-    Guards approval._put_on_general_work through workshop_timesheet_service.overtime_hours.
+    Guards workshop_timesheet_service.refill_general_work (through overtime_hours).
     """
     _clock(worker, "07:00", "18:00")
     _drawer(worker, job, "9", "07:00", "17:00")

@@ -536,10 +536,9 @@ class SweepOvertimeOut(Schema):
 
 
 class SweepOut(Schema):
-    """What the sweep put on General work, and the worker entries it approved with the days."""
+    """What the sweep put on General work, and the days it left alone."""
 
     swept_hours: float
-    approved_count: int
     skipped: list[SweepSkipOut]
     overtime: list[SweepOvertimeOut]
 

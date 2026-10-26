@@ -26,7 +26,7 @@ from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import SWEPT_GENERAL_WORK, AttendanceDay, LeaveType
+from apps.timesheet.models import AttendanceDay, LeaveType
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
@@ -52,16 +52,12 @@ from apps.timesheet.services.timesheet_events import (
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
-    create_entry,
-    day_break_windows,
     day_time_lines,
     default_entry_start,
-    delete_entry,
     entered_late,
     entry_data,
+    fill_with_general_work,
     overtime_hours,
-    timed_window,
-    update_entry,
 )
 from apps.timesheet.services.xero_hours import leave_job_ids
 
@@ -174,91 +170,7 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     )
     for line in locked:
         approve_line(line, actor)
-    _general_work_gives_way(worker, day, locked, actor)
     return len(locked)
-
-
-def _general_work_gives_way(
-    worker: Staff, day: date, approved: list[CostLine], actor: Staff
-) -> None:
-    """Take the swept General work out from under entries the office has just approved.
-
-    Swept General work stands in for time nobody booked (owner, 2026-10-25).
-    When he later books part of that time and the office approves it, the
-    stand-in under it goes, so the time is paid once and on the job he named.
-    Until then the General work stays approved and paid, and his entry waits.
-    """
-    general_work_id = CompanyDefaults.get_solo().general_work_job_id
-    if general_work_id is None:
-        # Nowhere to sweep to, so nothing was swept to give way.
-        return
-    booked = [
-        window
-        for line in approved
-        if line.cost_set.job_id not in {general_work_id, break_job_id()}
-        and (window := timed_window(line)) is not None
-    ]
-    if not booked:
-        return
-    breaks = day_break_windows(worker, day)
-    for swept in CostLine.objects.filter(
-        kind="time",
-        staff=worker,
-        accounting_date=day,
-        cost_set__job_id=general_work_id,
-        meta__source=SWEPT_GENERAL_WORK,
-    ).select_related("cost_set__job"):
-        window = timed_window(swept)
-        if window is None:
-            continue
-        left = _less(window, booked)
-        if left == [window]:
-            continue
-        if not left:
-            delete_entry(actor, swept.id)
-            continue
-        first, *rest = left
-        update_entry(
-            actor,
-            {
-                "entry_id": swept.id,
-                "start_time": first.start,
-                "end_time": first.end,
-                "hours": hours_for(first.start, first.end, breaks),
-            },
-        )
-        for piece in rest:
-            create_entry(
-                actor,
-                worker,
-                {
-                    "job_id": swept.cost_set.job_id,
-                    "accounting_date": day,
-                    "hours": hours_for(piece.start, piece.end, breaks),
-                    "start_time": piece.start,
-                    "end_time": piece.end,
-                    "is_billable": False,
-                },
-                source=SWEPT_GENERAL_WORK,
-            )
-
-
-def _less(window: Window, taken: list[Window]) -> list[Window]:
-    """Return what is left of ``window`` once the ``taken`` stretches are cut out of it."""
-    left = [window]
-    for cut in taken:
-        kept: list[Window] = []
-        for each in left:
-            if each.end <= cut.start or cut.end <= each.start:
-                kept.append(each)
-                continue
-            kept.extend(
-                piece
-                for piece in (Window(each.start, cut.start), Window(cut.end, each.end))
-                if piece.end > piece.start
-            )
-        left = kept
-    return left
 
 
 def _waiting(worker: Staff, day: date) -> QuerySet[CostLine]:
@@ -437,11 +349,9 @@ class SweepOvertimeData(TypedDict):
 
 
 class SweepData(TypedDict):
-    """What a sweep moved onto General work and approved."""
+    """What a sweep moved onto General work, and the days it left alone."""
 
     swept_hours: float
-    #: The worker's own entries the sweep approved with the day.
-    approved_count: int
     skipped: list[SweepSkipData]
     #: Days it put past the usual day: the office checks which time is overtime.
     overtime: list[SweepOvertimeData]
@@ -571,10 +481,12 @@ def _people_on(day: date) -> list[Staff]:
 
 
 def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
-    """Sweep each person's day, approving what it sweeps; skip days with no clocked time.
+    """Sweep each person's day onto General work, then approve it; skip days with no clocked time.
 
-    Sweeping is approving (owner, 2026-10-17): the office saw the day and
-    accepted it, so the worker's own waiting entries are approved with it.
+    Approve time's shortcut: two operations in one press (owner, 2026-10-26:
+    "Sweep isn't exactly approval. Under approve we have a convenience
+    shortcut - sweep and approve"). The sweep enters the General work, which
+    waits like any entry, and approving the day approves it with the rest.
     """
     general_work_id = _general_work_job_id()
     # Two offices sweeping the same person would both read the same stretches
@@ -596,7 +508,6 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
             job_ids |= set(_waiting(person, day).values_list("cost_set__job_id", flat=True))
     lock_costing_jobs(job_ids)
     swept = Decimal(0)
-    approved = 0
     skipped: list[SweepSkipData] = []
     overtime: list[SweepOvertimeData] = []
     weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
@@ -628,15 +539,16 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
                 row = AttendanceDay.objects.get(staff=person, date=day)
             if _goes_past_the_usual_day(person, day, windows):
                 overtime.append(_overtime_warning(person, day))
-            swept += _put_on_general_work(person, day, windows, general_work_id, actor)
-            approved += approve_day(person, day, actor)
             if row is None:
-                # Unclocked and his leave fills the standard day: no day to send.
+                # Unclocked and his leave fills the standard day: nothing to
+                # fill and no day to send, but his entries are approved.
+                approve_day(person, day, actor)
                 continue
+            swept += fill_with_general_work(person, day, actor)
+            approve_day(person, day, actor)
             _send_for_him(person, row, actor)
     return {
         "swept_hours": float(swept),
-        "approved_count": approved,
         "skipped": skipped,
         "overtime": overtime,
     }
@@ -685,34 +597,6 @@ def _send_for_him(worker: Staff, row: AttendanceDay, actor: Staff) -> None:
         after=None,
         trusted=True,
     )
-
-
-def _put_on_general_work(
-    worker: Staff, day: date, windows: list[Window], general_work_id: UUID, actor: Staff
-) -> Decimal:
-    """Make a General work entry in each stretch on no job; return the hours they hold.
-
-    One entry per stretch, ending where a break or a real entry starts and
-    starting again where it ends. Entered by the office, so each starts
-    approved. No stretches (his entries cover the day, or more) moves nothing,
-    and the day is still approved.
-    """
-    for window in windows:
-        create_entry(
-            actor,
-            worker,
-            {
-                "job_id": general_work_id,
-                "accounting_date": day,
-                "hours": hours_for(window.start, window.end, []),
-                "start_time": window.start,
-                "end_time": window.end,
-                # A shop job's time is billed to nobody; the model refuses otherwise.
-                "is_billable": False,
-            },
-            source=SWEPT_GENERAL_WORK,
-        )
-    return _hours_in(windows)
 
 
 def _hours_in(windows: list[Window]) -> Decimal:

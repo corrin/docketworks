@@ -26,17 +26,18 @@ from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
+from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
     CostLineData,
+    a_change_takes_the_approval_off,
     cost_line_data,
     get_or_create_cost_set,
     move_time_line,
     refuse_workflow_managed,
     update_latest_actual,
-    worker_change_waits_for_the_office,
 )
 from apps.job.services.time_entry_rates import (
     UNPAID_TIME,
@@ -62,7 +63,11 @@ from apps.timesheet.services.attendance import (
     PendingDay,
 )
 from apps.timesheet.services.location import EntryLocation, saved_remotely
-from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.timesheet_events import (
+    record_day_event,
+    record_timesheet_event,
+    snapshot_if_entry,
+)
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 from apps.timesheet.services.xero_hours import leave_job_ids
 
@@ -424,9 +429,13 @@ def default_entry_start(
     """Return where his next entry starts: after his latest, else when he clocked in.
 
     Failing both, the standard start. A start that lands inside a break moves
-    to the end of it, since breaks are outside job time.
+    to the end of it, since breaks are outside job time. General work is the
+    rest of the day, not an entry: what he enters goes into it (owner,
+    2026-10-26), so an entry starts where his own entries end.
     """
-    finishes = [span[1] for line in entries if (span := timed_span(line))]
+    finishes = [
+        span[1] for line in entries if not is_general_work_fill(line) and (span := timed_span(line))
+    ]
     if finishes:
         start = max(finishes)
     elif row is not None:
@@ -644,7 +653,86 @@ def create_entry(
             ordinary, late = _split_at_overtime(owner, data, overtime)
             line = _save_entry(actor, owner, job, ordinary, location, source=source)
             _save_entry(actor, owner, job, late, location, source=source)
+        if source != SWEPT_GENERAL_WORK:
+            refill_general_work(owner, data["accounting_date"], actor)
     return entry_data(line)
+
+
+def is_general_work_fill(line: CostLine) -> bool:
+    """Whether the line is the General work filling the rest of a day, not an entry."""
+    source: object = line.meta.get("source")
+    return source == SWEPT_GENERAL_WORK
+
+
+def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
+    """Make a filled day's General work the time on no job and no break; return the hours made.
+
+    General work is "like a bit flag" (owner, 2026-10-26): on a day filled
+    with it, "any time that isn't on a job or break is general work". The flag
+    is the day's; these lines are its picture for every reader of time lines.
+    When the gaps change the lines are made again, last, so the hours past the
+    usual day are the General work's and the new lines wait for approval, as
+    any change does. When the gaps are as they were nothing is touched, so an
+    edit elsewhere takes no approval off. Called inside the write's
+    transaction, under his lock.
+    """
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    if row is None or not row.general_work_fill:
+        return Decimal(0)
+    general_work_id = CompanyDefaults.get_solo().general_work_job_id
+    if general_work_id is None:
+        raise ValueError(f"{owner} on {day} is filled with General work, but none is set up")
+    lines = day_time_lines(owner, day)
+    filled = [line for line in lines if is_general_work_fill(line)]
+    entries, break_lines = attendance.split_breaks(
+        [line for line in lines if not is_general_work_fill(line)]
+    )
+    # Still clocked in: the day has no end to fill to yet.
+    windows = attendance.unallocated_windows(day, row, entries, break_lines) or []
+    current = sorted(window for line in filled if (window := timed_window(line)) is not None)
+    if len(current) == len(filled) and current == windows:
+        return Decimal(0)
+    lock_costing_jobs([general_work_id])
+    for line in filled:
+        _delete_line(actor, line, None)
+    for window in windows:
+        create_entry(
+            actor,
+            owner,
+            {
+                "job_id": general_work_id,
+                "accounting_date": day,
+                "hours": attendance.hours_for(window.start, window.end, []),
+                "start_time": window.start,
+                "end_time": window.end,
+                # A shop job's time is billed to nobody; the model refuses otherwise.
+                "is_billable": False,
+            },
+            source=SWEPT_GENERAL_WORK,
+        )
+    return sum((attendance.hours_for(each.start, each.end, []) for each in windows), Decimal(0))
+
+
+def fill_with_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
+    """Put the rest of his day on General work from now on; return the hours it made.
+
+    Entering, not approving: anyone fills their own day ("I can't be bothered
+    to enter the rest"), the office anyone's (owner, 2026-10-26).
+    """
+    row = AttendanceDay.objects.select_for_update().get(staff=owner, date=day)
+    if not row.general_work_fill:
+        row.general_work_fill = True
+        row.save(update_fields=["general_work_fill", "updated_at"])
+        record_day_event(
+            staff=actor,
+            worker=owner,
+            day=day,
+            event_type="general_work_on",
+            before=None,
+            after=None,
+            trusted=not saved_remotely(actor, None),
+        )
+    return refill_general_work(owner, day, actor)
 
 
 def _refuse_outside_employment(owner: Staff, day: date) -> None:
@@ -719,7 +807,12 @@ def overtime_part(
         or job_id in leave_job_ids()
     ):
         return Decimal(0)
-    overtime = overtime_hours(owner, day, hours)
+    overtime = overtime_hours(
+        owner,
+        day,
+        hours,
+        general_work_counts=job_id == CompanyDefaults.get_solo().general_work_job_id,
+    )
     ordinary = hours - overtime
     if 0 < min(overtime, ordinary) < _SMALLEST_SPLIT:
         return hours if overtime > ordinary else Decimal(0)
@@ -757,12 +850,20 @@ def _at_overtime(data: WorkshopEntryCreateData) -> WorkshopEntryCreateData:
 
 
 def overtime_hours(
-    owner: Staff, day: date, hours: Decimal, *, already_on_the_day: bool = True
+    owner: Staff,
+    day: date,
+    hours: Decimal,
+    *,
+    already_on_the_day: bool = True,
+    general_work_counts: bool = False,
 ) -> Decimal:
     """Return how many of ``hours``, added to his day, fall past his usual day.
 
     ``already_on_the_day`` False asks of ``hours`` alone: how many of a day of
-    that many hours are past the usual day.
+    that many hours are past the usual day. The General work filling the day
+    is rebuilt after anything he enters, so it counts toward the usual day
+    only for the General work itself (``general_work_counts``): the hours past
+    the usual day are always the General work's.
 
     The first hours of a day are ordinary and the rest time and a half
     (owner, 2026-10-25: "the first 8 hours is standard"). The usual day is the
@@ -781,7 +882,12 @@ def overtime_hours(
         entries, _ = attendance.split_breaks(day_time_lines(owner, day))
         leave = leave_job_ids()
         worked = sum(
-            (line.quantity for line in entries if line.cost_set.job_id not in leave),
+            (
+                line.quantity
+                for line in entries
+                if line.cost_set.job_id not in leave
+                and (general_work_counts or not is_general_work_fill(line))
+            ),
             Decimal(0),
         )
     return min(hours, max(hours - (usual - worked), Decimal(0)))
@@ -855,10 +961,9 @@ def _save_entry(  # noqa: PLR0913 -- the entry, whose it is, who saves it, where
         labour_subtype=pricing.labour_subtype,
         ext_refs={},
         meta=meta,
-        # Time the office enters is approved as it is saved, their own
-        # included (owner, 2026-10-26: "We have SIX STAFF - of course office
-        # staff approve their own time"); a worker's waits for the office.
-        approved=actor.is_office_staff,
+        # Waiting, whoever enters it: entering and approving are two
+        # operations, even by one person (owner, 2026-10-26).
+        approved=False,
         remote_entry=source is None and saved_remotely(actor, location),
     )
     line.save()
@@ -985,8 +1090,16 @@ def update_entry(
             raise ConflictError(
                 gettext("This entry moved to another job. Reload before editing it.")
             )
+        if is_general_work_fill(line) and {"start_time", "end_time", "hours"} & data.keys():
+            raise InvalidInputError(
+                gettext(
+                    "General work fills the time not on a job or a break. "
+                    "Change the entries or breaks around it."
+                )
+            )
         before = snapshot_if_entry(line)
-        worker_change_waits_for_the_office(line, actor)
+        day_before = line.accounting_date
+        a_change_takes_the_approval_off(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -1049,6 +1162,9 @@ def update_entry(
             before=before,
             trusted=not remote,
         )
+        owner = _owner_of(line)
+        for day in {day_before, line.accounting_date}:
+            refill_general_work(owner, day, actor)
 
     return entry_data(line)
 
@@ -1074,6 +1190,16 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         line, actor, gettext("You can only delete your own timesheet entries.")
     )
     refuse_workflow_managed(line, "cancel")
+    owner, day = _owner_of(line), line.accounting_date
+    if is_general_work_fill(line):
+        _general_work_off(owner, day, actor, location)
+        return
+    _delete_line(actor, line, location)
+    refill_general_work(owner, day, actor)
+
+
+def _delete_line(actor: Staff, line: CostLine, location: EntryLocation | None) -> None:
+    """Delete one time line the caller holds locked, recording who did."""
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(
@@ -1083,5 +1209,29 @@ def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = 
         before=snapshot_if_entry(line),
         trusted=not saved_remotely(actor, location),
     )
+    entry_id = line.id
     line.delete()
     logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)
+
+
+def _general_work_off(
+    owner: Staff, day: date, actor: Staff, location: EntryLocation | None
+) -> None:
+    """Take the day's General work off, all of it: one line deleted is the fill turned off.
+
+    A refill would put a single deleted line straight back; sweeping the day
+    again turns it on.
+    """
+    AttendanceDay.objects.filter(staff=owner, date=day).update(general_work_fill=False)
+    record_day_event(
+        staff=actor,
+        worker=owner,
+        day=day,
+        event_type="general_work_off",
+        before=None,
+        after=None,
+        trusted=not saved_remotely(actor, location),
+    )
+    for each in day_time_lines(owner, day):
+        if is_general_work_fill(each):
+            _delete_line(actor, each, location)

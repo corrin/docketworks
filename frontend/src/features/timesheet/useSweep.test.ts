@@ -7,7 +7,6 @@ describe('sweepWords', () => {
     expect(
       sweepWords({
         swept_hours: 9,
-        approved_count: 1,
         skipped: [],
         overtime: [
           {

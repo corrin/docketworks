@@ -5875,10 +5875,9 @@ export const zSweepSkipOut = z.object({
 /**
  * SweepOut
  *
- * What the sweep put on General work, and the worker entries it approved with the days.
+ * What the sweep put on General work, and the days it left alone.
  */
 export const zSweepOut = z.object({
-    approved_count: z.int(),
     overtime: z.array(zSweepOvertimeOut),
     skipped: z.array(zSweepSkipOut),
     swept_hours: z.number()

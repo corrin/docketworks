@@ -222,7 +222,7 @@ class TestNobodyFillsInAnything:
 
         # 1.5 + 2.75 + 1.5 + 1.25 = 7h of General work; the breaks and General
         # work are the office's, approved as saved, so nothing else is approved.
-        assert result == {"swept_hours": 7.0, "approved_count": 0, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 7.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         # 7h + two 0.25h paid breaks.
         assert _paid(worker) == Decimal("7.5")
@@ -241,7 +241,7 @@ class TestNobodyFillsInAnything:
         result = approval.sweep_person(worker, [DAY], office_staff)
 
         # His own three breaks were waiting, and are approved with the day.
-        assert result == {"swept_hours": 7.0, "approved_count": 3, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 7.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         assert _paid(worker) == Decimal("7.5")
         assert _billed(worker) == Decimal(0)
@@ -264,7 +264,6 @@ class TestNobodyFillsInAnything:
         # (13:45 to 16:00) and 1h at time and a half (16:00 to 17:00).
         assert result == {
             "swept_hours": 9.0,
-            "approved_count": 3,
             "skipped": [],
             "overtime": [_overtime_warning(worker)],
         }
@@ -307,7 +306,6 @@ class TestNobodyFillsInAnything:
         # His entry and his three breaks were waiting.
         assert result == {
             "swept_hours": 7.0,
-            "approved_count": 4,
             "skipped": [],
             "overtime": [_overtime_warning(worker)],
         }
@@ -331,7 +329,7 @@ class TestNobodyFillsInAnything:
         result = approval.sweep_everyone([DAY], office_staff)
 
         # Only the rostered worker's standard 7h moves; the part-timer is not listed.
-        assert result == {"swept_hours": 7.0, "approved_count": 0, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 7.0, "skipped": [], "overtime": []}
         assert _day_lines(part_timer) == []
         assert not AttendanceDay.objects.filter(staff=part_timer, date=DAY).exists()
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
@@ -356,8 +354,8 @@ class TestNobodyFillsInAnything:
         second = approval.sweep_everyone(week, office_staff)
 
         # 6 people x 5 weekdays x 7h; the weekend nobody is rostered for.
-        assert first == {"swept_hours": 210.0, "approved_count": 0, "skipped": [], "overtime": []}
-        assert second == {"swept_hours": 0.0, "approved_count": 0, "skipped": [], "overtime": []}
+        assert first == {"swept_hours": 210.0, "skipped": [], "overtime": []}
+        assert second == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         assert CostLine.objects.filter(kind="time").count() == lines_after_first
         for person in people:
             for offset in range(5):
@@ -395,7 +393,7 @@ class TestSomeOfTheTimeEntered:
             *STANDARD_GENERAL_WORK[2:],
         ]
         # His entry and his three breaks.
-        assert result == {"swept_hours": 4.0, "approved_count": 4, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 4.0, "skipped": [], "overtime": []}
         # 3h x 120.00 = 360.00 billed; 3 + 4 + 0.5 = 7.5h paid.
         assert _billed(worker) == Decimal("360")
         assert _paid(worker) == Decimal("7.5")
@@ -419,7 +417,7 @@ class TestSomeOfTheTimeEntered:
             *STANDARD_GENERAL_WORK[2:],
         ]
         # Only his entry waited: the breaks are the office's.
-        assert result == {"swept_hours": 4.0, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 4.0, "skipped": [], "overtime": []}
         assert _paid(worker) == Decimal("7.5")
         assert _billed(worker) == Decimal("360")
 
@@ -428,7 +426,7 @@ class TestSomeOfTheTimeEntered:
     ) -> None:
         """Clocked 07:00-15:00, he entered 9h on jobs; the office sweeps the day.
 
-        Guards approval._put_on_general_work (no stretch, no negative entry) and
+        Guards workshop_timesheet_service.refill_general_work (no stretch, no negative entry) and
         approval._staff_day's "Over by" caution.
         """
         _clock(worker, "07:00", "15:00")
@@ -444,7 +442,7 @@ class TestSomeOfTheTimeEntered:
         ]
         assert _on(general_work, worker) == []
         # Two job lines and three breaks.
-        assert result == {"swept_hours": 0.0, "approved_count": 5, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         assert _all_approved(worker)
         # 9h + 0.5h paid breaks.
         assert _paid(worker) == Decimal("9.5")
@@ -486,7 +484,7 @@ class TestSomeOfTheTimeEntered:
             ("10:00:00", "11:30:00", Decimal("1.5"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 6.0, "approved_count": 5, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 6.0, "skipped": [], "overtime": []}
         # Each job billed 1h x 120.00; paid 2 + 6 + 0.5.
         assert _billed(worker) == Decimal("240")
         assert _paid(worker) == Decimal("8.5")
@@ -518,7 +516,7 @@ class TestSomeOfTheTimeEntered:
             ("09:00:00", "11:30:00", Decimal("2.5"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 6.25, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 6.25, "skipped": [], "overtime": []}
         # 1 x 120.00 billed; paid 1 + 6.25 + the 0.25 afternoon break = 7.5,
         # 08:00-09:00 once.
         assert _billed(worker) == Decimal("120")
@@ -550,7 +548,7 @@ class TestSomeOfTheTimeEntered:
             ("10:00:00", "11:30:00", Decimal("1.5"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 5.25, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 5.25, "skipped": [], "overtime": []}
         # 2 x 120.00 billed; paid 2 + 5.25 + 0.25 = 7.5.
         assert _billed(worker) == Decimal("240")
         assert _paid(worker) == Decimal("7.5")
@@ -588,7 +586,6 @@ class TestSomeOfTheTimeEntered:
         # 1.5 + 2.75 + 1.5 + 0.25 = 6h swept; his entry and three breaks approved.
         assert result == {
             "swept_hours": 6.0,
-            "approved_count": 4,
             "skipped": [],
             "overtime": [_overtime_warning(worker)],
         }
@@ -654,9 +651,11 @@ class TestSomeEnterSomeDont:
         [leave_line] = _day_lines(away)
         assert (leave_line.quantity, leave_line.approved) == (Decimal("8"), True)
         assert not AttendanceDay.objects.filter(staff=away, date=DAY).exists()
-        # 4 + 4 + 7 swept; each clocked person's entry and three breaks approved.
+        # 4 + 4 + 7 swept; and every line of the swept days approved with them.
         assert result["swept_hours"] == 15.0
-        assert result["approved_count"] == 16
+        assert all(
+            line.approved for person in [*full, *partial, nothing] for line in _day_lines(person)
+        )
         assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
             (str(away.id), "no_clock_times")
         ]
@@ -716,7 +715,7 @@ class TestPartDays:
         assert _on(job, worker) == [("07:00:00", "11:00:00", Decimal("3.75"), 1.0)]
         assert _on(general_work, worker) == []
         # His entry and his paid break; lunch was after he left.
-        assert result == {"swept_hours": 0.0, "approved_count": 2, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         # 8 less 3.75 on the job and the 0.25 paid break = 4h to leave.
         assert booked["warnings"] == [_leave_warning(worker, DAY, "4h")]
         [leave_line] = [line for line in _day_lines(worker) if line.managed_by == "leave"]
@@ -745,7 +744,7 @@ class TestPartDays:
         ]
         # 07:00-08:30 1.5 + 08:45-11:30 2.75 = 4.25h.
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK[:2]
-        assert result == {"swept_hours": 4.25, "approved_count": 2, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 4.25, "skipped": [], "overtime": []}
         # 4.25 + the 0.25 paid break.
         assert _paid(worker) == Decimal("4.5")
 
@@ -768,7 +767,7 @@ class TestPartDays:
             ("10:00:00", "11:30:00", Decimal("1.5"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 4.25, "approved_count": 2, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 4.25, "skipped": [], "overtime": []}
         assert _paid(worker) == Decimal("4.5")
 
     def test_G4_an_office_closure_is_holiday_for_everyone_and_never_swept(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, leave set-up and people
@@ -835,7 +834,7 @@ class TestPartDays:
         assert _on(job, worker) == [("07:00:00", "13:00:00", Decimal("5.25"), 1.0)]
         assert _on(general_work, worker) == []
         # His entry, his paid break and lunch; the 13:30 break went at clock-out.
-        assert result == {"swept_hours": 0.0, "approved_count": 3, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         [sick] = [line for line in _day_lines(worker) if line.managed_by == "leave"]
         # 8 less the 5.25 on the job and the 0.25 paid break: 2.5h, not the
         # scenario's 2h, because he was here to 13:00 with lunch unpaid.
@@ -914,7 +913,10 @@ class TestSweepingHairyCases:
     ) -> None:
         """Swept to 15:00, then the office corrects his clock-out to 14:00.
 
-        Guards attendance.drop_sweep_outside_clock.
+        The day is filled with General work, so it follows the new finish
+        (owner, 2026-10-26); sweeping again has nothing left to put on.
+
+        Guards attendance.set_clock_times (the refill).
         """
         _clock(worker, "07:00", "15:00")
         approval.sweep_person(worker, [DAY], office_staff)
@@ -923,10 +925,11 @@ class TestSweepingHairyCases:
         corrected = _on(general_work, worker)
         again = approval.sweep_person(worker, [DAY], office_staff)
 
-        # The 13:45-15:00 entry reached past 14:00 and went whole.
-        assert corrected == STANDARD_GENERAL_WORK[:3]
-        # The re-sweep books what is still clocked: 13:45-14:00.
-        assert again == {"swept_hours": 0.25, "approved_count": 0, "skipped": [], "overtime": []}
+        assert corrected == [
+            *STANDARD_GENERAL_WORK[:3],
+            ("13:45:00", "14:00:00", Decimal("0.250"), 1.0),
+        ]
+        assert again == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == [
             *STANDARD_GENERAL_WORK[:3],
             ("13:45:00", "14:00:00", Decimal("0.25"), 1.0),
@@ -934,13 +937,14 @@ class TestSweepingHairyCases:
         # 1.5 + 2.75 + 1.5 + 0.25 = 6 + 0.5 paid breaks.
         assert _paid(worker) == Decimal("6.5")
 
-    def test_R2_a_clock_in_corrected_earlier_is_swept_for_the_new_hour_only(
+    def test_R2_a_clock_in_corrected_earlier_fills_the_new_hour_too(
         self, office_staff: Staff, general_work: Job, worker: Staff
     ) -> None:
         """Swept from 07:00, then the office corrects his clock-in to 06:00.
 
-        Guards attendance.unallocated_windows: a re-sweep books only the stretch
-        not already on General work.
+        The filled day's General work takes in the new hour by itself.
+
+        Guards attendance.set_clock_times (the refill).
         """
         _clock(worker, "07:00", "15:00")
         approval.sweep_person(worker, [DAY], office_staff)
@@ -948,11 +952,11 @@ class TestSweepingHairyCases:
 
         again = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert again == {"swept_hours": 1.0, "approved_count": 0, "skipped": [], "overtime": []}
-        # 7h already worked, so the eighth hour is still ordinary.
+        assert again == {"swept_hours": 0.0, "skipped": [], "overtime": []}
+        # One stretch to the first break now, 06:00-08:30: 8h in all, all ordinary.
         assert _on(general_work, worker) == [
-            ("06:00:00", "07:00:00", Decimal("1"), 1.0),
-            *STANDARD_GENERAL_WORK,
+            ("06:00:00", "08:30:00", Decimal("2.500"), 1.0),
+            *STANDARD_GENERAL_WORK[1:],
         ]
         assert _paid(worker) == Decimal("8.5")
 
@@ -976,7 +980,7 @@ class TestSweepingHairyCases:
             ("10:15:00", "11:30:00", Decimal("1.25"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 4.0, "approved_count": 4, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 4.0, "skipped": [], "overtime": []}
         legacy.refresh_from_db()
         assert (legacy.quantity, legacy.approved) == (Decimal("3"), True)
         assert "start_time" not in legacy.meta
@@ -1000,7 +1004,7 @@ class TestSweepingHairyCases:
             ("08:45:00", "13:30:00", Decimal("4.75"), 1.0),
             ("13:45:00", "15:00:00", Decimal("1.25"), 1.0),
         ]
-        assert result == {"swept_hours": 7.5, "approved_count": 2, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 7.5, "skipped": [], "overtime": []}
         # 7.5 + 0.5 paid breaks.
         assert _paid(worker) == Decimal("8")
 
@@ -1017,7 +1021,7 @@ class TestSweepingHairyCases:
         result = approval.sweep_everyone(approval.sweep_days(friday, monday), office_staff)
 
         # Friday and Monday, 7h each.
-        assert result == {"swept_hours": 14.0, "approved_count": 0, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 14.0, "skipped": [], "overtime": []}
         for weekend in (friday + timedelta(days=1), friday + timedelta(days=2)):
             assert _day_lines(worker, weekend) == []
             assert not AttendanceDay.objects.filter(staff=worker, date=weekend).exists()
@@ -1095,7 +1099,10 @@ class TestSweepingHairyCases:
     ) -> None:
         """The office deleted part of the swept General work, then swept again.
 
-        Guards attendance.unallocated_windows: a deleted stretch is unbooked, not unpaid.
+        Deleting General work takes the day's fill off, all of it; sweeping
+        again puts it all back: unbooked, never unpaid.
+
+        Guards workshop_timesheet_service.delete_entry and approval._sweep.
         """
         _clock(worker, "07:00", "15:00")
         approval.sweep_person(worker, [DAY], office_staff)
@@ -1103,10 +1110,11 @@ class TestSweepingHairyCases:
             staff=worker, cost_set__job=general_work, meta__start_time="12:00:00"
         )
         workshop_timesheet_service.delete_entry(office_staff, middle.id)
+        assert _on(general_work, worker) == []
 
         again = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert again == {"swept_hours": 1.5, "approved_count": 0, "skipped": [], "overtime": []}
+        assert again == {"swept_hours": 7.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == STANDARD_GENERAL_WORK
         assert _paid(worker) == Decimal("7.5")
 
@@ -1161,7 +1169,7 @@ class TestLeaveAndDaysOff:
             ("07:00:00", "08:30:00", Decimal("1.5"), 1.0),
             ("08:45:00", "11:00:00", Decimal("2.25"), 1.0),
         ]
-        assert result == {"swept_hours": 3.75, "approved_count": 1, "skipped": [], "overtime": []}
+        assert result == {"swept_hours": 3.75, "skipped": [], "overtime": []}
         # 8 less 3.75 General work and the 0.25 paid break = 4h sick.
         assert _leave_hours(worker) == Decimal("4")
         assert booked["warnings"] == [_leave_warning(worker, DAY, "4h")]
@@ -1188,7 +1196,7 @@ class TestLeaveAndDaysOff:
         leave_service.delete_leave_request(UUID(sick["request"]["id"]))
         again = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert again == {"swept_hours": 0.0, "approved_count": 0, "skipped": [], "overtime": []}
+        assert again == {"swept_hours": 0.0, "skipped": [], "overtime": []}
         assert _on(general_work, worker) == [
             ("07:00:00", "08:30:00", Decimal("1.5"), 1.0),
             ("08:45:00", "11:00:00", Decimal("2.25"), 1.0),

@@ -2819,19 +2819,42 @@ display"). `CostLine.quantity` is three decimal places and shared with
 materials and stock, and its sums reach the Xero boundaries, so it is its own
 change.
 
-## 2026-10-26 — Staff change their own time, approved or not; the office approves its own (PR #228)
+## 2026-10-26 — Entering is not approving; General work is a flag on the day (PR #228)
 
-Owner: "OFFICE HAS LESS AUTHORTITY TO CHANGE TIME SHEETS THAN STAFF." KAN-376
-had it the other way round: once approved, a worker was refused ("Ask the
-office to change it") and only the office could edit. Now a worker changes or
-deletes his own entries whatever their state, and a change to an approved
-entry takes its approval off: approval is the office checking the entry, and
-his change has not been checked. The flag is the denormalisation of the audit
-log, and the edit's own event records it going (its before and after carry
-`approved`). The office's own edit keeps an entry approved, as before.
+Who does what (owner): "all staff, including the office, can do time
+entries. Can set clock in and clock out times, can set breaks, can sweep the
+rest of the day into general work... Then any office staff member has
+authority to approve timesheets. And as an extra convenience, they can make
+some quick edits to the timesheets before approving, including setting them to
+sweep." Entering and approving are two operations: "Just because the same
+person can do both, doesn't reduce it to one operation."
 
-Owner: "We have SIX STAFF - of course office staff approve their own time."
-The rule recorded on 2026-10-25 that office staff's own time waits for another
-office person was an AI proposal carried into the rulings by mistake, never
-the owner's; time the office enters is approved as it is saved, their own
-included.
+- Time waits for approval whoever enters it, the office included, and any
+  change to an approved entry takes the approval off, whoever makes it. Only
+  approving approves: the approve button, and Approve time's "sweep and
+  approve" shortcut ("Sweep isn't exactly approval"). A leave request's lines
+  stay approved by the request.
+- "OFFICE HAS LESS AUTHORTITY TO CHANGE TIME SHEETS THAN STAFF": KAN-376's
+  lock that refused a worker's change to approved time ("Ask the office to
+  change it") goes; he changes his own time, and the change waits.
+- "of course office staff approve their own time". The rule recorded on
+  2026-10-25 that office staff's own time waits for another office person was
+  an AI proposal carried into the rulings by mistake, never the owner's.
+- The approved flag is the denormalisation of the approval audit log: every
+  approval is an `entry_approved` event, and a change that takes it off
+  records it in its own event (its before and after carry `approved`).
+
+General work (owner): "treat it more like a bit flag than a time entry. If
+true, then any time that isn't on a job or break is general work. That makes
+it easily expanded or shrunk as required." `AttendanceDay.general_work_fill`
+is the truth; the day's General work lines are rebuilt from its gaps after
+every write to the day, so every reader of time lines works unchanged. Made
+last, the General work is what goes past the usual day, and an entry Joe adds
+to a swept day ("2h on Job X", hours alone being how he enters nearly
+everything) takes its time from the General work, starting at 07:00 not
+15:00. Deleting a General work line turns the day's fill off; sweeping again
+turns it on.
+
+Finding: before this, time added after a sweep counted the General work toward
+the usual day, so a 2h job added to a swept day went to time and a half, and
+approval had to cut the General work out from under it afterwards.

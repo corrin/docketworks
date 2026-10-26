@@ -408,10 +408,11 @@ def test_c5_a_late_entry_approved_after_posting_waits_for_the_re_post_which_repl
 def test_s5_an_office_edit_after_posting_shows_as_a_mismatch_until_re_posted(
     office: Staff, worker: Staff, job: Job
 ) -> None:
-    """The office edits an approved entry after the week was posted.
+    """The office edits an approved entry after the week was posted, and approves it again.
 
-    The week no longer matches Xero. Reconciliation shows it until the week
-    is re-posted.
+    The edit takes the approval off (owner, 2026-10-26: entering and approving
+    are two operations). Approved again, the week no longer matches Xero, and
+    reconciliation shows it until the week is re-posted.
 
     Guards payroll_push.week_posting_status.
     """
@@ -422,6 +423,7 @@ def test_s5_an_office_edit_after_posting_shows_as_a_mismatch_until_re_posted(
     [line] = CostLine.objects.filter(cost_set__job=job, staff=worker)
 
     workshop_timesheet_service.update_entry(office, {"entry_id": line.id, "hours": Decimal("3")})
+    approval.approve_day(worker, MONDAY, office)
 
     edited = _status(worker)
     assert (edited.recorded_timesheet_hours, edited.posted_timesheet_hours) == (

@@ -3945,6 +3945,14 @@ msgstr ""
 msgid "Day sent"
 msgstr ""
 
+#: apps/timesheet/models.py
+msgid "Rest of the day put on General work"
+msgstr ""
+
+#: apps/timesheet/models.py
+msgid "General work taken off the day"
+msgstr ""
+
 #: apps/timesheet/services/approval.py
 #, python-format
 msgid "Over by %(over)s"
@@ -4298,6 +4306,12 @@ msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "You can only update your own timesheet entries."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid ""
+"General work fills the time not on a job or a break. Change the entries or "
+"breaks around it."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

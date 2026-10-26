@@ -14529,11 +14529,8 @@ components:
       title: SweepIn
       type: object
     SweepOut:
-      description: What the sweep put on General work, and the worker entries it approved with the days.
+      description: What the sweep put on General work, and the days it left alone.
       properties:
-        approved_count:
-          title: Approved Count
-          type: integer
         overtime:
           items:
             $ref: '#/components/schemas/SweepOvertimeOut'
@@ -14549,7 +14546,6 @@ components:
           type: number
       required:
       - swept_hours
-      - approved_count
       - skipped
       - overtime
       title: SweepOut

@@ -2439,12 +2439,17 @@ def _create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff
     with transaction.atomic():
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
-        # Workshop-created lines await office approval. Leave never does: the
-        # leave request is the approval, the approve endpoint refuses a managed
-        # line, and payroll reads unapproved leave as no leave.
+        # Worked time waits for approval whoever enters it: entering and
+        # approving are two operations, even by one person (owner,
+        # 2026-10-26). Leave never waits: the leave request is the approval,
+        # the approve endpoint refuses a managed line, and payroll reads
+        # unapproved leave as no leave. Other lines the office makes stand
+        # approved; a workshop line awaits the office.
+        worked_time = kind == "actual" and data.get("kind") == "time"
         line = CostLine(
             cost_set=cost_set,
-            approved=staff.is_office_staff or data.get("managed_by") == "leave",
+            approved=data.get("managed_by") == "leave"
+            or (staff.is_office_staff and not worked_time),
         )
         if is_timesheet_line and data.get("kind") == "time":
             _reprice_timesheet_line(line, data, dict(meta))
@@ -2475,22 +2480,18 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
         )
 
 
-def worker_change_waits_for_the_office(line: CostLine, actor: Staff) -> None:
-    """Take the approval off approved worked time a non-office person changes.
+def a_change_takes_the_approval_off(line: CostLine) -> None:
+    """Take the approval off approved worked time someone changes, the office included.
 
-    Staff change their own time, approved or not (owner, 2026-10-26: "office
-    has less authority to change time sheets than staff"); approval is the
-    office checking an entry, and his change has not been checked. Call it
-    after the write's ``before`` snapshot, so the write's own event records
-    the approval going. Material lines are not covered: their approval is a
-    stock issue, with its own rules in purchasing.
+    Approval is the office checking an entry, and a change has not been
+    checked: entering and approving are two operations, even by one person
+    (owner, 2026-10-26). Staff change their own time, approved or not ("office
+    has less authority to change time sheets than staff"). Call it after the
+    write's ``before`` snapshot, so the write's own event records the approval
+    going. Material lines are not covered: their approval is a stock issue,
+    with its own rules in purchasing.
     """
-    if (
-        not actor.is_office_staff
-        and line.approved
-        and line.kind == "time"
-        and line.cost_set.kind == "actual"
-    ):
+    if line.approved and line.kind == "time" and line.cost_set.kind == "actual":
         line.approved = False
 
 
@@ -2528,7 +2529,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
     before = snapshot_if_entry(line)
-    worker_change_waits_for_the_office(line, staff)
+    a_change_takes_the_approval_off(line)
 
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}

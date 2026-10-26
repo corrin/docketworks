@@ -12886,13 +12886,9 @@ export type SweepIn = {
 /**
  * SweepOut
  *
- * What the sweep put on General work, and the worker entries it approved with the days.
+ * What the sweep put on General work, and the days it left alone.
  */
 export type SweepOut = {
-    /**
-     * Approved Count
-     */
-    approved_count: number;
     /**
      * Overtime
      */

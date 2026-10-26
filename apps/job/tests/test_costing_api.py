@@ -889,7 +889,7 @@ class TestApprovedTimeThroughTheCostLineApi:
         line.refresh_from_db()
         assert (line.quantity, line.approved) == (Decimal("3.000"), False)
 
-    def test_office_changes_an_approved_entry(
+    def test_an_office_change_to_an_approved_entry_takes_the_approval_off(
         self, client: Client, job: Job, workshop_staff: Staff
     ) -> None:
         line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
@@ -901,7 +901,7 @@ class TestApprovedTimeThroughTheCostLineApi:
         )
 
         assert response.status_code == 200
-        assert response.json()["approved"] is True
+        assert response.json()["approved"] is False
 
     def test_a_workers_change_leaves_approved_material_approved(
         self, job: Job, workshop_staff: Staff

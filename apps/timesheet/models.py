@@ -298,6 +298,11 @@ class AttendanceDay(models.Model):
     # both clock times. After that they are the worker's: nothing puts back one
     # he removed or moved.
     breaks_generated = models.BooleanField(default=False)
+    # The rest of the day is General work (owner, 2026-10-26: "like a bit flag
+    # ... any time that isn't on a job or break is general work"). Set by the
+    # sweep; its General work lines are rebuilt from the day's gaps whenever
+    # the day changes, so they grow and shrink round what he enters.
+    general_work_fill = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -375,6 +380,8 @@ class TimesheetEvent(AuditEvent):
         "clock_times_set": gettext_lazy("Clock times set"),
         "standard_hours_used": gettext_lazy("Standard hours used"),
         "day_sent": gettext_lazy("Day sent"),
+        "general_work_on": gettext_lazy("Rest of the day put on General work"),
+        "general_work_off": gettext_lazy("General work taken off the day"),
     }
     FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
         "Job": _moved,

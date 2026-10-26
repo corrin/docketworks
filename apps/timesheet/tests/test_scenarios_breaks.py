@@ -1100,8 +1100,9 @@ def test_Q5_a_double_tapped_break_changes_no_entry(worker: Staff, job: Job) -> N
 def test_Q6_the_office_adding_a_break_in_an_approved_entry_changes_no_entry(
     office_staff: Staff, worker: Staff, job: Job
 ) -> None:
-    """The office adds a break inside an approved entry: accepted, the break is the
-    office's and approved, and the entry stays approved and unedited.
+    """The office adds a break inside an approved entry: accepted, and the entry
+    stays approved and unedited. The break is the office's and waits for
+    approval, as anything entered does (owner, 2026-10-26).
 
     Guards attendance.add_break (records the break, touches no entry).
     """
@@ -1115,7 +1116,7 @@ def test_Q6_the_office_adding_a_break_in_an_approved_entry_changes_no_entry(
     assert CostLine.objects.get(id=x).approved is True
     assert not TimesheetEvent.objects.filter(cost_line_id=x, event_type="entry_updated").exists()
     added = _break_at(worker, "09:30")
-    assert added.approved is True
+    assert added.approved is False
     [created] = TimesheetEvent.objects.filter(cost_line_id=added.id, event_type="entry_created")
     assert created.staff_id == office_staff.id
 

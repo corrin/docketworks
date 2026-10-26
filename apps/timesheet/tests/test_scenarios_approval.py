@@ -38,6 +38,7 @@ from apps.core.models import CompanyDefaults
 from apps.core.tests.concurrency import await_database_lock, start_database_task
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
+from apps.job.services.job_service import CostLineWriteData, create_cost_line
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import (
     approval,
@@ -222,40 +223,169 @@ class TestChangesAfterApproval:
         row = _row(worker)
         assert (row["state"], row["waiting_hours"]) == ("waiting", 2.0)
 
-    def test_c2_an_entry_over_approved_general_work_waits_then_the_general_work_gives_way(
+    def test_c2_job_x_typed_on_a_swept_day_takes_its_time_from_the_general_work(
         self, office_staff: Staff, worker: Staff, job: Job, general_work: Job
     ) -> None:
-        """Swept and approved, then he adds Job X 09:00-11:00 (Proposed).
+        """Swept, then he adds Job X 09:00-11:00: General work is the rest of the day.
 
-        X is saved as a draft (waiting). The approved General work stands and
-        is paid; X is not paid yet. When the office approves X, the General
-        work under it gives way, either shrinking or splitting, so 09:00-11:00
-        is paid once and billed to X.
+        Owner, 2026-10-26: General work is "like a bit flag": "any time that
+        isn't on a job or break is general work", so it shrinks round X by
+        itself. X is 2h at the ordinary rate: General work is not time X comes
+        after. The General work that changed waits for approval, as any change.
 
-        Guards approval.approve_day and workshop_timesheet_service.create_entry.
+        Guards workshop_timesheet_service.refill_general_work and overtime_hours.
         """
         approval.sweep_person(worker, [DAY], office_staff)
-        assert _swept(general_work, worker) == STANDARD_SWEEP
 
         _book(worker, worker, job, at(9), at(11))
 
-        assert _swept(general_work, worker) == STANDARD_SWEEP
-        x_lines = _lines(job, worker)
-        assert _total(x_lines) == Decimal("2.000")
-        assert not any(line.approved for line in x_lines)
-        # Paid: General work 7h + paid breaks 0.5h = 7.5h; X's 2h waits.
-        assert _week(worker) == {"approved_hours": 7.5, "waiting_hours": 2.0}
+        assert _swept(general_work, worker) == [
+            ("07:00:00", "08:30:00", Decimal("1.500")),
+            ("08:45:00", "09:00:00", Decimal("0.250")),
+            ("11:00:00", "11:30:00", Decimal("0.500")),
+            ("12:00:00", "13:30:00", Decimal("1.500")),
+            ("13:45:00", "15:00:00", Decimal("1.250")),
+        ]
+        assert _hours_by_rate(job, worker) == {1.0: Decimal("2.000")}
+        # Approved: the paid breaks, 0.5h. Waiting: X 2h and the General work 5h.
+        assert _week(worker) == {"approved_hours": 0.5, "waiting_hours": 7.0}
 
         approval.approve_day(worker, DAY, office_staff)
 
-        swept = _swept(general_work, worker)
-        # 7h less the 2h X now holds.
-        assert sum((hours for _, _, hours in swept), Decimal(0)) == Decimal("5.000")
-        assert not [
-            (start, end) for start, end, _ in swept if start < "11:00:00" and end > "09:00:00"
-        ], "General work still lies under 09:00-11:00"
         # Paid once: General work 5h + X 2h + paid breaks 0.5h = 7.5h.
         assert _week(worker) == {"approved_hours": 7.5, "waiting_hours": 0.0}
+
+    def test_c2_hours_alone_on_a_swept_day_go_in_from_the_start_of_the_day(
+        self, office_staff: Staff, worker: Staff, job: Job, general_work: Job
+    ) -> None:
+        """Swept, then he says "2h on Job X" with no times, as he enters nearly everything.
+
+        General work is filler, so X goes at the day's first time not on a job:
+        07:00, round the 08:30 break to 09:15. After the General work, from
+        15:00, all of it would have been overtime.
+
+        Guards workshop_timesheet_service.next_entry_start (General work is free time).
+        """
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        _untimed(worker, worker, job, "2")
+
+        [x] = _lines(job, worker)
+        assert (x.meta["start_time"], x.meta["end_time"], x.quantity) == (
+            "07:00:00",
+            "09:15:00",
+            Decimal("2.000"),
+        )
+        assert _hours_by_rate(job, worker) == {1.0: Decimal("2.000")}
+        assert _swept(general_work, worker) == [
+            ("09:15:00", "11:30:00", Decimal("2.250")),
+            ("12:00:00", "13:30:00", Decimal("1.500")),
+            ("13:45:00", "15:00:00", Decimal("1.250")),
+        ]
+
+    def test_c2_deleting_his_entry_gives_the_time_back_to_general_work(
+        self, office_staff: Staff, worker: Staff, job: Job, general_work: Job
+    ) -> None:
+        """Guards workshop_timesheet_service.delete_entry (the day refills)."""
+        approval.sweep_person(worker, [DAY], office_staff)
+        x = _untimed(worker, worker, job, "2")
+
+        workshop_timesheet_service.delete_entry(worker, UUID(x["id"]))
+
+        assert _swept(general_work, worker) == STANDARD_SWEEP
+
+    def test_c2_a_long_swept_day_puts_the_overtime_on_the_general_work(
+        self, office_staff: Staff, worker: Staff, job: Job, general_work: Job
+    ) -> None:
+        """Clocked 07:00-17:00 and swept, then 2h on a job: the job stays ordinary.
+
+        07:00-17:00 less the three breaks is 9h: 2h on the job, 7h General
+        work, made after it, so the hour past the usual 8 is General work's.
+
+        Guards workshop_timesheet_service.refill_general_work (General work is made last).
+        """
+        attendance.set_clock_times(worker, DAY, at(7), at(17), worker)
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        _untimed(worker, worker, job, "2")
+
+        assert _hours_by_rate(job, worker) == {1.0: Decimal("2.000")}
+        assert _hours_by_rate(general_work, worker) == {
+            1.0: Decimal("6.000"),
+            1.5: Decimal("1.000"),
+        }
+
+    def test_c2_a_break_added_on_a_swept_day_takes_its_time_from_the_general_work(
+        self, office_staff: Staff, worker: Staff, general_work: Job
+    ) -> None:
+        """Guards attendance.add_break (the day refills round the break)."""
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        attendance.add_break(worker, DAY, at(10), at(10, 15), paid=True, actor=worker)
+
+        assert _swept(general_work, worker) == [
+            ("07:00:00", "08:30:00", Decimal("1.500")),
+            ("08:45:00", "10:00:00", Decimal("1.250")),
+            ("10:15:00", "11:30:00", Decimal("1.250")),
+            ("12:00:00", "13:30:00", Decimal("1.500")),
+            ("13:45:00", "15:00:00", Decimal("1.250")),
+        ]
+
+    def test_c2_deleting_general_work_turns_it_off_for_the_day_and_a_sweep_turns_it_on(
+        self, office_staff: Staff, worker: Staff, general_work: Job
+    ) -> None:
+        """Deleting one General work line takes the day's General work off, all of it.
+
+        A refill would put a single deleted line straight back.
+
+        Guards workshop_timesheet_service.delete_entry (a General work line clears the flag).
+        """
+        approval.sweep_person(worker, [DAY], office_staff)
+        first = CostLine.objects.filter(cost_set__job=general_work, staff=worker).first()
+        assert first is not None
+
+        workshop_timesheet_service.delete_entry(office_staff, first.id)
+
+        assert _swept(general_work, worker) == []
+        assert AttendanceDay.objects.get(staff=worker, date=DAY).general_work_fill is False
+        assert list(
+            TimesheetEvent.objects.filter(worker=worker, event_type__startswith="general_work")
+            .order_by("timestamp")
+            .values_list("event_type", flat=True)
+        ) == ["general_work_on", "general_work_off"]
+
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        assert _swept(general_work, worker) == STANDARD_SWEEP
+
+    def test_c2_general_work_times_are_not_edited_by_hand(
+        self, office_staff: Staff, worker: Staff, general_work: Job
+    ) -> None:
+        """Guards workshop_timesheet_service.update_entry (General work is the rest of the day)."""
+        approval.sweep_person(worker, [DAY], office_staff)
+        first = CostLine.objects.filter(cost_set__job=general_work, staff=worker).first()
+        assert first is not None
+
+        with pytest.raises(InvalidInputError, match="General work fills the time"):
+            workshop_timesheet_service.update_entry(
+                office_staff, {"entry_id": first.id, "end_time": at(8)}
+            )
+
+    def test_c2_placement_on_a_swept_day_starts_at_the_start_of_the_day(
+        self, office_staff: Staff, worker: Staff, worker_client: Client
+    ) -> None:
+        """Guards the placement endpoint: General work is free time, and never counts to 8h."""
+        approval.sweep_person(worker, [DAY], office_staff)
+
+        answer = worker_client.get(
+            f"/api/timesheets/my-day/placement/?date={DAY.isoformat()}&hours=2"
+        ).json()
+
+        assert (answer["start"], answer["finish"], answer["overtime_hours"]) == (
+            "07:00:00",
+            "09:15:00",
+            0.0,
+        )
 
     def test_c3_he_edits_or_deletes_his_approved_entry_and_the_office_checks_it_again(
         self, office_staff: Staff, worker: Staff, job: Job
@@ -288,12 +418,16 @@ class TestChangesAfterApproval:
         assert (edit.delta_before["approved"], edit.delta_after["approved"]) == (True, False)
         assert not CostLine.objects.filter(id=UUID(other["id"])).exists()
 
-    def test_c4_the_office_edits_an_approved_entry_and_it_stays_approved(
+    def test_c4_the_office_edits_an_approved_entry_and_approves_it_again_after(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
-        """The office edits an approved entry: allowed, audited, still approved.
+        """The office edits an approved entry: saved and audited, and it waits to be approved.
 
-        Guards workshop_timesheet_service.update_entry.
+        Owner, 2026-10-26: "The office entering time and the office approving
+        time are different operations. Just because the same person can do
+        both, doesn't reduce it to one operation."
+
+        Guards workshop_timesheet_service.update_entry (a change takes the approval off).
         """
         entry = _book(worker, worker, job, at(9), at(11))
         approval.approve_day(worker, DAY, office_staff)
@@ -303,11 +437,13 @@ class TestChangesAfterApproval:
         )
 
         line = _line(entry)
-        assert (line.quantity, line.approved) == (Decimal("1.500"), True)
+        assert (line.quantity, line.approved) == (Decimal("1.500"), False)
         # 1.5h at 48.00 = 72.00 paid, at 120.00 = 180.00 billed.
         assert (line.total_cost, line.total_rev) == (Decimal("72.00"), Decimal("180.00"))
         [edited] = TimesheetEvent.objects.filter(cost_line_id=line.id, event_type="entry_updated")
         assert edited.staff_id == office_staff.id
+        assert approval.approve_day(worker, DAY, office_staff) == 1
+        assert _line(entry).approved is True
 
     def test_c6_changing_a_sent_days_clock_times_unsends_it(self, worker: Staff) -> None:
         """He changes a sent day's clock times: the day is no longer sent.
@@ -352,7 +488,9 @@ class TestChangesAfterApproval:
     ) -> None:
         """The office deletes the General work the sweep made.
 
-        The time is unbooked and a re-sweep books it again. Audited.
+        One line deleted is the day's fill turned off (owner, 2026-10-26: the
+        flag is the truth): the time is unbooked, all of it, and a re-sweep
+        books it again. Audited.
 
         Guards approval._sweep and workshop_timesheet_service.delete_entry.
         """
@@ -365,10 +503,7 @@ class TestChangesAfterApproval:
 
         workshop_timesheet_service.delete_entry(office_staff, mid_morning.id)
 
-        # 7h less the 2.75h of 08:45-11:30.
-        assert sum((hours for _, _, hours in _swept(general_work, worker)), Decimal(0)) == (
-            Decimal("4.250")
-        )
+        assert _swept(general_work, worker) == []
         [deleted] = TimesheetEvent.objects.filter(
             cost_line_id=mid_morning.id, event_type="entry_deleted"
         )
@@ -561,7 +696,7 @@ class TestClocksDatesAndRounding:
         _untimed(office_staff, worker, job, "3", day=SUNDAY_BEFORE)
 
         assert payroll_week_start(SUNDAY_BEFORE) == date(2026, 4, 27)
-        assert _week(worker, SUNDAY_BEFORE) == {"approved_hours": 3.0, "waiting_hours": 0.0}
+        assert _week(worker, SUNDAY_BEFORE) == {"approved_hours": 0.0, "waiting_hours": 3.0}
         assert _week(worker, DAY) == {"approved_hours": 0.0, "waiting_hours": 0.0}
 
     @pytest.mark.usefixtures("general_work")
@@ -687,8 +822,9 @@ class TestTwoThingsAtOnce:
             assert _week(worker) == {"approved_hours": 7.5, "waiting_hours": 0.0}
         else:
             _race(sweep, save)
-            # General work 7h + paid breaks 0.5h are paid; X's 2h waits for the office.
-            assert _week(worker) == {"approved_hours": 7.5, "waiting_hours": 2.0}
+            # The paid breaks are approved; X's 2h and the General work round
+            # it (5h), changed after the sweep, wait for the office.
+            assert _week(worker) == {"approved_hours": 0.5, "waiting_hours": 7.0}
 
     def test_m2_two_phones_saving_past_the_usual_day_count_the_overtime_once(
         self, worker: Staff, job: Job
@@ -915,21 +1051,60 @@ class TestStaffChanges:
         # Repriced at the new wage: 50.00 + 20% = 60.00.
         assert _line(entry).unit_cost == Decimal("60.00")
 
-    def test_n5_an_office_persons_own_time_is_approved_as_they_save_it(
+    def test_n5_time_the_office_enters_waits_until_it_is_approved_theirs_included(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
-        """An office person books their own time: approved on save, as what they enter for others.
+        """Entering and approving are two operations, even by one person (owner, 2026-10-26).
 
-        Owner, 2026-10-26: "We have SIX STAFF - of course office staff approve
-        their own time."
+        Office staff approve their own time ("of course office staff approve
+        their own time"), as a step of its own.
 
         Guards workshop_timesheet_service._save_entry (approved=).
         """
         own = _book(office_staff, office_staff, job, at(9), at(11))
         for_worker = _book(office_staff, worker, job, at(9), at(11))
 
-        assert _line(own).approved is True
-        assert _line(for_worker).approved is True
+        assert (_line(own).approved, _line(for_worker).approved) == (False, False)
+        assert approval.approve_day(office_staff, DAY, office_staff) == 1
+        assert approval.approve_day(worker, DAY, office_staff) == 1
+        assert (_line(own).approved, _line(for_worker).approved) == (True, True)
+
+    def test_n5_a_grid_time_row_the_office_enters_waits_and_its_material_does_not(
+        self, office_staff: Staff, worker: Staff, job: Job
+    ) -> None:
+        """The office entry grid is entering too; material approval is a stock matter.
+
+        Guards job_service.create_cost_line (approved=).
+        """
+        data: CostLineWriteData = {
+            "kind": "time",
+            "desc": None,
+            "quantity": Decimal("2"),
+            "accounting_date": DAY,
+            "ext_refs": {},
+            "meta": {
+                "created_from_timesheet": True,
+                "staff_id": str(worker.id),
+                "date": DAY.isoformat(),
+                "is_billable": True,
+                "wage_rate_multiplier": 1.0,
+            },
+        }
+        line = create_cost_line(job, "actual", data, office_staff)
+
+        assert line.approved is False
+
+    def test_n5_the_breaks_the_office_puts_on_with_clock_times_wait_too(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Setting his clock times is entering; the breaks it puts on wait for approval.
+
+        Guards attendance.set_clock_times (the standard breaks it records).
+        """
+        attendance.set_clock_times(worker, DAY, at(7), at(15), office_staff)
+
+        breaks = workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
+        assert [each["approved"] for each in breaks] == [False, False, False]
 
     def test_n7_a_new_default_labour_type_leaves_existing_entries_theirs(
         self, worker: Staff, job: Job

@@ -195,7 +195,8 @@ class TestOfficePath:
         assert event.staff == office_staff
         assert event.worker == worker
         assert event.delta_after is not None
-        assert event.delta_after["approved"] is True
+        # Entering is not approving, even by the office (owner, 2026-10-26).
+        assert event.delta_after["approved"] is False
 
     def test_editing_records_entry_updated(
         self, job: Job, worker: Staff, office_staff: Staff
