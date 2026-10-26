@@ -16,14 +16,6 @@ import type {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -55,6 +47,7 @@ import {
   type EntryFormValues,
   type TimeRange,
 } from './myTime'
+import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
 
 export type EntryDrawerState =
@@ -630,47 +623,18 @@ function WorkshopEntryForm({
         </div>
       </DrawerFooter>
 
-      <Dialog
-        open={overtimeAsk !== null}
-        onOpenChange={(open) => {
-          if (!open) setOvertimeAsk(null)
+      <OvertimeAskDialog
+        overtimeHours={overtimeAsk?.overtimeHours ?? null}
+        confirmLabel={t('entryDrawer.overtime.save')}
+        automationPrefix="WorkshopTimesheetEntryDrawer"
+        onCancel={() => setOvertimeAsk(null)}
+        onConfirm={() => {
+          if (overtimeAsk === null) return
+          const { times } = overtimeAsk
+          setOvertimeAsk(null)
+          void save(times)
         }}
-      >
-        <DialogContent
-          className="sm:max-w-md"
-          data-automation-id="WorkshopTimesheetEntryDrawer-overtime"
-        >
-          <DialogHeader>
-            <DialogTitle>{t('entryDrawer.overtime.title')}</DialogTitle>
-            <DialogDescription>
-              {overtimeAsk !== null &&
-                t('entryDrawer.overtime.body', {
-                  hours: formatHoursDisplay(overtimeAsk.overtimeHours),
-                })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              data-automation-id="WorkshopTimesheetEntryDrawer-overtime-cancel"
-              onClick={() => setOvertimeAsk(null)}
-            >
-              {t('entryDrawer.cancel')}
-            </Button>
-            <Button
-              data-automation-id="WorkshopTimesheetEntryDrawer-overtime-save"
-              onClick={() => {
-                if (overtimeAsk === null) return
-                const { times } = overtimeAsk
-                setOvertimeAsk(null)
-                void save(times)
-              }}
-            >
-              {t('entryDrawer.overtime.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </>
   )
 }

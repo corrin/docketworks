@@ -18,7 +18,8 @@ Everything found goes here the moment it's found. The PR merges when this list i
 - [x] A split overtime line's pay item isn't asserted: E1b, which fails when the overtime piece posts as Ordinary Time
 - [x] Office-grid writes save times without checking them (a stop before the start, more hours than the span): fixed by the same change
 - [x] Found: the office grid skipped the employment-dates rule; fixed by the same change
-- [ ] Check whether these from the reverted model still hold: a standard break skipped because he worked through it doesn't come back when that entry is deleted; the fill-day sheet doesn't warn of overtime before sending
+- [x] The fill-day sheet doesn't warn of overtime before sending: it now asks as the entry drawer does (one shared dialog)
+- [ ] Check whether this from the reverted model still holds: a standard break skipped because he worked through it doesn't come back when that entry is deleted
 - [x] Job Y typed over Job X: both saved and billed, with the overlap warning (owner, 2026-10-26)
 - [x] CI pinned to `ubuntu-26.04`, production's release (owner, 2026-10-26)
 - [ ] Blocked on the owner: upgrade the dev machine to Ubuntu 26.04 (`! sudo do-release-upgrade`), so its gettext is production's 0.23.2

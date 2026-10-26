@@ -230,6 +230,7 @@
     "addJob": "Add a job",
     "anotherJob": "Another job",
     "send": "Send to office",
+    "sendWithOvertime": "Send with overtime",
     "notYet": "Not yet"
   },
   "clockTimesForm": {

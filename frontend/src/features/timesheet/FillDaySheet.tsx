@@ -1,9 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
-import { timesheetsJobsRetrieveOptions } from '@/api'
+import {
+  apiErrorMessage,
+  timesheetsJobsRetrieveOptions,
+  timesheetsMyDayPlacementOptions,
+} from '@/api'
 import type { FillOut, FillRowIn, TimesheetJobOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +25,7 @@ import { JobPicker } from '@/features/shared/JobPicker'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { fillAfterRows, fillWords, jobsInOrder, type FillSheetRow } from './myTime'
+import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
 
 const QUARTER_HOUR = 0.25
@@ -63,6 +69,32 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   const change = (key: number, patch: Partial<FillSheetRow>) =>
     setRows(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))
 
+  const queryClient = useQueryClient()
+  // Set while he is asked whether the hours past his usual day are overtime.
+  const [overtimeHours, setOvertimeHours] = useState<number | null>(null)
+
+  /** Send, but first tell him how many of his ordinary hours run past his usual day. */
+  const askThenSend = async () => {
+    const ordinary = rows.reduce((sum, row) => sum + (row.timeAndAHalf ? 0 : (row.hours ?? 0)), 0)
+    if (ordinary > 0) {
+      let past: number
+      try {
+        const placed = await queryClient.fetchQuery(
+          timesheetsMyDayPlacementOptions({ query: { date, hours: ordinary } }),
+        )
+        past = placed.overtime_hours
+      } catch (error) {
+        toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
+        return
+      }
+      if (past > 0) {
+        setOvertimeHours(past)
+        return
+      }
+    }
+    await send()
+  }
+
   const send = async () => {
     const sent = await onSend(
       rows.flatMap((row) =>
@@ -85,201 +117,213 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   }
 
   return (
-    <Drawer
-      open={open}
-      onOpenChange={(nowOpen) => {
-        if (!nowOpen && !sending) onClose()
-      }}
-    >
-      <DrawerContent className="max-h-[92vh]" data-automation-id="FillDaySheet">
-        <div className="mx-auto w-full max-w-md overflow-y-auto">
-          <DrawerHeader>
-            <DrawerTitle>{t('fillDay.title')}</DrawerTitle>
-            <DrawerDescription>{formatDateLong(date)}</DrawerDescription>
-          </DrawerHeader>
+    <>
+      <Drawer
+        open={open}
+        onOpenChange={(nowOpen) => {
+          if (!nowOpen && !sending) onClose()
+        }}
+      >
+        <DrawerContent className="max-h-[92vh]" data-automation-id="FillDaySheet">
+          <div className="mx-auto w-full max-w-md overflow-y-auto">
+            <DrawerHeader>
+              <DrawerTitle>{t('fillDay.title')}</DrawerTitle>
+              <DrawerDescription>{formatDateLong(date)}</DrawerDescription>
+            </DrawerHeader>
 
-          <div className="space-y-4 px-4 pb-2">
-            <p
-              className="text-base font-semibold text-gray-900"
-              data-automation-id="FillDaySheet-sum"
-            >
-              {fillWords(running)}
-            </p>
+            <div className="space-y-4 px-4 pb-2">
+              <p
+                className="text-base font-semibold text-gray-900"
+                data-automation-id="FillDaySheet-sum"
+              >
+                {fillWords(running)}
+              </p>
 
-            {rows.map((row) => {
-              // What "the rest" gives this row: everything left, counting the
-              // hours it already holds.
-              const rest = running.to_go_hours + (row.hours ?? 0)
-              return (
-                <div
-                  key={row.key}
-                  className="space-y-2 rounded border border-slate-200 p-3"
-                  data-automation-id={`FillDaySheet-row-${row.key}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                      {t('fillDay.jobLabel', { number: row.job.job_number, name: row.job.name })}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className={TOUCH_TARGET_CLASS}
-                      aria-label={t('fillDay.removeRow')}
-                      data-automation-id={`FillDaySheet-row-${row.key}-remove`}
-                      onClick={() => setRows(rows.filter((other) => other.key !== row.key))}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {HOUR_CHIPS.map((hours) => (
+              {rows.map((row) => {
+                // What "the rest" gives this row: everything left, counting the
+                // hours it already holds.
+                const rest = running.to_go_hours + (row.hours ?? 0)
+                return (
+                  <div
+                    key={row.key}
+                    className="space-y-2 rounded border border-slate-200 p-3"
+                    data-automation-id={`FillDaySheet-row-${row.key}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                        {t('fillDay.jobLabel', { number: row.job.job_number, name: row.job.name })}
+                      </span>
                       <Button
-                        key={hours}
-                        variant={row.hours === hours ? 'default' : 'outline'}
+                        variant="outline"
+                        size="icon"
                         className={TOUCH_TARGET_CLASS}
-                        data-automation-id={`FillDaySheet-row-${row.key}-hours-${hours}`}
-                        onClick={() => change(row.key, { hours })}
+                        aria-label={t('fillDay.removeRow')}
+                        data-automation-id={`FillDaySheet-row-${row.key}-remove`}
+                        onClick={() => setRows(rows.filter((other) => other.key !== row.key))}
                       >
-                        {t('fillDay.hoursChip', { hours })}
+                        <Trash2 />
                       </Button>
-                    ))}
-                    {rest > 0 && (
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {HOUR_CHIPS.map((hours) => (
+                        <Button
+                          key={hours}
+                          variant={row.hours === hours ? 'default' : 'outline'}
+                          className={TOUCH_TARGET_CLASS}
+                          data-automation-id={`FillDaySheet-row-${row.key}-hours-${hours}`}
+                          onClick={() => change(row.key, { hours })}
+                        >
+                          {t('fillDay.hoursChip', { hours })}
+                        </Button>
+                      ))}
+                      {rest > 0 && (
+                        <Button
+                          variant={row.hours === rest ? 'default' : 'outline'}
+                          className={TOUCH_TARGET_CLASS}
+                          data-automation-id={`FillDaySheet-row-${row.key}-rest`}
+                          onClick={() => change(row.key, { hours: rest })}
+                        >
+                          {t('fillDay.theRest', { hours: formatHoursDisplay(rest) })}
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
                       <Button
-                        variant={row.hours === rest ? 'default' : 'outline'}
+                        variant="outline"
+                        size="icon"
                         className={TOUCH_TARGET_CLASS}
-                        data-automation-id={`FillDaySheet-row-${row.key}-rest`}
-                        onClick={() => change(row.key, { hours: rest })}
+                        aria-label={t('fillDay.quarterLess')}
+                        disabled={row.hours === null || row.hours <= QUARTER_HOUR}
+                        data-automation-id={`FillDaySheet-row-${row.key}-less`}
+                        onClick={() => change(row.key, { hours: (row.hours ?? 0) - QUARTER_HOUR })}
                       >
-                        {t('fillDay.theRest', { hours: formatHoursDisplay(rest) })}
+                        <Minus />
                       </Button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className={TOUCH_TARGET_CLASS}
-                      aria-label={t('fillDay.quarterLess')}
-                      disabled={row.hours === null || row.hours <= QUARTER_HOUR}
-                      data-automation-id={`FillDaySheet-row-${row.key}-less`}
-                      onClick={() => change(row.key, { hours: (row.hours ?? 0) - QUARTER_HOUR })}
-                    >
-                      <Minus />
-                    </Button>
-                    {/* Typed or tapped, his choice: the chips and the stepper
+                      {/* Typed or tapped, his choice: the chips and the stepper
                         set this same number. */}
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min={QUARTER_HOUR}
-                      step={QUARTER_HOUR}
-                      value={row.hours ?? ''}
-                      placeholder={t('fillDay.hours')}
-                      aria-label={t('fillDay.hours')}
-                      className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
-                      data-automation-id={`FillDaySheet-row-${row.key}-hours`}
-                      onChange={(event) =>
-                        change(row.key, {
-                          hours: event.target.value === '' ? null : Number(event.target.value),
-                        })
-                      }
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className={TOUCH_TARGET_CLASS}
-                      aria-label={t('fillDay.quarterMore')}
-                      data-automation-id={`FillDaySheet-row-${row.key}-more`}
-                      onClick={() => change(row.key, { hours: (row.hours ?? 0) + QUARTER_HOUR })}
-                    >
-                      <Plus />
-                    </Button>
-                    <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
                       <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={row.timeAndAHalf}
-                        data-automation-id={`FillDaySheet-row-${row.key}-time-and-a-half`}
+                        type="number"
+                        inputMode="decimal"
+                        min={QUARTER_HOUR}
+                        step={QUARTER_HOUR}
+                        value={row.hours ?? ''}
+                        placeholder={t('fillDay.hours')}
+                        aria-label={t('fillDay.hours')}
+                        className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
+                        data-automation-id={`FillDaySheet-row-${row.key}-hours`}
                         onChange={(event) =>
-                          change(row.key, { timeAndAHalf: event.target.checked })
+                          change(row.key, {
+                            hours: event.target.value === '' ? null : Number(event.target.value),
+                          })
                         }
                       />
-                      {t('fillDay.timeAndAHalf')}
-                    </label>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className={TOUCH_TARGET_CLASS}
+                        aria-label={t('fillDay.quarterMore')}
+                        data-automation-id={`FillDaySheet-row-${row.key}-more`}
+                        onClick={() => change(row.key, { hours: (row.hours ?? 0) + QUARTER_HOUR })}
+                      >
+                        <Plus />
+                      </Button>
+                      <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5"
+                          checked={row.timeAndAHalf}
+                          data-automation-id={`FillDaySheet-row-${row.key}-time-and-a-half`}
+                          onChange={(event) =>
+                            change(row.key, { timeAndAHalf: event.target.checked })
+                          }
+                        />
+                        {t('fillDay.timeAndAHalf')}
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={row.description}
+                      placeholder={t('fillDay.descriptionPlaceholder')}
+                      aria-label={t('fillDay.description')}
+                      className={INPUT_CLASS}
+                      data-automation-id={`FillDaySheet-row-${row.key}-description`}
+                      onChange={(event) => change(row.key, { description: event.target.value })}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={row.description}
-                    placeholder={t('fillDay.descriptionPlaceholder')}
-                    aria-label={t('fillDay.description')}
-                    className={INPUT_CLASS}
-                    data-automation-id={`FillDaySheet-row-${row.key}-description`}
-                    onChange={(event) => change(row.key, { description: event.target.value })}
+                )
+              })}
+
+              <div className="space-y-2" data-automation-id="FillDaySheet-jobs">
+                <p className="text-sm font-medium text-gray-700">{t('fillDay.addJob')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {[...pinned, ...recent].map((job) => (
+                    <Button
+                      key={job.id}
+                      variant="outline"
+                      className={`${TOUCH_TARGET_CLASS} max-w-full`}
+                      data-automation-id={`FillDaySheet-job-${job.job_number}`}
+                      onClick={() => addRow(job)}
+                    >
+                      <span className="truncate">
+                        {t('fillDay.jobLabel', { number: job.job_number, name: job.name })}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+                <div className="rounded border border-slate-200">
+                  <JobPicker
+                    triggerClassName={TOUCH_TARGET_CLASS}
+                    automationIdPrefix="FillDaySheet-job-picker"
+                    ariaLabel={t('fillDay.anotherJob')}
+                    jobs={jobs}
+                    selected={null}
+                    disabled={sending}
+                    loading={jobsQuery.isPending}
+                    placeholder={t('fillDay.anotherJob')}
+                    triggerLabel={() => ''}
+                    typedSearchLimit={null}
+                    commitOnTab={false}
+                    searchOptions={timesheetJobSearchOptions}
+                    onSelect={addRow}
                   />
                 </div>
-              )
-            })}
-
-            <div className="space-y-2" data-automation-id="FillDaySheet-jobs">
-              <p className="text-sm font-medium text-gray-700">{t('fillDay.addJob')}</p>
-              <div className="flex flex-wrap gap-2">
-                {[...pinned, ...recent].map((job) => (
-                  <Button
-                    key={job.id}
-                    variant="outline"
-                    className={`${TOUCH_TARGET_CLASS} max-w-full`}
-                    data-automation-id={`FillDaySheet-job-${job.job_number}`}
-                    onClick={() => addRow(job)}
-                  >
-                    <span className="truncate">
-                      {t('fillDay.jobLabel', { number: job.job_number, name: job.name })}
-                    </span>
-                  </Button>
-                ))}
               </div>
-              <div className="rounded border border-slate-200">
-                <JobPicker
-                  triggerClassName={TOUCH_TARGET_CLASS}
-                  automationIdPrefix="FillDaySheet-job-picker"
-                  ariaLabel={t('fillDay.anotherJob')}
-                  jobs={jobs}
-                  selected={null}
+            </div>
+
+            <DrawerFooter>
+              <div className="flex items-center gap-2">
+                <Button
+                  className={`flex-1 ${TOUCH_TARGET_CLASS}`}
+                  disabled={sending || !allSized}
+                  data-automation-id="FillDaySheet-send"
+                  onClick={() => void askThenSend()}
+                >
+                  {t('fillDay.send')}
+                </Button>
+                <Button
+                  variant="outline"
+                  className={TOUCH_TARGET_CLASS}
                   disabled={sending}
-                  loading={jobsQuery.isPending}
-                  placeholder={t('fillDay.anotherJob')}
-                  triggerLabel={() => ''}
-                  typedSearchLimit={null}
-                  commitOnTab={false}
-                  searchOptions={timesheetJobSearchOptions}
-                  onSelect={addRow}
-                />
+                  data-automation-id="FillDaySheet-cancel"
+                  onClick={onClose}
+                >
+                  {t('fillDay.notYet')}
+                </Button>
               </div>
-            </div>
+            </DrawerFooter>
           </div>
-
-          <DrawerFooter>
-            <div className="flex items-center gap-2">
-              <Button
-                className={`flex-1 ${TOUCH_TARGET_CLASS}`}
-                disabled={sending || !allSized}
-                data-automation-id="FillDaySheet-send"
-                onClick={() => void send()}
-              >
-                {t('fillDay.send')}
-              </Button>
-              <Button
-                variant="outline"
-                className={TOUCH_TARGET_CLASS}
-                disabled={sending}
-                data-automation-id="FillDaySheet-cancel"
-                onClick={onClose}
-              >
-                {t('fillDay.notYet')}
-              </Button>
-            </div>
-          </DrawerFooter>
-        </div>
-      </DrawerContent>
-    </Drawer>
+        </DrawerContent>
+      </Drawer>
+      <OvertimeAskDialog
+        overtimeHours={overtimeHours}
+        confirmLabel={t('fillDay.sendWithOvertime')}
+        automationPrefix="FillDaySheet"
+        onCancel={() => setOvertimeHours(null)}
+        onConfirm={() => {
+          setOvertimeHours(null)
+          void send()
+        }}
+      />
+    </>
   )
 }

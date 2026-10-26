@@ -183,3 +183,46 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
   console.log(`[fill-day] ${testInfo.project.name}: ${taps} taps, 0 keystrokes for a three-job day`)
   expect(taps).toBe(8)
 })
+
+/** Weeks clear of every other phone spec's days. */
+const OVERTIME_WEEKS_BACK: Record<string, number> = { android: 6, iphone: 7 }
+
+test('a filled day past the usual day asks before it goes as overtime', async ({
+  authenticatedPage: page,
+}, testInfo) => {
+  const weeksBack = OVERTIME_WEEKS_BACK[testInfo.project.name]
+  if (weeksBack === undefined) throw new Error(`No day for project "${testInfo.project.name}"`)
+  const day = shiftDate(getLatestWeekdayDate(), -7 * weeksBack)
+  const fill = autoId(page, 'DayCard-fill')
+  const listed = jobsSchema.parse(await (await page.request.get('/api/timesheets/jobs/')).json())
+  const [jobId] = [...listed.pinned_job_ids, ...listed.recent_job_ids]
+  const job = listed.jobs.find((each) => each.id === jobId)
+  if (job === undefined) throw new Error('The fill sheet offers no job button.')
+
+  await page.goto(`/timesheets/my-time?date=${day}`)
+  await autoId(page, 'DayCard-change-times').tap()
+  await autoId(page, 'DayCard-start').fill('06:00')
+  await autoId(page, 'DayCard-finish').fill('16:00')
+  await autoId(page, 'DayCard-times-save').tap()
+  // Here 10h less lunch: 9h 30m, with his two paid breaks entered for him.
+  await expect(fill).toHaveText('9h 30m to fill, 30m breaks, 0h entered, 9h to go')
+
+  await autoId(page, 'DayCard-fill-and-send').tap()
+  await autoId(page, `FillDaySheet-job-${job.job_number}`).tap()
+  await autoId(page, 'FillDaySheet-row-0-rest').tap()
+  await autoId(page, 'FillDaySheet-send').tap()
+
+  // 9h on the job: the hour past his usual 8 is time and a half, and he is told first.
+  const ask = autoId(page, 'FillDaySheet-overtime')
+  await expect(ask).toContainText('1h of this is past your usual day')
+  await autoId(page, 'FillDaySheet-overtime-save').tap()
+  await expect(page.getByText('Day sent to the office.')).toBeVisible()
+
+  const saved = z
+    .object({ entries: z.array(z.object({ hours: z.number(), wage_rate_multiplier: z.number() })) })
+    .parse(await (await page.request.get(`${DAY_PATH}?date=${day}`)).json())
+  expect(saved.entries.map((entry) => [entry.hours, entry.wage_rate_multiplier])).toEqual([
+    [8, 1],
+    [1, 1.5],
+  ])
+})
