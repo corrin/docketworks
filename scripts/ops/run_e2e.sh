@@ -81,6 +81,18 @@ cleanup() {
   elif [[ -n "$TOKEN_DIR" ]]; then
     rmdir "$TOKEN_DIR"
   fi
+  # The next run deletes test-results, and an intermittent failure is only
+  # diagnosable from the run it happened in: keep each failed test's trace.
+  if (( status != 0 )); then
+    local kept
+    kept="$ROOT/logs/e2e-failures/$(date +%Y-%m-%dT%H%M%S)"
+    for dir in "$FRONTEND"/test-results/*/; do
+      if compgen -G "$dir/test-failed-*.png" >/dev/null; then
+        mkdir -p "$kept" && cp -r "$dir" "$kept/"
+      fi
+    done
+    [[ -d "$kept" ]] && echo "Failed tests' traces kept in $kept" >&2
+  fi
   if (( status == 0 )); then
     echo "E2E PASSED (Xero: $E2E_XERO_MODE) — all managed services stopped."
   else
