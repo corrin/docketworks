@@ -1,10 +1,9 @@
 import type { Page } from '@playwright/test'
 import { z } from 'zod'
 
-import { shiftDate } from '../../../src/lib/dates'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob } from '../helpers'
-import { getLatestWeekdayDate, readJobNumber } from './support'
+import { bookingDay, readJobNumber } from './support'
 
 /**
  * The workshop "my time" calendar: day navigation, refresh, and the
@@ -187,7 +186,7 @@ test.describe.serial('workshop my time view', () => {
     // A weekday of its own, well back, with the company's usual 07:00-15:00
     // day and its standard breaks (owner, 2026-10-25: the first 8 hours are
     // ordinary, the rest time and a half).
-    const date = shiftDate(getLatestWeekdayDate(), -7 * 12)
+    const date = bookingDay('myTimeLongDay')
     const dayPath = `/api/job/workshop/timesheets/?date=${date}`
     const daySchema = z.object({
       entries: z.array(
@@ -267,7 +266,7 @@ test.describe.serial('workshop my time view', () => {
     // Owner, 2026-10-26: anyone can sweep the rest of their day into General
     // work, and General work is the time on no job and no break, so it
     // shrinks round what he enters next. A weekday of its own, well back.
-    const date = shiftDate(getLatestWeekdayDate(), -7 * 13)
+    const date = bookingDay('myTimeGeneralWork')
     const dayPath = `/api/job/workshop/timesheets/?date=${date}`
     const daySchema = z.object({
       entries: z.array(
@@ -324,15 +323,14 @@ test.describe.serial('workshop my time view', () => {
     })
 
     // The day is reused by the next run: what this test made goes. Deleting
-    // one General work line takes the day's fill off, all of it.
-    const { entries } = await readDay()
-    const generalWork = entries.find((entry) => entry.job_name === 'General work')
-    for (const entry of [
-      ...entries.filter((each) => each.job_name !== 'General work'),
-      ...(generalWork === undefined ? [] : [generalWork]),
-    ]) {
-      const gone = await page.request.delete(`/api/job/workshop/timesheets/?entry_id=${entry.id}`)
+    // one General work line takes the day's fill off, all of it; deleting an
+    // entry first would rebuild it under new ids. So General work goes first.
+    const remove = async (entryId: string) => {
+      const gone = await page.request.delete(`/api/job/workshop/timesheets/?entry_id=${entryId}`)
       expect(gone.ok(), await gone.text()).toBe(true)
     }
+    const generalWork = (await readDay()).entries.find((entry) => entry.job_name === 'General work')
+    if (generalWork !== undefined) await remove(generalWork.id)
+    for (const entry of (await readDay()).entries) await remove(entry.id)
   })
 })

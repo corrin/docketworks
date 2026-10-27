@@ -28,6 +28,45 @@ export function getLatestWeekdayDate(): string {
   return `${now.getFullYear()}-${month}-${date}`
 }
 
+/**
+ * The past week each spec books the workshop login's time in, counted back
+ * from the latest weekday: one spec a week. Since time past 8h on a day goes
+ * to overtime (owner, 2026-10-25), one spec's hours on another's day change
+ * what that spec is paid, so no two may share a week. Checked as this loads.
+ */
+export const BOOKING_WEEKS = {
+  workshopClockAndroid: 2,
+  workshopClockIphone: 3,
+  fillDayAndroid: 4,
+  fillDayIphone: 5,
+  // workshop-clock also books 28 days before its own day.
+  workshopClockMonthBeforeAndroid: 6,
+  workshopClockMonthBeforeIphone: 7,
+  phoneMyTimeAndroid: 8,
+  phoneMyTimeIphone: 9,
+  approveTimeClock: 10,
+  approveTimeOvertimeWeek: 11,
+  myTimeLongDay: 12,
+  myTimeGeneralWork: 13,
+  moveEntry: 14,
+  keyboardNav: 15,
+  urgentJobDefaults: 16,
+  fillDayOvertimeAndroid: 17,
+  fillDayOvertimeIphone: 18,
+  createTimesheetEntry: 19,
+  approveTimeWaitingWeek: 20,
+} as const
+
+const weeksTaken = Object.values(BOOKING_WEEKS)
+if (new Set(weeksTaken).size !== weeksTaken.length) {
+  throw new Error('Two specs book the same week in BOOKING_WEEKS.')
+}
+
+/** The latest weekday's same weekday, in the week the spec books. */
+export function bookingDay(spec: keyof typeof BOOKING_WEEKS): string {
+  return shiftDate(getLatestWeekdayDate(), -7 * BOOKING_WEEKS[spec])
+}
+
 /** The freshly created job's number, read off the job view header. */
 export async function readJobNumber(page: Page): Promise<number> {
   const text = await autoId(page, 'JobView-job-number').first().innerText()

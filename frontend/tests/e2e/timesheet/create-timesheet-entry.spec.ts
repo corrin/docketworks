@@ -11,7 +11,7 @@ import {
 } from '../helpers'
 import {
   enterHours,
-  getLatestWeekdayDate,
+  bookingDay,
   openEntryViaDaily,
   readJobNumber,
   selectJobByNumber,
@@ -33,7 +33,7 @@ import {
 test.describe.serial('timesheet entry operations', () => {
   let jobUrl = ''
   let jobNumber = 0
-  const date = getLatestWeekdayDate()
+  const date = bookingDay('createTimesheetEntry')
 
   test('create the shared job and verify initial time & expenses is zero', async ({
     authenticatedPage: page,
@@ -110,7 +110,7 @@ test.describe.serial('timesheet entry operations', () => {
 
 test.describe.serial('xero pay item validation', () => {
   let jobNumber = 0
-  const date = getLatestWeekdayDate()
+  const date = bookingDay('createTimesheetEntry')
 
   test('create the shared job', async ({ authenticatedPage: page }) => {
     await createTestJob(page, 'PayItem')
@@ -209,7 +209,7 @@ test('timesheet entries keep their creation order after editing and reloading', 
 }) => {
   await createTestJob(page, 'Timesheet ordering')
   const jobNumber = await readJobNumber(page)
-  await openEntryViaDaily(page, getLatestWeekdayDate())
+  await openEntryViaDaily(page, bookingDay('createTimesheetEntry'))
   const ids: string[] = []
   for (let index = 0; index < 3; index++) {
     const rowIndex = await getPhantomRowIndex(page)

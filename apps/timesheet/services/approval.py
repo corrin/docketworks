@@ -50,7 +50,6 @@ from apps.timesheet.services.timesheet_events import (
     snapshot_if_entry,
 )
 from apps.timesheet.services.workshop_timesheet_service import (
-    SMALLEST_SPLIT,
     StandardDayData,
     WorkshopEntryData,
     day_time_lines,
@@ -60,6 +59,7 @@ from apps.timesheet.services.workshop_timesheet_service import (
     fill_with_general_work,
     on_a_public_holiday,
     overtime_hours,
+    split_off,
 )
 from apps.timesheet.services.xero_hours import leave_job_ids
 
@@ -263,9 +263,9 @@ def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
 
     An entry deleted after its overtime half was split off, or a lunch he
     worked through and added back as ordinary time, leaves the two apart;
-    nothing re-rates them, so the office is shown the day to check. Less
-    than a quarter hour apart is the split rule keeping a few minutes whole,
-    not a day to check.
+    nothing re-rates them, so the office is shown the day to check. The
+    hours expected at overtime follow the split rule: a part under a quarter
+    hour goes with the rest, as saving the day whole would have put it.
     """
     leave = leave_job_ids()
     work = [
@@ -276,8 +276,9 @@ def _overtime_is_off(person: Staff, day: date, entries: list[CostLine]) -> bool:
         (line.quantity for line in work if hour_categories.wage_rate_multiplier(line) > 1),
         Decimal(0),
     )
-    expected = overtime_hours(person, day, worked, already_on_the_day=False)
-    return abs(at_overtime - expected) >= SMALLEST_SPLIT
+    return at_overtime != split_off(
+        worked, overtime_hours(person, day, worked, already_on_the_day=False)
+    )
 
 
 def day_approvals(day: date) -> ApprovalsDayData:

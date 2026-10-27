@@ -10,6 +10,7 @@ harness, not for anyone using the product.
 
 import json
 import re
+import time
 from datetime import datetime
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
@@ -17,6 +18,9 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from apps.accounts.tasks import RESET_EMAIL_SUBJECT
 from apps.core.environment import ProductionDatabaseError, assert_not_production_database
 from apps.platform.integrations.google.gmail import latest_message_body
+
+#: Between reads while waiting; Gmail answers a read in about a second.
+_POLL_SECONDS = 2
 
 _RESET_LINK = re.compile(r"https?://\S+/reset-password\?uid=\S+&token=\S+")
 
@@ -34,8 +38,9 @@ class Command(BaseCommand):
     """Print the newest reset link sent to an address, or null when none has arrived.
 
     Emits exactly one JSON line on stdout — the E2E spec shells out to this
-    command and parses the last non-empty line, polling until the link is
-    there.
+    command and parses the last non-empty line. With ``--wait`` it polls the
+    mailbox itself: a spec polling the command paid Django's start-up, about
+    six seconds, on every read.
     """
 
     help = "Read the newest password-reset link emailed to an address (E2E environments only)"
@@ -54,19 +59,39 @@ class Command(BaseCommand):
             type=datetime.fromisoformat,
             help="ISO timestamp with offset; older messages are a previous run's",
         )
+        parser.add_argument(
+            "--wait",
+            type=int,
+            default=0,
+            help="Seconds to keep reading until the email arrives; 0 reads once",
+        )
 
     def handle(self, *_args: object, **options: object) -> None:
-        """Refuse a production database, then read the mailbox once."""
+        """Refuse a production database, then read until the email arrives or the wait ends."""
         try:
             assert_not_production_database("this command reads a mailbox for a test.")
         except ProductionDatabaseError as exc:
             raise CommandError(str(exc)) from exc
-        to, mailbox, since = options["to"], options["mailbox"], options["since"]
+        to, mailbox, since, wait = (
+            options["to"],
+            options["mailbox"],
+            options["since"],
+            options["wait"],
+        )
         if not isinstance(to, str) or not isinstance(mailbox, str):
             raise CommandError("--to and --mailbox must be addresses")
         if not isinstance(since, datetime) or since.tzinfo is None:
             raise CommandError("--since must be an ISO timestamp with an offset")
+        if not isinstance(wait, int):
+            raise CommandError("--wait must be a number of seconds")
 
-        body = latest_message_body(mailbox=mailbox, to=to, subject=RESET_EMAIL_SUBJECT, since=since)
+        deadline = time.monotonic() + wait
+        while True:
+            body = latest_message_body(
+                mailbox=mailbox, to=to, subject=RESET_EMAIL_SUBJECT, since=since
+            )
+            if body is not None or time.monotonic() >= deadline:
+                break
+            time.sleep(_POLL_SECONDS)
         link = None if body is None else reset_link_in(body)
         self.stdout.write(json.dumps({"link": link}))

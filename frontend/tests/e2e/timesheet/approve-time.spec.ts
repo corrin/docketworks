@@ -20,6 +20,7 @@ import {
   WORKER_HOURS,
   asSuperuser,
   bookAsWorkshopUser,
+  bookingDay,
   getLatestWeekdayDate,
   seedLabourForWeek,
   type SeededLabour,
@@ -29,7 +30,7 @@ import {
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
 
 function seedThisWeek(page: Page): Promise<SeededLabour> {
-  return seedLabourForWeek(page, mondayOf(getLatestWeekdayDate()))
+  return seedLabourForWeek(page, mondayOf(bookingDay('approveTimeWaitingWeek')))
 }
 
 test.use({ loginRole: 'officeStaff' })
@@ -96,10 +97,7 @@ test("office staff correct a person's clock times, and the screen holds at three
   browser,
   baseURL,
 }, testInfo) => {
-  // Ten weeks back: a weekday on which no other spec clocks, fills or books
-  // the workshop login (the phone specs use 2 to 9 weeks back, plus 4 weeks
-  // before their clock days).
-  const day = shiftDate(getLatestWeekdayDate(), -70)
+  const day = bookingDay('approveTimeClock')
   // The workshop login, not the office login: a person's own typed times are
   // "not clocked" and warned about, and this step proves the office's are not.
   const staffId = (await asSuperuser(browser, z.string().parse(baseURL), getWorkshopStaff)).id
@@ -199,8 +197,7 @@ test('a short day carrying time and a half is marked for the office to check', a
   baseURL,
 }) => {
   const origin = z.string().parse(baseURL)
-  // Eleven weeks back: a week no other spec books the workshop login on.
-  const week = mondayOf(shiftDate(getLatestWeekdayDate(), -77))
+  const week = mondayOf(bookingDay('approveTimeOvertimeWeek'))
   // A couple of ordinary hours and one at time and a half: nothing on the day
   // is past the usual 8h, so its overtime is the office's to check (owner,
   // 2026-10-25: an hour once split off stays at its rate when the rest goes).

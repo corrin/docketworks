@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **69 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 280 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3994 collected |
+| Unit tests | 4002 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -611,6 +611,14 @@ never a second stream.
   `CompanyDefaults.phone_recording_retention_days` (default 730) with a beat task that
   deletes the file and its `PhoneCallRecording` row past the cutoff by call date, refuses to
   run while the value is unset, and ships with a spec because it destroys data.
+- **job-rejection's reopen dialog sometimes never settles** (owner moved it here from PR #229,
+  2026-10-27). In about 2 of 5 full E2E runs since 2026-10-20, `job/job-rejection.spec.ts:22`
+  times out clicking "Reopen in Draft" after a cancel: the button is never stable for 120s.
+  The recorded timings show every run whose reopen click landed within about 220ms of the
+  cancel failed (5 of 5) and every slower one passed: a reopen as the 200ms close animation
+  ends (`src/features/job/JobRejectionAction.tsx`). It did not reproduce outside the full
+  suite (40 runs, and a probe forcing the reopen 0 to 260ms after the cancel). The next
+  failing run keeps its trace in `logs/e2e-failures/`; fix from that, test-first.
 - **Define bounded retries and an account spending budget at the LLM boundary**
   (ADR 0041). Per-call timeouts and bounded quoting-chat turns are in place.
 - **Rename what v1 misnamed.** The known instance is the sales forecast, which forecasts

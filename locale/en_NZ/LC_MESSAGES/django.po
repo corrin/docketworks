@@ -2311,6 +2311,10 @@ msgid "Quantity must be non-negative"
 msgstr ""
 
 #: apps/job/services/job_service.py
+msgid "A person's time is entered on the timesheet."
+msgstr ""
+
+#: apps/job/services/job_service.py
 msgid "Only timesheet entries move to another job."
 msgstr ""
 
