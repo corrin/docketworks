@@ -17,7 +17,7 @@ import { formatHoursDisplay } from '../../../src/lib/format'
 
 import { expect, test } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
-import { getLatestWeekdayDate, readJobNumber } from '../timesheet/support'
+import { BOOKING_WEEKS, getLatestWeekdayDate, readJobNumber } from '../timesheet/support'
 import { asOffice, withCompanyAddress } from './support'
 
 const TIMESHEETS_PATH = '/api/job/workshop/timesheets/'
@@ -59,7 +59,10 @@ interface OfficeSetup {
  * the clock spec clocks the workshop user in and out today, which puts his
  * paid breaks on it, and this spec counts the day's hours from nothing.
  */
-const PROJECT_WEEKS_BACK: Record<string, number> = { android: 8, iphone: 9 }
+const PROJECT_WEEKS_BACK: Record<string, number> = {
+  android: BOOKING_WEEKS.phoneMyTimeAndroid,
+  iphone: BOOKING_WEEKS.phoneMyTimeIphone,
+}
 let date = ''
 
 function projectDate(projectName: string): string {

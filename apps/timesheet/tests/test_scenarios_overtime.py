@@ -314,6 +314,25 @@ def test_E4b_the_drawer_is_told_the_overtime_the_save_will_make(
     assert on_leave.json()["overtime_hours"] == 0.0
 
 
+def test_E4c_with_no_job_chosen_and_no_break_job_set_up_overtime_is_still_counted(
+    worker_client: Client,
+) -> None:
+    """The drawer asks before a job is picked, on an install with no Break job yet.
+
+    No job is not the Break job: 10h is still 2h of overtime.
+    Guards workshop_timesheet_service.overtime_part's test for a break.
+    """
+    defaults = CompanyDefaults.get_solo()
+    defaults.break_job = None
+    defaults.save(update_fields=["break_job"])
+
+    # Unclocked, nothing on the day: 10h from 07:00.
+    asked = worker_client.get(f"{PLACEMENT_URL}?date={DAY.isoformat()}&hours=10")
+
+    assert asked.status_code == 200, asked.content
+    assert asked.json()["overtime_hours"] == 2.0
+
+
 def test_E5_a_rate_he_chose_stands_and_nothing_is_split(worker: Staff, job: Job) -> None:
     """A 10h task he saves at 2x on purpose: one line at 2x, nothing split.
 
@@ -525,6 +544,25 @@ def test_E13d_a_few_minutes_past_eight_left_ordinary_raises_no_overtime_check(
 
     assert [rate for _, _, rate, *_ in _lines(job, worker)] == [1.0]
     assert _approval_row(DAY, worker)["overtime_check"] is False
+
+
+def test_E13e_overtime_left_too_high_by_a_few_minutes_is_still_flagged(
+    worker: Staff, job: Job
+) -> None:
+    """0.2h then 8.3h: 0.5h past 8 is split off at 1.5x. Then the 0.2h is deleted.
+
+    Now only 0.3h is past 8, but 0.5h stays at time and a half: 0.2h too much,
+    under a quarter hour and still wrong pay. The office is asked to check.
+    Guards approval._overtime_is_off.
+    """
+    _clock(worker, "07:00", "17:00")
+    _drawer(worker, job, "0.2")
+    _drawer(worker, job, "8.3")
+    first = CostLine.objects.get(staff=worker, cost_set__job=job, quantity=Decimal("0.200"))
+
+    workshop_timesheet_service.delete_entry(worker, first.id)
+
+    assert _approval_row(DAY, worker)["overtime_check"] is True
 
 
 def test_E13c_leave_entered_on_the_leave_job_raises_no_overtime_check(

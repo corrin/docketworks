@@ -452,6 +452,16 @@ class CostLine(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the line, assigning entry_seq and refreshing the CostSet summary."""
+        update_fields = kwargs.get("update_fields")
+        if self.pk is not None and update_fields is not None and set(update_fields) <= _FLAG_FIELDS:
+            # Approval changes no figure, nothing clean() checks and no
+            # constraint's column: the full path's checks and sums cost a
+            # sweep of everyone seconds (35 queries a line). The job is still
+            # touched, so its screens see the line approved.
+            with transaction.atomic():
+                super().save(*args, **kwargs)
+                _touch_costing_jobs({self.cost_set.job_id})
+            return
         requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
             before = self._lock_summary_owners()
@@ -645,6 +655,10 @@ class CostLine(models.Model):
         result = super().delete(*args, **kwargs)
         CostSet._record_line_change(before, None)
         return result
+
+
+#: A save of only these changes no figure, nothing clean() checks and no constraint's column.
+_FLAG_FIELDS = frozenset({"approved", "updated_at"})
 
 
 def _touch_costing_jobs(job_ids: Iterable[UUID]) -> None:

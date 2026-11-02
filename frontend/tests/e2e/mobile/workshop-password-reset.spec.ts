@@ -39,14 +39,23 @@ function mailboxOwner(): string {
   return owner
 }
 
-/** The newest reset link emailed to `address` since `since`, or null if none yet. */
-function latestResetLink(address: string, since: string): string | null {
-  const stdout = runManagePy([
-    'e2e_read_reset_link',
-    `--to=${address}`,
-    `--mailbox=${mailboxOwner()}`,
-    `--since=${since}`,
-  ])
+/** Mail delivery is Google's clock, not the app's. */
+const EMAIL_WAIT_SECONDS = 90
+
+/** The newest reset link emailed to `address` since `since`, or null if none
+    arrived within `waitSeconds`. The command polls the mailbox itself: one
+    Django start-up, not one a read. */
+function latestResetLink(address: string, since: string, waitSeconds: number): string | null {
+  const stdout = runManagePy(
+    [
+      'e2e_read_reset_link',
+      `--to=${address}`,
+      `--mailbox=${mailboxOwner()}`,
+      `--since=${since}`,
+      `--wait=${waitSeconds}`,
+    ],
+    (waitSeconds + 30) * 1000,
+  )
   const lastLine = stdout
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -86,7 +95,7 @@ test.describe('workshop password reset on a phone', () => {
     // inside it the catch would have nothing to name.
     const owner = mailboxOwner()
     try {
-      latestResetLink(username, new Date().toISOString())
+      latestResetLink(username, new Date().toISOString(), 0)
     } catch (error) {
       throw new Error(`The reset mailbox ${owner} could not be read. ${MAILBOX_REQUIREMENTS}`, {
         cause: error,
@@ -125,17 +134,11 @@ test.describe('workshop password reset on a phone', () => {
 
     let link = ''
     await test.step('the email arrives with a link to this app', async () => {
-      // Mail delivery is Google's clock, not the app's: the worker sends, the
-      // message crosses Gmail, and only then can it be read. Polled, because
-      // nothing in the page changes when it lands.
-      await expect
-        .poll(() => latestResetLink(username, requestedAt), {
-          timeout: 90_000,
-          intervals: [3_000],
-          message: `no reset email reached ${mailboxOwner()} for ${username}`,
-        })
-        .not.toBeNull()
-      link = z.string().parse(latestResetLink(username, requestedAt))
+      // The worker sends, the message crosses Gmail, and only then can it be
+      // read; nothing in the page changes when it lands.
+      const found = latestResetLink(username, requestedAt, EMAIL_WAIT_SECONDS)
+      expect(found, `no reset email reached ${mailboxOwner()} for ${username}`).not.toBeNull()
+      link = z.string().parse(found)
 
       // The origin the run reached the app at: https on a public origin, the
       // local origin on a fake-Xero run.

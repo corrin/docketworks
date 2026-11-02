@@ -14,9 +14,12 @@ import { z } from 'zod'
 import { shiftDate } from '../../../src/lib/dates'
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
-import { getLatestWeekdayDate } from '../timesheet/support'
+import { BOOKING_WEEKS, getLatestWeekdayDate } from '../timesheet/support'
 
-const PROJECT_WEEKS_BACK: Record<string, number> = { android: 4, iphone: 5 }
+const PROJECT_WEEKS_BACK: Record<string, number> = {
+  android: BOOKING_WEEKS.fillDayAndroid,
+  iphone: BOOKING_WEEKS.fillDayIphone,
+}
 const DAY_PATH = '/api/job/workshop/timesheets/'
 
 /** What today's screen costs for the same day, measured before this work. */
@@ -184,8 +187,10 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
   expect(taps).toBe(8)
 })
 
-/** Weeks clear of every other phone spec's days. */
-const OVERTIME_WEEKS_BACK: Record<string, number> = { android: 6, iphone: 7 }
+const OVERTIME_WEEKS_BACK: Record<string, number> = {
+  android: BOOKING_WEEKS.fillDayOvertimeAndroid,
+  iphone: BOOKING_WEEKS.fillDayOvertimeIphone,
+}
 
 test('a filled day past the usual day asks before it goes as overtime', async ({
   authenticatedPage: page,

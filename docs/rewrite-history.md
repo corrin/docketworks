@@ -2910,3 +2910,8 @@ CI runs on `ubuntu-26.04`, production's release, not `ubuntu-latest` (owner):
 `ubuntu-latest` moved to 26.04 on 2026-10-19, so gettext became 0.23.2 under
 CI while dev machines on 24.04 had 0.21; the two wrap a long message
 differently. The messages catalogue is now written unwrapped.
+
+Sweeping everyone (owner, 2026-10-27): "6.2s is ok." Twelve people take 6.2s,
+against 5.45s before #228; most of it is `full_clean` on each new line. The
+dev Xero tenant's "E2E Test" and "E2E Office" start on 2020-01-01, as the
+fixture does.

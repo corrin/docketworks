@@ -15,12 +15,15 @@ import { shiftDate } from '../../../src/lib/dates'
 import { localIsoDate } from '../../../src/lib/format'
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
-import { getLatestWeekdayDate } from '../timesheet/support'
+import { BOOKING_WEEKS, getLatestWeekdayDate } from '../timesheet/support'
 import { withCompanyAddress } from './support'
 
 /** iOS Safari zooms the page when a focused input's text is smaller than this. */
 const IOS_NO_ZOOM_FONT_PX = 16
-const PROJECT_WEEKS_BACK: Record<string, number> = { android: 2, iphone: 3 }
+const PROJECT_WEEKS_BACK: Record<string, number> = {
+  android: BOOKING_WEEKS.workshopClockAndroid,
+  iphone: BOOKING_WEEKS.workshopClockIphone,
+}
 const LIVE_TAP_PROJECT = 'android'
 
 function pastWeekday(projectName: string): string {

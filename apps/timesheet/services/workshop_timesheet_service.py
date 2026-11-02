@@ -711,10 +711,16 @@ def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
     # Still clocked in: the day has no end to fill to yet.
     windows = attendance.unallocated_windows(day, row, entries, break_lines) or []
     current = [window for line in filled if (window := timed_window(line)) is not None]
-    # Compared as joined stretches: the overtime split cuts one gap into two lines.
-    if len(current) == len(filled) and attendance.merged_minutes(
-        current
-    ) == attendance.merged_minutes(windows):
+    # Compared as joined stretches: the overtime split cuts one gap into two
+    # lines. Their own minutes must add up to the joined ones too, or two
+    # lines over one stretch would stand and pay it twice.
+    joined = attendance.merged_minutes(current)
+    if (
+        len(current) == len(filled)
+        and joined == attendance.merged_minutes(windows)
+        and sum(end - start for start, end in joined)
+        == sum(end - start for each in current for start, end in attendance.merged_minutes([each]))
+    ):
         return Decimal(0)
     lock_costing_jobs([general_work_id])
     for line in filled:
@@ -820,7 +826,7 @@ OVERTIME = Decimal("1.5")
 URGENT_CHARGE = Decimal("1.5")
 #: The smallest piece an entry is split into at the overtime point: below it,
 #: the whole entry takes the rate of its larger part.
-SMALLEST_SPLIT = Decimal("0.25")
+_SMALLEST_SPLIT = Decimal("0.25")
 
 
 def overtime_part(
@@ -842,10 +848,8 @@ def overtime_part(
     under a quarter hour is not split off: the entry goes whole to the rate
     of its larger part.
     """
-    if (
-        wage_rate_multiplier != ORDINARY
-        or job_id == attendance.break_job_id()
-        or job_id in leave_job_ids()
+    if wage_rate_multiplier != ORDINARY or (
+        job_id is not None and (job_id == attendance.break_job_id() or job_id in leave_job_ids())
     ):
         return Decimal(0)
     overtime = overtime_hours(
@@ -854,8 +858,17 @@ def overtime_part(
         hours,
         general_work_counts=job_id == CompanyDefaults.get_solo().general_work_job_id,
     )
+    return split_off(hours, overtime)
+
+
+def split_off(hours: Decimal, overtime: Decimal) -> Decimal:
+    """Return how many of ``hours`` go at overtime once a split under a quarter hour is undone.
+
+    A piece under a quarter hour is not split off: the whole goes to the rate
+    of its larger part.
+    """
     ordinary = hours - overtime
-    if 0 < min(overtime, ordinary) < SMALLEST_SPLIT:
+    if 0 < min(overtime, ordinary) < _SMALLEST_SPLIT:
         return hours if overtime > ordinary else Decimal(0)
     return overtime
 
