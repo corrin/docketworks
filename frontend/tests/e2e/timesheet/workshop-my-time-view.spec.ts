@@ -105,7 +105,7 @@ test.describe.serial('workshop my time view', () => {
       await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-duration')).toContainText(
         '1h from 09:00 to 10:00',
       )
-      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-hours')).toHaveValue('1')
+      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-hours')).toHaveValue('1h')
       await autoId(page, 'WorkshopTimesheetEntryDrawer-description').fill('Workshop test entry')
 
       const submit = autoId(page, 'WorkshopTimesheetEntryDrawer-submit')
@@ -307,7 +307,7 @@ test.describe.serial('workshop my time view', () => {
     await test.step('2h on a job, no times typed, goes in from 07:00', async () => {
       await autoId(page, 'WorkshopTimesheetSummaryCard-add').click()
       await selectJobInPicker(page, jobNumber)
-      await autoId(page, 'WorkshopTimesheetEntryDrawer-hours').fill('2')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-hours').fill('2h')
       const create = timesheetResponse(page, 'POST')
       await autoId(page, 'WorkshopTimesheetEntryDrawer-submit').click()
       await create

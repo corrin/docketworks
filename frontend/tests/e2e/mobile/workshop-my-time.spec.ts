@@ -430,13 +430,13 @@ test.describe.serial('workshop time entry on a phone', () => {
       await expect(end).toHaveValue('10:00')
       await chip('plus-30').tap()
       await expect(end).toHaveValue('10:30')
-      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1')
+      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1h')
       await chip('minus-5').tap()
       await expect(end).toHaveValue('10:25')
       await chip('plus-5').tap()
       await chip('plus-15').tap()
       await expect(end).toHaveValue('10:45')
-      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1.25')
+      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1h 15m')
 
       // Nothing of this user's starts after 09:30, so the gap runs to the end
       // of his day: nobody clocked this weekday, so the standard finish.

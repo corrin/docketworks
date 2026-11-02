@@ -72,11 +72,13 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
    - This closes the backlog item at `docs/rewrite-status.md:171` (1.5x and 2x lines priced at the base wage). The tests that pin that bug (`test_repair_commands.py:234`, `:367`) flip to assert the correct price.
    - The rate constants become one definition. Today they are defined at `workshop_timesheet_service.py:823`, `attendance.py:986` and `day_submission.py:36`.
 6. [x] **Estimate and quote grids** (owner, 2026-11-02): use `HoursInput` there too, so there is one hours field app-wide (`CostLineGrid.tsx:356`).
-7. *(mine)* The branch `fix/timesheet-writes-one-writer` has its plan fully ticked. This work needs its own branch and PR, and the owner creates the branch.
+7. [x] *(mine)* The branch `fix/timesheet-writes-one-writer` has its plan fully ticked. This work needs its own branch and PR: the owner created `fix/one-time-entry`, PR #230, stacked on #229.
+8. [ ] **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Recommendation: a one-commit PR off `main` (the owner's call, since it needs a branch).
+9. [ ] **The full frontend unit run flakes locally**: 1 to 3 different `findBy` timeouts per run (`JobQuoteTab`, `JobActualTab`, `JobMovementReportPage`; each passes alone, 3 of 3). The reports page shares no code with this change. CI's unit runs were green on #229. Find the cause before this PR is ready, not by raising a timeout.
 
 ## Tests
 - **E2E (the done gate):**
-  - On each of the grid, the drawer and the fill sheet, typing `4h`, `1 1/4` and `3h 30m` books 4, 1.25 and 3.5 hours.
+  - Each hours field reads the typed form: the grid books `4h` (`create-timesheet-entry`), the drawer `2h` (`workshop-my-time-view`), the fill sheet `2h` (`workshop-fill-day`), the estimate grid `2h` and shows `2` after a reload (`create-estimate-entry`). The parser's other forms (`1 1/4`, `3h 30m`) are unit-tested in `features/shared/hours.test.ts`.
   - In the office grid, an ordinary-rate entry that takes the day past its usual hours asks the overtime question, as the drawer does.
   - Leave booked on a day with General work rebuilds the General work around it.
   - The existing `tests/e2e/timesheet/*` specs stay green, each on its own `BOOKING_WEEKS` week.

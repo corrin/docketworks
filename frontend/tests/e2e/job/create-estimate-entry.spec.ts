@@ -110,9 +110,10 @@ test.describe.serial('estimate operations', () => {
 
     const { row: labourRow } = await waitForCostLineRow(page, 'Workshop')
 
-    const qtyInput = labourRow.locator('input').first()
+    // Hours read as on every hours field: "2h" is 2 hours.
+    const qtyInput = cellInput(labourRow, 'quantity')
     await qtyInput.click()
-    await qtyInput.fill('2')
+    await qtyInput.fill('2h')
     const editSave = waitForAutosave(page)
     await page.keyboard.press('Tab')
     await editSave
@@ -120,7 +121,8 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await openJobCostingTab(page, jobUrl, 'estimate')
 
-    await waitForCostLineRow(page, 'Workshop')
+    const { row: reloaded } = await waitForCostLineRow(page, 'Workshop')
+    await expect(cellInput(reloaded, 'quantity')).toHaveValue('2')
   })
 
   test('add Material entry', async ({ authenticatedPage: page }) => {

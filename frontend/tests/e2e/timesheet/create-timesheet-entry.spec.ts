@@ -139,7 +139,7 @@ test.describe.serial('xero pay item validation', () => {
         response.url().includes('/cost_lines/') && response.request().method() === 'POST',
       { timeout: 15000 },
     )
-    await enterHours(page, rowIndex, '4')
+    await enterHours(page, rowIndex, '4h')
     expect((await createPost).ok()).toBe(true)
 
     await expect(autoId(page, `SmartTimesheetTable-payItem-${rowIndex}`)).toHaveText(

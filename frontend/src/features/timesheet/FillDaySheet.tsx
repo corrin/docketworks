@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/drawer'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
@@ -201,21 +202,13 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                       </Button>
                       {/* Typed or tapped, his choice: the chips and the stepper
                         set this same number. */}
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min={QUARTER_HOUR}
-                        step={QUARTER_HOUR}
-                        value={row.hours ?? ''}
+                      <HoursInput
+                        hours={row.hours}
                         placeholder={t('fillDay.hours')}
                         aria-label={t('fillDay.hours')}
                         className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
                         data-automation-id={`FillDaySheet-row-${row.key}-hours`}
-                        onChange={(event) =>
-                          change(row.key, {
-                            hours: event.target.value === '' ? null : Number(event.target.value),
-                          })
-                        }
+                        onHoursChange={(hours) => change(row.key, { hours })}
                       />
                       <Button
                         variant="outline"

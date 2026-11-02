@@ -143,7 +143,8 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await expect(sum).toHaveText('8h to fill, 30m breaks, 3h entered, 4h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${second}`))
-    await tap(autoId(page, 'FillDaySheet-row-1-hours-2'))
+    // Typed as on every hours field: "2h" reads as 2 hours.
+    await autoId(page, 'FillDaySheet-row-1-hours').fill('2h')
     await expect(sum).toHaveText('8h to fill, 30m breaks, 5h entered, 2h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${third}`))
@@ -151,7 +152,7 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await tap(autoId(page, 'FillDaySheet-row-2-rest'))
     await expect(sum).toHaveText('8h to fill, 30m breaks, 7h 30m entered. All filled')
     // The buttons fill the same field he can type in.
-    await expect(autoId(page, 'FillDaySheet-row-2-hours')).toHaveValue('2.5')
+    await expect(autoId(page, 'FillDaySheet-row-2-hours')).toHaveValue('2h 30m')
     await testInfo.attach('fill-sheet', {
       body: await page.screenshot({ animations: 'disabled' }),
       contentType: 'image/png',

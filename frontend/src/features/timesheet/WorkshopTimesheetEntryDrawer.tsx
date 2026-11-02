@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/drawer'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
@@ -412,20 +413,16 @@ function WorkshopEntryForm({
           >
             {t('entryDrawer.hours')}
           </label>
-          <input
+          <HoursInput
             id="workshop-entry-hours"
-            type="number"
-            inputMode="decimal"
-            min={0.25}
-            step={0.25}
-            value={shownHours ?? ''}
+            hours={shownHours}
             placeholder={
               workingOut === 'finish' ? t('entryDrawer.workingOut') : t('entryDrawer.howLong')
             }
             className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
             data-automation-id="WorkshopTimesheetEntryDrawer-hours"
-            onChange={(event) => {
-              setHours(event.target.value === '' ? null : Number(event.target.value))
+            onHoursChange={(typed) => {
+              setHours(typed)
               setWorkingOut('hours')
             }}
           />

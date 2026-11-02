@@ -16,12 +16,13 @@ import type {
   TimesheetJobOut,
   XeroPayItemOut,
 } from '@/api'
-import { formatCurrency, formatHoursDisplay } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import { i18n } from '@/lib/i18n'
 import { DataTable } from '@/features/shared/DataTable'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { orNull } from '@/features/shared/nullableText'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
@@ -32,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
 import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
@@ -324,50 +324,34 @@ function HoursCell({ row, table }: CellProps) {
   const context = cellMeta(table)
   const gridRow = row.original
   const hours = gridRow.type === 'server' ? Number(gridRow.line.quantity) : gridRow.draft.hours
-  // Local buffer while typing; the committed display is the humanised form
-  // ('2h', '3h 30m' — asserted as the input's VALUE by the specs).
-  const [local, setLocal] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const display = dirty ? local : hours > 0 ? formatHoursDisplay(hours) : ''
   const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 
-  const commit = () => {
-    if (!dirty) return
-    setDirty(false)
-    const parsed = parseHoursInput(local, hours)
-    if (parsed === hours) return
+  const commit = (typed: number | null) => {
+    // Blank or not hours keeps what the row had.
+    if (typed === null || typed === hours) return
     if (gridRow.type === 'server') {
       // Sending meta alongside quantity routes the write through the server
       // rate pipeline (created_from_timesheet repricing).
       context.patchLine(gridRow.line.id, {
-        quantity: String(parsed),
+        quantity: String(typed),
         meta: gridRow.line.meta,
       })
     } else {
-      context.updateDraft(gridRow.localId, { hours: parsed })
+      context.updateDraft(gridRow.localId, { hours: typed })
     }
   }
 
   return (
-    <input
-      value={display}
+    <HoursInput
+      hours={hours}
       disabled={disabled}
-      inputMode="decimal"
       aria-label={t('grid.hoursRow', { row: row.index })}
       className={`w-20 rounded border border-slate-200 px-2 py-1 text-right text-sm ${hours > 8 ? 'font-bold text-red-600' : ''}`}
       data-automation-id={`SmartTimesheetTable-hours-${row.index}`}
-      onChange={(event) => {
-        setDirty(true)
-        setLocal(event.target.value)
-      }}
-      onFocus={(event) => event.target.select()}
-      onBlur={commit}
+      onCommit={commit}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return
-        event.preventDefault()
-        event.currentTarget.blur()
         // Enter on a ready draft creates immediately (v1 createOnHoursCommit).
-        if (gridRow.type === 'draft') context.commitDraft(gridRow.localId)
+        if (event.key === 'Enter' && gridRow.type === 'draft') context.commitDraft(gridRow.localId)
       }}
     />
   )
