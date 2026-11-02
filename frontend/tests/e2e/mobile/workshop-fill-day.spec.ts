@@ -143,8 +143,7 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await expect(sum).toHaveText('8h to fill, 30m breaks, 3h entered, 4h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${second}`))
-    // Typed as on every hours field: "2h" reads as 2 hours.
-    await autoId(page, 'FillDaySheet-row-1-hours').fill('2h')
+    await tap(autoId(page, 'FillDaySheet-row-1-hours-2'))
     await expect(sum).toHaveText('8h to fill, 30m breaks, 5h entered, 2h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${third}`))
@@ -215,7 +214,8 @@ test('a filled day past the usual day asks before it goes as overtime', async ({
 
   await autoId(page, 'DayCard-fill-and-send').tap()
   await autoId(page, `FillDaySheet-job-${job.job_number}`).tap()
-  await autoId(page, 'FillDaySheet-row-0-rest').tap()
+  // Typed as on every hours field: "9h" is the nine hours to go.
+  await autoId(page, 'FillDaySheet-row-0-hours').fill('9h')
   await autoId(page, 'FillDaySheet-send').tap()
 
   // 9h on the job: the hour past his usual 8 is time and a half, and he is told first.
