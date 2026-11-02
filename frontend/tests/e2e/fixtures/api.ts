@@ -226,12 +226,12 @@ export async function getWeekPostingStatus(
   return z.object({ staff: z.array(staffWeekPostingSchema) }).parse(await response.json()).staff
 }
 
-const seededCostLineSchema = z.object({ id: z.string() })
+const seededEntrySchema = z.object({ id: z.string() })
 
 /**
- * Record time for a staff member on a date, through the live cost-line create.
+ * Record time for a staff member on a date, through the live entry create.
  *
- * Opus: ``meta.created_from_timesheet`` routes it through the one rate pipeline, so
+ * Opus: the timesheet entry endpoint is the one writer every screen uses, so
  * unit cost/rev and the Xero pay item are server-derived exactly as a timesheet
  * write derives them — which is what makes the line safe to post to payroll.
  * Building the line by hand instead would prove Xero accepts a shape the
@@ -256,28 +256,20 @@ export async function seedTimesheetLabour(
   page: Page,
   payload: SeedTimesheetLabourPayload,
 ): Promise<string> {
-  const response = await page.request.post(
-    `/api/job/jobs/${payload.jobId}/cost_sets/actual/cost_lines/`,
-    {
-      data: {
-        kind: 'time',
-        desc: payload.description,
-        quantity: payload.hours,
-        accounting_date: payload.date,
-        ext_refs: {},
-        labour_subtype: payload.labourSubtype,
-        meta: {
-          created_from_timesheet: true,
-          staff_id: payload.staffId,
-          date: payload.date,
-          is_billable: true,
-          wage_rate_multiplier: payload.wageRateMultiplier ?? 1,
-        },
-      },
+  const response = await page.request.post('/api/job/workshop/timesheets/', {
+    data: {
+      job_id: payload.jobId,
+      staff_id: payload.staffId,
+      labour_subtype_id: payload.labourSubtype,
+      accounting_date: payload.date,
+      hours: payload.hours,
+      description: payload.description,
+      is_billable: true,
+      wage_rate_multiplier: payload.wageRateMultiplier ?? 1,
     },
-  )
+  })
   if (!response.ok()) {
     throw new Error(`Timesheet labour seed failed: ${response.status()} ${await response.text()}`)
   }
-  return seededCostLineSchema.parse(await response.json()).id
+  return seededEntrySchema.parse(await response.json()).id
 }

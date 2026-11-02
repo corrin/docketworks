@@ -2327,11 +2327,6 @@ msgid "labour_subtype is required for time lines."
 msgstr ""
 
 #: apps/job/services/job_service.py
-#, python-format
-msgid "Time is priced from the person's wage and the job's rates: %(fields)s."
-msgstr ""
-
-#: apps/job/services/job_service.py
 msgid "This line belongs to a stock movement; correct it through purchasing."
 msgstr ""
 
@@ -3585,6 +3580,10 @@ msgstr ""
 
 #: apps/timesheet/api.py
 msgid "Job not found."
+msgstr ""
+
+#: apps/timesheet/api.py
+msgid "Labour type not found."
 msgstr ""
 
 #: apps/timesheet/api.py

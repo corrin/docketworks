@@ -32,7 +32,6 @@ from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import update_cost_line
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.services import (
@@ -405,20 +404,21 @@ def test_H10_the_office_moving_a_break_in_the_grid_changes_no_entry(
     """The office moves a break from the entry grid: allowed, as from his phone, and the
     entry keeps its hours.
 
-    Guards job_service.update_cost_line (the grid's write changes no other line).
+    Guards workshop_timesheet_service.update_entry (the grid's write changes no other line).
     """
     _clock(worker, "07:00", "15:00")
     # 120 less the 08:30 break 15 = 1.75h.
     entry = _book(worker, job, "08:00", "10:00")
     morning = _break_at(worker, "08:30")
 
-    update_cost_line(
-        morning,
-        {
-            "quantity": Decimal("0.250"),
-            "meta": {**morning.meta, "start_time": "10:30:00", "end_time": "10:45:00"},
-        },
+    workshop_timesheet_service.update_entry(
         office_staff,
+        {
+            "entry_id": morning.id,
+            "hours": Decimal("0.250"),
+            "start_time": time(10, 30),
+            "end_time": time(10, 45),
+        },
     )
 
     assert _entry(entry) == ("08:00:00", "10:00:00", Decimal("1.750"), 1.0)

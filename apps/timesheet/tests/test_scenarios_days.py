@@ -47,6 +47,9 @@ general_work = test_approval.general_work
 
 DAY = WEEK_START  # Monday 2026-05-04, a day gone by.
 
+#: The timesheet entry endpoint every screen enters a person's time through.
+ENTRY_URL = "/api/job/workshop/timesheets/"
+
 #: A line on a job: start, stop, hours and wage multiplier.
 Line = tuple[str, str, Decimal, float]
 
@@ -151,25 +154,6 @@ def _on(job: Job, person: Staff, day: date = DAY) -> list[Line]:
             staff=person, cost_set__job=job, accounting_date=day, kind="time"
         )
     )
-
-
-def _grid_time(person: Staff, hours: str) -> dict[str, object]:
-    """A time row as the office's cost grid saves it for him on DAY."""
-    return {
-        "kind": "time",
-        "desc": None,
-        "quantity": hours,
-        "accounting_date": DAY.isoformat(),
-        "ext_refs": {},
-        "labour_subtype": str(LabourSubtype.default_workshop().id),
-        "meta": {
-            "created_from_timesheet": True,
-            "staff_id": str(person.id),
-            "date": DAY.isoformat(),
-            "is_billable": True,
-            "wage_rate_multiplier": 1,
-        },
-    }
 
 
 def _paid(person: Staff, day: date = DAY) -> Decimal:
@@ -1190,20 +1174,25 @@ class TestSweepingHairyCases:
         ]
         assert _billed(worker) == Decimal("180")
 
-    def test_R10_the_office_grid_adding_time_to_a_swept_day_takes_it_from_general_work(
+    def test_R10_the_office_adding_time_to_a_swept_day_takes_it_from_general_work(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:
-        """Swept 07:00-15:00; the office adds his 2h on Job X from the job's cost grid.
+        """Swept 07:00-15:00; the office enters his 2h on Job X from the timesheet grid.
 
         He is paid for the day once: the General work gives way to the 2h.
-        Guards job_service.create_cost_line's General work rebuild.
+        Guards workshop_timesheet_service.create_entry's General work rebuild.
         """
         _clock(worker, "07:00", "15:00")
         approval.sweep_person(worker, [DAY], office_staff)
 
         response = authenticated_client(office_staff).post(
-            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
-            data=_grid_time(worker, "2"),
+            ENTRY_URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": DAY.isoformat(),
+                "hours": "2",
+                "staff_id": str(worker.id),
+            },
             content_type="application/json",
         )
 
@@ -1211,12 +1200,12 @@ class TestSweepingHairyCases:
         assert sum(hours for *_, hours, _ in _on(general_work, worker)) == Decimal("5")
         assert _paid(worker) == Decimal("7.5")
 
-    def test_R11_the_office_grid_changing_hours_on_a_swept_day_moves_the_general_work(
+    def test_R11_the_office_changing_hours_on_a_swept_day_moves_the_general_work(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:
-        """He entered 2h on Job X and was swept; the office makes it 3h in the cost grid.
+        """He entered 2h on Job X and was swept; the office makes it 3h on the timesheet grid.
 
-        Guards job_service.update_cost_line's General work rebuild.
+        Guards workshop_timesheet_service.update_entry's General work rebuild.
         """
         _clock(worker, "07:00", "15:00")
         _enter(worker, worker, job, "2")
@@ -1224,8 +1213,8 @@ class TestSweepingHairyCases:
         entry = CostLine.objects.get(staff=worker, cost_set__job=job)
 
         response = authenticated_client(office_staff).patch(
-            f"/api/job/cost_lines/{entry.id}/",
-            data={"quantity": "3"},
+            ENTRY_URL,
+            data={"entry_id": str(entry.id), "hours": "3"},
             content_type="application/json",
         )
 

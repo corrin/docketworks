@@ -6445,6 +6445,7 @@ export const zWorkshopTimesheetEntryRequest = z.object({
     ]),
     is_billable: z.boolean().optional().default(true),
     job_id: z.uuid(),
+    labour_subtype_id: z.uuid().nullish(),
     location: zEntryLocationIn.nullish(),
     staff_id: z.uuid().nullish(),
     start_time: z.iso.time().nullish(),
@@ -6476,6 +6477,7 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
     ]).optional(),
     is_billable: z.boolean().optional(),
     job_id: z.uuid().optional(),
+    labour_subtype_id: z.uuid().optional(),
     location: zEntryLocationIn.nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([

@@ -8,11 +8,10 @@ summary endpoint (margin-on-revenue formula per the 2026-08-02 user
 decision, conditional GET).
 """
 
-from collections.abc import Callable, Iterable
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -25,14 +24,10 @@ from apps.accounts.models import Staff
 from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
-from apps.core.errors import AccessDeniedError, ConflictError
-from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
-from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
-from apps.job.services.job_service import update_cost_line
+from apps.job.models.costing import CostLine, CostSet
 from apps.purchasing.models import Stock
 from apps.timesheet.models import TimesheetEvent
-from apps.timesheet.services import workshop_timesheet_service
 from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
@@ -299,74 +294,30 @@ class TestCostLineCreate:
         estimate = job.cost_sets.get(kind="estimate")
         assert estimate.summary["hours"] == 2.0
 
-    def test_timesheet_line_is_priced_by_the_rate_pipeline(
+    def test_time_marked_from_the_timesheet_is_refused(
         self, client: Client, job: Job, timesheet_worker: Staff
     ) -> None:
-        """The seam is closed: a timesheet line prices itself instead of 400ing."""
-        job.labour_rates.filter(labour_subtype=LabourSubtype.default_workshop()).update(
-            charge_out_rate=Decimal("120.00")
-        )
+        """A person's time is entered through the timesheet entry endpoints, never here.
+
+        Guards job_service.create_cost_line's refusal of actual time.
+        """
         response = client.post(
             f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
             data=self._payload(
                 kind="time",
-                unit_cost="0.00",
-                unit_rev="0.00",
+                labour_subtype=str(LabourSubtype.default_workshop().id),
                 meta={
                     "created_from_timesheet": True,
                     "staff_id": str(timesheet_worker.id),
-                    "wage_rate_multiplier": 1.5,
-                },
-            ),
-            content_type="application/json",
-        )
-
-        assert response.status_code == 201, response.content
-        body = response.json()
-        # wage_rate 48.00 (40 base + 20% loading) * 1.5; charge-out 120.00 * 1.5
-        assert Decimal(body["unit_cost"]) == Decimal("72.00")
-        assert Decimal(body["unit_rev"]) == Decimal("180.00")
-        assert body["staff"] == str(timesheet_worker.id)
-        # The subtype defaulted from the worker even though the payload omitted it.
-        assert body["labour_subtype"] == str(LabourSubtype.default_workshop().id)
-        assert body["xero_pay_item"] is not None
-        assert body["meta"]["is_billable"] is True
-        assert body["meta"]["charge_out_rate"] == 120.0
-
-    def test_timesheet_line_for_staff_without_a_wage_rate_is_400(
-        self, client: Client, job: Job, unpaid_staff: Staff
-    ) -> None:
-        """No silent fallback: an unconfigured wage rate is a 400 naming the staff member."""
-        response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
-            data=self._payload(
-                kind="time",
-                meta={
-                    "created_from_timesheet": True,
-                    "staff_id": str(unpaid_staff.id),
                     "wage_rate_multiplier": 1.0,
                 },
             ),
             content_type="application/json",
         )
 
-        assert response.status_code == 400
-        detail = response.json()["detail"]
-        assert "Wage rate is not configured" in detail
-        assert "Unpriced Person" in detail
-        assert not CostLine.objects.filter(staff=unpaid_staff).exists()
-
-    def test_timesheet_line_without_staff_id_is_400(self, client: Client, job: Job) -> None:
-        response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
-            data=self._payload(
-                kind="time",
-                meta={"created_from_timesheet": True, "wage_rate_multiplier": 1.0},
-            ),
-            content_type="application/json",
-        )
-        assert response.status_code == 400
-        assert "Staff id must be provided" in response.json()["detail"]
+        assert response.status_code == 400, response.content
+        assert "entered on the timesheet" in response.json()["detail"]
+        assert not CostLine.objects.filter(cost_set__job=job, kind="time").exists()
 
     def test_blank_desc_is_400(self, client: Client, job: Job) -> None:
         # v1's own desc_not_blank DB constraint made this a 500; v2 surfaces
@@ -451,115 +402,27 @@ class TestCostLineUpdate:
         )
         assert response.status_code == 403
 
-    def _create_timesheet_line(
-        self, client: Client, job: Job, worker: Staff, **meta: object
-    ) -> str:
-        """Create a priced timesheet line through the API and return its id."""
-        payload: dict[str, object] = {
-            "kind": "time",
-            "desc": "Timesheet entry",
-            "quantity": "1.000",
-            "unit_cost": "0.00",
-            "unit_rev": "0.00",
-            "accounting_date": ACCOUNTING_DATE.isoformat(),
-            "meta": {
-                "created_from_timesheet": True,
-                "staff_id": str(worker.id),
-                "wage_rate_multiplier": 1.0,
-                **meta,
-            },
-        }
-        response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
-            data=payload,
-            content_type="application/json",
-        )
-        assert response.status_code == 201, response.content
-        return str(response.json()["id"])
-
-    @staticmethod
-    def _actual_hours(job: Job) -> float:
-        job.refresh_from_db()
-        summary = job.cost_sets.get(kind="actual").summary
-        return float(summary["hours"])
-
-    def test_patch_job_id_moves_the_line_and_reprices(
-        self,
-        client: Client,
-        job: Job,
-        company: Company,
-        office_staff: Staff,
-        timesheet_worker: Staff,
+    def test_an_entry_is_not_edited_here(
+        self, client: Client, job: Job, timesheet_worker: Staff
     ) -> None:
-        """update_cost_line's move branch: retarget, reprice, both summaries, latest_actual."""
-        destination = make_job(company, office_staff, name="Destination")
-        destination.labour_rates.update(charge_out_rate=Decimal("200.00"))
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        assert self._actual_hours(job) == 1.0
+        """A person's time is edited through the timesheet entry endpoints, never here.
+
+        Guards job_service.update_cost_line's refusal of a timesheet entry.
+        """
+        line = make_time_line(job, timesheet_worker, accounting_date=ACCOUNTING_DATE)
+        events = TimesheetEvent.objects.filter(cost_line_id=line.id).count()
 
         response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(destination.id)},
+            f"/api/job/cost_lines/{line.id}/",
+            data={"quantity": "3.000"},
             content_type="application/json",
         )
 
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert Decimal(body["unit_rev"]) == Decimal("200.00")
-        assert Decimal(body["unit_cost"]) == Decimal("48.00")
-        line = CostLine.objects.get(id=line_id)
-        assert line.cost_set.job_id == destination.id
-        assert self._actual_hours(job) == 0.0
-        assert self._actual_hours(destination) == 1.0
-        destination.refresh_from_db()
-        assert destination.latest_actual_id == line.cost_set_id
-        event = TimesheetEvent.objects.get(cost_line_id=line_id, event_type="entry_moved")
-        assert event.description.startswith(
-            f"Moved from #{job.job_number} to #{destination.job_number}"
-        )
-
-    def test_a_worker_moves_their_own_entry(
-        self, job: Job, company: Company, workshop_staff: Staff
-    ) -> None:
-        """update_cost_line's move gate lets a non-office caller move a line they own."""
-        destination = make_job(company, workshop_staff, name="Destination")
-        worker_client = _workshop_client(workshop_staff)
-        line_id = self._create_timesheet_line(worker_client, job, workshop_staff)
-
-        response = worker_client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(destination.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        assert CostLine.objects.get(id=line_id).cost_set.job_id == destination.id
-
-    def test_a_worker_cannot_enter_time_for_a_colleague(
-        self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
-    ) -> None:
-        """Staff enter their own time; the office enters anyone's (owner, 2026-10-26).
-
-        Guards job_service._create_timesheet_entry's owner check.
-        """
-        response = _workshop_client(workshop_staff).post(
-            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
-            data={
-                "kind": "time",
-                "desc": None,
-                "quantity": "1.000",
-                "accounting_date": ACCOUNTING_DATE.isoformat(),
-                "meta": {
-                    "created_from_timesheet": True,
-                    "staff_id": str(timesheet_worker.id),
-                    "wage_rate_multiplier": 1.0,
-                },
-            },
-            content_type="application/json",
-        )
-
-        assert response.status_code == 403, response.content
-        assert not CostLine.objects.filter(staff=timesheet_worker).exists()
+        assert response.status_code == 400, response.content
+        assert "entered on the timesheet" in response.json()["detail"]
+        stored = CostLine.objects.get(id=line.id)
+        assert (stored.quantity, stored.approved) == (Decimal("8.000"), True)
+        assert TimesheetEvent.objects.filter(cost_line_id=line.id).count() == events
 
     def test_time_in_actual_costs_is_only_ever_a_timesheet_entry(
         self, job: Job, workshop_staff: Staff, timesheet_worker: Staff
@@ -614,192 +477,6 @@ class TestCostLineUpdate:
         line.refresh_from_db()
         assert (line.kind, line.staff_id) == ("material", None)
 
-    def test_a_worker_cannot_move_another_persons_entry(
-        self, job: Job, company: Company, workshop_staff: Staff, timesheet_worker: Staff
-    ) -> None:
-        """The gate refuses a non-office caller moving a colleague's line."""
-        destination = make_job(company, workshop_staff, name="Destination")
-        line_id = self._create_timesheet_line(
-            _workshop_client(timesheet_worker), job, timesheet_worker
-        )
-
-        response = _workshop_client(workshop_staff).patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(destination.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 403, response.content
-        assert "You can only update your own timesheet entries" in response.json()["detail"]
-        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
-        assert not TimesheetEvent.objects.filter(
-            cost_line_id=line_id, event_type="entry_moved"
-        ).exists()
-
-    def test_move_rechecks_owner_after_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
-        self,
-        client: Client,
-        job: Job,
-        office_staff: Staff,
-        workshop_staff: Staff,
-        timesheet_worker: Staff,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """The owner read under the locks, not the one first read, authorizes a move.
-
-        The entry is handed to another person while the move waits for its
-        job locks, as a second transaction would.
-        Guards workshop_timesheet_service.update_entry's re-read after locking.
-        """
-        line_id = self._create_timesheet_line(client, job, workshop_staff)
-        assert job.company is not None
-        destination = make_job(job.company, office_staff, name="Destination")
-        events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
-        summaries = list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
-        _while_locking_jobs(
-            monkeypatch,
-            lambda: _hand_to(line_id, timesheet_worker),
-        )
-
-        with pytest.raises(AccessDeniedError):
-            update_cost_line(
-                CostLine.objects.get(id=line_id), {"job_id": destination.id}, workshop_staff
-            )
-
-        # Not moved. (The hand-over ran inside the refused transaction, so it
-        # rolled back with it; another writer's would have stood.)
-        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
-        assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
-        assert (
-            list(CostSet.objects.filter(job__in=[job, destination]).values("id", "summary"))
-            == summaries
-        )
-
-    def test_move_refuses_a_source_changed_since_the_initial_read(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, the people and the patch
-        self,
-        client: Client,
-        job: Job,
-        company: Company,
-        office_staff: Staff,
-        timesheet_worker: Staff,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """An entry moved elsewhere while this move waited for its locks is refused.
-
-        The locks taken were for the job first read; the entry is no longer
-        there, so taking another job's lock now could deadlock.
-        Guards workshop_timesheet_service.update_entry's check after locking.
-        """
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        elsewhere = make_job(company, office_staff, name="Elsewhere")
-        destination = make_job(company, office_staff, name="Destination")
-        _while_locking_jobs(monkeypatch, lambda: _move_to(line_id, elsewhere))
-        events = list(TimesheetEvent.objects.filter(cost_line_id=line_id).values())
-
-        with pytest.raises(ConflictError, match="moved to another job"):
-            update_cost_line(
-                CostLine.objects.get(id=line_id), {"job_id": destination.id}, office_staff
-            )
-
-        # Not moved to the destination. (The other move ran inside the refused
-        # transaction, so it rolled back with it; another writer's would have stood.)
-        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
-        assert list(TimesheetEvent.objects.filter(cost_line_id=line_id).values()) == events
-
-    def test_patch_job_id_onto_a_shop_job_makes_the_entry_unbillable(
-        self, client: Client, job: Job, office_staff: Staff, timesheet_worker: Staff
-    ) -> None:
-        """move_time_line's destination rule: shop work cannot be invoiced."""
-        shop_company = CompanyDefaults.get_solo().shop_company
-        assert shop_company is not None
-        shop = make_job(shop_company, office_staff, name="Shop work", status="special")
-        line_id = self._create_timesheet_line(
-            client, job, timesheet_worker, bill_rate_multiplier=1.5
-        )
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(shop.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["meta"]["is_billable"] is False
-        assert body["meta"]["bill_rate_multiplier"] == 0.0
-        assert Decimal(body["unit_rev"]) == Decimal("0.00")
-
-    def test_patch_job_id_onto_a_special_job_makes_the_entry_unbillable(
-        self,
-        client: Client,
-        job: Job,
-        company: Company,
-        office_staff: Staff,
-        timesheet_worker: Staff,
-    ) -> None:
-        """The same rule keyed on status: a 'special' job on a normal company bills nothing."""
-        special = make_job(company, office_staff, name="Training", status="special")
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(special.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        assert response.json()["meta"]["is_billable"] is False
-
-    def test_patch_job_id_off_a_shop_job_rederives_the_bill_rate(
-        self, client: Client, job: Job, office_staff: Staff, timesheet_worker: Staff
-    ) -> None:
-        """move_time_line's source rule: the stored zero was the shop's, not the entry's."""
-        shop_company = CompanyDefaults.get_solo().shop_company
-        assert shop_company is not None
-        shop = make_job(shop_company, office_staff, name="Shop work", status="special")
-        job.labour_rates.update(charge_out_rate=Decimal("120.00"))
-        line_id = self._create_timesheet_line(
-            client, shop, timesheet_worker, is_billable=False, bill_rate_multiplier=0.0
-        )
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(job.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["meta"]["is_billable"] is True
-        assert body["meta"]["bill_rate_multiplier"] == 1.0
-        assert Decimal(body["unit_rev"]) == Decimal("120.00")
-
-    def test_patch_job_id_keeps_an_explicit_bill_multiplier(
-        self,
-        client: Client,
-        job: Job,
-        company: Company,
-        office_staff: Staff,
-        timesheet_worker: Staff,
-    ) -> None:
-        """Owner ruling: a move keeps the multipliers; pick defaults would reset 2.0 to 1.0."""
-        destination = make_job(company, office_staff, name="Destination")
-        destination.labour_rates.update(charge_out_rate=Decimal("100.00"))
-        line_id = self._create_timesheet_line(
-            client, job, timesheet_worker, bill_rate_multiplier=2.0
-        )
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(destination.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["meta"]["bill_rate_multiplier"] == 2.0
-        assert Decimal(body["unit_rev"]) == Decimal("200.00")
-
     def test_patch_job_id_on_a_material_line_is_refused(
         self, client: Client, job: Job, company: Company, office_staff: Staff
     ) -> None:
@@ -819,29 +496,6 @@ class TestCostLineUpdate:
         line.refresh_from_db()
         assert line.cost_set_id == actual.id
 
-    def test_patch_job_id_to_a_job_without_the_subtype_rate_is_400(
-        self,
-        client: Client,
-        job: Job,
-        company: Company,
-        office_staff: Staff,
-        timesheet_worker: Staff,
-    ) -> None:
-        """Repricing fails early on a destination with no rate for the line's subtype."""
-        destination = make_job(company, office_staff, name="Destination")
-        destination.labour_rates.all().delete()
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"job_id": str(destination.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 400, response.content
-        assert "has no labour rate" in response.json()["detail"]
-        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
-
     def test_approving_a_timesheet_line_records_an_event(
         self, client: Client, job: Job, timesheet_worker: Staff
     ) -> None:
@@ -850,8 +504,9 @@ class TestCostLineUpdate:
         The branch saves the flag inline rather than through a service, so a
         plausible edit drops the record call without any service test noticing.
         """
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        CostLine.objects.filter(id=line_id).update(approved=False)
+        line_id = make_time_line(
+            job, timesheet_worker, accounting_date=ACCOUNTING_DATE, approved=False
+        ).id
 
         response = client.post(f"/api/job/cost_lines/{line_id}/approve/")
 
@@ -861,92 +516,6 @@ class TestCostLineUpdate:
         assert event.delta_before is not None and event.delta_before["approved"] is False
         assert event.delta_after is not None and event.delta_after["approved"] is True
         assert event.description == "Entry approved"
-
-    def test_patch_subtype_of_timesheet_line_reprices_it(
-        self, client: Client, job: Job, timesheet_worker: Staff
-    ) -> None:
-        """Seam closure: a subtype-only PATCH reprices via the rate pipeline.
-
-        The patch carries no meta at all, so the service must pull the stored
-        meta to know the line is a timesheet entry (v1
-        CostLineCreateUpdateSerializer.save).
-        """
-        workshop = LabourSubtype.default_workshop()
-        onsite = LabourSubtype.objects.get(name="Onsite")
-        job.labour_rates.filter(labour_subtype=workshop).update(charge_out_rate=Decimal("120.00"))
-        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"labour_subtype": str(onsite.id)},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["labour_subtype"] == str(onsite.id)
-        # Repriced onto the Onsite charge-out rate; cost from the worker's wage.
-        assert Decimal(body["unit_rev"]) == Decimal("165.00")
-        assert Decimal(body["unit_cost"]) == Decimal("48.00")
-        assert body["meta"]["charge_out_rate"] == 165.0
-
-    def test_explicit_null_labour_subtype_keeps_the_lines_subtype(
-        self, client: Client, job: Job, timesheet_worker: Staff
-    ) -> None:
-        """v1: `validated_data.get(...) or instance.labour_subtype`.
-
-        Resetting to the worker's default instead would silently reprice the line
-        off the Onsite rate and back onto Workshop.
-        """
-        workshop = LabourSubtype.default_workshop()
-        onsite = LabourSubtype.objects.get(name="Onsite")
-        job.labour_rates.filter(labour_subtype=workshop).update(charge_out_rate=Decimal("120.00"))
-        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-        client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"labour_subtype": str(onsite.id)},
-            content_type="application/json",
-        )
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={"labour_subtype": None, "desc": "Renamed"},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["labour_subtype"] == str(onsite.id)
-        assert Decimal(body["unit_rev"]) == Decimal("165.00")
-
-    def test_patch_with_timesheet_meta_reprices_the_line(
-        self, client: Client, job: Job, timesheet_worker: Staff
-    ) -> None:
-        job.labour_rates.filter(labour_subtype=LabourSubtype.default_workshop()).update(
-            charge_out_rate=Decimal("120.00")
-        )
-        line_id = self._create_timesheet_line(client, job, timesheet_worker)
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line_id}/",
-            data={
-                "meta": {
-                    "created_from_timesheet": True,
-                    "staff_id": str(timesheet_worker.id),
-                    "wage_rate_multiplier": 2.0,
-                    "is_billable": False,
-                }
-            },
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert Decimal(body["unit_cost"]) == Decimal("96.00")  # 48.00 * 2
-        assert Decimal(body["unit_rev"]) == Decimal("0.00")  # not billable
-        assert body["meta"]["is_billable"] is False
 
     def test_unknown_line_is_404(self, client: Client) -> None:
         response = client.patch(
@@ -1012,42 +581,7 @@ class TestCostLineDelete:
 
 
 class TestApprovedTimeThroughTheCostLineApi:
-    """The cost-line endpoints are a second door to a worker's time entries (KAN-376)."""
-
-    def test_worker_changes_an_approved_entry_and_it_waits_for_the_office_again(
-        self, job: Job, workshop_staff: Staff
-    ) -> None:
-        """Staff change their own time, approved or not (owner, 2026-10-26)."""
-        line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
-        other = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="1.000")
-        worker = _workshop_client(workshop_staff)
-
-        edit = worker.patch(
-            f"/api/job/cost_lines/{line.id}/",
-            data={"quantity": "3.000"},
-            content_type="application/json",
-        )
-        delete = worker.delete(f"/api/job/cost_lines/{other.id}/delete/")
-
-        assert edit.status_code == 200
-        assert edit.json()["approved"] is False
-        assert delete.status_code == 204
-        line.refresh_from_db()
-        assert (line.quantity, line.approved) == (Decimal("3.000"), False)
-
-    def test_an_office_change_to_an_approved_entry_takes_the_approval_off(
-        self, client: Client, job: Job, workshop_staff: Staff
-    ) -> None:
-        line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
-
-        response = client.patch(
-            f"/api/job/cost_lines/{line.id}/",
-            data={"quantity": "5.000"},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200
-        assert response.json()["approved"] is False
+    """A worker's change to approved material leaves it approved; only time is about pay."""
 
     def test_a_workers_change_leaves_approved_material_approved(
         self, job: Job, workshop_staff: Staff
@@ -1480,32 +1014,3 @@ def test_cost_lines_use_creation_order_with_uuid_ties(client: Client, job: Job, 
     assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
         str(line.id) for line in expected
     ]
-
-
-def _while_locking_jobs(monkeypatch: pytest.MonkeyPatch, change: Callable[[], None]) -> None:
-    """Run ``change`` the first time the entry service locks jobs, as another writer would."""
-    real = lock_costing_jobs
-    done: list[bool] = []
-
-    def lock_then_change(job_ids: Iterable[UUID]) -> None:
-        real(job_ids)
-        if not done:
-            done.append(True)
-            change()
-
-    monkeypatch.setattr(workshop_timesheet_service, "lock_costing_jobs", lock_then_change)
-
-
-def _hand_to(line_id: str, person: Staff) -> None:
-    """Make the entry another person's, behind the service's back."""
-    line = CostLine.objects.get(id=line_id)
-    CostLine.objects.filter(id=line_id).update(
-        staff=person, meta={**line.meta, "staff_id": str(person.id)}
-    )
-
-
-def _move_to(line_id: str, destination: Job) -> None:
-    """Put the entry on another job, behind the service's back."""
-    CostLine.objects.filter(id=line_id).update(
-        cost_set=CostSet.objects.get(job=destination, kind="actual")
-    )

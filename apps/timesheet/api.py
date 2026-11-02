@@ -44,7 +44,7 @@ from ninja.responses import Status
 from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
@@ -444,6 +444,8 @@ def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCrea
         data["end_time"] = payload.end_time
     if payload.bill_rate_multiplier is not None:
         data["bill_rate_multiplier"] = payload.bill_rate_multiplier
+    if payload.labour_subtype_id is not None:
+        data["labour_subtype_id"] = payload.labour_subtype_id
     return data
 
 
@@ -469,6 +471,8 @@ def job_workshop_timesheets_create(
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, gettext("Job not found.")) from exc
+    except LabourSubtype.DoesNotExist as exc:
+        raise HttpError(404, gettext("Labour type not found.")) from exc
     except DjangoValidationError as exc:
         # Unpriceable entry (no wage rate, no pay item, no labour rate): the
         # caller's data is wrong, so 400 with the specific cause (ADR 0038).
@@ -478,7 +482,9 @@ def job_workshop_timesheets_create(
     return Status(201, entry)
 
 
-def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEntryUpdateData:
+def _update_payload(  # noqa: C901 -- one copy per optional field, each the same two lines
+    payload: WorkshopTimesheetEntryUpdateRequest,
+) -> WorkshopEntryUpdateData:
     """Translate the validated PATCH request into the service's partial payload."""
     provided = payload.model_fields_set
     data: WorkshopEntryUpdateData = {"entry_id": payload.entry_id}
@@ -500,6 +506,8 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
         data["wage_rate_multiplier"] = payload.wage_rate_multiplier
     if "bill_rate_multiplier" in provided:
         data["bill_rate_multiplier"] = payload.bill_rate_multiplier
+    if "labour_subtype_id" in provided:
+        data["labour_subtype_id"] = payload.labour_subtype_id
     return data
 
 
@@ -526,6 +534,8 @@ def job_workshop_timesheets_partial_update(
         raise HttpError(404, gettext("Timesheet entry not found.")) from exc
     except Job.DoesNotExist as exc:
         raise HttpError(404, gettext("Job not found.")) from exc
+    except LabourSubtype.DoesNotExist as exc:
+        raise HttpError(404, gettext("Labour type not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:

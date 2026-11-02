@@ -954,7 +954,7 @@ def job_cost_lines_partial_update(
     if line.cost_set.kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, gettext("Only office staff can modify non-actual cost lines"))
     try:
-        updated = job_service.update_cost_line(line, _costline_patch_data(payload), staff)
+        updated = job_service.update_cost_line(line, _costline_patch_data(payload))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     except DjangoValidationError as exc:

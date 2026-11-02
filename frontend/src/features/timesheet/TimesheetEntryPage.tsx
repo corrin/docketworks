@@ -289,7 +289,6 @@ function EntryWorkspace({
           entries={entries}
           jobs={jobs}
           payItems={payItems}
-          staffId={staff.id}
           date={date}
           staffWageRate={Number(staff.wageRate)}
           payBasis={staff.pay_basis}

@@ -15925,6 +15925,12 @@ components:
           format: uuid
           title: Job Id
           type: string
+        labour_subtype_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Labour Subtype Id
         location:
           anyOf:
           - $ref: '#/components/schemas/EntryLocationIn'
@@ -16001,6 +16007,10 @@ components:
         job_id:
           format: uuid
           title: Job Id
+          type: string
+        labour_subtype_id:
+          format: uuid
+          title: Labour Subtype Id
           type: string
         location:
           anyOf:

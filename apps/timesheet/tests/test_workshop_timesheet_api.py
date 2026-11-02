@@ -17,7 +17,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job
+from apps.job.models import Job, JobLabourRate, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.tests.conftest import (
@@ -861,3 +861,50 @@ class TestOfficeActsForAWorker:
 
         assert response.status_code == 403
         assert not CostLine.objects.filter(staff=other_worker).exists()
+
+
+class TestOfficeLabourSubtype:
+    """The office grid picks the labour on an entry; a worker's phone never does.
+
+    Guards _create_payload and _update_payload carrying ``labour_subtype_id``
+    into the entry writer, the office grid's one route to it.
+    """
+
+    def test_office_books_a_worker_on_another_labour_subtype(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        rate = JobLabourRate.objects.get(job=job, labour_subtype=onsite)
+        rate.charge_out_rate = Decimal("150.00")
+        rate.save()
+
+        entry = _create(
+            authenticated_client(office_staff),
+            job,
+            staff_id=str(worker.id),
+            labour_subtype_id=str(onsite.id),
+        )
+
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.labour_subtype_id == onsite.id
+        assert line.unit_rev == Decimal("150.00")
+
+    def test_office_changes_an_entrys_labour_subtype(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        """The new labour reprices the entry on its rate; the worker's wage still costs it."""
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, approved=False)
+
+        response = authenticated_client(office_staff).patch(
+            URL,
+            data={"entry_id": str(line.id), "labour_subtype_id": str(onsite.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        line.refresh_from_db()
+        assert line.labour_subtype_id == onsite.id
+        assert (line.unit_cost, line.unit_rev) == (Decimal("48.00"), Decimal("165.00"))
+        assert line.meta["charge_out_rate"] == 165.0

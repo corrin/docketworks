@@ -10,7 +10,6 @@ import {
   jobWorkshopTimesheetsPartialUpdateMutation,
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
-  timesheetsApprovalsRetrieveQueryKey,
   timesheetsMyDayBreaksCreateMutation,
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
@@ -28,6 +27,7 @@ import type {
   WorkshopTimesheetEntryUpdateRequest,
 } from '@/api'
 import { formatHoursDisplay } from '@/lib/format'
+import { invalidateEntryViews } from './useTimesheetEntries'
 
 // Short enough that a phone with no signal does not leave the Save button
 // looking dead.
@@ -168,14 +168,7 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
   const updateMutation = useMutation(jobWorkshopTimesheetsPartialUpdateMutation())
   const deleteMutation = useMutation(jobWorkshopTimesheetsDestroyMutation())
 
-  // Fable: Entries carry an accounting_date, so a write can move one off this
-  // day — every settle invalidates the whole surface (the optionless key
-  // partially matches every date's key) rather than only this day's. Approve
-  // time reads the same entries, so it is refreshed with them.
-  const invalidateDays = () => {
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
-  }
+  const invalidateDays = () => void invalidateEntryViews(queryClient)
 
   /** True on success; the caller closes the drawer only then. */
   const createEntry = async (body: WorkshopTimesheetEntryRequest): Promise<boolean> => {
@@ -241,8 +234,7 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
   const generalWorkMutation = useMutation(timesheetsMyDayGeneralWorkMutation())
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
   }
 
   const clock = async (action: 'in' | 'out'): Promise<boolean> => {
@@ -341,8 +333,7 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
       return false
     }
     toast.success(done)
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
     return true
   }
 
@@ -403,7 +394,7 @@ export function useSubmitDay(sendLocation: boolean) {
       return false
     }
     toast.success(t('myDay.sent'))
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
     return true
   }
 

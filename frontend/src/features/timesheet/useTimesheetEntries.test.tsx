@@ -5,10 +5,11 @@ import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import type {
-  CostLineUpdateRequest,
   TimesheetCostLineOut,
   TimesheetEntriesOut,
   TimesheetJobOut,
+  WorkshopTimesheetEntryOut,
+  WorkshopTimesheetEntryUpdateRequest,
 } from '@/api'
 import { jobTimesheetEntriesRetrieveQueryKey } from '@/api'
 import { server } from '@/test/msw'
@@ -16,6 +17,7 @@ import { useTimesheetEntries, type TimesheetCreateBody } from './useTimesheetEnt
 
 const STAFF_ID = 'staff-1'
 const DATE = '2026-08-10'
+const ENTRIES = '*/api/job/workshop/timesheets/'
 
 function makeLine(overrides: Partial<TimesheetCostLineOut> = {}): TimesheetCostLineOut {
   return {
@@ -125,17 +127,36 @@ function cachedLines(hook: ReturnType<typeof setup>): TimesheetCostLineOut[] {
 }
 
 const createBody: TimesheetCreateBody = {
-  desc: 'Welding',
-  quantity: '3.5',
+  description: 'Welding',
+  hours: 3.5,
   accounting_date: DATE,
-  meta: {
-    staff_id: STAFF_ID,
-    date: DATE,
+  is_billable: true,
+  wage_rate_multiplier: 1,
+  bill_rate_multiplier: 1.5,
+}
+
+/** What the entry endpoints answer: an entry, with no prices. */
+function entryOut(line: TimesheetCostLineOut): WorkshopTimesheetEntryOut {
+  return {
+    id: line.id,
+    job_id: line.job_id,
+    job_number: line.job_number,
+    job_name: line.job_name,
+    company_name: line.company_name ?? '',
+    description: line.desc ?? '',
+    hours: Number(line.quantity),
+    accounting_date: line.accounting_date,
+    start_time: null,
+    end_time: null,
     is_billable: true,
     wage_rate_multiplier: 1,
-    bill_rate_multiplier: 1.5,
-    created_from_timesheet: true,
-  },
+    bill_rate_multiplier: 1,
+    approved: line.approved,
+    entered_late: false,
+    remote_entry: false,
+    created_at: line.created_at,
+    updated_at: line.updated_at,
+  }
 }
 
 describe('useTimesheetEntries', () => {
@@ -150,34 +171,33 @@ describe('useTimesheetEntries', () => {
     const second = new Promise<void>((resolve) => {
       releaseSecond = resolve
     })
-    const requests: CostLineUpdateRequest[] = []
+    const requests: WorkshopTimesheetEntryUpdateRequest[] = []
     server.use(
-      http.patch<Record<string, string>, CostLineUpdateRequest>(
-        '*/api/job/cost_lines/line-1/',
+      http.patch<Record<string, string>, WorkshopTimesheetEntryUpdateRequest>(
+        ENTRIES,
         async ({ request }) => {
           const body = await request.json()
           requests.push(body)
           if (requests.length === 1) await first
           if (requests.length === 2) await second
-          const saved = makeLine({ meta: body.meta })
+          const meta = { ...hook.serverLines[0]!.meta }
+          if (body.wage_rate_multiplier !== undefined)
+            meta.wage_rate_multiplier = Number(body.wage_rate_multiplier)
+          if (body.bill_rate_multiplier !== undefined)
+            meta.bill_rate_multiplier = Number(body.bill_rate_multiplier)
+          const saved = makeLine({ meta })
           hook.serverLines[0] = saved
-          return HttpResponse.json(saved)
+          return HttpResponse.json(entryOut(saved))
         },
       ),
     )
     try {
-      hook.result.current.patchLine('line-1', {
-        meta: { ...makeLine().meta, wage_rate_multiplier: 1.5 },
-      })
-      hook.result.current.patchLine('line-1', {
-        meta: { ...makeLine().meta, wage_rate_multiplier: 2 },
-      })
+      hook.result.current.patchLine(makeLine(), { wage_rate_multiplier: 1.5 })
+      hook.result.current.patchLine(makeLine(), { wage_rate_multiplier: 2 })
       await act(async () => releaseFirst())
       await waitFor(() => expect(requests).toHaveLength(2))
       expect(cachedLines(hook)[0]!.meta.wage_rate_multiplier).toBe(2)
-      hook.result.current.patchLine('line-1', {
-        meta: { ...cachedLines(hook)[0]!.meta, bill_rate_multiplier: 1.5 },
-      })
+      hook.result.current.patchLine(cachedLines(hook)[0]!, { bill_rate_multiplier: 1.5 })
       await act(async () => releaseSecond())
       await waitFor(() => expect(hook.queryClient.isMutating()).toBe(0))
       expect(requests).toHaveLength(3)
@@ -196,14 +216,23 @@ describe('useTimesheetEntries', () => {
     expect(cachedLines(hook)).toHaveLength(1)
   })
 
-  it('createLine inserts the response enriched with the picked job', async () => {
+  it('createLine books the entry for the person on the grid and shows the priced line', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
+    let sentBody: unknown = null
     server.use(
-      http.post('*/api/job/jobs/job-2/cost_sets/actual/cost_lines/', () => {
-        hook.serverLines.push(makeLine({ id: 'line-2', entry_seq: 2, job_number: 202 }))
-        return HttpResponse.json({ ...bareLine, id: 'line-2', entry_seq: 2 }, { status: 201 })
+      http.post(ENTRIES, async ({ request }) => {
+        sentBody = await request.json()
+        const saved = makeLine({
+          id: 'line-2',
+          entry_seq: 2,
+          job_id: job.id,
+          job_number: 202,
+          job_name: 'Emergency gate',
+          unit_rev: '180.00',
+        })
+        hook.serverLines.push(saved)
+        return HttpResponse.json(entryOut(saved), { status: 201 })
       }),
     )
     const created: TimesheetCostLineOut[] = []
@@ -215,38 +244,29 @@ describe('useTimesheetEntries', () => {
     })
     await waitFor(() => expect(created).toHaveLength(1))
     expect(created[0]!.job_number).toBe(202)
-    expect(created[0]!.job_name).toBe('Emergency gate')
-    expect(cachedLines(hook).some((line) => line.id === 'line-2')).toBe(true)
+    expect(created[0]!.unit_rev).toBe('180.00')
+    expect(sentBody).toMatchObject({ job_id: 'job-2', staff_id: STAFF_ID, hours: 3.5 })
+    expect(cachedLines(hook).filter((line) => line.id === 'line-2')).toHaveLength(1)
   })
 
-  it('patchLine applies optimistically and merges the repriced echo', async () => {
+  it('patchLine applies optimistically and the read after it brings the prices', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
     server.use(
-      http.patch('*/api/job/cost_lines/line-1/', () => {
+      http.patch(ENTRIES, () => {
         hook.serverLines[0] = makeLine({
           quantity: '4.000',
           unit_cost: '96.00',
           xero_pay_item: 'pay-double',
           total_cost: 384,
         })
-        return HttpResponse.json({
-          ...bareLine,
-          quantity: '4.000',
-          unit_cost: '96.00',
-          xero_pay_item: 'pay-double',
-          total_cost: 384,
-        })
+        return HttpResponse.json(entryOut(hook.serverLines[0]))
       }),
     )
-    hook.result.current.patchLine('line-1', {
-      quantity: '4',
-      meta: { ...makeLine().meta, wage_rate_multiplier: 2 },
-    })
+    hook.result.current.patchLine(makeLine(), { hours: 4, wage_rate_multiplier: 2 })
     // Optimistic value first.
     expect(cachedLines(hook)[0]!.quantity).toBe('4')
-    // Echo merge: server pricing outputs land, job identity survives.
+    // The read after the save: server pricing outputs land, job identity survives.
     await waitFor(() => expect(cachedLines(hook)[0]!.xero_pay_item).toBe('pay-double'))
     expect(cachedLines(hook)[0]!.total_cost).toBe(384)
     expect(cachedLines(hook)[0]!.job_number).toBe(101)
@@ -255,10 +275,9 @@ describe('useTimesheetEntries', () => {
   it('moveLine shows the picked job at once and keeps it through the repriced echo', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
     let sentBody: unknown = null
     server.use(
-      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+      http.patch(ENTRIES, async ({ request }) => {
         sentBody = await request.json()
         hook.serverLines[0] = makeLine({
           job_id: job.id,
@@ -267,27 +286,25 @@ describe('useTimesheetEntries', () => {
           unit_rev: '200.00',
           total_rev: 400,
         })
-        return HttpResponse.json({ ...bareLine, unit_rev: '200.00', total_rev: 400 })
+        return HttpResponse.json(entryOut(hook.serverLines[0]))
       }),
     )
     hook.result.current.moveLine('line-1', job)
     // Optimistic: the row already reads as the destination's.
     expect(cachedLines(hook)[0]!.job_number).toBe(202)
-    // Echo merge: the destination's price lands and the job identity survives
-    // an echo that carries none.
+    // The read after the save: the destination's price lands.
     await waitFor(() => expect(cachedLines(hook)[0]!.total_rev).toBe(400))
     expect(cachedLines(hook)[0]!.job_number).toBe(202)
     expect(cachedLines(hook)[0]!.job_name).toBe('Emergency gate')
-    expect(sentBody).toEqual({ job_id: 'job-2' })
+    expect(sentBody).toEqual({ entry_id: 'line-1', job_id: 'job-2' })
   })
 
   it('two moves on one row reach the server in order and the row ends on the second', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
     const sent: string[] = []
     server.use(
-      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+      http.patch(ENTRIES, async ({ request }) => {
         const body: unknown = await request.json()
         const jobId =
           typeof body === 'object' && body !== null && 'job_id' in body ? String(body.job_id) : ''
@@ -298,7 +315,7 @@ describe('useTimesheetEntries', () => {
           job_id: jobId,
           job_number: jobId === 'job-2' ? 202 : 303,
         })
-        return HttpResponse.json(bareLine)
+        return HttpResponse.json(entryOut(hook.serverLines[0]))
       }),
     )
     const third: TimesheetJobOut = { ...job, id: 'job-3', job_number: 303, name: 'Third' }
@@ -313,7 +330,7 @@ describe('useTimesheetEntries', () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
     server.use(
-      http.patch('*/api/job/cost_lines/line-1/', () =>
+      http.patch(ENTRIES, () =>
         HttpResponse.json(
           { detail: 'Job has no labour rate for subtype Workshop.' },
           { status: 400 },
@@ -329,12 +346,8 @@ describe('useTimesheetEntries', () => {
   it('a failed patch rolls back only its own fields and toasts', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    server.use(
-      http.patch('*/api/job/cost_lines/line-1/', () =>
-        HttpResponse.json({ detail: 'no' }, { status: 400 }),
-      ),
-    )
-    hook.result.current.patchLine('line-1', { desc: 'rejected description' })
+    server.use(http.patch(ENTRIES, () => HttpResponse.json({ detail: 'no' }, { status: 400 })))
+    hook.result.current.patchLine(makeLine(), { description: 'rejected description' })
     expect(cachedLines(hook)[0]!.desc).toBe('rejected description')
     await waitFor(() => expect(cachedLines(hook)[0]!.desc).toBe('Cutting'))
   })
@@ -342,11 +355,7 @@ describe('useTimesheetEntries', () => {
   it('a failed delete reinserts only its line', async () => {
     const hook = setup([makeLine(), makeLine({ id: 'line-2', entry_seq: 2 })])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
-    server.use(
-      http.delete('*/api/job/cost_lines/line-1/delete/', () =>
-        HttpResponse.json({ detail: 'no' }, { status: 400 }),
-      ),
-    )
+    server.use(http.delete(ENTRIES, () => HttpResponse.json({ detail: 'no' }, { status: 400 })))
     hook.result.current.deleteLine('line-1')
     expect(cachedLines(hook).map((line) => line.id)).toEqual(['line-2'])
     await waitFor(() =>

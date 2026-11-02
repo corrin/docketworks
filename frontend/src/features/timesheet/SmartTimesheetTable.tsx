@@ -10,12 +10,7 @@ import {
 import { Check, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type {
-  CostLineUpdateRequest,
-  TimesheetCostLineOut,
-  TimesheetJobOut,
-  XeroPayItemOut,
-} from '@/api'
+import type { TimesheetCostLineOut, TimesheetJobOut, XeroPayItemOut } from '@/api'
 import { formatCurrency } from '@/lib/format'
 import { i18n } from '@/lib/i18n'
 import { DataTable } from '@/features/shared/DataTable'
@@ -34,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { rateForSubtype, subtypeName } from './labourRates'
-import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
+import { lineBillMultiplier, lineIsBillable, lineWageMultiplier } from './lineMeta'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
 import {
   applyJobPick,
@@ -43,7 +38,7 @@ import {
   emptyTimesheetDraft,
   type TimesheetDraft,
 } from './timesheetDraft'
-import type { TimesheetCreateBody } from './useTimesheetEntries'
+import type { TimesheetCreateBody, TimesheetEntryEdit } from './useTimesheetEntries'
 
 // A typed search caps at 15 because this grid lists every active job; the
 // blank-search list stays uncapped so the whole workload is still browsable.
@@ -62,13 +57,12 @@ export interface SmartTimesheetTableProps {
   entries: readonly TimesheetCostLineOut[]
   jobs: readonly TimesheetJobOut[]
   payItems: readonly XeroPayItemOut[]
-  staffId: string
   date: string
   /** The staff member's loaded hourly rate (drafts price hours × this). */
   staffWageRate: number
   /** How the staff member is paid; salaried rows do not offer rate editing. */
   payBasis: string | null
-  patchLine: (lineId: string, body: CostLineUpdateRequest) => void
+  patchLine: (line: TimesheetCostLineOut, edit: TimesheetEntryEdit) => void
   moveLine: (lineId: string, job: TimesheetJobOut) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
@@ -330,12 +324,7 @@ function HoursCell({ row, table }: CellProps) {
     // Blank or not hours keeps what the row had.
     if (typed === null || typed === hours) return
     if (gridRow.type === 'server') {
-      // Sending meta alongside quantity routes the write through the server
-      // rate pipeline (created_from_timesheet repricing).
-      context.patchLine(gridRow.line.id, {
-        quantity: String(typed),
-        meta: gridRow.line.meta,
-      })
+      context.patchLine(gridRow.line, { hours: typed })
     } else {
       context.updateDraft(gridRow.localId, { hours: typed })
     }
@@ -367,7 +356,7 @@ function DescriptionCell({ row, table }: CellProps) {
     serverValue,
     (value) => {
       if (gridRow.type === 'server') {
-        context.patchLine(gridRow.line.id, { desc: orNull(value) })
+        context.patchLine(gridRow.line, { description: orNull(value) })
       } else {
         context.updateDraft(gridRow.localId, { description: value })
       }
@@ -434,7 +423,7 @@ function LabourTypeCell({ row, table }: CellProps) {
       onValueChange={(value) => {
         if (gridRow.type === 'server') {
           // labour_subtype alone: the backend pulls stored meta and reprices.
-          context.patchLine(gridRow.line.id, { labour_subtype: value })
+          context.patchLine(gridRow.line, { labour_subtype_id: value })
         } else {
           context.updateDraft(gridRow.localId, { labour_subtype: value })
         }
@@ -490,9 +479,7 @@ function RateCell({ row, table }: CellProps) {
         // the urgent 1.5x default or flip a shop job billable (a 422);
         // applyJobPick alone owns the bill defaults.
         if (gridRow.type === 'server') {
-          context.patchLine(gridRow.line.id, {
-            meta: { ...lineMeta(gridRow.line), wage_rate_multiplier: picked },
-          })
+          context.patchLine(gridRow.line, { wage_rate_multiplier: picked })
         } else {
           context.updateDraft(gridRow.localId, { wage_rate_multiplier: picked })
         }
@@ -546,12 +533,9 @@ function BillRateCell({ row, table }: CellProps) {
       gridCol="billRate"
       onPick={(picked) => {
         if (gridRow.type === 'server') {
-          context.patchLine(gridRow.line.id, {
-            meta: {
-              ...lineMeta(gridRow.line),
-              bill_rate_multiplier: picked,
-              is_billable: picked > 0,
-            },
+          context.patchLine(gridRow.line, {
+            bill_rate_multiplier: picked,
+            is_billable: picked > 0,
           })
         } else {
           context.updateDraft(gridRow.localId, {
@@ -707,7 +691,6 @@ export function SmartTimesheetTable({
   entries,
   jobs,
   payItems,
-  staffId,
   date,
   staffWageRate,
   payBasis,
@@ -730,18 +713,13 @@ export function SmartTimesheetTable({
       createLine(
         draft.job,
         {
-          desc: orNull(draft.description),
-          quantity: String(draft.hours),
+          description: orNull(draft.description),
+          hours: draft.hours,
           accounting_date: date,
-          meta: {
-            staff_id: staffId,
-            date,
-            is_billable: draft.is_billable,
-            wage_rate_multiplier: draft.wage_rate_multiplier,
-            bill_rate_multiplier: draft.bill_rate_multiplier,
-            created_from_timesheet: true,
-          },
-          labour_subtype: draft.labour_subtype ?? undefined,
+          is_billable: draft.is_billable,
+          wage_rate_multiplier: draft.wage_rate_multiplier,
+          bill_rate_multiplier: draft.bill_rate_multiplier,
+          labour_subtype_id: draft.labour_subtype,
         },
         { onCreated: () => callbacks.onCreated(), onFailed: callbacks.onFailed },
       )

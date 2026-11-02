@@ -1,5 +1,5 @@
 /** Shared setup for the timesheet-entry cluster (one implementation per concept). */
-import type { Browser, Page } from '@playwright/test'
+import type { Browser, Page, Response } from '@playwright/test'
 import { shiftDate } from '../../../src/lib/dates'
 import {
   getJobLabourRates,
@@ -107,6 +107,14 @@ export async function selectJobByNumber(
   const option = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-option-${jobNumber}`)
   await option.waitFor({ timeout: 10000 })
   await option.click()
+}
+
+/** Every screen writes a person's time through this one endpoint. */
+export const ENTRY_WRITES = '/api/job/workshop/timesheets/'
+
+/** Whether a response is an entry write of the given method. */
+export function isEntryWrite(response: Response, method: 'POST' | 'PATCH' | 'DELETE'): boolean {
+  return new URL(response.url()).pathname === ENTRY_WRITES && response.request().method() === method
 }
 
 /** Type hours into row N and press Enter (the immediate-create gesture). */

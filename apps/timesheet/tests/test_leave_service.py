@@ -216,7 +216,7 @@ def test_generic_cost_line_writes_refuse_managed_leave(
     line = CostLine.objects.get(managed_by="leave")
 
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
-        job_service.update_cost_line(line, {"quantity": Decimal("4")}, superuser)
+        job_service.update_cost_line(line, {"quantity": Decimal("4")})
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
         job_service.delete_cost_line(line, superuser)
 

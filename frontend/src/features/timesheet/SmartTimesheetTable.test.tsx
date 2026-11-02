@@ -130,7 +130,6 @@ async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
       entries={[]}
       jobs={[normalJob, urgentJob]}
       payItems={payItems}
-      staffId={STAFF_ID}
       date={DATE}
       staffWageRate={48}
       payBasis={null}
@@ -232,7 +231,7 @@ describe('creating an entry', () => {
     await waitFor(() => expect(autoId('SmartTimesheetTable-hours-0')).toHaveFocus())
   })
 
-  it('Enter in hours creates with the exact meta contract', async () => {
+  it('Enter in hours creates with the exact entry contract', async () => {
     const user = userEvent.setup()
     const handles = await renderTable()
     await pickJob(user, 0, 101)
@@ -241,14 +240,14 @@ describe('creating an entry', () => {
     expect(handles.createLine).toHaveBeenCalledTimes(1)
     const [job, body] = handles.createLine.mock.calls[0]!
     expect(job.id).toBe('job-1')
-    expect(body.quantity).toBe('2')
-    expect(body.meta).toEqual({
-      staff_id: STAFF_ID,
-      date: DATE,
+    expect(body).toEqual({
+      description: null,
+      hours: 2,
+      accounting_date: DATE,
       is_billable: true,
       wage_rate_multiplier: 1,
       bill_rate_multiplier: 1,
-      created_from_timesheet: true,
+      labour_subtype_id: null,
     })
   })
 
@@ -268,9 +267,9 @@ describe('creating an entry', () => {
     await user.click(autoId('SmartTimesheetTable-hours-0'))
     await user.keyboard('2{Enter}')
     const [, body] = handles.createLine.mock.calls[0]!
-    expect(body.meta.wage_rate_multiplier).toBe(1.0)
-    expect(body.meta.bill_rate_multiplier).toBe(1.5)
-    expect(body.meta.is_billable).toBe(true)
+    expect(body.wage_rate_multiplier).toBe(1.0)
+    expect(body.bill_rate_multiplier).toBe(1.5)
+    expect(body.is_billable).toBe(true)
   })
 
   it('Tab from hours defers the create until description commits', async () => {
@@ -287,8 +286,8 @@ describe('creating an entry', () => {
     await user.tab()
     await waitFor(() => expect(handles.createLine).toHaveBeenCalledTimes(1))
     const [, body] = handles.createLine.mock.calls[0]!
-    expect(body.desc).toBe('Cutting')
-    expect(body.quantity).toBe('2')
+    expect(body.description).toBe('Cutting')
+    expect(body.hours).toBe(2)
   })
 
   it('the next phantom picker is disabled while the create is in flight, and focus lands in the new phantom after it settles', async () => {
@@ -326,19 +325,17 @@ describe('saved-row edits', () => {
     await user.click(autoId('SmartTimesheetTable-description-0'))
     await user.keyboard('{Control>}a{/Control}new words{Enter}')
     await waitFor(() => expect(handles.patchLine).toHaveBeenCalledTimes(1))
-    expect(handles.patchLine.mock.calls[0]![0]).toBe('line-1')
-    expect(handles.patchLine.mock.calls[0]![1]).toEqual({ desc: 'new words' })
+    expect(handles.patchLine.mock.calls[0]![0].id).toBe('line-1')
+    expect(handles.patchLine.mock.calls[0]![1]).toEqual({ description: 'new words' })
   })
 
-  it('an hours edit patches quantity plus meta (the reprice trigger)', async () => {
+  it('an hours edit sends only the hours, read as typed', async () => {
     const user = userEvent.setup()
     const handles = await renderTable({ entries: [makeLine()] })
     await user.click(autoId('SmartTimesheetTable-hours-0'))
-    await user.keyboard('4{Enter}')
+    await user.keyboard('4h{Enter}')
     await waitFor(() => expect(handles.patchLine).toHaveBeenCalledTimes(1))
-    const [, body] = handles.patchLine.mock.calls[0]!
-    expect(body.quantity).toBe('4')
-    expect(body.meta).toMatchObject({ created_from_timesheet: true })
+    expect(handles.patchLine.mock.calls[0]![1]).toEqual({ hours: 4 })
   })
 
   it('approve and delete buttons drive their handles', async () => {

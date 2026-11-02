@@ -1,8 +1,9 @@
-"""Every timesheet entry write leaves a TimesheetEvent, on both paths.
+"""Every timesheet entry write leaves a TimesheetEvent, whoever makes it.
 
-The office grid edits any staff member's time through the generic cost-line
-services; workshop staff edit their own through the self-service PATCH. Each
-test names the write site whose record call a plausible edit would drop.
+Workshop staff enter their own time through the entry endpoint and the office
+anyone's, naming ``staff_id``; the job's cost grid still deletes an entry
+through the generic cost-line service. Each test names the write site whose
+record call a plausible edit would drop.
 """
 
 from datetime import date, timedelta
@@ -22,7 +23,7 @@ from apps.job.models.costing import CostLine
 from apps.job.services import job_service
 from apps.job.services.job_service import CostLineWriteData
 from apps.timesheet.models import TimesheetEvent
-from apps.timesheet.tests.conftest import WEEK_START
+from apps.timesheet.tests.conftest import WEEK_START, authenticated_client
 
 pytestmark = [
     pytest.mark.django_db,
@@ -183,14 +184,17 @@ class TestWorkshopPath:
 
 
 class TestOfficePath:
-    """``job_service``: create_cost_line, update_cost_line, delete_cost_line."""
+    """The office enters time through the entry endpoint naming ``staff_id``; the job's cost
+    grid deletes it through ``job_service.delete_cost_line``."""
 
     def test_creating_records_entry_created_by_the_office_actor(
         self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        line = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
+        line_id = _workshop_create(
+            authenticated_client(office_staff), job, staff_id=str(worker.id), hours="2.00"
+        )
 
-        (event,) = _events(line.id)
+        (event,) = _events(line_id)
         assert event.event_type == "entry_created"
         assert event.staff == office_staff
         assert event.worker == worker
@@ -201,11 +205,15 @@ class TestOfficePath:
     def test_editing_records_entry_updated(
         self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        line = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
+        office = authenticated_client(office_staff)
+        line_id = _workshop_create(office, job, staff_id=str(worker.id), hours="2.00")
 
-        job_service.update_cost_line(line, {"quantity": Decimal("3.000")}, office_staff)
+        response = office.patch(
+            URL, data={"entry_id": line_id, "hours": "3.00"}, content_type="application/json"
+        )
 
-        *_, updated = _events(line.id)
+        assert response.status_code == 200, response.content
+        *_, updated = _events(line_id)
         assert updated.event_type == "entry_updated"
         assert updated.staff == office_staff
         # The 2h were placed from 07:00, around the 08:30 break; the finish follows the hours.
@@ -216,28 +224,31 @@ class TestOfficePath:
     def test_deleting_records_entry_deleted(
         self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        line = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
+        """Guards job_service.delete_cost_line handing an entry to the entry writer."""
+        line_id = _workshop_create(authenticated_client(office_staff), job, staff_id=str(worker.id))
 
-        job_service.delete_cost_line(line, office_staff)
+        job_service.delete_cost_line(CostLine.objects.get(id=line_id), office_staff)
 
-        *_, deleted = _events(line.id)
+        *_, deleted = _events(line_id)
         assert deleted.event_type == "entry_deleted"
         assert deleted.delta_after is None
 
     def test_a_write_that_carries_no_location_is_untrusted_unless_the_office_made_it(
-        self, job: Job, worker: Staff, office_staff: Staff
+        self, worker_client: Client, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        """The grid sends no position: a worker reaching it from home must not read as here."""
+        """A save with no position: a worker saving from home must not read as here."""
         company = CompanyDefaults.get_solo()
         company.latitude = Decimal("-36.850000")
         company.longitude = Decimal("174.760000")
         company.save(update_fields=["latitude", "longitude"])
-        theirs = job_service.create_cost_line(job, "actual", _office_data(worker), worker)
-        job_service.update_cost_line(theirs, {"quantity": Decimal("3.000")}, worker)
-        office = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
+        theirs = _workshop_create(worker_client, job)
+        worker_client.patch(
+            URL, data={"entry_id": theirs, "hours": "3.00"}, content_type="application/json"
+        )
+        office = _workshop_create(authenticated_client(office_staff), job, staff_id=str(worker.id))
 
-        assert [event.trusted for event in _events(theirs.id)] == [False, False]
-        assert [event.trusted for event in _events(office.id)] == [True]
+        assert [event.trusted for event in _events(theirs)] == [False, False]
+        assert [event.trusted for event in _events(office)] == [True]
 
     def test_a_material_line_records_nothing(self, job: Job, office_staff: Staff) -> None:
         data: CostLineWriteData = {
@@ -251,7 +262,7 @@ class TestOfficePath:
             "meta": {},
         }
         line = job_service.create_cost_line(job, "actual", data, office_staff)
-        job_service.update_cost_line(line, {"quantity": Decimal("2.000")}, office_staff)
+        job_service.update_cost_line(line, {"quantity": Decimal("2.000")})
         job_service.delete_cost_line(line, office_staff)
 
         assert _events(line.id) == []

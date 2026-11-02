@@ -38,7 +38,6 @@ from apps.core.models import CompanyDefaults
 from apps.core.tests.concurrency import await_database_lock, start_database_task
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineWriteData, create_cost_line
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import (
     approval,
@@ -1131,31 +1130,6 @@ class TestStaffChanges:
         assert approval.approve_day(office_staff, DAY, office_staff) == 1
         assert approval.approve_day(worker, DAY, office_staff) == 1
         assert (_line(own).approved, _line(for_worker).approved) == (True, True)
-
-    def test_n5_a_grid_time_row_the_office_enters_waits_and_its_material_does_not(
-        self, office_staff: Staff, worker: Staff, job: Job
-    ) -> None:
-        """The office entry grid is entering too; material approval is a stock matter.
-
-        Guards job_service.create_cost_line (approved=).
-        """
-        data: CostLineWriteData = {
-            "kind": "time",
-            "desc": None,
-            "quantity": Decimal("2"),
-            "accounting_date": DAY,
-            "ext_refs": {},
-            "meta": {
-                "created_from_timesheet": True,
-                "staff_id": str(worker.id),
-                "date": DAY.isoformat(),
-                "is_billable": True,
-                "wage_rate_multiplier": 1.0,
-            },
-        }
-        line = create_cost_line(job, "actual", data, office_staff)
-
-        assert line.approved is False
 
     def test_n5_the_breaks_the_office_puts_on_with_clock_times_wait_too(
         self, office_staff: Staff, worker: Staff

@@ -661,6 +661,8 @@ class WorkshopTimesheetEntryRequest(Schema):
     is_billable: bool = True
     wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
     bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    # The office grid's pick of labour; None takes the person's default.
+    labour_subtype_id: UUID | None = None
     # Whose time it is, when office staff enter it for someone else; None is
     # the caller's own.
     staff_id: UUID | None = None
@@ -688,6 +690,7 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
     bill_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
         omittable(MULTIPLIER_MIN)
     )
+    labour_subtype_id: UUID = omittable(UUID(int=0))
     # Where the save came from, not a change to the entry: it never counts as
     # the "one field besides entry_id" an update needs.
     location: EntryLocationIn | None = None

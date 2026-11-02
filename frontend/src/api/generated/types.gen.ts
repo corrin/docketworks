@@ -14132,6 +14132,10 @@ export type WorkshopTimesheetEntryRequest = {
      * Job Id
      */
     job_id: string;
+    /**
+     * Labour Subtype Id
+     */
+    labour_subtype_id?: string | null;
     location?: EntryLocationIn | null;
     /**
      * Staff Id
@@ -14187,6 +14191,10 @@ export type WorkshopTimesheetEntryUpdateRequest = {
      * Job Id
      */
     job_id?: string;
+    /**
+     * Labour Subtype Id
+     */
+    labour_subtype_id?: string;
     location?: EntryLocationIn | null;
     /**
      * Start Time

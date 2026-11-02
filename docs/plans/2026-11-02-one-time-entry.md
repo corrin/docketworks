@@ -32,21 +32,26 @@ Keep the three screens. They serve different people at different moments: the of
 worker fixing one entry on a phone, and a worker filling the day after clock-out. Make each screen a thin
 layout over **one set of entry parts and one write path**.
 
-1. **One hours field.** Add `HoursInput` in `features/timesheet/`. It is a text input (`inputMode="decimal"`) that parses
+1. **One hours field.** *(Done 2026-11-02.)* Add `HoursInput` in `features/timesheet/`. It is a text input (`inputMode="decimal"`) that parses
    with `parseHoursInput` and shows `formatHoursDisplay`. It replaces the grid's cell input, the drawer's
    field and the fill sheet's field. `parseHoursInput` gains a blank → `null` mode for the drawer and fill
    sheet, which need "not sized yet" rather than a fallback. Delete the now-false comment at `myTime.ts:5-7`.
 2. **One hours rule.** It lives in the writer, `create_entry`/`update_entry`, and is not split across `lay_out_rows` and
    the client clamp (see decision 2).
-3. **One write API.** The grid moves to `/job/workshop/timesheets/`:
+3. **One write API.** *(Done 2026-11-02.)* The grid moves to `/job/workshop/timesheets/`:
    - `WorkshopTimesheetEntryRequest` gains `labour_subtype` and `bill_rate_multiplier`, which only the grid sends.
    - Delete `job_service._create_timesheet_entry` / `_update_timesheet_entry`, the `created_from_timesheet` routing in
      `create_cost_line` / `update_cost_line` / `delete_cost_line`, and `TimesheetCreateBody`. Actual time
      on the cost-line endpoints is then refused outright, which closes the unmarked-line hole as well.
    - Regenerate the client.
-4. **One write hook.** Merge `useTimesheetEntries`' writes and `useWorkshopEntryWrites` into one hook. It
-   keeps the grid's per-day serialisation and optimistic update, and invalidates both key families plus
-   `invalidateJobViews`. This also closes the 412-after-grid-edit gap noted in `job/invalidateJobViews.ts:18`.
+4. **One write path, one refresh.** The grid's hook (`useTimesheetEntries`) and the drawer's
+   (`useWorkshopEntryWrites`) call the same three entry endpoints, and every write of a person's time
+   (grid, drawer, clocking, breaks, send the day) refreshes the same views through one
+   `invalidateEntryViews`. The two hooks stay two: the grid is optimistic because its focus moves on, the
+   drawer is a modal that waits. The entry endpoints answer with an entry, not a priced line, so a new
+   grid row is read back from the day (one extra read per office create; not a hot path). *(Done
+   2026-11-02. Correction: this does NOT close the 412-after-grid-edit gap in `job/invalidateJobViews.ts:18`;
+   that stays the backlog's server-side `_set_job_etag` item.)*
 5. **One copy of each rule:**
    - Rate options: `rateOptionsFor`. The grid adds "unpaid" through a parameter.
    - Bills its time: one `billsItsTime`.
