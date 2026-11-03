@@ -168,33 +168,26 @@ export function jobChangeFields(
   return { job_id: jobId }
 }
 
-/** The pay rates a workshop entry can be booked at; 1 is ordinary time. */
+/** The pay rates an entry can be booked at; 1 is ordinary time. */
 const STANDARD_MULTIPLIERS = [1, 1.5, 2] as const
 
-type RateOption = { label: string; multiplier: number }
-
-/** The standard rates as the select labels them: "Ord", "1.5", "2.0". */
-function standardRateOptions(): RateOption[] {
-  return STANDARD_MULTIPLIERS.map((multiplier) => ({
-    label: multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : multiplier.toFixed(1),
-    multiplier,
-  }))
-}
+export type RateOption = { label: string; multiplier: number }
 
 /**
- * The rates the select offers for an entry: the three standard ones, plus the
- * entry's stored rate when it is none of them (set from the office grid), so
- * the stored rate stays selectable for as long as the drawer is open.
+ * The one list of rates a rate select offers: the three standard ones, then
+ * unpaid (0) where the office grid offers it, then the entry's stored rate
+ * when it is none of these. The stored rate stays selectable while the select
+ * is open.
  */
-export function rateOptionsFor(storedMultiplier: number | null): readonly RateOption[] {
-  const standard = standardRateOptions()
-  if (
-    storedMultiplier === null ||
-    standard.some((option) => option.multiplier === storedMultiplier)
-  ) {
-    return standard
+export function rateOptionsFor(
+  storedMultiplier: number | null,
+  { unpaid }: { unpaid: boolean },
+): readonly RateOption[] {
+  const multipliers: number[] = [...STANDARD_MULTIPLIERS, ...(unpaid ? [0] : [])]
+  if (storedMultiplier !== null && !multipliers.includes(storedMultiplier)) {
+    multipliers.push(storedMultiplier)
   }
-  return [...standard, { label: rateLabel(storedMultiplier), multiplier: storedMultiplier }]
+  return multipliers.map((multiplier) => ({ label: rateLabel(multiplier), multiplier }))
 }
 
 /**
@@ -276,9 +269,11 @@ export function distinctJobCount(entries: WorkshopTimesheetEntryOut[]): number {
   return new Set(entries.map((entry) => entry.job_id)).size
 }
 
-/** A rate multiplier as the workshop reads it: "Ord", "1.5x", "2x". */
+/** A rate multiplier as every screen reads it: "Ord", "1.5x", "2x", "Unpaid". */
 export function rateLabel(multiplier: number): string {
-  return multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : `${multiplier}x`
+  if (multiplier === 1) return i18n.t('timesheet:rates.ordinary')
+  if (multiplier === 0) return i18n.t('timesheet:rates.unpaid')
+  return `${multiplier}x`
 }
 
 /** A start/end pair of "HH:mm" time-input values. */

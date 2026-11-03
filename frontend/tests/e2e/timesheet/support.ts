@@ -55,6 +55,7 @@ export const BOOKING_WEEKS = {
   fillDayOvertimeIphone: 18,
   createTimesheetEntry: 19,
   approveTimeWaitingWeek: 20,
+  officeGridOvertime: 21,
 } as const
 
 const weeksTaken = Object.values(BOOKING_WEEKS)

@@ -159,7 +159,7 @@ test.describe.serial('xero pay item validation', () => {
     )
   })
 
-  test('changing the rate to 2.0x maps to the double-time pay item', async ({
+  test('changing the rate to 2x maps to the double-time pay item', async ({
     authenticatedPage: page,
   }) => {
     await openEntryViaDaily(page, date)
@@ -181,7 +181,7 @@ test.describe.serial('xero pay item validation', () => {
     const patch = page.waitForResponse((response) => isEntryWrite(response, 'PATCH'), {
       timeout: 15000,
     })
-    await page.getByRole('option', { name: '2.0x' }).click()
+    await page.getByRole('option', { name: '2x' }).click()
     expect((await patch).ok()).toBe(true)
 
     const payItem = autoId(page, `SmartTimesheetTable-payItem-${rowIndex}`)

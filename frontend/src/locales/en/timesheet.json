@@ -39,7 +39,8 @@
     "clockedOut": "Clocked out. {{span}}{{here}}"
   },
   "rates": {
-    "ordinary": "Ord"
+    "ordinary": "Ord",
+    "unpaid": "Unpaid"
   },
   "calendar": {
     "eventTitle": "#{{number}} {{name}} ({{hours}})"
@@ -380,12 +381,6 @@
     }
   },
   "grid": {
-    "rates": {
-      "ordinary": "Ord",
-      "timeAndAHalf": "1.5x",
-      "double": "2.0x",
-      "unpaid": "Unpaid"
-    },
     "jobNumber": "#{{number}}",
     "jobForRow": "Job for row {{row}}",
     "selectJob": "Select job…",
@@ -472,6 +467,8 @@
     "overtime": {
       "title": "This takes you past your usual day",
       "body": "{{hours}} of this is past your usual day, so it will be overtime, at time and a half.",
+      "titleFor": "This takes {{name}} past their usual day",
+      "bodyFor": "{{hours}} of this is past {{name}}'s usual day, so it will be overtime, at time and a half.",
       "save": "Save with overtime"
     },
     "bookOwnTime": "Book your own time for {{date}}.",

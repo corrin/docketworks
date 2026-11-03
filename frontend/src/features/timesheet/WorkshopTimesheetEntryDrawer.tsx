@@ -48,8 +48,8 @@ import {
   type EntryFormValues,
   type TimeRange,
 } from './myTime'
-import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
+import { ORDINARY_RATE, useOvertimeAsk } from './useOvertimeAsk'
 
 export type EntryDrawerState =
   | { mode: 'closed' }
@@ -221,7 +221,9 @@ function WorkshopEntryForm({
   const sourceJob = entry === null ? null : (jobs.find((job) => job.id === entry.job_id) ?? null)
   const canBill = selected === null || billsItsTime(selected)
   const billable = shownBillable({ entry, sourceJob, selectedJob: selected, billableChoice })
-  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier)
+  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier, {
+    unpaid: false,
+  })
   const otherEntries = dayEntries.filter((other) => other.id !== entry?.id)
   const gap = start === '' ? null : fillGapToNextEntry(start, otherEntries, dayEnd)
 
@@ -257,8 +259,10 @@ function WorkshopEntryForm({
   // render, so a double-click could otherwise book the entry twice.
   const inFlightRef = useRef(false)
 
-  // Set while he is asked whether the hours past his usual day are overtime.
-  const [overtimeAsk, setOvertimeAsk] = useState<OvertimeAsk | null>(null)
+  const overtime = useOvertimeAsk({
+    confirmLabel: t('entryDrawer.overtime.save'),
+    automationPrefix: 'WorkshopTimesheetEntryDrawer',
+  })
 
   /** The three values as they will be saved, and how many of the hours a new
       entry puts past his usual day: the server's answer is waited for rather
@@ -307,9 +311,8 @@ function WorkshopEntryForm({
     if (resolved === null) return
     // The hours past his usual day are time and a half unless he chose a rate:
     // he is told before a new entry saves them (owner, 2026-10-24).
-    if (entry === null && resolved.overtimeHours > 0 && rateMultiplier === ORDINARY_RATE) {
-      setOvertimeAsk(resolved)
-      return
+    if (entry === null && rateMultiplier === ORDINARY_RATE) {
+      if (!(await overtime.ask(resolved.overtimeHours))) return
     }
     await save(resolved.times)
   }
@@ -625,24 +628,10 @@ function WorkshopEntryForm({
         </div>
       </DrawerFooter>
 
-      <OvertimeAskDialog
-        overtimeHours={overtimeAsk?.overtimeHours ?? null}
-        confirmLabel={t('entryDrawer.overtime.save')}
-        automationPrefix="WorkshopTimesheetEntryDrawer"
-        onCancel={() => setOvertimeAsk(null)}
-        onConfirm={() => {
-          if (overtimeAsk === null) return
-          const { times } = overtimeAsk
-          setOvertimeAsk(null)
-          void save(times)
-        }}
-      />
+      {overtime.dialog}
     </>
   )
 }
-
-/** The ordinary pay rate: hours past his usual day default away from it. */
-const ORDINARY_RATE = 1
 
 type EntryTimes = Pick<EntryFormValues, 'hours' | 'start' | 'end'>
 

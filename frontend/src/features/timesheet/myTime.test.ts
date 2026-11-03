@@ -206,15 +206,21 @@ describe('resolveSelectedJob', () => {
 
 describe('rateOptionsFor', () => {
   it('offers the three standard rates', () => {
-    expect(rateOptionsFor(null).map((option) => option.label)).toEqual(['Ord', '1.5', '2.0'])
-    expect(rateOptionsFor(1.5)).toHaveLength(3)
+    expect(rateOptionsFor(null, { unpaid: false }).map((option) => option.label)).toEqual([
+      'Ord',
+      '1.5x',
+      '2x',
+    ])
+    expect(rateOptionsFor(1.5, { unpaid: false })).toHaveLength(3)
   })
 
   it("keeps an entry's non-standard stored rate on offer whatever is selected now", () => {
     // Built from the stored rate, not the select's current value: otherwise
     // the option vanished the moment the user tried another rate.
-    expect(rateOptionsFor(1.25).map((option) => option.multiplier)).toEqual([1, 1.5, 2, 1.25])
-    expect(rateOptionsFor(1.25).at(-1)?.label).toBe('1.25x')
+    expect(rateOptionsFor(1.25, { unpaid: false }).map((option) => option.multiplier)).toEqual([
+      1, 1.5, 2, 1.25,
+    ])
+    expect(rateOptionsFor(1.25, { unpaid: false }).at(-1)?.label).toBe('1.25x')
   })
 })
 

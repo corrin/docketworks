@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
+  apiErrorMessage,
   jobTimesheetEntriesRetrieveQueryKey,
   timesheetsJobsRetrieveOptions,
   timesheetsStaffRetrieveOptions,
@@ -25,6 +27,7 @@ import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 import { lineIsBillable } from './lineMeta'
 import { SmartTimesheetTable } from './SmartTimesheetTable'
 import { TimesheetHistoryDialog } from './TimesheetHistoryDialog'
+import { ORDINARY_RATE, useOvertimeAsk } from './useOvertimeAsk'
 import { useTimesheetEntries } from './useTimesheetEntries'
 
 export interface TimesheetEntrySearch {
@@ -136,6 +139,26 @@ function EntryWorkspace({
   const queryClient = useQueryClient()
   const { entriesQuery, patchLine, moveLine, createLine, deleteLine, approveLine } =
     useTimesheetEntries(staff.id, date)
+  const overtime = useOvertimeAsk({
+    confirmLabel: t('entryDrawer.overtime.save'),
+    automationPrefix: 'TimesheetEntryPage',
+    whose: staff.firstName,
+  })
+  // A new row at the ordinary rate is asked about as the drawer asks: the
+  // question is the same whoever enters the time (owner, 2026-11-02).
+  const createAsking: typeof createLine = (job, body, callbacks) => {
+    const asked =
+      body.wage_rate_multiplier === ORDINARY_RATE
+        ? overtime.askFor({ date, hours: body.hours, staff_id: staff.id, job_id: job.id })
+        : Promise.resolve(true)
+    asked.then(
+      (save) => (save ? createLine(job, body, callbacks) : callbacks.onCancelled()),
+      (error: unknown) => {
+        toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
+        callbacks.onFailed()
+      },
+    )
+  }
   const [historyOpen, setHistoryOpen] = useState(false)
 
   const staffIndex = staffList.findIndex((member) => member.id === staff.id)
@@ -294,7 +317,7 @@ function EntryWorkspace({
           payBasis={staff.pay_basis}
           patchLine={patchLine}
           moveLine={moveLine}
-          createLine={createLine}
+          createLine={createAsking}
           deleteLine={deleteLine}
           approveLine={approveLine}
         />
@@ -309,6 +332,8 @@ function EntryWorkspace({
         <BreakdownTile label={t('entryPage.billable')} value={String(billableCount)} />
         <BreakdownTile label={t('entryPage.nonBillable')} value={String(nonBillableCount)} />
       </div>
+
+      {overtime.dialog}
 
       <TimesheetHistoryDialog
         staffId={staff.id}

@@ -1,14 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import {
-  apiErrorMessage,
-  timesheetsJobsRetrieveOptions,
-  timesheetsMyDayPlacementOptions,
-} from '@/api'
+import { apiErrorMessage, timesheetsJobsRetrieveOptions } from '@/api'
 import type { FillOut, FillRowIn, TimesheetJobOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,8 +22,8 @@ import { JobPicker } from '@/features/shared/JobPicker'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { fillAfterRows, fillWords, jobsInOrder, type FillSheetRow } from './myTime'
-import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
+import { useOvertimeAsk } from './useOvertimeAsk'
 
 const QUARTER_HOUR = 0.25
 /** One-tap lengths; anything else is a tap or two on the stepper. */
@@ -70,28 +66,23 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   const change = (key: number, patch: Partial<FillSheetRow>) =>
     setRows(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))
 
-  const queryClient = useQueryClient()
-  // Set while he is asked whether the hours past his usual day are overtime.
-  const [overtimeHours, setOvertimeHours] = useState<number | null>(null)
+  const overtime = useOvertimeAsk({
+    confirmLabel: t('fillDay.sendWithOvertime'),
+    automationPrefix: 'FillDaySheet',
+  })
 
   /** Send, but first tell him how many of his ordinary hours run past his usual day. */
   const askThenSend = async () => {
     const ordinary = rows.reduce((sum, row) => sum + (row.timeAndAHalf ? 0 : (row.hours ?? 0)), 0)
     if (ordinary > 0) {
-      let past: number
+      let save: boolean
       try {
-        const placed = await queryClient.fetchQuery(
-          timesheetsMyDayPlacementOptions({ query: { date, hours: ordinary } }),
-        )
-        past = placed.overtime_hours
+        save = await overtime.askFor({ date, hours: ordinary })
       } catch (error) {
         toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
         return
       }
-      if (past > 0) {
-        setOvertimeHours(past)
-        return
-      }
+      if (!save) return
     }
     await send()
   }
@@ -307,16 +298,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
           </div>
         </DrawerContent>
       </Drawer>
-      <OvertimeAskDialog
-        overtimeHours={overtimeHours}
-        confirmLabel={t('fillDay.sendWithOvertime')}
-        automationPrefix="FillDaySheet"
-        onCancel={() => setOvertimeHours(null)}
-        onConfirm={() => {
-          setOvertimeHours(null)
-          void send()
-        }}
-      />
+      {overtime.dialog}
     </>
   )
 }

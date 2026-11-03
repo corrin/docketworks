@@ -38,7 +38,12 @@ import {
   emptyTimesheetDraft,
   type TimesheetDraft,
 } from './timesheetDraft'
-import type { TimesheetCreateBody, TimesheetEntryEdit } from './useTimesheetEntries'
+import { rateOptionsFor } from './myTime'
+import type {
+  CreateEntryCallbacks,
+  TimesheetCreateBody,
+  TimesheetEntryEdit,
+} from './useTimesheetEntries'
 
 // A typed search caps at 15 because this grid lists every active job; the
 // blank-search list stays uncapped so the whole workload is still browsable.
@@ -47,11 +52,6 @@ const TYPED_SEARCH_LIMIT = 15
 type TimesheetGridRow =
   | { type: 'server'; line: TimesheetCostLineOut }
   | { type: 'draft'; localId: string; draft: TimesheetDraft }
-
-interface CreateEntryCallbacks {
-  onCreated: (line: TimesheetCostLineOut) => void
-  onFailed: () => void
-}
 
 export interface SmartTimesheetTableProps {
   entries: readonly TimesheetCostLineOut[]
@@ -113,27 +113,6 @@ function jobForRow(
 
 // ── Rate select options ──────────────────────────────────────────────────
 
-/** `label` is the option's catalogue key under grid.rates. */
-const RATE_OPTIONS = [
-  { value: '1', label: 'ordinary', multiplier: 1.0 },
-  { value: '1.5', label: 'timeAndAHalf', multiplier: 1.5 },
-  { value: '2', label: 'double', multiplier: 2.0 },
-  { value: '0', label: 'unpaid', multiplier: 0.0 },
-] as const
-
-function rateValue(multiplier: number): string {
-  const option = RATE_OPTIONS.find(
-    (candidate) => Math.abs(candidate.multiplier - multiplier) < 0.01,
-  )
-  return option?.value ?? '1'
-}
-
-function rateMultiplier(value: string): number {
-  const option = RATE_OPTIONS.find((candidate) => candidate.value === value)
-  if (!option) throw new Error(`Unknown rate option ${value}`)
-  return option.multiplier
-}
-
 function RateSelect({
   automationId,
   multiplier,
@@ -151,12 +130,11 @@ function RateSelect({
   gridCol: string
   onPick: (multiplier: number) => void
 }) {
-  const { t } = useTranslation('timesheet')
   return (
     <Select
-      value={rateValue(multiplier)}
+      value={String(multiplier)}
       disabled={disabled}
-      onValueChange={(value) => onPick(rateMultiplier(value))}
+      onValueChange={(value) => onPick(Number(value))}
     >
       <SelectTrigger
         size="sm"
@@ -169,9 +147,9 @@ function RateSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {RATE_OPTIONS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {t(`grid.rates.${option.label}`)}
+        {rateOptionsFor(multiplier, { unpaid: true }).map((option) => (
+          <SelectItem key={option.multiplier} value={String(option.multiplier)}>
+            {option.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -721,7 +699,11 @@ export function SmartTimesheetTable({
           bill_rate_multiplier: draft.bill_rate_multiplier,
           labour_subtype_id: draft.labour_subtype,
         },
-        { onCreated: () => callbacks.onCreated(), onFailed: callbacks.onFailed },
+        {
+          onCreated: () => callbacks.onCreated(),
+          onFailed: callbacks.onFailed,
+          onCancelled: callbacks.onCancelled,
+        },
       )
     },
     onCreated: () => setFocusPhantomToken((token) => token + 1),

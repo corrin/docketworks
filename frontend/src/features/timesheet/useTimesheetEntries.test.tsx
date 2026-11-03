@@ -241,6 +241,9 @@ describe('useTimesheetEntries', () => {
       onFailed: () => {
         throw new Error('unexpected failure')
       },
+      onCancelled: () => {
+        throw new Error('unexpected cancel')
+      },
     })
     await waitFor(() => expect(created).toHaveLength(1))
     expect(created[0]!.job_number).toBe(202)

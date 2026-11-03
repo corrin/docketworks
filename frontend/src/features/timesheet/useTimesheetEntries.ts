@@ -23,9 +23,11 @@ export type TimesheetCreateBody = Omit<WorkshopTimesheetEntryRequest, 'job_id' |
 /** An edit to a saved entry, whichever field the grid changed. */
 export type TimesheetEntryEdit = Omit<WorkshopTimesheetEntryUpdateRequest, 'entry_id' | 'location'>
 
-interface CreateEntryCallbacks {
+export interface CreateEntryCallbacks {
   onCreated: (line: TimesheetCostLineOut) => void
   onFailed: () => void
+  /** The save was stopped (he cancelled the overtime question): the draft stays as typed. */
+  onCancelled: () => void
 }
 
 /** The queries that show a person's entries, by their generated names. */
