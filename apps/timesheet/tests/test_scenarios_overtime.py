@@ -369,6 +369,7 @@ def test_E7_the_fill_sheet_row_that_crosses_eight_is_split(worker: Staff, job: J
 
     day_submission.submit_day(
         worker,
+        worker,
         DAY,
         [
             {"job_id": job.id, "hours": Decimal("3"), "description": None, "time_and_a_half": False}
@@ -399,6 +400,7 @@ def test_E8_a_fill_row_ticked_time_and_a_half_is_that_rate_whatever_the_total(
     _clock(worker, "07:00", "15:00")
 
     day_submission.submit_day(
+        worker,
         worker,
         DAY,
         [{"job_id": job.id, "hours": Decimal("2"), "description": None, "time_and_a_half": True}],
@@ -874,6 +876,7 @@ def test_P6_ticked_time_and_a_half_rows_count_toward_the_eight(worker: Staff, jo
 
     day_submission.submit_day(
         worker,
+        worker,
         DAY,
         [
             {
@@ -986,6 +989,7 @@ def test_P10_a_weekend_he_forgot_to_tick_stays_ordinary(worker: Staff, job: Job)
     _clock(worker, "07:00", "16:00", day=SATURDAY)
 
     day_submission.submit_day(
+        worker,
         worker,
         SATURDAY,
         [{"job_id": job.id, "hours": Decimal("8"), "description": None, "time_and_a_half": False}],

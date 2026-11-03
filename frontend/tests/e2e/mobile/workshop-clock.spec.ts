@@ -102,7 +102,8 @@ test.describe('workshop clocking on a phone', () => {
 
     await test.step('another day names the day left open, and leads back to it', async () => {
       await page.goto(`/timesheets/my-time?date=${shiftDate(day, 1)}`)
-      await expect(autoId(page, 'DayCard-pending')).toContainText('is still clocked in')
+      // Left clocked in, it ends at the standard finish when sent: it is just unsent.
+      await expect(autoId(page, 'DayCard-pending')).toContainText('has not been sent.')
       await autoId(page, 'DayCard-pending-open').tap()
       await expect(page).toHaveURL(new RegExp(`date=${day}`))
       await expect(state).toHaveText('At work since 06:30')
@@ -132,7 +133,7 @@ test.describe('workshop clocking on a phone', () => {
     })
   })
 
-  test('a day nobody clocked falls back to the standard hours, and says so', async ({
+  test('a day nobody clocked is the standard day, filled and sent with no times set first', async ({
     authenticatedPage: page,
   }, testInfo) => {
     // Its own past weekday, further back than the days the tests above clock.
@@ -148,24 +149,21 @@ test.describe('workshop clocking on a phone', () => {
     await expect(autoId(page, 'DayCard-state')).toHaveText('Not clocked in')
     await expect(autoId(page, 'DayCard-fill')).toHaveText(`Standard hours ${hours}`)
 
-    // He cannot go back and clock in, so one tap takes the standard day and
-    // goes straight to filling it.
+    // He did not clock, so the defaults stand in (owner, 2026-11-03): the sheet
+    // opens on the standard day and its breaks, with nothing written yet.
     await autoId(page, 'DayCard-fill-and-send').tap()
     await expect(autoId(page, 'FillDaySheet-sum')).toContainText('to fill, 30m breaks, 0h entered')
-    await expect(autoId(page, 'DayCard-state')).toContainText(`Clocked out. ${hours}`)
-    // He is told what the office is told.
-    await expect(autoId(page, 'DayCard-cautions')).toHaveText(
-      'Did not clock in · Did not clock out',
-    )
+    await expect(autoId(page, 'DayCard-state')).toHaveText('Not clocked in')
 
     // Sent, so this day is not left as the earliest unsent one for the tests
     // of the open-day banner on the other phone project.
     await autoId(page, 'FillDaySheet-send').tap()
     await expect(page.getByText('Day sent to the office.')).toBeVisible()
     await expect(autoId(page, 'DayCard-state')).toContainText('Sent, waiting for approval')
+    await expect(autoId(page, 'DayCard-state')).toContainText(hours)
   })
 
-  test('today is clocked in and out with a tap, each judged by where the phone is', async ({
+  test('today is clocked in and out with a tap, wherever the phone is', async ({
     authenticatedPage: page,
     context,
     playwright,
@@ -176,7 +174,6 @@ test.describe('workshop clocking on a phone', () => {
     )
     const baseURL = z.string().parse(testInfo.project.use.baseURL)
     const state = autoId(page, 'DayCard-state')
-    const cautions = autoId(page, 'DayCard-cautions')
 
     await withCompanyAddress(
       playwright.chromium,
@@ -193,8 +190,6 @@ test.describe('workshop clocking on a phone', () => {
         await autoId(page, 'DayCard-clock-in').tap()
         await expect(page.getByText('Clocked in.')).toBeVisible()
         await expect(state).toHaveText(/^At work since \d{2}:\d{2}$/)
-        // He is told what the office is told.
-        await expect(cautions).toHaveText('Clocked in away from the workshop')
         await expect(autoId(page, 'DayCard-clock-out')).toBeVisible()
 
         // A tap out in the same minute as the tap in is refused (the finish
@@ -205,14 +200,11 @@ test.describe('workshop clocking on a phone', () => {
         await autoId(page, 'DayCard-start').fill('00:00')
         await autoId(page, 'DayCard-times-save').tap()
         await expect(state).toHaveText('At work since 00:00')
-        await expect(cautions).toHaveText('Did not clock in')
 
         await context.setGeolocation(atTheWorkshop)
         await autoId(page, 'DayCard-clock-out').tap()
         await expect(page.getByText('Clocked out.', { exact: true })).toBeVisible()
         await expect(state).toHaveText(/^Clocked out\. 00:00 to \d{2}:\d{2}, here /)
-        // A tap at the workshop reads plain.
-        await expect(cautions).toHaveText('Did not clock in')
         await expect(autoId(page, 'DayCard-clock-in')).toHaveCount(0)
         await attachScreenshot(page, testInfo, 'clocked-in-away')
       },

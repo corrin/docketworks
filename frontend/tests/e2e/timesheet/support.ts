@@ -56,6 +56,7 @@ export const BOOKING_WEEKS = {
   createTimesheetEntry: 19,
   approveTimeWaitingWeek: 20,
   officeGridOvertime: 21,
+  myTimeInsideBreak: 22,
 } as const
 
 const weeksTaken = Object.values(BOOKING_WEEKS)
@@ -264,32 +265,6 @@ export async function asSuperuser<T>(
 
 /** Hours no other seed uses, so a waiting figure can only be this line. */
 export const WORKER_HOURS = 1.25
-
-/**
- * Send a day as the workshop login, as the worker does from My time. A day the
- * office set the times of is his to send; left unsent, My time names it ahead
- * of any later day a phone spec opens.
- */
-export async function sendDayAsWorkshopUser(
-  browser: Browser,
-  baseURL: string,
-  date: string,
-): Promise<void> {
-  const context = await browser.newContext({ baseURL })
-  try {
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('workshop')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    const response = await page.request.post('/api/timesheets/my-day/submit/', {
-      data: { date, rows: [] },
-    })
-    if (!response.ok()) {
-      throw new Error(`Sending ${date} failed: ${response.status()} ${await response.text()}`)
-    }
-  } finally {
-    await context.close()
-  }
-}
 
 /**
  * Book time as the workshop login would, in its own browser context: who

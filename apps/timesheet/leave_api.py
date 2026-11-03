@@ -129,10 +129,10 @@ def update_request(
     operation_id="timesheets_leave_requests_delete",
     response={204: None},
 )
-def delete_request(request: HttpRequest, request_id: UUID) -> Status[None]:  # noqa: ARG001
+def delete_request(request: HttpRequest, request_id: UUID) -> Status[None]:
     """Cancel leave and remove its daily payroll lines."""
     try:
-        leave_service.delete_leave_request(request_id)
+        leave_service.delete_leave_request(request_id, authenticated_staff(request))
     except LeaveRequest.DoesNotExist as exc:
         raise HttpError(404, gettext("Leave request not found.")) from exc
     return Status(204, None)

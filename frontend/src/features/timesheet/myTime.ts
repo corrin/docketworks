@@ -45,7 +45,7 @@ export interface MyTimeCalendarEvent {
  * the calendar block, the untimed list and the drawer cannot disagree.
  */
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
-  return [approvalWord(entry.approved), ...cautionMarks(entry).map((mark) => mark.label)]
+  return [approvalWord(entry.approved)]
 }
 
 /** Whether the office has approved it yet, in the worker's words. */
@@ -61,34 +61,17 @@ export interface CautionMark {
 }
 
 /**
- * The marks that ask for a second look, on an entry or on a person's day:
- * the same words in both places.
+ * The marks that ask the office for a second look at a person's day. Who
+ * did what, when and from where is in the day's history, not here (owner,
+ * 2026-11-03: the audit log is the record).
  */
 export function cautionMarks(flags: {
-  entered_late: boolean
-  remote_entry: boolean
-  /** A person's day only: how it was clocked and sent, as the server words it. */
-  clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
-  /** A person's day only: the hours at overtime differ from the hours past the usual day. */
-  overtime_check?: boolean
+  /** The server's words: "Over by 1h", "Leave and work on the same day". */
+  cautions: string[]
+  /** The hours at overtime differ from the hours past the usual day. */
+  overtime_check: boolean
 }): CautionMark[] {
-  const marks: CautionMark[] = []
-  if (flags.clock !== undefined) marks.push(...flags.clock.cautions.map((label) => ({ label })))
-  if (flags.entered_late)
-    marks.push({
-      label: i18n.t('timesheet:marks.enteredLate'),
-      title: i18n.t('timesheet:marks.enteredLateTitle'),
-    })
-  if (flags.remote_entry)
-    marks.push({
-      label: i18n.t('timesheet:marks.remoteEntry'),
-      title: i18n.t('timesheet:marks.remoteEntryTitle'),
-    })
-  if (flags.clock?.sent_late)
-    marks.push({
-      label: i18n.t('timesheet:marks.sentLate'),
-      title: i18n.t('timesheet:marks.sentLateTitle'),
-    })
+  const marks: CautionMark[] = flags.cautions.map((label) => ({ label }))
   if (flags.overtime_check)
     marks.push({
       label: i18n.t('timesheet:marks.overtimeCheck'),
@@ -365,25 +348,6 @@ export function fillGapToNextEntry(
   const until = Math.min(...stops, dayEnd === null ? LAST_MINUTE_OF_DAY : requireMinutes(dayEnd))
   if (until <= from) return null
   return bookableRange(from, until)
-}
-
-/**
- * Whether start–end lies over time another entry already holds. It is
- * allowed, since two things at once does happen, and the drawer says so (owner,
- * 2026-10-21). Entries that only touch end to start do not overlap; a range
- * without both times has no place yet.
- */
-export function overlapsBooked(
-  start: string,
-  end: string,
-  entries: WorkshopTimesheetEntryOut[],
-): boolean {
-  const from = minutesOfDay(start)
-  const until = minutesOfDay(end)
-  if (from === null || until === null) return false
-  return splitDayEntries(entries).timed.some(
-    (entry) => requireMinutes(entry.start_time) < until && requireMinutes(entry.end_time) > from,
-  )
 }
 
 /** What the drawer's form holds when the user submits. */

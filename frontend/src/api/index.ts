@@ -391,7 +391,6 @@ export {
   timesheetsMyDayPlacementOptions,
   timesheetsMyDayClockMutation,
   timesheetsMyDayGeneralWorkMutation,
-  timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from './generated/@tanstack/react-query.gen'

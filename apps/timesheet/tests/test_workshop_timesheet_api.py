@@ -6,7 +6,7 @@ read and write only their OWN entries. Those rules are asserted here for every
 verb, alongside the pricing the entries pick up from the shared rate pipeline.
 """
 
-from datetime import datetime, time, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -264,51 +264,43 @@ class TestRequestValidation:
 
 
 class TestTimeConsistency:
-    """When both times are present they must agree with each other and with hours.
+    """The hours are what is paid; the times are only a reminder, fitted to hold them.
 
-    The calendar client derives ``hours`` from the start/end pair, but the wire
-    carries all three, so a direct caller could book "08:00-09:00, 8 hours" and
-    the payroll cost would silently disagree with the calendar block.
+    Nothing is refused for its times (owner, 2026-11-03): a finish that is
+    backwards, or too soon for the hours less the breaks between, moves to
+    where the hours end. ENTRY_DATE is unclocked, so its planned breaks are
+    08:30-08:45, 11:30-12:00 and 13:30-13:45.
+
+    Guards workshop_timesheet_service._fit_times.
     """
 
-    def test_end_at_or_before_start_is_rejected(self, worker_client: Client, job: Job) -> None:
-        payload: dict[str, object] = {
-            "job_id": str(job.id),
-            "accounting_date": ENTRY_DATE.isoformat(),
-            "hours": "4.00",
-            "start_time": "12:00:00",
-            "end_time": "08:00:00",
-        }
-        response = worker_client.post(URL, data=payload, content_type="application/json")
-
-        assert response.status_code == 400, response.content
-        assert "after" in response.json()["detail"]
-        assert not CostLine.objects.filter(cost_set__job=job).exists()
-
-    def test_hours_disagreeing_with_the_times_are_rejected(
+    def test_a_finish_before_the_start_moves_to_where_the_hours_end(
         self, worker_client: Client, job: Job
     ) -> None:
-        payload: dict[str, object] = {
-            "job_id": str(job.id),
-            "accounting_date": ENTRY_DATE.isoformat(),
-            "hours": "8.00",
-            "start_time": "08:00:00",
-            "end_time": "09:00:00",
-        }
-        response = worker_client.post(URL, data=payload, content_type="application/json")
+        body = _create(worker_client, job, hours="4.00", start_time="12:00:00", end_time="08:00:00")
 
-        assert response.status_code == 400, response.content
-        assert not CostLine.objects.filter(cost_set__job=job).exists()
+        assert (body["start_time"], body["end_time"]) == ("12:00:00", "16:15:00")
+
+    def test_a_finish_too_soon_for_the_hours_moves_past_the_breaks(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        body = _create(worker_client, job, hours="8.00", start_time="08:00:00", end_time="09:00:00")
+
+        assert body["hours"] == 8.0
+        assert (body["start_time"], body["end_time"]) == ("08:00:00", "17:00:00")
 
     def test_hours_matching_the_times_are_accepted(self, worker_client: Client, job: Job) -> None:
         body = _create(worker_client, job, hours="1.50", start_time="08:00:00", end_time="09:30:00")
 
         assert body["hours"] == 1.5
 
-    def test_times_without_hours_agreement_is_checked_on_patch(
+    def test_a_patched_finish_is_fitted_on_the_merged_entry(
         self, worker_client: Client, job: Job
     ) -> None:
-        """A PATCH is validated against the merged entry, not the patch alone."""
+        """A PATCH is fitted against the merged entry, not the patch alone.
+
+        Guards workshop_timesheet_service._redraw_finish.
+        """
         entry = _create(
             worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
         )
@@ -319,9 +311,10 @@ class TestTimeConsistency:
             content_type="application/json",
         )
 
-        assert response.status_code == 400, response.content
+        assert response.status_code == 200, response.content
         line = CostLine.objects.get(id=_entry_id(entry))
-        assert line.meta["end_time"] == "12:00:00"
+        # Four hours from eight, over the morning break and lunch.
+        assert (line.meta["start_time"], line.meta["end_time"]) == ("08:00:00", "12:45:00")
 
     def test_new_hours_redraw_the_finish_rather_than_being_refused_by_it(
         self, worker_client: Client, job: Job
@@ -640,32 +633,6 @@ class TestApprovalStatus:
         line.refresh_from_db()
         assert line.quantity == Decimal("5.000")
 
-    def test_an_entry_created_after_its_day_is_flagged_late(
-        self, worker_client: Client, job: Job, worker: Staff
-    ) -> None:
-        """Late is judged in local dates: 00:10 the next morning is still the day before in UTC."""
-        local = timezone.get_current_timezone()
-        on_the_day = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="1.000")
-        next_morning = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="2.000")
-        leave = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="3.000")
-        late_evening = datetime.combine(ENTRY_DATE, time(23, 30), tzinfo=local)
-        just_after_midnight = datetime.combine(
-            ENTRY_DATE + timedelta(days=1), time(0, 10), tzinfo=local
-        )
-        CostLine.objects.filter(pk=on_the_day.pk).update(created_at=late_evening)
-        CostLine.objects.filter(pk=next_morning.pk).update(created_at=just_after_midnight)
-        CostLine.objects.filter(pk=leave.pk).update(
-            created_at=just_after_midnight, managed_by="leave"
-        )
-
-        body = worker_client.get(f"{URL}?date={ENTRY_DATE.isoformat()}").json()
-
-        assert {entry["hours"]: entry["entered_late"] for entry in body["entries"]} == {
-            1.0: False,
-            2.0: True,
-            3.0: False,
-        }
-
     def test_the_week_splits_hours_into_approved_and_waiting(
         self, worker_client: Client, job: Job, worker: Staff, other_worker: Staff
     ) -> None:
@@ -710,28 +677,37 @@ def company_address() -> None:
     defaults.save(update_fields=["latitude", "longitude"])
 
 
-class TestRemoteEntry:
-    """`saved_remotely`: a worker's own save is marked unless it is placed at the workshop."""
+def _trust(entry_id: str) -> list[bool]:
+    """Whether each of the entry's events was made at the workshop, oldest first."""
+    events = TimesheetEvent.objects.filter(cost_line_id=entry_id).order_by("timestamp")
+    return [event.trusted for event in events]
+
+
+class TestWhereAnEntryWasSaved:
+    """`saved_remotely`: a worker's own save is untrusted unless it is placed at the workshop.
+
+    Guards workshop_timesheet_service._save_entry and update_entry, which record it.
+    """
 
     @pytest.mark.usefixtures("company_address")
-    def test_a_save_is_marked_unless_the_phone_is_at_the_company_address(
+    def test_a_save_is_untrusted_unless_the_phone_is_at_the_company_address(
         self, worker_client: Client, job: Job
     ) -> None:
         at_the_bench = _create(worker_client, job, location=ACROSS_THE_YARD)
         elsewhere = _create(worker_client, job, location=DOWN_THE_ROAD)
         no_location = _create(worker_client, job)
 
-        assert at_the_bench["remote_entry"] is False
-        assert elsewhere["remote_entry"] is True
-        assert no_location["remote_entry"] is True
+        assert _trust(_entry_id(at_the_bench)) == [True]
+        assert _trust(_entry_id(elsewhere)) == [False]
+        assert _trust(_entry_id(no_location)) == [False]
 
     @pytest.mark.usefixtures("company_address")
-    def test_office_staff_are_not_marked(self, office_staff: Staff, job: Job) -> None:
+    def test_office_staff_are_trusted(self, office_staff: Staff, job: Job) -> None:
         entry = _create(authenticated_client(office_staff), job)
 
-        assert entry["remote_entry"] is False
+        assert _trust(_entry_id(entry)) == [True]
 
-    def test_a_company_without_an_address_marks_nothing(
+    def test_a_company_without_an_address_trusts_everything(
         self, worker_client: Client, job: Job
     ) -> None:
         defaults = CompanyDefaults.get_solo()
@@ -741,27 +717,27 @@ class TestRemoteEntry:
 
         entry = _create(worker_client, job)
 
-        assert entry["remote_entry"] is False
+        assert _trust(_entry_id(entry)) == [True]
 
     @pytest.mark.usefixtures("company_address")
-    def test_an_edit_can_set_the_mark_but_never_clears_it(
+    def test_each_edit_is_judged_by_where_it_was_made(
         self, worker_client: Client, job: Job
     ) -> None:
         entry_id = _entry_id(_create(worker_client, job, location=ACROSS_THE_YARD))
 
-        def edit(description: str, **location: object) -> bool:
+        def edit(description: str, **location: object) -> None:
             response = worker_client.patch(
                 URL,
                 data={"entry_id": entry_id, "description": description, **location},
                 content_type="application/json",
             )
             assert response.status_code == 200, response.content
-            marked: bool = response.json()["remote_entry"]
-            return marked
 
-        assert edit("from the workshop", location=ACROSS_THE_YARD) is False
-        assert edit("from home") is True
-        assert edit("back at the workshop", location=ACROSS_THE_YARD) is True
+        edit("from the workshop", location=ACROSS_THE_YARD)
+        edit("from home")
+        edit("back at the workshop", location=ACROSS_THE_YARD)
+
+        assert _trust(entry_id) == [True, True, False, True]
 
 
 class TestOfficeActsForAWorker:
@@ -843,7 +819,6 @@ class TestOfficeActsForAWorker:
         assert line.meta["staff_id"] == str(worker.id)
         assert line.unit_cost == Decimal("48.00")
         assert line.approved is False
-        assert line.remote_entry is False
 
     def test_a_worker_cannot_enter_time_for_someone_else(
         self, worker_client: Client, job: Job, other_worker: Staff

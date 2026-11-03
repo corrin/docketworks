@@ -15,10 +15,9 @@ from django.db import transaction
 from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
-from apps.core.errors import ConflictError
+from apps.core.errors import AccessDeniedError
 from apps.job.models import Job
 from apps.job.services.job_service import bills_its_time
-from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
 from apps.timesheet.services.attendance import Window
 from apps.timesheet.services.location import EntryLocation, saved_remotely
@@ -92,7 +91,8 @@ def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list
 
 
 @transaction.atomic
-def submit_day(
+def submit_day(  # noqa: PLR0913, PLR0917 -- who sends, whose, which day, rows, where, when
+    actor: Staff,
     worker: Staff,
     day: date,
     rows: list[FillRow],
@@ -101,17 +101,19 @@ def submit_day(
 ) -> WorkshopDayData:
     """Save the worker's rows as entries and send the day to the office.
 
-    All or nothing: a row that cannot be saved leaves the day as it was and
-    unsent. Sending with hours still to go is allowed; attendance binds
-    nothing and the office sees the gap. ``location`` is where his phone says
+    He sends his own; the office sends anyone's, if he forgot (owner,
+    2026-11-03). Times he did not clock are the defaults. All or nothing: a
+    row that cannot be saved leaves the day as it was and unsent. Sending
+    with hours still to go is allowed; attendance binds nothing and the
+    office sees the gap. ``location`` is where his phone says
     it is, passed to every entry so each is judged, not assumed away.
     """
     # His lock first, as every write to his day takes it: a sweep of this day
     # waits here, or this send waits for the sweep and reads its entries.
+    if actor.id != worker.id and not actor.is_office_staff:
+        raise AccessDeniedError(gettext("Only office staff send another person's day."))
     Staff.objects.select_for_update().filter(pk=worker.pk).first()
-    row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=day).first()
-    if row is None or row.clock_out is None:
-        raise ConflictError(gettext("Clock out before you send the day."))
+    row = attendance.settle_day(worker, day, actor, location)
     entries, break_lines = attendance.split_breaks(day_time_lines(worker, day))
     begins = default_entry_start(day, row, entries, break_lines)
     breaks = attendance.break_windows(day, row, break_lines)
@@ -133,16 +135,16 @@ def submit_day(
         }
         if line["description"]:
             data["description"] = line["description"]
-        create_entry(worker, worker, data, location)
+        create_entry(actor, worker, data, location)
     row.submitted_at = now
     row.save(update_fields=["submitted_at", "updated_at"])
     record_day_event(
-        staff=worker,
+        staff=actor,
         worker=worker,
         day=day,
         event_type="day_sent",
         before=None,
         after=None,
-        trusted=not saved_remotely(worker, location),
+        trusted=not saved_remotely(actor, location),
     )
     return list_entries(worker, day)

@@ -6,7 +6,7 @@ through the generic cost-line service. Each test names the write site whose
 record call a plausible edit would drop.
 """
 
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest import mock
 from uuid import UUID, uuid4
@@ -23,6 +23,8 @@ from apps.job.models.costing import CostLine
 from apps.job.services import job_service
 from apps.job.services.job_service import CostLineWriteData
 from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.services import attendance, workshop_timesheet_service
+from apps.timesheet.tests import test_approval
 from apps.timesheet.tests.conftest import WEEK_START, authenticated_client
 
 pytestmark = [
@@ -32,6 +34,9 @@ pytestmark = [
 
 URL = "/api/job/workshop/timesheets/"
 ENTRY_DATE: date = WEEK_START
+
+#: The one General work fixture (ADR 0039), registered in this module by name.
+general_work = test_approval.general_work
 
 
 def _events(line_id: UUID | str) -> list[TimesheetEvent]:
@@ -249,6 +254,46 @@ class TestOfficePath:
 
         assert [event.trusted for event in _events(theirs)] == [False, False]
         assert [event.trusted for event in _events(office)] == [True]
+
+    @pytest.mark.usefixtures("break_job")
+    def test_lines_nobody_typed_are_trusted_wherever_he_was(
+        self, job: Job, worker: Staff, general_work: Job
+    ) -> None:
+        """Breaks and General work are made for him, not entered from anywhere.
+
+        Guards workshop_timesheet_service._save_entry and _delete_line: a line
+        with a source is trusted on create, and the General work rebuild's
+        delete is trusted, while his own entry from no location is not.
+        """
+        company = CompanyDefaults.get_solo()
+        company.latitude = Decimal("-36.850000")
+        company.longitude = Decimal("174.760000")
+        company.save(update_fields=["latitude", "longitude"])
+        attendance.set_clock_times(worker, ENTRY_DATE, time(7, 0), time(15, 0), worker)
+        workshop_timesheet_service.fill_with_general_work(worker, ENTRY_DATE, worker)
+        filled = set(
+            CostLine.objects.filter(staff=worker, cost_set__job=general_work).values_list(
+                "id", flat=True
+            )
+        )
+
+        entry = workshop_timesheet_service.create_entry(
+            worker,
+            worker,
+            {"job_id": job.id, "accounting_date": ENTRY_DATE, "hours": Decimal("1")},
+        )
+
+        made_for_him = TimesheetEvent.objects.filter(
+            worker=worker, event_type="entry_created"
+        ).exclude(cost_line_id=entry["id"])
+        assert made_for_him.count() > len(filled)
+        assert all(event.trusted for event in made_for_him)
+        rebuilt = TimesheetEvent.objects.filter(
+            event_type="entry_deleted", cost_line_id__in=list(filled)
+        )
+        assert rebuilt.count() == len(filled)
+        assert all(event.trusted for event in rebuilt)
+        assert [event.trusted for event in _events(entry["id"])] == [False]
 
     def test_a_material_line_records_nothing(self, job: Job, office_staff: Staff) -> None:
         data: CostLineWriteData = {

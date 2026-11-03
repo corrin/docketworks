@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 130,407 (v1 172,577, -24%) |
-| tests | 96,788 (v1 50,869, +90%) |
-| generated | 54,676 (v1 20,359, +169%) |
+| code | 130,128 (v1 172,577, -25%) |
+| tests | 96,778 (v1 50,869, +90%) |
+| generated | 54,611 (v1 20,359, +168%) |
 
 ## Suppressions
 
@@ -31,14 +31,14 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 817 |
-| noqa: DJ001 | 197 |
-| noqa: PLC0415 | 160 |
+| TOTAL suppressions | 816 |
+| noqa: DJ001 | 196 |
+| noqa: PLC0415 | 159 |
 | noqa: E402 | 108 |
-| noqa: PLR0913 | 74 |
+| noqa: PLR0913 | 76 |
 | noqa: ARG002 | 49 |
 | noqa: BLE001 | 35 |
-| noqa: ARG001 | 23 |
+| noqa: ARG001 | 22 |
 | noqa: C901 | 19 |
 | noqa: S603 | 19 |
 | noqa: TRY004 | 8 |
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 445 |
-| except handlers | 476 |
-| re-raises or converts | 308 |
+| try statements | 444 |
+| except handlers | 475 |
+| re-raises or converts | 307 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 261 |
-| non-test functions | 3163 |
+| non-test functions | 3155 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 710 |
+| object annotations | 706 |
 
 ## Wire contract (response side)
 
@@ -134,7 +134,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 333 |
-| response properties | 2135 |
+| response properties | 2130 |
 | optional (pinned at zero) | 0 |
 | nullable | 471 |
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 131 of 440 (30%) |
+| without data-automation-id | 131 of 441 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

@@ -14,8 +14,8 @@ import { bookingDay, readJobNumber } from './support'
  *   authenticated fixture, not a hand-rolled beforeAll login.
  * - The job picker is the shared JobPicker popover, not v1's separate
  *   picker drawer, so selection goes trigger → search → option.
- * - There is no hours field: the drawer derives hours from the start/end
- *   pair (the server refuses a trio that disagrees).
+ * - Times are a reminder: the drawer takes hours, times or both, and the
+ *   server moves times that cannot hold the hours (owner, 2026-11-03).
  * - The calendar block must carry the id the create response returned —
  *   v1 only console.warned on a mismatch.
  */
@@ -332,5 +332,41 @@ test.describe.serial('workshop my time view', () => {
     const generalWork = (await readDay()).entries.find((entry) => entry.job_name === 'General work')
     if (generalWork !== undefined) await remove(generalWork.id)
     for (const entry of (await readDay()).entries) await remove(entry.id)
+  })
+
+  // Times are only a reminder (owner, 2026-11-03): a start he types inside a
+  // break moves to the break's end, rather than the entry being refused.
+  test('an entry typed inside lunch saves after it', async ({ authenticatedPage: page }) => {
+    const date = bookingDay('myTimeInsideBreak')
+    const dayPath = `/api/job/workshop/timesheets/?date=${date}`
+    const daySchema = z.object({
+      entries: z.array(
+        z.object({
+          id: z.string(),
+          start_time: z.string().nullable(),
+          end_time: z.string().nullable(),
+          hours: z.number(),
+        }),
+      ),
+    })
+    const readDay = async () => daySchema.parse(await (await page.request.get(dayPath)).json())
+
+    await page.goto(`/timesheets/my-time?date=${date}`)
+    await autoId(page, 'WorkshopTimesheetSummaryCard-add').click()
+    await selectJobInPicker(page, jobNumber)
+    // Nobody clocked the day: its lunch is the standard 11:30 to 12:00.
+    await autoId(page, 'WorkshopTimesheetEntryDrawer-start-time').fill('11:35')
+    await autoId(page, 'WorkshopTimesheetEntryDrawer-hours').fill('30m')
+    const create = timesheetResponse(page, 'POST')
+    await autoId(page, 'WorkshopTimesheetEntryDrawer-submit').click()
+    await create
+
+    const [saved] = (await readDay()).entries
+    if (saved === undefined) throw new Error('No entry saved')
+    expect([saved.start_time, saved.end_time, saved.hours]).toEqual(['12:00:00', '12:30:00', 0.5])
+
+    // The day is reused by the next run.
+    const gone = await page.request.delete(`/api/job/workshop/timesheets/?entry_id=${saved.id}`)
+    expect(gone.ok(), await gone.text()).toBe(true)
   })
 })

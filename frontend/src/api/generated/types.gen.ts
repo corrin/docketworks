@@ -398,10 +398,6 @@ export type AssignJobResponse = {
  */
 export type AttendanceOut = {
     /**
-     * Cautions
-     */
-    cautions: Array<string>;
-    /**
      * Clock In
      */
     clock_in: string | null;
@@ -417,10 +413,6 @@ export type AttendanceOut = {
      * Here Hours
      */
     here_hours: number | null;
-    /**
-     * Sent Late
-     */
-    sent_late: boolean;
     /**
      * State
      */
@@ -11088,6 +11080,10 @@ export type StaffApprovalOut = {
      * Breaks
      */
     breaks: Array<BreakOut>;
+    /**
+     * Cautions
+     */
+    cautions: Array<string>;
     clock: AttendanceOut;
     /**
      * Default Entry Start
@@ -11098,21 +11094,14 @@ export type StaffApprovalOut = {
      */
     entered_hours: number;
     /**
-     * Entered Late
-     */
-    entered_late: boolean;
-    /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    fill: FillOut | null;
     /**
      * Overtime Check
      */
     overtime_check: boolean;
-    /**
-     * Remote Entry
-     */
-    remote_entry: boolean;
     /**
      * Staff Id
      */
@@ -11834,23 +11823,6 @@ export type StandardDayOut = {
 };
 
 /**
- * StandardHoursRequest
- *
- * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
- */
-export type StandardHoursRequest = {
-    /**
-     * Date
-     */
-    date: string;
-    location?: EntryLocationIn | null;
-    /**
-     * Staff Id
-     */
-    staff_id?: string | null;
-};
-
-/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -12510,7 +12482,7 @@ export type StocktakeSummary = {
 /**
  * SubmitDayRequest
  *
- * Send a day to the office, with any rows still to be saved as entries.
+ * Send a day to the office, with rows still to be saved. ``staff_id`` is for the office.
  */
 export type SubmitDayRequest = {
     /**
@@ -12522,6 +12494,10 @@ export type SubmitDayRequest = {
      * Rows
      */
     rows: Array<FillRowIn>;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -14049,10 +14025,6 @@ export type WorkshopTimesheetEntryOut = {
      */
     end_time: string | null;
     /**
-     * Entered Late
-     */
-    entered_late: boolean;
-    /**
      * Hours
      */
     hours: number;
@@ -14076,10 +14048,6 @@ export type WorkshopTimesheetEntryOut = {
      * Job Number
      */
     job_number: number;
-    /**
-     * Remote Entry
-     */
-    remote_entry: boolean;
     /**
      * Start Time
      */
@@ -14231,10 +14199,6 @@ export type WorkshopTimesheetListResponse = {
      */
     entries: Array<WorkshopTimesheetEntryOut>;
     fill: FillOut | null;
-    /**
-     * Missed Clock Out Finish
-     */
-    missed_clock_out_finish: string | null;
     pending: PendingDayOut | null;
     standard: StandardDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
@@ -20544,22 +20508,6 @@ export type TimesheetsMyDayPlacementResponses = {
 };
 
 export type TimesheetsMyDayPlacementResponse = TimesheetsMyDayPlacementResponses[keyof TimesheetsMyDayPlacementResponses];
-
-export type TimesheetsMyDayStandardHoursData = {
-    body: StandardHoursRequest;
-    path?: never;
-    query?: never;
-    url: '/api/timesheets/my-day/standard-hours/';
-};
-
-export type TimesheetsMyDayStandardHoursResponses = {
-    /**
-     * OK
-     */
-    200: AttendanceOut;
-};
-
-export type TimesheetsMyDayStandardHoursResponse = TimesheetsMyDayStandardHoursResponses[keyof TimesheetsMyDayStandardHoursResponses];
 
 export type TimesheetsMyDaySubmitData = {
     body: SubmitDayRequest;

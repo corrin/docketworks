@@ -124,14 +124,15 @@ class TestBreaksAndEntries:
             each["start"] for each in workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
         ]
 
-    def test_a_standard_break_is_not_recorded_inside_an_hour_with_no_room_for_it(
+    def test_a_standard_break_goes_on_inside_an_hour_typed_over_it(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
-        """The bug PR #228 began with: 08:00-09:00 booked as 1h, then the day got its breaks.
+        """The bug PR #228 began with: 08:00-09:00 typed as 1h, then the day got its breaks.
 
-        Guards attendance.generate_default_breaks: the system puts a standard
-        break only where it fits. A whole hour has no room for the 08:30 break,
-        so it is skipped and the hour is paid once; lunch and 13:30 go on.
+        Guards workshop_timesheet_service._fit_times and
+        attendance.generate_default_breaks: the typed finish moves past the
+        planned 08:30 break to 09:15, so the hour is paid once, and every
+        standard break goes on when the day is settled.
         """
         workshop_timesheet_service.create_entry(
             worker,
@@ -145,28 +146,27 @@ class TestBreaksAndEntries:
             },
         )
 
-        attendance.use_standard_hours(worker, DAY, office_staff)
+        attendance.settle_day(worker, DAY, office_staff)
 
-        assert _on(job, worker) == [("08:00:00", "09:00:00", Decimal("1.000"), 1.0)]
+        assert _on(job, worker) == [("08:00:00", "09:15:00", Decimal("1.000"), 1.0)]
         assert [
             (each["start"], each["end"])
             for each in workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
-        ] == [(time(11, 30), time(12, 0)), (time(13, 30), time(13, 45))]
+        ] == [(time(8, 30), time(8, 45)), (time(11, 30), time(12, 0)), (time(13, 30), time(13, 45))]
 
     def test_a_standard_break_is_recorded_where_the_entry_was_placed_around_it(
         self, office_staff: Staff, worker: Staff, job: Job
     ) -> None:
         """Four hours from 07:00 on a day nobody clocked run to 11:15 around the planned 08:30.
 
-        Guards attendance.generate_default_breaks: that entry has room for the
-        break (255 minutes less 15 is its 4h), so the paid break is recorded
-        and not lost when the day gets its times.
+        Guards attendance.settle_day and generate_default_breaks: the paid
+        break is recorded and not lost when the day gets its default times.
         """
         workshop_timesheet_service.create_entry(
             worker, worker, {"job_id": job.id, "accounting_date": DAY, "hours": Decimal("4")}
         )
 
-        attendance.use_standard_hours(worker, DAY, office_staff)
+        attendance.settle_day(worker, DAY, office_staff)
 
         assert _on(job, worker) == [("07:00:00", "11:15:00", Decimal("4.000"), 1.0)]
         assert [

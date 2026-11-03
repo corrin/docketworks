@@ -60,12 +60,8 @@ from apps.job.models import (
 )
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
-from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
-from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
     is_timesheet_entry,
-    record_timesheet_event,
-    snapshot_if_entry,
 )
 
 logger = logging.getLogger(__name__)
@@ -2268,57 +2264,6 @@ def _apply_costline_fields(line: CostLine, data: CostLineWriteData) -> None:
     _apply_costline_refs(line, data)
 
 
-def _timesheet_pricing_staff(meta: dict[str, object], data: CostLineWriteData) -> Staff:
-    """Resolve the Staff a timesheet line is priced for: ``meta.staff_id``."""
-    staff_id = meta.get("staff_id")
-    if not staff_id:
-        raise ValueError(gettext("Staff id must be provided when creating a new timesheet entry."))
-    try:
-        staff = Staff.objects.get(id=str(staff_id))
-    except (Staff.DoesNotExist, DjangoValidationError, ValueError) as exc:
-        raise ValueError(gettext("Staff not found: %(staff_id)s") % {"staff_id": staff_id}) from exc
-    # Keep the line's staff FK consistent with the authoritative meta.staff_id.
-    data["staff"] = staff.id
-    return staff
-
-
-def _reprice_timesheet_line(
-    line: CostLine, data: CostLineWriteData, meta: dict[str, object]
-) -> None:
-    """Reprice a ``meta.created_from_timesheet`` line through the ONE rate pipeline.
-
-    Rate resolution lives in ``apps.job.services.time_entry_rates`` (ADR 0039)
-    so cost-line writes and timesheet surfaces cannot price the same line
-    differently. This mutates ``data`` so normal field application persists
-    the derived values.
-    """
-    staff = _timesheet_pricing_staff(meta, data)
-    # An explicit null KEEPS the line's current subtype rather than resetting it to
-    # the worker's default (which would silently reprice the line).
-    subtype_id = data.get("labour_subtype") or line.labour_subtype_id
-    labour_subtype = LabourSubtype.objects.get(id=subtype_id) if subtype_id is not None else None
-    explicit_pay_item_id = data.get("xero_pay_item")
-    pricing = price_time_entry(
-        job=line.cost_set.job,
-        staff=staff,
-        meta=meta,
-        labour_subtype=labour_subtype,
-        pay_item_override=(pay_item_by_id(explicit_pay_item_id) if explicit_pay_item_id else None),
-    )
-    data["unit_cost"] = pricing.unit_cost
-    data["unit_rev"] = pricing.unit_rev
-    data["xero_pay_item"] = pricing.pay_item_id
-    data["labour_subtype"] = pricing.labour_subtype.id
-    meta.update(pricing.meta_updates())
-    data["meta"] = meta
-    logger.debug(
-        "Repriced timesheet cost line for staff %s: unit_cost=%s unit_rev=%s",
-        staff.id,
-        pricing.unit_cost,
-        pricing.unit_rev,
-    )
-
-
 def _validate_costline_write(data: CostLineWriteData) -> None:
     quantity = data.get("quantity")
     if quantity is not None and quantity < 0:
@@ -2370,9 +2315,9 @@ def move_time_line(
 ) -> CostSet:
     """Point a timesheet entry at ``destination``'s actual cost set; the one move (ADR 0039).
 
-    Both the office cost-line PATCH and the workshop self-service PATCH call
-    this. ``meta`` is the metadata the caller is about to store on the line;
-    the caller then reprices it through ``price_time_entry`` against
+    The entry writer (workshop_timesheet_service.update_entry) calls this.
+    ``meta`` is the metadata the caller is about to store on the line; the
+    caller then reprices it through ``price_time_entry`` against
     ``line.cost_set.job``, so the destination's charge-out rate is what the
     entry earns. ``CostLine.save()`` locks both owners and moves both
     summaries; the caller holds ``lock_costing_jobs`` on both jobs already.
@@ -2408,7 +2353,7 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     places it in his day, splits off overtime and rebuilds General work
     (owner, 2026-11-02).
     """
-    if kind == "actual" and data.get("kind") == "time" and data.get("managed_by") is None:
+    if kind == "actual" and data.get("kind") == "time":
         raise InvalidInputError(gettext(_TIME_IS_ENTERED))
     return _create_cost_line(job, kind, data, staff)
 
@@ -2426,41 +2371,19 @@ def _create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff
             gettext("Issue material through purchasing so its stock movement is recorded.")
         )
 
-    meta = data.get("meta") or {}
-    # Timesheet lines may omit labour_subtype; the rate pipeline then uses the
-    # worker's Staff.default_labour_subtype.
-    is_timesheet_line = bool(meta.get("created_from_timesheet"))
-    if data.get("kind") == "time" and data.get("labour_subtype") is None and not is_timesheet_line:
+    if data.get("kind") == "time" and data.get("labour_subtype") is None:
         raise ValueError(gettext("labour_subtype is required for time lines."))
 
     with transaction.atomic():
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
-        # Worked time waits for approval whoever enters it: entering and
-        # approving are two operations, even by one person (owner,
-        # 2026-10-26). Leave never waits: the leave request is the approval,
-        # the approve endpoint refuses a managed line, and payroll reads
-        # unapproved leave as no leave. Other lines the office makes stand
-        # approved; a workshop line awaits the office.
-        worked_time = kind == "actual" and data.get("kind") == "time"
-        line = CostLine(
-            cost_set=cost_set,
-            approved=data.get("managed_by") == "leave"
-            or (staff.is_office_staff and not worked_time),
-        )
-        if is_timesheet_line and data.get("kind") == "time":
-            _reprice_timesheet_line(line, data, dict(meta))
+        # The lines the office makes stand approved; a workshop line awaits
+        # the office. Worked time never comes here (create_cost_line).
+        line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
         _apply_costline_fields(line, data)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
-        record_timesheet_event(
-            staff=staff,
-            event_type="entry_created",
-            line=line,
-            before=None,
-            trusted=not saved_remotely(staff, None),
-        )
     return line
 
 
@@ -2554,17 +2477,7 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
         .get(pk=line.pk)
     )
     refuse_workflow_managed(line, "cancel")
-    with transaction.atomic():
-        # Recorded before the delete: Django clears the pk on the instance it
-        # deleted, and the event names the line by that id.
-        record_timesheet_event(
-            staff=staff,
-            event_type="entry_deleted",
-            line=line,
-            before=snapshot_if_entry(line),
-            trusted=not saved_remotely(staff, None),
-        )
-        line.delete()
+    line.delete()
     logger.info("Deleted cost line %s", line.id)
 
 

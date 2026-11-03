@@ -24,7 +24,6 @@ import {
   getLatestWeekdayDate,
   seedLabourForWeek,
   type SeededLabour,
-  sendDayAsWorkshopUser,
 } from './support'
 
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
@@ -117,9 +116,13 @@ test("office staff correct a person's clock times, and the screen holds at three
   await test.step('the office sets the times a person did not clock', async () => {
     await setClock('06:30', '15:00')
     await expect(clock).toHaveText('Clocked out. 06:30 to 15:00, here 8h 30m')
-    // Times the office itself set raise no warning: nobody is chased over
-    // the office's own entry.
-    await expect(autoId(page, `ApproveTimePage-row-${staffId}`)).not.toContainText('Did not clock')
+  })
+
+  await test.step('the history says who set them: the audit log is the record', async () => {
+    await autoId(page, `ApproveTimePage-history-${staffId}`).click()
+    await expect(autoId(page, 'TimesheetHistoryDialog-content')).toContainText('Clock times set')
+    await page.keyboard.press('Escape')
+    await expect(autoId(page, 'TimesheetHistoryDialog-content')).toBeHidden()
   })
 
   await test.step("the day's breaks are listed, and one is corrected", async () => {
@@ -165,8 +168,13 @@ test("office staff correct a person's clock times, and the screen holds at three
     })
   }
 
-  // The worker sends the day the office set, as on any day he did not clock.
-  await sendDayAsWorkshopUser(browser, z.string().parse(baseURL), day)
+  await test.step('the office sends the day he forgot to send', async () => {
+    await page.setViewportSize({ width: 1366, height: 900 })
+    await autoId(page, `ApproveTimePage-fill-${staffId}`).click()
+    await autoId(page, 'FillDaySheet-send').click()
+    await expect(page.getByText('Day sent to the office.')).toBeVisible()
+    await expect(clock).toContainText('Sent, waiting for approval')
+  })
 })
 
 test('approving the last person waiting turns the day to complete', async ({

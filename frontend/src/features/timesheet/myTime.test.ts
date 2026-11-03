@@ -18,7 +18,6 @@ import {
   fillWords,
   jobChangeFields,
   lastUsedJobId,
-  overlapsBooked,
   rateLabel,
   rateOptionsFor,
   resolveSelectedJob,
@@ -44,8 +43,6 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     wage_rate_multiplier: 1,
     bill_rate_multiplier: 1,
     approved: false,
-    entered_late: false,
-    remote_entry: false,
     created_at: '2026-08-26T08:00:00Z',
     updated_at: '2026-08-26T08:00:00Z',
     ...overrides,
@@ -288,26 +285,6 @@ describe('adjustEnd', () => {
   })
 })
 
-describe('overlapsBooked', () => {
-  // Guards overlapsBooked: an hour swept to General work, then booked again.
-  const swept = makeEntry({ id: 'gw', start_time: '06:30:00', end_time: '07:30:00' })
-
-  it('warns when the time is already booked', () => {
-    expect(overlapsBooked('07:00', '08:00', [swept])).toBe(true)
-  })
-
-  it('does not warn for an entry that starts where another ends', () => {
-    expect(overlapsBooked('07:30', '08:30', [swept])).toBe(false)
-  })
-
-  it('does not warn without both times or against untimed entries', () => {
-    expect(overlapsBooked('07:00', '', [swept])).toBe(false)
-    expect(
-      overlapsBooked('07:00', '08:00', [makeEntry({ start_time: null, end_time: null })]),
-    ).toBe(false)
-  })
-})
-
 describe('fillGapToNextEntry', () => {
   const afternoon = makeEntry({ id: 'a', start_time: '13:00:00', end_time: '15:00:00' })
   const morning = makeEntry({ id: 'b', start_time: '08:00:00', end_time: '09:00:00' })
@@ -405,20 +382,6 @@ describe('entryMarks', () => {
     expect(entryMarks(makeEntry({ approved: false }))).toEqual(['Waiting'])
     expect(entryMarks(makeEntry({ approved: true }))).toEqual(['Approved'])
   })
-
-  it('adds Entered late beside either state', () => {
-    expect(entryMarks(makeEntry({ approved: false, entered_late: true }))).toEqual([
-      'Waiting',
-      'Entered late',
-    ])
-  })
-
-  it('adds Suspicious remote entry when the server marked the save', () => {
-    expect(entryMarks(makeEntry({ approved: true, remote_entry: true }))).toEqual([
-      'Approved',
-      'Suspicious remote entry',
-    ])
-  })
 })
 
 describe('clockWords', () => {
@@ -427,8 +390,6 @@ describe('clockWords', () => {
     clock_in: null,
     clock_out: null,
     here_hours: null,
-    sent_late: false,
-    cautions: [],
     general_work_fill: false,
   }
 
@@ -482,7 +443,7 @@ describe('fillAfterRows', () => {
 
 describe('cautionMarks', () => {
   it('marks a day whose overtime does not match the hours past the usual day', () => {
-    const marks = cautionMarks({ entered_late: false, remote_entry: false, overtime_check: true })
-    expect(marks.map((mark) => mark.label)).toEqual(['Overtime to check'])
+    const marks = cautionMarks({ cautions: ['Over by 1h'], overtime_check: true })
+    expect(marks.map((mark) => mark.label)).toEqual(['Over by 1h', 'Overtime to check'])
   })
 })

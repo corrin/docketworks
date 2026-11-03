@@ -453,11 +453,7 @@ class TestSomeOfTheTimeEntered:
         # 9h + 0.5h paid breaks.
         assert _paid(worker) == Decimal("9.5")
         # To fill: 8h less lunch = 7.5; less 0.5 breaks and 9 entered = -2: over by 2h.
-        assert _row(worker)["clock"]["cautions"] == [
-            "Did not clock in",
-            "Did not clock out",
-            "Over by 2h",
-        ]
+        assert _row(worker)["cautions"] == ["Over by 2h"]
 
     def test_B4_two_overlapping_entries_are_both_billed_and_paid(  # noqa: PLR0913, PLR0917 -- pytest fixtures: the jobs, leave set-up and people
         self,
@@ -495,67 +491,69 @@ class TestSomeOfTheTimeEntered:
         assert _billed(worker) == Decimal("240")
         assert _paid(worker) == Decimal("8.5")
 
-    def test_B5_a_booked_hour_over_the_morning_break_keeps_it_and_skips_the_break(
+    def test_B5_a_typed_hour_over_the_morning_break_is_fitted_round_it(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:
-        """On an unclocked day he entered 08:00-09:00 as a whole hour; the office sweeps.
+        """On an unclocked day he typed 08:00-09:00 as a whole hour; the office sweeps.
 
-        The standard breaks go only on the free part of the day (owner,
-        2026-10-25): 1h is more than 60 - 15 minutes, so his hour has no room
-        for the 08:30 break and it is skipped; lunch and 13:30 are recorded.
-        Guards attendance.generate_default_breaks' skip of a break inside a full
-        entry, and that recording breaks never changes an entry.
+        The times are only a reminder (owner, 2026-11-03): the hour steps over
+        the planned 08:30 break, so its finish moves to 09:15. The standard
+        breaks always go on the day, the 08:30 one included, and the hour is
+        paid once.
+        Guards workshop_timesheet_service._fit_times and
+        attendance.generate_default_breaks.
         """
         _enter(worker, worker, job, "1", "08:00", "09:00")
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert _on(job, worker) == [("08:00:00", "09:00:00", Decimal("1"), 1.0)]
+        assert _on(job, worker) == [("08:00:00", "09:15:00", Decimal("1"), 1.0)]
         breaks = workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
         assert [(each["start"], each["end"], each["paid"]) for each in breaks] == [
+            (time(8, 30), time(8, 45), True),
             (time(11, 30), time(12, 0), False),
             (time(13, 30), time(13, 45), True),
         ]
-        # 07:00-08:00 1 + 09:00-11:30 2.5 + 12:00-13:30 1.5 + 13:45-15:00 1.25 = 6.25h.
+        # 07:00-08:00 1 + 09:15-11:30 2.25 + 12:00-13:30 1.5 + 13:45-15:00 1.25 = 6h.
         assert _on(general_work, worker) == [
             ("07:00:00", "08:00:00", Decimal("1"), 1.0),
-            ("09:00:00", "11:30:00", Decimal("2.5"), 1.0),
+            ("09:15:00", "11:30:00", Decimal("2.25"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 6.25, "skipped": [], "overtime": []}
-        # 1 x 120.00 billed; paid 1 + 6.25 + the 0.25 afternoon break = 7.5,
-        # 08:00-09:00 once.
+        assert result == {"swept_hours": 6.0, "skipped": [], "overtime": []}
+        # 1 x 120.00 billed; paid 1 + 6 + the two 0.25 paid breaks = 7.5.
         assert _billed(worker) == Decimal("120")
         assert _paid(worker) == Decimal("7.5")
 
-    def test_B7_two_booked_hours_over_the_morning_break_skip_it(
+    def test_B7_two_typed_hours_over_the_morning_break_keep_it(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:
-        """On an unclocked day he entered 08:00-10:00 as 2h; the office sweeps.
+        """On an unclocked day he typed 08:00-10:00 as 2h; the office sweeps.
 
-        The owner's example: 2h is more than 120 - 15 minutes, so the 08:30
-        break is skipped; lunch and the 13:30 break are recorded and General
-        work fills around them.
-        Guards attendance.generate_default_breaks' skip of a break inside a full entry.
+        The 2h step over the planned 08:30 break, so the finish moves to 10:15;
+        every standard break goes on and General work fills around them.
+        Guards workshop_timesheet_service._fit_times and
+        attendance.generate_default_breaks.
         """
         _enter(worker, worker, job, "2", "08:00", "10:00")
 
         result = approval.sweep_person(worker, [DAY], office_staff)
 
-        assert _on(job, worker) == [("08:00:00", "10:00:00", Decimal("2"), 1.0)]
+        assert _on(job, worker) == [("08:00:00", "10:15:00", Decimal("2"), 1.0)]
         breaks = workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
         assert [(each["start"], each["end"], each["paid"]) for each in breaks] == [
+            (time(8, 30), time(8, 45), True),
             (time(11, 30), time(12, 0), False),
             (time(13, 30), time(13, 45), True),
         ]
-        # 07:00-08:00 1 + 10:00-11:30 1.5 + 12:00-13:30 1.5 + 13:45-15:00 1.25 = 5.25h.
+        # 07:00-08:00 1 + 10:15-11:30 1.25 + 12:00-13:30 1.5 + 13:45-15:00 1.25 = 5h.
         assert _on(general_work, worker) == [
             ("07:00:00", "08:00:00", Decimal("1"), 1.0),
-            ("10:00:00", "11:30:00", Decimal("1.5"), 1.0),
+            ("10:15:00", "11:30:00", Decimal("1.25"), 1.0),
             *STANDARD_GENERAL_WORK[2:],
         ]
-        assert result == {"swept_hours": 5.25, "skipped": [], "overtime": []}
-        # 2 x 120.00 billed; paid 2 + 5.25 + 0.25 = 7.5.
+        assert result == {"swept_hours": 5.0, "skipped": [], "overtime": []}
+        # 2 x 120.00 billed; paid 2 + 5 + 0.5 = 7.5.
         assert _billed(worker) == Decimal("240")
         assert _paid(worker) == Decimal("7.5")
 
@@ -605,7 +603,7 @@ class TestSomeOfTheTimeEntered:
         # 4 + 6 + 0.5 paid breaks.
         assert _paid(worker) == Decimal("10.5")
         # To fill 7.5, less 0.5 breaks and 10 entered = -3: over by 3h.
-        assert _row(worker)["clock"]["cautions"][-1] == "Over by 3h"
+        assert _row(worker)["cautions"] == ["Over by 3h"]
 
 
 # ── D. Some people enter time, some don't ──────────────────────────────
@@ -1412,7 +1410,7 @@ class TestLeaveAndDaysOff:
         # work, so all 8 are ordinary.
         assert _on(job, worker) == [("07:00:00", "16:00:00", Decimal("8"), 1.0)]
         assert _paid(worker) == Decimal("16")
-        cautions = _row(worker)["clock"]["cautions"]
+        cautions = _row(worker)["cautions"]
         assert "Leave and work on the same day" in cautions, cautions
 
     def test_V2_half_a_sick_day_after_a_short_clocked_morning(
@@ -1463,7 +1461,7 @@ class TestLeaveAndDaysOff:
         # 8 less 4 paid: 4h sick.
         sick = _leave(worker, LeaveType.Code.SICK, superuser)
 
-        leave_service.delete_leave_request(UUID(sick["request"]["id"]))
+        leave_service.delete_leave_request(UUID(sick["request"]["id"]), superuser)
         again = approval.sweep_person(worker, [DAY], office_staff)
 
         assert again == {"swept_hours": 0.0, "skipped": [], "overtime": []}

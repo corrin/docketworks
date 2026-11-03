@@ -432,11 +432,6 @@ components:
     AttendanceOut:
       description: A person's day as they clocked it. ``here_hours`` is worked out by the server.
       properties:
-        cautions:
-          items:
-            type: string
-          title: Cautions
-          type: array
         clock_in:
           anyOf:
           - format: time
@@ -457,9 +452,6 @@ components:
           - type: number
           - type: 'null'
           title: Here Hours
-        sent_late:
-          title: Sent Late
-          type: boolean
         state:
           enum:
           - not_clocked_in
@@ -473,8 +465,6 @@ components:
       - clock_in
       - clock_out
       - here_hours
-      - sent_late
-      - cautions
       - general_work_fill
       title: AttendanceOut
       type: object
@@ -12499,6 +12489,11 @@ components:
             $ref: '#/components/schemas/BreakOut'
           title: Breaks
           type: array
+        cautions:
+          items:
+            type: string
+          title: Cautions
+          type: array
         clock:
           $ref: '#/components/schemas/AttendanceOut'
         default_entry_start:
@@ -12508,19 +12503,17 @@ components:
         entered_hours:
           title: Entered Hours
           type: number
-        entered_late:
-          title: Entered Late
-          type: boolean
         entries:
           items:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           title: Entries
           type: array
+        fill:
+          anyOf:
+          - $ref: '#/components/schemas/FillOut'
+          - type: 'null'
         overtime_check:
           title: Overtime Check
-          type: boolean
-        remote_entry:
-          title: Remote Entry
           type: boolean
         staff_id:
           format: uuid
@@ -12551,9 +12544,9 @@ components:
       - state
       - entered_hours
       - waiting_hours
-      - entered_late
-      - remote_entry
+      - cautions
       - clock
+      - fill
       - unallocated_hours
       - overtime_check
       - breaks
@@ -13303,27 +13296,6 @@ components:
       - start
       - end
       title: StandardDayOut
-      type: object
-    StandardHoursRequest:
-      description: Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
-      properties:
-        date:
-          format: date
-          title: Date
-          type: string
-        location:
-          anyOf:
-          - $ref: '#/components/schemas/EntryLocationIn'
-          - type: 'null'
-        staff_id:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
-          title: Staff Id
-      required:
-      - date
-      title: StandardHoursRequest
       type: object
     StockConsumeRequest:
       description: Wire contract for StockConsumeRequest.
@@ -14111,7 +14083,7 @@ components:
       title: StocktakeSummary
       type: object
     SubmitDayRequest:
-      description: Send a day to the office, with any rows still to be saved as entries.
+      description: Send a day to the office, with rows still to be saved. ``staff_id`` is for the office.
       properties:
         date:
           format: date
@@ -14126,6 +14098,12 @@ components:
             $ref: '#/components/schemas/FillRowIn'
           title: Rows
           type: array
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
       required:
       - date
       - rows
@@ -15816,9 +15794,6 @@ components:
             type: string
           - type: 'null'
           title: End Time
-        entered_late:
-          title: Entered Late
-          type: boolean
         hours:
           title: Hours
           type: number
@@ -15839,9 +15814,6 @@ components:
         job_number:
           title: Job Number
           type: integer
-        remote_entry:
-          title: Remote Entry
-          type: boolean
         start_time:
           anyOf:
           - format: time
@@ -15870,8 +15842,6 @@ components:
       - wage_rate_multiplier
       - bill_rate_multiplier
       - approved
-      - entered_late
-      - remote_entry
       - created_at
       - updated_at
       title: WorkshopTimesheetEntryOut
@@ -16062,12 +16032,6 @@ components:
           anyOf:
           - $ref: '#/components/schemas/FillOut'
           - type: 'null'
-        missed_clock_out_finish:
-          anyOf:
-          - format: time
-            type: string
-          - type: 'null'
-          title: Missed Clock Out Finish
         pending:
           anyOf:
           - $ref: '#/components/schemas/PendingDayOut'
@@ -16089,7 +16053,6 @@ components:
       - breaks
       - fill
       - standard
-      - missed_clock_out_finish
       - default_entry_start
       - calendar
       - pending
@@ -21126,14 +21089,18 @@ paths:
       - timesheets
   /api/job/timesheet/entries/history/:
     get:
-      description: 'Serve the entry grid''s history dialog for one staff/day.
+      description: 'Serve one staff/day''s history: who did what, when, and from where.
 
 
-        Keyed on the worker and the day, not a line, so a deleted entry''s events
+        The audit log is the record of it (owner, 2026-11-03), so any office
 
-        are still reachable from the screen they were made on. Management auth
+        staff member reads it, from Approve time as from the entry grid. Keyed on
 
-        because the snapshots carry wage data, like the entries read.'
+        the worker and the day, not a line, so a deleted entry''s events are still
+
+        reachable. The snapshots carry pay, which Approve time never shows: only
+
+        a superuser is served them, and the pay changes, whole.'
       operationId: job_timesheet_entries_history_retrieve
       parameters:
       - in: query
@@ -21160,7 +21127,7 @@ paths:
                 type: array
           description: OK
       security:
-      - SuperuserCookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Every timesheet event on one staff member's date, newest first
       tags:
       - timesheets
@@ -24189,32 +24156,9 @@ paths:
       summary: Work out an entry's finish from its hours, or its hours from its finish
       tags:
       - timesheets
-  /api/timesheets/my-day/standard-hours/:
-    post:
-      description: Use the standard hours for the caller's unclocked day, or for office staff anyone's.
-      operationId: timesheets_my_day_standard_hours
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StandardHoursRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AttendanceOut'
-          description: OK
-      security:
-      - CookieJWTAuth: []
-      summary: Record the company's standard hours on a day nobody clocked
-      tags:
-      - timesheets
   /api/timesheets/my-day/submit/:
     post:
-      description: Lay the caller's rows out as entries and mark their day sent, all or nothing.
+      description: 'Lay the rows out as entries and send the day: the caller''s, or for the office anyone''s.'
       operationId: timesheets_my_day_submit
       parameters: []
       requestBody:

@@ -102,22 +102,19 @@ interface DayCardProps {
   /** Whether that day is today: only today is clocked by a tap. */
   isToday: boolean
   day: AttendanceOut
-  /** Hours to fill, entered and to go, from the server; null until the day
-      has both clock times. */
+  /** Hours to fill, entered and to go, from the server; null when the day has
+      no span: today while he is at work, or a weekend nobody clocked. Times he
+      did not clock are the defaults (owner, 2026-11-03). */
   fill: FillOut | null
-  /** An earlier day he clocked and has not sent, and how far it got. */
+  /** An earlier day he clocked and has not sent. */
   pending: PendingDayOut | null
   /** The company's standard hours for the day; null on a weekend. */
   standard: StandardDayOut | null
-  /** The standard finish to offer when this earlier day was left clocked in. */
-  missedClockOutFinish: string | null
   clocking: boolean
   onClock: (action: 'in' | 'out') => Promise<boolean>
   onSetTimes: (clockIn: string, clockOut: string | null) => Promise<boolean>
   onOpenDay: (date: string) => void
   onFill: () => void
-  /** Record the standard hours as the day's times, then fill it. */
-  onUseStandardHours: () => void
   onAddBreak: () => void
   /** Put the rest of the day on General work. */
   onGeneralWork: () => void
@@ -142,13 +139,11 @@ export function DayCard({
   fill,
   pending,
   standard,
-  missedClockOutFinish,
   clocking,
   onClock,
   onSetTimes,
   onOpenDay,
   onFill,
-  onUseStandardHours,
   onAddBreak,
   onGeneralWork,
 }: DayCardProps) {
@@ -166,17 +161,14 @@ export function DayCard({
           className="rounded bg-amber-50 p-2 text-sm text-amber-900"
           data-automation-id="DayCard-pending"
         >
-          {formatDateLong(pending.date)}{' '}
-          {pending.state === 'at_work'
-            ? t('dayCard.pendingStillClockedIn')
-            : t('dayCard.pendingNotSent')}{' '}
+          {formatDateLong(pending.date)} {t('dayCard.pendingNotSent')}{' '}
           <button
             type="button"
             className="font-medium underline underline-offset-2"
             data-automation-id="DayCard-pending-open"
             onClick={() => onOpenDay(pending.date)}
           >
-            {pending.state === 'at_work' ? t('dayCard.setFinishTime') : t('dayCard.finishIt')}
+            {t('dayCard.finishIt')}
           </button>
         </p>
       )}
@@ -186,26 +178,6 @@ export function DayCard({
       <p className="text-sm text-gray-700" data-automation-id="DayCard-fill">
         {fill === null ? noFillWords(day, standard) : fillWords(fill)}
       </p>
-      {/* He is told what the office is told about how his day was clocked. */}
-      {day.cautions.length > 0 && (
-        <p className="text-sm font-medium text-amber-800" data-automation-id="DayCard-cautions">
-          {day.cautions.join(' · ')}
-        </p>
-      )}
-      {missedClockOutFinish !== null && clockIn !== null && !editingTimes && (
-        <p className="rounded bg-amber-50 p-2 text-sm text-amber-900">
-          {t('dayCard.noClockOut')}{' '}
-          <button
-            type="button"
-            className="font-medium underline underline-offset-2"
-            disabled={clocking}
-            data-automation-id="DayCard-use-standard-finish"
-            onClick={() => void onSetTimes(clockIn, missedClockOutFinish)}
-          >
-            {t('dayCard.useFinish', { time: missedClockOutFinish.slice(0, 5) })}
-          </button>
-        </p>
-      )}
       {editingTimes ? (
         <ClockTimesForm
           automationId="DayCard"
@@ -242,16 +214,15 @@ export function DayCard({
               {t('dayCard.clockOut')}
             </Button>
           )}
-          {/* Clocked out, or never clocked on a day with standard hours: on the
-              second, the tap records the standard hours first. */}
-          {(day.state === 'clocked_out' ||
-            (day.state === 'not_clocked_in' && standard !== null)) && (
+          {/* Any day with a span is filled and sent; a time he did not clock
+              is the default. */}
+          {fill !== null && day.state !== 'sent' && (
             <Button
               className={TOUCH_TARGET_CLASS}
               variant={isToday && day.state === 'not_clocked_in' ? 'outline' : 'default'}
               disabled={clocking}
               data-automation-id="DayCard-fill-and-send"
-              onClick={day.state === 'clocked_out' ? onFill : onUseStandardHours}
+              onClick={onFill}
             >
               {t('dayCard.fillAndSend')}
             </Button>
@@ -277,8 +248,8 @@ export function DayCard({
           >
             {day.state === 'not_clocked_in' ? t('dayCard.setTimes') : t('dayCard.changeTimes')}
           </Button>
-          {/* The rest of a day runs to its clock-out, so it needs both times. */}
-          {day.clock_out !== null && !day.general_work_fill && (
+          {/* The rest of a day runs to its clock-out, or the standard finish. */}
+          {fill !== null && !day.general_work_fill && (
             <Button
               variant="outline"
               className={TOUCH_TARGET_CLASS}
@@ -295,18 +266,15 @@ export function DayCard({
               {t('dayCard.generalWorkOn')}
             </p>
           )}
-          {/* A break belongs to a day that has clock times. */}
-          {day.state !== 'not_clocked_in' && (
-            <Button
-              variant="outline"
-              className={TOUCH_TARGET_CLASS}
-              disabled={clocking}
-              data-automation-id="DayCard-add-break"
-              onClick={onAddBreak}
-            >
-              {t('dayCard.addBreak')}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className={TOUCH_TARGET_CLASS}
+            disabled={clocking}
+            data-automation-id="DayCard-add-break"
+            onClick={onAddBreak}
+          >
+            {t('dayCard.addBreak')}
+          </Button>
         </div>
       )}
     </div>

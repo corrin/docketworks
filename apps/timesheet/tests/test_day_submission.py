@@ -12,12 +12,12 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
-from apps.core.errors import ConflictError, InvalidInputError
+from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay
+from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import (
     attendance,
     day_submission,
@@ -178,7 +178,7 @@ class TestHoursToFill:
             "entered_hours": 0.0,
             "to_go_hours": 7.5,
         }
-        day_submission.submit_day(worker, DAY, [_row(job, "7.5")], None, timezone.now())
+        day_submission.submit_day(worker, worker, DAY, [_row(job, "7.5")], None, timezone.now())
         day = _day(worker)
         assert day["fill"] is not None and day["fill"]["to_go_hours"] == 0.0
         # Paid for eight: seven and a half on the job, half an hour of paid breaks.
@@ -192,11 +192,26 @@ class TestHoursToFill:
 
         assert fill is not None and fill["to_go_hours"] == -0.5
 
-    def test_there_is_nothing_to_fill_until_both_clock_times_are_known(self, worker: Staff) -> None:
-        assert attendance.fill_figures(None, Decimal("3"), []) is None
+    def test_what_was_not_clocked_is_filled_on_the_defaults(self, worker: Staff) -> None:
+        """An unclocked day is the standard day; an earlier day left open ends at its finish.
+
+        Guards attendance.fill_figures and day_span.
+        """
+        unclocked = attendance.fill_figures(DAY, None, Decimal("3"), [])
+        assert unclocked is not None and unclocked["to_fill_hours"] == 8.0
+        assert attendance.fill_figures(DAY + timedelta(days=5), None, Decimal("3"), []) is None
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
         open_row = AttendanceDay.objects.get(staff=worker, date=DAY)
-        assert attendance.fill_figures(open_row, Decimal("3"), []) is None
+        left_open = attendance.fill_figures(DAY, open_row, Decimal("3"), [])
+        assert left_open is not None and left_open["to_fill_hours"] == 8.5
+
+    def test_there_is_nothing_to_fill_today_while_he_is_clocked_in(self, worker: Staff) -> None:
+        """Guards attendance.fill_figures and day_span."""
+        today = timezone.localdate()
+        attendance.set_clock_times(worker, today, time(6, 30), None, worker)
+        open_row = AttendanceDay.objects.get(staff=worker, date=today)
+
+        assert attendance.fill_figures(today, open_row, Decimal("3"), []) is None
 
 
 def _lunch(worker: Staff, break_job: Job) -> CostLine:
@@ -304,27 +319,13 @@ class TestBreaks:
         assert (fill["to_fill_hours"], fill["break_hours"]) == (7.5, 0.75)
         assert _week_row(worker)["total_hours"] == Decimal("0.75")
 
-    def test_generated_breaks_are_never_late_or_remote(self, worker: Staff, break_job: Job) -> None:
-        """Nobody typed them: standard hours used a week later still put them on unmarked."""
-        company = CompanyDefaults.get_solo()
-        company.latitude = Decimal("-36.850000")
-        company.longitude = Decimal("174.760000")
-        company.save(update_fields=["latitude", "longitude"])
-
-        attendance.use_standard_hours(worker, DAY, worker)
-
-        lines = list(CostLine.objects.filter(staff=worker, cost_set__job=break_job))
-        assert len(lines) == 3
-        assert not any(line.remote_entry for line in lines)
-        assert not any(workshop_timesheet_service.entered_late(line) for line in lines)
-
     def test_a_fifteen_minute_job_is_not_billed_for_the_break_beside_it(
         self, worker: Staff, job: Job, break_job: Job
     ) -> None:
         """The owner's reason: a break put inside a 15 minute job would double its bill."""
         _clocked(worker)
 
-        day_submission.submit_day(worker, DAY, [_row(job, "0.25")], None, timezone.now())
+        day_submission.submit_day(worker, worker, DAY, [_row(job, "0.25")], None, timezone.now())
 
         [on_the_job] = CostLine.objects.filter(staff=worker, cost_set__job=job)
         assert on_the_job.quantity == Decimal("0.25")
@@ -594,25 +595,49 @@ class TestLayout:
 
 
 class TestEntryTimes:
-    def test_hours_may_be_less_than_the_span_but_not_more(
+    def test_a_finish_too_soon_for_the_hours_is_moved_to_where_they_end(
         self, worker_client: Client, job: Job
     ) -> None:
-        body = {"job_id": str(job.id), "accounting_date": DAY.isoformat()}
+        """The times are only a reminder: eight hours from 07:00 cannot end at 14:00.
 
+        The standard day's breaks (an hour of them) are stepped over, so the
+        finish moves to 16:00 rather than the entry being refused.
+
+        Guards workshop_timesheet_service._fit_times.
+        """
         spanning = worker_client.post(
             DAY_URL,
-            data={**body, "hours": "6", "start_time": "07:00", "end_time": "14:00"},
+            data={
+                "job_id": str(job.id),
+                "accounting_date": DAY.isoformat(),
+                "hours": "6",
+                "start_time": "07:00",
+                "end_time": "14:00",
+            },
             content_type="application/json",
         )
         too_many = worker_client.post(
             DAY_URL,
-            data={**body, "hours": "8", "start_time": "07:00", "end_time": "14:00"},
+            data={
+                "job_id": str(job.id),
+                "accounting_date": (DAY + timedelta(days=1)).isoformat(),
+                "hours": "8",
+                "start_time": "07:00",
+                "end_time": "14:00",
+            },
             content_type="application/json",
         )
 
         assert spanning.status_code == 201, spanning.content
-        assert too_many.status_code == 400
-        assert "cannot be more than" in too_many.json()["detail"]
+        assert (spanning.json()["start_time"], spanning.json()["end_time"]) == (
+            "07:00:00",
+            "14:00:00",
+        )
+        assert too_many.status_code == 201, too_many.content
+        assert (too_many.json()["start_time"], too_many.json()["end_time"]) == (
+            "07:00:00",
+            "16:00:00",
+        )
 
     def test_hours_that_would_run_past_midnight_are_saved_without_times(
         self, worker_client: Client, worker: Staff, job: Job
@@ -667,7 +692,7 @@ class TestSubmitDay:
         now = timezone.now()
 
         day = day_submission.submit_day(
-            worker, DAY, [_row(job, "3"), _row(job, "2", time_and_a_half=True)], None, now
+            worker, worker, DAY, [_row(job, "3"), _row(job, "2", time_and_a_half=True)], None, now
         )
 
         assert day["day"]["state"] == "sent"
@@ -692,18 +717,81 @@ class TestSubmitDay:
         _clocked(worker)
 
         day = day_submission.submit_day(
-            worker, DAY, [_row(bench, "3"), _row(job, "2")], None, timezone.now()
+            worker, worker, DAY, [_row(bench, "3"), _row(job, "2")], None, timezone.now()
         )
 
         assert [entry["is_billable"] for entry in day["entries"]] == [False, True]
 
-    def test_submit_requires_clock_out(self, worker: Staff, job: Job) -> None:
+    def test_an_earlier_day_left_clocked_in_is_sent_with_the_standard_finish(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """Guards day_submission.submit_day and attendance.settle_day."""
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
 
-        with pytest.raises(ConflictError, match="Clock out"):
-            day_submission.submit_day(worker, DAY, [_row(job, "3")], None, timezone.now())
+        day = day_submission.submit_day(worker, worker, DAY, [_row(job, "3")], None, timezone.now())
+
+        assert day["day"]["state"] == "sent"
+        assert (day["day"]["clock_in"], day["day"]["clock_out"]) == (time(6, 30), time(15, 0))
+
+    def test_today_still_clocked_in_is_refused(self, worker: Staff, job: Job) -> None:
+        """He may yet tap out, so no finish stands in for one.
+
+        Guards attendance.settle_day.
+        """
+        today = timezone.localdate()
+        attendance.set_clock_times(worker, today, time(6, 30), None, worker)
+
+        with pytest.raises(ConflictError, match="Clock out first"):
+            day_submission.submit_day(worker, worker, today, [_row(job, "3")], None, timezone.now())
 
         assert not CostLine.objects.filter(staff=worker, cost_set__job=job).exists()
+        assert AttendanceDay.objects.get(staff=worker, date=today).submitted_at is None
+
+    def test_an_unclocked_past_day_is_sent_on_the_standard_times(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """No clock record means the defaults (owner, 2026-11-03).
+
+        Guards day_submission.submit_day and attendance.settle_day.
+        """
+        day = day_submission.submit_day(worker, worker, DAY, [_row(job, "3")], None, timezone.now())
+
+        assert day["day"]["state"] == "sent"
+        assert (day["day"]["clock_in"], day["day"]["clock_out"]) == (time(7, 0), time(15, 0))
+        assert _breaks(worker) == [
+            ("08:30", "08:45", True),
+            ("11:30", "12:00", False),
+            ("13:30", "13:45", True),
+        ]
+        assert [(entry["start_time"], entry["end_time"]) for entry in day["entries"]] == [
+            (time(7, 0), time(10, 15))
+        ]
+
+    def test_the_office_sends_a_workers_day_and_a_colleague_cannot(
+        self, worker: Staff, other_worker: Staff, office_staff: Staff, job: Job
+    ) -> None:
+        """He forgot to send it: the office may; another worker may not.
+
+        Guards day_submission.submit_day.
+        """
+        _clocked(worker)
+
+        with pytest.raises(AccessDeniedError, match="Only office staff"):
+            day_submission.submit_day(
+                other_worker, worker, DAY, [_row(job, "3")], None, timezone.now()
+            )
+        assert AttendanceDay.objects.get(staff=worker, date=DAY).submitted_at is None
+        assert not CostLine.objects.filter(staff=worker, cost_set__job=job).exists()
+
+        day = day_submission.submit_day(
+            office_staff, worker, DAY, [_row(job, "3")], None, timezone.now()
+        )
+
+        assert day["day"]["state"] == "sent"
+        assert [entry["hours"] for entry in day["entries"]] == [3.0]
+        assert (
+            TimesheetEvent.objects.get(worker=worker, event_type="day_sent").staff == office_staff
+        )
 
     def test_submit_is_all_or_nothing(self, worker: Staff, job: Job) -> None:
         """A row that cannot be saved leaves the day as it was, and unsent."""
@@ -716,7 +804,9 @@ class TestSubmitDay:
         }
 
         with pytest.raises(Job.DoesNotExist):
-            day_submission.submit_day(worker, DAY, [_row(job, "3"), unknown], None, timezone.now())
+            day_submission.submit_day(
+                worker, worker, DAY, [_row(job, "3"), unknown], None, timezone.now()
+            )
 
         assert not CostLine.objects.filter(staff=worker, cost_set__job=job).exists()
         assert AttendanceDay.objects.get(staff=worker, date=DAY).submitted_at is None
@@ -724,7 +814,10 @@ class TestSubmitDay:
     def test_every_filled_entry_is_judged_by_where_the_phone_is(
         self, worker_client: Client, worker: Staff, job: Job
     ) -> None:
-        """Sent from the workshop, no entry is marked; the location reaches each one."""
+        """Sent from the workshop, every entry's event is trusted; the location reaches each one.
+
+        Guards day_submission.submit_day and workshop_timesheet_service._save_entry.
+        """
         company = CompanyDefaults.get_solo()
         company.latitude = Decimal("-36.850000")
         company.longitude = Decimal("174.760000")
@@ -745,17 +838,20 @@ class TestSubmitDay:
         )
 
         assert at_work.status_code == 200, at_work.content
-        assert [entry["remote_entry"] for entry in at_work.json()["entries"]] == [False, False]
         elsewhere = worker_client.post(SUBMIT_URL, data=body, content_type="application/json")
-        assert [entry["remote_entry"] for entry in elsewhere.json()["entries"]][-2:] == [
-            True,
-            True,
-        ]
+        assert elsewhere.status_code == 200, elsewhere.content
+        job_lines = CostLine.objects.filter(staff=worker, cost_set__job=job).values_list(
+            "id", flat=True
+        )
+        created = TimesheetEvent.objects.filter(
+            event_type="entry_created", cost_line_id__in=list(job_lines)
+        ).order_by("timestamp")
+        assert [event.trusted for event in created] == [True, True, False, False]
 
     def test_sending_with_hours_still_to_go_is_allowed(self, worker: Staff) -> None:
         _clocked(worker)
 
-        day = day_submission.submit_day(worker, DAY, [], None, timezone.now())
+        day = day_submission.submit_day(worker, worker, DAY, [], None, timezone.now())
 
         assert day["day"]["state"] == "sent"
         assert day["fill"] is not None and day["fill"]["to_go_hours"] == 7.5
@@ -772,7 +868,7 @@ class TestPendingDay:
 
     def test_a_sent_day_is_not_pending(self, worker: Staff) -> None:
         _clocked(worker)
-        day_submission.submit_day(worker, DAY, [], None, timezone.now())
+        day_submission.submit_day(worker, worker, DAY, [], None, timezone.now())
 
         assert attendance.pending_day(worker, DAY + timedelta(days=1)) is None
 

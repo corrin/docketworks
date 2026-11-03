@@ -40,7 +40,6 @@ import {
   entryUpdateBody,
   fillGapToNextEntry,
   lastUsedJobId,
-  overlapsBooked,
   rateOptionsFor,
   resolveSelectedJob,
   shownBillable,
@@ -491,16 +490,6 @@ function WorkshopEntryForm({
             ? t('entryDrawer.pastMidnight', { hours: formatHoursDisplay(placement.hours), start })
             : placementWords(start, shownHours, shownEnd, workingOut)}
         </p>
-
-        {overlapsBooked(start, shownEnd, otherEntries) && (
-          <p
-            className="text-sm text-amber-700"
-            role="status"
-            data-automation-id="WorkshopTimesheetEntryDrawer-overlap"
-          >
-            {t('entryDrawer.overlapsBooked')}
-          </p>
-        )}
 
         <div
           className="flex flex-wrap gap-2"

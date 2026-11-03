@@ -194,7 +194,7 @@ def test_update_replaces_days_and_delete_removes_every_projection(
 
     assert not CostLine.objects.filter(id=old_line_id).exists()
     assert updated["request"]["total_hours"] == Decimal("8")
-    leave_service.delete_leave_request(request_id)
+    leave_service.delete_leave_request(request_id, superuser)
     assert not LeaveRequest.objects.exists()
     assert not LeaveDay.objects.exists()
     assert not CostLine.objects.filter(managed_by="leave").exists()

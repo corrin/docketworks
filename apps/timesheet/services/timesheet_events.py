@@ -65,6 +65,25 @@ SNAPSHOT_LABELS: dict[str, str] = {
 EDIT_EVENT_TYPES = frozenset({"entry_updated", "entry_moved"})
 
 
+#: The snapshot keys that are pay, kept from anyone who may not see it.
+PAY_KEYS = frozenset({"wage_rate", "charge_out_rate"})
+
+
+def hide_pay(event: TimesheetEvent) -> None:
+    """Take the pay out of an event read for someone who may not see it; nothing is saved.
+
+    The entry snapshots go whole, and the changes lose their pay lines.
+    """
+    event.delta_before = None
+    event.delta_after = None
+    pay_labels = {SNAPSHOT_LABELS[key] for key in PAY_KEYS}
+    changes = event.detail.get("changes", [])
+    event.detail = {
+        **event.detail,
+        "changes": [each for each in changes if each["field_name"] not in pay_labels],
+    }
+
+
 def is_timesheet_entry(line: CostLine) -> bool:
     """Whether a cost line is a timesheet entry the trail records.
 

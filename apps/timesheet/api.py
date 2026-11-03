@@ -69,7 +69,6 @@ from apps.timesheet.schemas import (
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
-    StandardHoursRequest,
     SubmitDayRequest,
     SweepIn,
     SweepOut,
@@ -89,6 +88,7 @@ from apps.timesheet.services import (
     day_submission,
     payroll_service,
     timesheet_entry_options,
+    timesheet_events,
     weekly_timesheet_service,
     workshop_timesheet_service,
 )
@@ -235,7 +235,7 @@ def job_timesheet_entries_retrieve(
 
 @router.get(
     "/job/timesheet/entries/history/",
-    auth=manage_auth,
+    auth=office_auth,
     operation_id="job_timesheet_entries_history_retrieve",
     response=list[TimesheetEventOut],
     summary="Every timesheet event on one staff member's date, newest first",
@@ -244,22 +244,29 @@ def job_timesheet_entries_retrieve(
 def job_timesheet_entries_history_retrieve(
     request: HttpRequest, staff_id: UUID, date: str
 ) -> list[TimesheetEvent]:
-    """Serve the entry grid's history dialog for one staff/day.
+    """Serve one staff/day's history: who did what, when, and from where.
 
-    Keyed on the worker and the day, not a line, so a deleted entry's events
-    are still reachable from the screen they were made on. Management auth
-    because the snapshots carry wage data, like the entries read.
+    The audit log is the record of it (owner, 2026-11-03), so any office
+    staff member reads it, from Approve time as from the entry grid. Keyed on
+    the worker and the day, not a line, so a deleted entry's events are still
+    reachable. The snapshots carry pay, which Approve time never shows: only
+    a superuser is served them, and the pay changes, whole.
     """
     entry_date = _parse_date(date)
     if not Staff.objects.filter(id=staff_id).exists():
         raise HttpError(
             404, gettext("Staff member %(staff_id)s not found") % {"staff_id": staff_id}
         )
-    return list(
+    events = list(
         TimesheetEvent.objects.filter(
             worker_id=staff_id, accounting_date=entry_date
         ).select_related("staff")
     )
+    if authenticated_staff(request).is_superuser:
+        return events
+    for event in events:
+        timesheet_events.hide_pay(event)
+    return events
 
 
 @router.get(
@@ -597,23 +604,6 @@ def timesheets_my_day_clock(
 
 
 @router.post(
-    "/timesheets/my-day/standard-hours/",
-    auth=self_service_auth,
-    operation_id="timesheets_my_day_standard_hours",
-    response=AttendanceOut,
-    summary="Record the company's standard hours on a day nobody clocked",
-    tags=["timesheets"],
-)
-def timesheets_my_day_standard_hours(
-    request: HttpRequest, payload: StandardHoursRequest
-) -> attendance.AttendanceData:
-    """Use the standard hours for the caller's unclocked day, or for office staff anyone's."""
-    actor = authenticated_staff(request)
-    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
-    return attendance.use_standard_hours(owner, payload.date, actor, _location(payload.location))
-
-
-@router.post(
     "/timesheets/my-day/general-work/",
     auth=self_service_auth,
     operation_id="timesheets_my_day_general_work",
@@ -804,7 +794,9 @@ def timesheets_my_day_breaks_delete(
 def timesheets_my_day_submit(
     request: HttpRequest, payload: SubmitDayRequest
 ) -> workshop_timesheet_service.WorkshopDayData:
-    """Lay the caller's rows out as entries and mark their day sent, all or nothing."""
+    """Lay the rows out as entries and send the day: the caller's, or for the office anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
     rows: list[day_submission.FillRow] = [
         {
             "job_id": row.job_id,
@@ -816,7 +808,8 @@ def timesheets_my_day_submit(
     ]
     try:
         return day_submission.submit_day(
-            authenticated_staff(request),
+            actor,
+            owner,
             payload.date,
             rows,
             _location(payload.location),

@@ -152,8 +152,6 @@ function entryOut(line: TimesheetCostLineOut): WorkshopTimesheetEntryOut {
     wage_rate_multiplier: 1,
     bill_rate_multiplier: 1,
     approved: line.approved,
-    entered_late: false,
-    remote_entry: false,
     created_at: line.created_at,
     updated_at: line.updated_at,
   }

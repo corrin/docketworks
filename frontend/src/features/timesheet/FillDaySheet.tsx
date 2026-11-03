@@ -39,6 +39,8 @@ interface FillDaySheetProps {
   sending: boolean
   onSend: (rows: FillRowIn[]) => Promise<boolean>
   onClose: () => void
+  /** Whose day it is, when the office fills it for someone. */
+  owner?: { id: string; name: string }
 }
 
 /**
@@ -46,7 +48,15 @@ interface FillDaySheetProps {
  * a start time, an end time or a total. The jobs he is likeliest to mean are
  * buttons; "the rest" takes whatever is left of the time he was here.
  */
-export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: FillDaySheetProps) {
+export function FillDaySheet({
+  open,
+  date,
+  fill,
+  sending,
+  onSend,
+  onClose,
+  owner,
+}: FillDaySheetProps) {
   const { t } = useTranslation('timesheet')
   // Asked for when the sheet opens, not when the page does: a closed sheet
   // needs no job list, and the list is a few hundred jobs.
@@ -70,6 +80,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   const overtime = useOvertimeAsk({
     confirmLabel: t('fillDay.sendWithOvertime'),
     automationPrefix: 'FillDaySheet',
+    whose: owner?.name,
   })
 
   /** Send, but first tell him how many of his ordinary hours run past his usual day. */
@@ -78,7 +89,11 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
     if (ordinary > 0) {
       let save: boolean
       try {
-        save = await overtime.askFor({ date, hours: ordinary })
+        save = await overtime.askFor({
+          date,
+          hours: ordinary,
+          ...(owner === undefined ? {} : { staff_id: owner.id }),
+        })
       } catch (error) {
         toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
         return
