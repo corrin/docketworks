@@ -78,7 +78,7 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
    - The rate constants become one definition. Today they are defined at `workshop_timesheet_service.py:823`, `attendance.py:986` and `day_submission.py:36`.
 6. [x] **Estimate and quote grids** (owner, 2026-11-02): use `HoursInput` there too, so there is one hours field app-wide (`CostLineGrid.tsx:356`).
 7. [x] *(mine)* The branch `fix/timesheet-writes-one-writer` has its plan fully ticked. This work needs its own branch and PR: the owner created `fix/one-time-entry`, PR #230, stacked on #229.
-8. [ ] **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Recommendation: a one-commit PR off `main` (the owner's call, since it needs a branch).
+8. [ ] **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Opened 2026-11-03 as PR #231: the same commit, pushed as its own branch off `main`, so no branch switch was needed. It closes when #231 merges.
 9. [ ] **The full frontend unit run flakes locally**: 1 to 3 different `findBy` timeouts per run (`JobQuoteTab`, `JobActualTab`, `JobMovementReportPage`; each passes alone, 3 of 3). The reports page shares no code with this change. CI's unit runs were green on #229. Find the cause before this PR is ready, not by raising a timeout.
 
 ## Tests
@@ -92,3 +92,108 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
   - The backend test that the cost-line endpoints now refuse every actual time line (it replaces the routing tests).
   - The workshop endpoint accepts `labour_subtype`/`bill_rate_multiplier`, and refuses a colleague's line for a non-office user.
 - **Gates:** `npm run type-check`, `uv run pytest apps/timesheet apps/job`, then the full E2E with `--max-failures=0`.
+
+## Cruft against the owner's six rules (approved 2026-11-03)
+
+### Context
+The owner set out how timesheets work (2026-11-03):
+1. Staff are supposed to clock in and out. If they don't, the defaults are used.
+2. Staff enter what they did. General work may fill the rest of the day.
+3. The office can always do any of this for them.
+4. The audit log shows who did what, from where and when (for example, a remote edit of the clock times).
+5. Entry start and stop times are only a reminder. The app may move them to fit the day.
+6. Staff forget breaks. The app knows them and takes them out of the time billed. Pay runs from clock-in to clock-out, less unpaid breaks.
+
+Three read-only searches and a read of the writer found code that does more than these rules ask. Everything below is to delete or to merge; none of it is a new feature.
+**Testing happens after the coding.** Each step is coded, then the PR runs unit tests, type-check and one full E2E at the end.
+
+### Before anything: commit what is coded
+These are on the branch, uncommitted:
+- `orNull` in the drawer and fill sheet
+- `billsItsTime` used in `applyJobPick`
+- the urgent bill rate set by the server only
+- the hours rule in the writer (`_refuse_bad_hours`, any 2dp > 0 and ≤ 24)
+- `lay_out_rows`'s quarter-hour refusal deleted
+- the test flipped (`test_w3_…`)
+
+### Rule 1: no clock record means the standard day, everywhere
+A day nobody clocked has no `AttendanceDay` row, and several paths refuse to run without one. A separate "use standard hours" path then writes a row so they will.
+The fix is one rule: the day's span is its clock times where they exist, and the standard day otherwise (`attendance.standard_day`).
+- Read the span through one function, used by:
+  - `fill_figures` (`attendance.py:285`)
+  - `unallocated_windows` (`:344`; a missing clock-out on a past day takes the standard finish)
+  - `fill_with_general_work` (`workshop_timesheet_service.py:775`)
+  - `_sweep` (`approval.py:524-552`)
+  - `submit_day` (`day_submission.py:112`)
+  - adding a break (`attendance.py:1010`)
+  - `clock_out` with no clock-in (`attendance.py:691`; the clock-in takes the standard start)
+- Delete:
+  - `use_standard_hours` and its endpoint (`api.py:599`)
+  - `recordStandardHours` (`useWorkshopDay.ts:268`)
+  - the `standard_hours_used` event
+  - the sweep's row-writing branch (`approval.py:541-552`)
+  - the skip reasons `no_clock_times` / `still_clocked_in` for past days (`approval.py:335-540`, `useSweep.ts`)
+  - the "No clock out. Use 15:00?" offer (`DayCard.tsx:195`, `missed_clock_out_finish`)
+  - the pending banner's "still clocked in" half (`attendance.py:610`, `DayCard.tsx:164`)
+  - the `sent_only_when_clocked_out` constraint (`models.py:317`; a schema migration)
+  - the "Clock out to see what is left" copy
+- Keep:
+  - "Not clocked in" as the day's status word
+  - the pending banner's "not sent" half
+
+### Rule 2: one General work
+- One fill. `_sweep` calls `fill_with_general_work` and computes nothing of its own.
+- One job lookup. `refill_general_work` and `_with_general_work` use the sweep's validated `_general_work_job_id()`.
+- Frontend: one hook for the my-day fill and the sweep (step 6 of the PR #230 plan).
+
+### Rule 3: the office does any of it for them
+- **Send the day.** `submit_day` gains an owner and actor, as `create_entry` has. The endpoint takes `staff_id`, and `useSubmitDay` takes `ownerId`. Today only the worker can send their own fill sheet.
+- **Approve.** Approve has two endpoints doing one thing: per day (`api.py:855`) and per line (`job/api.py:986`). Keep one, the per-line one, since the per-day one is a loop over it.
+- **Leave.** Leave writes through `create_entry` / `delete_entry`: step 4 of the PR #230 plan, unchanged. This also fixes the bug the search found: leave never rebuilt General work.
+
+### Rule 4: the audit log is the record of who did what
+In plain terms: the screens show badges such as "Entered late", "Sent late", "Suspicious remote entry", "Did not clock in" and "Clocked in away from the workshop". Each badge is a second copy of something the audit log already records, so one fact is kept in two places. The owner wants the audit log to be the record (2026-11-03: "Audit logs are good"). So the badges and their stored columns go, and office staff read the log instead.
+`TimesheetEvent` already records the actor, the worker, the time, before and after, and `trusted` (at the workshop or not). These copies of the same facts go:
+- `CostLine.remote_entry`: a column, so a migration.
+- `AttendanceDay.clock_in_how` / `clock_out_how` (`ClockHow`), with `_by_hand`, `_tapped` and `clock_cautions`.
+- The derived marks `entered_late` and `sent_late`.
+- `LeaveRequest.created_by`, which nothing reads.
+
+Who sees the log: today only superusers, on the entry page (`TimesheetHistoryDialog`). Office staff move to the same `office_auth` as Approve time, and the dialog opens from Approve time's person row.
+Also fix the side finding: system writes (General work refill, deletes) record `trusted` the same way `create_entry` does.
+
+### Rule 5: entry times are a reminder
+- **`_validate_time_consistency`** (`workshop_timesheet_service.py:249`) refuses hours longer than the start-to-finish span. Instead, the writer keeps the hours and the start and moves the finish (`attendance.finish_in_the_day`). A backwards finish is dropped and re-placed the same way.
+- **`_refuse_all_inside_a_break`** (`:820`): delete it. An entry typed inside a break starts after the break (`attendance.start_after_breaks`, already used by `lay_out_rows`).
+- **The drawer's "already booked for that time" warning** (`overlapsBooked`, `WorkshopTimesheetEntryDrawer.tsx:495`, `myTime.ts`): delete it.
+- **Kept:** the drawer's finish → hours helper. It is how a worker says "9 till 10" without counting.
+
+### Rule 6: the app knows the breaks; staff can forget them
+The owner, 2026-11-03: "The breaks are understood already before time is entered." A worker says "6:30 to 11 on this" and forgets the break; the app takes the break out so the customer is not overcharged. Pay runs from clock-in to clock-out, less unpaid breaks.
+That already works: `hours_for` and `finish_in_the_day` step over the breaks, and a day with no clock record uses the standard day's planned breaks (`day_breaks`, `_planned_breaks`). So when the break lines are written is left alone. What goes:
+- **`_no_room_for`** (`attendance.py:887`). If an entry's typed hours fill its typed span (08:00–09:00 booked as 1h), the standard break is left off the day as "worked through". That is the opposite of the owner's case: the worker forgot the break, he did not work through it. Delete it. The break always goes on, and the entry's hours are what is paid and billed.
+- **"Set the day's clock times before adding a break"** (`attendance.py:1011`): delete it (rule 1).
+- **The "inside your break" refusal**: already under rule 5.
+
+### Tests (run after all coding)
+- **Unit tests that pin deleted behaviour** are deleted or flipped. The searches listed them:
+  - `test_attendance.py`: 197, 211, 234-283, 349-390
+  - `test_day_submission.py`: 195, 700
+  - `test_approval.py`: 450, 598-629
+  - `test_workshop_timesheet_api.py`: 643, 717-759
+  - `myTime.test.ts`: `overlapsBooked`, marks
+- **New unit tests**, each guarding the block it names:
+  - an unclocked past day sends, fills and sweeps on the standard day
+  - hours longer than the typed span save with the finish moved
+  - an entry inside a break saves after it
+  - the office sends a worker's day
+- **E2E specs changed:**
+  - `mobile/workshop-clock.spec.ts`:
+    - :135 is an unclocked day sent on the standard hours, with no row written first
+    - :157 and :208 no longer expect "Did not clock"
+  - `mobile/workshop-my-time.spec.ts`: :581 and :616 drop the late and remote marks
+  - `timesheet/approve-time.spec.ts:122`: the office opens a person's history from Approve time and sees a remote clock edit, by whom
+- **E2E specs added:**
+  - the office sends a worker's fill sheet
+  - an entry typed inside a break saves after it
+- **Gates:** `uv run pytest`, `npm run type-check`, vitest, then one full `run_e2e.sh --max-failures=0`.
