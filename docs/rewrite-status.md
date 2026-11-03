@@ -38,10 +38,10 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **69 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **70 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 280 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 4002 collected |
+| API operations v2 exposes | 279 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3998 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -168,19 +168,6 @@ Not a tier — just the things a session should have a reason not to pick up.
   wired to `Employees`). Fix the docstring with the code.
   [KAN-354](https://docketworks.atlassian.net/browse/KAN-354) carries the analysis. It
   is marked Done with no commit behind it, so its status is not evidence the fix exists.
-- **The overtime repair commands price 1.5x/2x lines at the base wage.**
-  `create_overtime_entries.py:194` writes `"unit_cost": str(staff.base_wage_rate)`
-  unmultiplied, and `_repair_shared.build_repair_time_line` takes `unit_cost` and
-  `wage_rate_multiplier` as independent parameters that never meet — the multiplier
-  reaches `meta` and never the price. The tests now **pin** the defect
-  (`apps/timesheet/tests/test_repair_commands.py:234` asserts a 1.5 multiplier beside a
-  base-rate `unit_cost`; `:367` the same on the split path), so fixing it means changing
-  them too. Route pricing through `apps/job/services/time_entry_rates.py`. The
-  historical-row question — whether already-written rows get repriced — needs an owner
-  ruling, and no migration exists. These commands write real payroll cost lines: dry-run
-  and read the CSV before running either.
-  [KAN-339](https://docketworks.atlassian.net/browse/KAN-339) carries this and is
-  likewise marked Done with no commit behind it.
 - **Make the week reconciliation poll pay slips to a deadline.** ADR 0007 records the
   gap: `get_week_reconciliation` makes a single unguarded `get_pay_slips_for_week` call
   while a Draft run's slips recompute asynchronously for minutes after a post, and the

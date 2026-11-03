@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
 import { getTimesheetJobs, getWorkshopTimesheetStaff, type TimesheetJob } from '../fixtures/api'
-import { bookingDay, waitForEntryGrid } from './support'
+import { bookingDay, isEntryWrite, waitForEntryGrid } from './support'
 
 /**
  * The keyboard-only entry flow: after ONE mouse click on the first picker,
@@ -18,6 +18,7 @@ import { bookingDay, waitForEntryGrid } from './support'
  */
 
 const createdLineSchema = z.object({
+  id: z.string(),
   entry_seq: z.number(),
   desc: z.string().nullable(),
   quantity: z.string(),
@@ -37,8 +38,19 @@ interface CreatedLine {
   meta: Record<string, unknown>
 }
 
-async function parseCreated(response: Response): Promise<CreatedLine> {
-  const body = createdLineSchema.parse(await response.json())
+/** The saved line, priced, as the day reads after the entry endpoint answers. */
+async function parseCreated(
+  page: Page,
+  response: Response,
+  day: { staffId: string; date: string },
+): Promise<CreatedLine> {
+  const { id } = z.object({ id: z.string() }).parse(await response.json())
+  const read = await page.request.get(
+    `/api/job/timesheet/entries/?staff_id=${day.staffId}&date=${day.date}`,
+  )
+  const lines = z.object({ cost_lines: z.array(createdLineSchema) }).parse(await read.json())
+  const body = lines.cost_lines.find((line) => line.id === id)
+  if (body === undefined) throw new Error(`Saved entry ${id} is not on its day`)
   return { ...body, desc: body.desc ?? '', quantity: Number(body.quantity) }
 }
 
@@ -125,7 +137,7 @@ test.describe.serial('keyboard Tab entry flow', () => {
 
     // Delay the FIRST create so the in-flight disabled state is observable.
     let delayed = false
-    await page.route(/\/cost_lines\/?$/, async (route) => {
+    await page.route(/\/api\/job\/workshop\/timesheets\/?$/, async (route) => {
       if (!delayed && route.request().method() === 'POST') {
         delayed = true
         await page.waitForTimeout(700)
@@ -159,11 +171,9 @@ test.describe.serial('keyboard Tab entry flow', () => {
       timeout: 3000,
     })
     await page.keyboard.type('Cutting')
-    const firstPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const firstPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await page.keyboard.press('Tab')
 
     // While the delayed POST is in flight the next phantom's picker locks.
@@ -171,7 +181,7 @@ test.describe.serial('keyboard Tab entry flow', () => {
     await nextTrigger.waitFor({ timeout: 3000 })
     await expect(nextTrigger).toBeDisabled({ timeout: 3000 })
 
-    const row1Body = await parseCreated(await firstPost)
+    const row1Body = await parseCreated(page, await firstPost, { staffId: staff.id, date })
     expectCreatedCostLine(row1Body, {
       entrySeq: firstSeq,
       desc: 'Cutting',
@@ -213,13 +223,11 @@ test.describe.serial('keyboard Tab entry flow', () => {
       timeout: 3000,
     })
     await page.keyboard.type('Welding')
-    const secondPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const secondPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await page.keyboard.press('Tab')
-    const row2Body = await parseCreated(await secondPost)
+    const row2Body = await parseCreated(page, await secondPost, { staffId: staff.id, date })
     expectCreatedCostLine(row2Body, {
       entrySeq: secondSeq,
       desc: 'Welding',

@@ -2,7 +2,12 @@ import { act, renderHook } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useDraftRows, type RowExitBlurEvent, type UseDraftRowsOptions } from './useDraftRows'
+import {
+  useDraftRows,
+  type PersistCallbacks,
+  type RowExitBlurEvent,
+  type UseDraftRowsOptions,
+} from './useDraftRows'
 
 interface TestDraft {
   text: string
@@ -12,8 +17,6 @@ interface TestDraft {
 const emptyDraft = (): TestDraft => ({ text: '', ready: false })
 const draftIsEmpty = (draft: TestDraft) => draft.text === '' && !draft.ready
 const isReady = (draft: TestDraft) => draft.ready
-
-type PersistCallbacks = { onCreated: () => void; onFailed: () => void }
 
 function setup(overrides: Partial<UseDraftRowsOptions<TestDraft>> = {}) {
   // Captures callbacks so tests settle the in-flight persist themselves.
@@ -120,6 +123,21 @@ describe('commitDraft', () => {
     act(() => hook.result.current.commitDraft(id))
     act(() => hook.settled[0]!.onFailed())
     expect(hook.result.current.isFailed(id)).toBe(true)
+    expect(hook.result.current.isPersisting(id)).toBe(false)
+    expect(hook.result.current.drafts.some((entry) => entry.localId === id)).toBe(true)
+    act(() => hook.result.current.commitDraft(id))
+    expect(hook.persist).toHaveBeenCalledTimes(2)
+  })
+
+  // The office grid's overtime question: Cancel must leave the row as typed,
+  // with no "Save failed" badge, and saveable again.
+  it('a cancelled persist keeps the draft unbadged and allows a retry', () => {
+    const hook = setup()
+    const id = phantomId(hook)
+    act(() => hook.result.current.updateDraft(id, { text: 'x', ready: true }))
+    act(() => hook.result.current.commitDraft(id))
+    act(() => hook.settled[0]!.onCancelled())
+    expect(hook.result.current.isFailed(id)).toBe(false)
     expect(hook.result.current.isPersisting(id)).toBe(false)
     expect(hook.result.current.drafts.some((entry) => entry.localId === id)).toBe(true)
     act(() => hook.result.current.commitDraft(id))

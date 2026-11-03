@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/auth'
 import { autoId, getPhantomRowIndex, TEST_COMPANY_NAME } from '../helpers'
 import { isRecord } from '../fixtures/api'
-import { bookingDay, enterHours, openEntryViaDaily } from './support'
+import { bookingDay, enterHours, isEntryWrite, openEntryViaDaily } from './support'
 
 /**
  * Urgent-job billing defaults: picking an urgent job leaves the WAGE at
@@ -89,32 +89,28 @@ test.describe('urgent job timesheet defaults', () => {
     await expect(autoId(page, `SmartTimesheetTable-rate-${rowIndex}`)).toContainText('Ord')
     await expect(autoId(page, `SmartTimesheetTable-billRate-${rowIndex}`)).toContainText('1.5x')
 
-    const createPost = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          `/api/job/jobs/${jobId}/cost_sets/actual/cost_lines/` &&
-        response.request().method() === 'POST',
-      { timeout: 30000 },
-    )
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 30000,
+    })
     await enterHours(page, rowIndex, '2')
     const response = await createPost
     expect(response.ok(), await response.text()).toBe(true)
 
     const requestBody: unknown = response.request().postDataJSON()
-    if (!isRecord(requestBody) || !isRecord(requestBody.meta)) {
-      throw new Error(`Create request carried no meta: ${JSON.stringify(requestBody)}`)
+    if (!isRecord(requestBody)) {
+      throw new Error(`Create request was not an entry: ${JSON.stringify(requestBody)}`)
     }
-    expect(requestBody.meta.wage_rate_multiplier).toBe(1.0)
-    expect(requestBody.meta.bill_rate_multiplier).toBe(1.5)
-    expect(requestBody.meta.is_billable).toBe(true)
+    expect(requestBody.job_id).toBe(jobId)
+    expect(requestBody.wage_rate_multiplier).toBe(1.0)
+    // The grid shows the 1.5 but leaves it to the server: one copy of the rule.
+    expect(requestBody).not.toHaveProperty('bill_rate_multiplier')
+    expect(requestBody.is_billable).toBe(true)
 
     const responseBody: unknown = await response.json()
-    if (!isRecord(responseBody) || !isRecord(responseBody.meta)) {
-      throw new Error(
-        `Create response carried no meta: ${JSON.stringify(responseBody).slice(0, 300)}`,
-      )
+    if (!isRecord(responseBody)) {
+      throw new Error(`Create response was not an entry: ${JSON.stringify(responseBody)}`)
     }
-    expect(responseBody.meta.wage_rate_multiplier).toBe(1.0)
-    expect(responseBody.meta.bill_rate_multiplier).toBe(1.5)
+    expect(responseBody.wage_rate_multiplier).toBe(1.0)
+    expect(responseBody.bill_rate_multiplier).toBe(1.5)
   })
 })

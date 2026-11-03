@@ -81,7 +81,7 @@ def test_cancelling_leave_waits_for_a_sweep_of_his_day(
         with transaction.atomic():
             Staff.objects.select_for_update().get(pk=worker.pk)
             pending, worker_pid = start_database_task(
-                pool, lambda: leave_service.delete_leave_request(request_id)
+                pool, lambda: leave_service.delete_leave_request(request_id, superuser)
             )
             await_database_lock(pending, worker_pid)
         pending.result(timeout=10)

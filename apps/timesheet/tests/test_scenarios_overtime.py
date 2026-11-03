@@ -22,7 +22,6 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineWriteData, create_cost_line
 from apps.timesheet.models import LeaveType
 from apps.timesheet.services import (
     approval,
@@ -121,23 +120,18 @@ def _clock(worker: Staff, start: str, finish: str, day: date = DAY) -> None:
     attendance.set_clock_times(worker, day, T(start), T(finish), worker)
 
 
-def _grid(office: Staff, job: Job, worker: Staff, hours: str, *, bill: float) -> None:
-    """An office entry-grid row as SmartTimesheetTable posts it (wage 1.0, bill from the pick)."""
-    data: CostLineWriteData = {
-        "kind": "time",
-        "desc": None,
-        "quantity": Decimal(hours),
+def _grid(office: Staff, job: Job, worker: Staff, hours: str, *, bill: str) -> None:
+    """An office timesheet-grid row for him (wage 1.0, bill from the pick), as the grid posts it."""
+    data: WorkshopEntryCreateData = {
+        "job_id": job.id,
         "accounting_date": DAY,
-        "meta": {
-            "staff_id": str(worker.id),
-            "date": DAY.isoformat(),
-            "is_billable": True,
-            "wage_rate_multiplier": 1.0,
-            "bill_rate_multiplier": bill,
-            "created_from_timesheet": True,
-        },
+        "hours": Decimal(hours),
+        "description": None,
+        "is_billable": True,
+        "wage_rate_multiplier": Decimal("1.0"),
+        "bill_rate_multiplier": Decimal(bill),
     }
-    create_cost_line(job, "actual", data, office)
+    workshop_timesheet_service.create_entry(office, worker, data)
 
 
 def _job(company: Company, superuser: Staff, name: str, rate: str = "120.00") -> Job:
@@ -375,6 +369,7 @@ def test_E7_the_fill_sheet_row_that_crosses_eight_is_split(worker: Staff, job: J
 
     day_submission.submit_day(
         worker,
+        worker,
         DAY,
         [
             {"job_id": job.id, "hours": Decimal("3"), "description": None, "time_and_a_half": False}
@@ -405,6 +400,7 @@ def test_E8_a_fill_row_ticked_time_and_a_half_is_that_rate_whatever_the_total(
     _clock(worker, "07:00", "15:00")
 
     day_submission.submit_day(
+        worker,
         worker,
         DAY,
         [{"job_id": job.id, "hours": Decimal("2"), "description": None, "time_and_a_half": True}],
@@ -584,9 +580,9 @@ def test_E14_nine_hours_entered_in_the_office_grid_is_eight_then_one_at_time_and
 ) -> None:
     """The office enters 9h for him in the office grid: the same rule, 1h past 8 is 1.5x.
 
-    Guards job_service.create_cost_line (the grid's write path).
+    Guards workshop_timesheet_service.create_entry (the grid's write path).
     """
-    _grid(office_staff, job, worker, "9", bill=1.0)
+    _grid(office_staff, job, worker, "9", bill="1.0")
 
     # Placed from 07:00 around the breaks, as from his phone. Office-entered
     # time waits for approval like any.
@@ -690,11 +686,11 @@ def test_F1_the_office_grid_charges_an_urgent_job_at_time_and_a_half(
     """The office grid, entry on an urgent job: the Invoice multiplier defaults to 1.5x, wage 1x.
 
     The grid's job pick (timesheetDraft.applyJobPick) sends bill 1.5 for an urgent job.
-    Guards job_service.create_cost_line pricing an explicit bill multiplier.
+    Guards workshop_timesheet_service.create_entry pricing an explicit bill multiplier.
     """
     _make_urgent(job, superuser)
 
-    _grid(office_staff, job, worker, "2", bill=1.5)
+    _grid(office_staff, job, worker, "2", bill="1.5")
 
     # 48 x 1 = 48; 120 x 1.5 = 180. Placed from 07:00, around the 08:30 break.
     assert _lines(job, worker) == [
@@ -880,6 +876,7 @@ def test_P6_ticked_time_and_a_half_rows_count_toward_the_eight(worker: Staff, jo
 
     day_submission.submit_day(
         worker,
+        worker,
         DAY,
         [
             {
@@ -992,6 +989,7 @@ def test_P10_a_weekend_he_forgot_to_tick_stays_ordinary(worker: Staff, job: Job)
     _clock(worker, "07:00", "16:00", day=SATURDAY)
 
     day_submission.submit_day(
+        worker,
         worker,
         SATURDAY,
         [{"job_id": job.id, "hours": Decimal("8"), "description": None, "time_and_a_half": False}],

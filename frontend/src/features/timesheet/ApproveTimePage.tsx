@@ -21,7 +21,9 @@ import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
 import { breakWords, cautionMarks, clockWords, dayEndOf, entryMarks, isRealBreak } from './myTime'
 import { useSweep } from './useSweep'
-import { useBreaks, useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
+import { useBreaks, useClocking, useSubmitDay, useWorkshopEntryWrites } from './useWorkshopDay'
+import { FillDaySheet } from './FillDaySheet'
+import { TimesheetHistoryDialog } from './TimesheetHistoryDialog'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
 export interface ApproveTimeSearch {
@@ -87,6 +89,11 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   const [breakFor, setBreakFor] = useState<{ staffId: string; sheet: BreakSheetState } | null>(null)
   const breaks = useBreaks(false, breakFor?.staffId)
   const { sweep, sweeping } = useSweep()
+  // Whose day the office is filling and sending for them, if anyone's.
+  const [fillFor, setFillFor] = useState<StaffApprovalOut | null>(null)
+  const submission = useSubmitDay(false, fillFor?.staff_id)
+  // Whose history (the audit log) is open: who did what, when and from where.
+  const [historyFor, setHistoryFor] = useState<string | null>(null)
 
   const people = approvalsQuery.data?.staff
   // Clocked time on no job anywhere on the day: what Sweep everyone would move.
@@ -347,6 +354,28 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                       <Pencil className="h-4 w-4" /> {t('approve.correctClockTimes')}
                     </Button>
                   )}
+                  <div className="flex flex-wrap gap-2">
+                    {/* The office does the worker's jobs for him when he forgets
+                        (owner, 2026-11-03): sending his day is one of them. */}
+                    {person.fill !== null && person.clock.state !== 'sent' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-automation-id={`ApproveTimePage-fill-${person.staff_id}`}
+                        onClick={() => setFillFor(person)}
+                      >
+                        {t('approve.fillAndSend')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-automation-id={`ApproveTimePage-history-${person.staff_id}`}
+                      onClick={() => setHistoryFor(person.staff_id)}
+                    >
+                      {t('approve.history')}
+                    </Button>
+                  </div>
                   <div
                     className="flex flex-wrap items-center gap-2 text-sm text-slate-700"
                     data-automation-id={`ApproveTimePage-breaks-${person.staff_id}`}
@@ -371,18 +400,16 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                         {breakWords(each)}
                       </Button>
                     ))}
-                    {person.clock.state !== 'not_clocked_in' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        data-automation-id={`ApproveTimePage-break-add-${person.staff_id}`}
-                        onClick={() =>
-                          setBreakFor({ staffId: person.staff_id, sheet: { mode: 'add' } })
-                        }
-                      >
-                        <Plus className="h-4 w-4" /> {t('approve.addBreak')}
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-automation-id={`ApproveTimePage-break-add-${person.staff_id}`}
+                      onClick={() =>
+                        setBreakFor({ staffId: person.staff_id, sheet: { mode: 'add' } })
+                      }
+                    >
+                      <Plus className="h-4 w-4" /> {t('approve.addBreak')}
+                    </Button>
                   </div>
                   <PersonEntries
                     person={person}
@@ -401,6 +428,25 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
             )}
           </Fragment>
         )}
+      />
+
+      {fillFor !== null && fillFor.fill !== null && (
+        <FillDaySheet
+          open
+          date={date}
+          fill={fillFor.fill}
+          sending={submission.submitting}
+          owner={{ id: fillFor.staff_id, name: fillFor.staff_name }}
+          onSend={(rows) => submission.submitDay(date, rows)}
+          onClose={() => setFillFor(null)}
+        />
+      )}
+
+      <TimesheetHistoryDialog
+        staffId={historyFor ?? ''}
+        date={date}
+        open={historyFor !== null}
+        onClose={() => setHistoryFor(null)}
       />
 
       <BreakSheet

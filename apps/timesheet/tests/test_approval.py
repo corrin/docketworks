@@ -17,7 +17,7 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
-from apps.timesheet.services import approval, attendance
+from apps.timesheet.services import approval, attendance, workshop_timesheet_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -202,34 +202,6 @@ class TestApprovalsRead:
         assert rows[str(absent.id)]["state"] == "nothing_entered"
         assert rows[str(done.id)]["state"] == "nothing_waiting"
 
-    def test_a_waiting_entry_made_late_or_away_marks_the_persons_row(
-        self, office_staff: Staff, job: Job, worker: Staff
-    ) -> None:
-        """An approved entry's marks are history; only what is waiting flags the row."""
-        approved = make_time_line(job, worker, accounting_date=DAY, hours="1.000")
-        waiting = make_time_line(job, worker, accounting_date=DAY, hours="2.000", approved=False)
-        CostLine.objects.filter(pk=approved.pk).update(remote_entry=True)
-        client = authenticated_client(office_staff)
-
-        [row] = [
-            row
-            for row in client.get(f"{APPROVALS_URL}?date={DAY.isoformat()}").json()["staff"]
-            if row["staff_id"] == str(worker.id)
-        ]
-        assert row["remote_entry"] is False
-
-        CostLine.objects.filter(pk=waiting.pk).update(remote_entry=True)
-        [row] = [
-            row
-            for row in client.get(f"{APPROVALS_URL}?date={DAY.isoformat()}").json()["staff"]
-            if row["staff_id"] == str(worker.id)
-        ]
-        assert row["remote_entry"] is True
-        assert {entry["hours"]: entry["remote_entry"] for entry in row["entries"]} == {
-            1.0: True,
-            2.0: True,
-        }
-
     def test_day_summary_counts_people_by_state(
         self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
     ) -> None:
@@ -282,8 +254,6 @@ class TestApprovalsRead:
             "clock_in": "06:30:00",
             "clock_out": "15:00:00",
             "here_hours": 8.5,
-            "sent_late": False,
-            "cautions": ["Did not clock in", "Did not clock out"],
             "general_work_fill": False,
         }
         assert rows[str(other_worker.id)]["state"] == "waiting"
@@ -447,14 +417,15 @@ class TestSweep:
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
         assert (row.clock_in, row.clock_out) == (time(6, 0), time(8, 30))
 
-    def test_a_day_still_clocked_in_is_skipped_and_left_alone(
+    def test_today_still_clocked_in_is_skipped_and_left_alone(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
     ) -> None:
-        """Guards approval._sweep: no clock-out means no clocked time, so nothing moves."""
-        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker)
-        own = make_time_line(job, worker, accounting_date=DAY, approved=False)
+        """Guards approval._sweep: he may yet tap out today, so nothing moves."""
+        today = timezone.localdate()
+        attendance.set_clock_times(worker, today, time(7, 0), None, worker)
+        own = make_time_line(job, worker, accounting_date=today, approved=False)
 
-        result = approval.sweep_person(worker, [DAY], office_staff)
+        result = approval.sweep_person(worker, [today], office_staff)
 
         assert result["swept_hours"] == 0.0
         assert [(skip["staff_id"], skip["reason"]) for skip in result["skipped"]] == [
@@ -463,8 +434,23 @@ class TestSweep:
         assert _general_work_hours(general_work, worker) == []
         own.refresh_from_db()
         assert not own.approved
-        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        row = AttendanceDay.objects.get(staff=worker, date=today)
         assert row.clock_out is None
+
+    @pytest.mark.usefixtures("general_work")
+    def test_an_earlier_day_left_clocked_in_is_swept_to_the_standard_finish(
+        self, office_staff: Staff, worker: Staff
+    ) -> None:
+        """Guards approval._sweep and attendance.settle_day: the default finish stands in."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker)
+
+        result = approval.sweep_person(worker, [DAY], office_staff)
+
+        assert result["skipped"] == []
+        assert result["swept_hours"] > 0
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert row.clock_out == time(15, 0)
+        assert attendance.day_state(row) == "sent"
 
     def test_a_day_over_its_clocked_time_moves_nothing_but_is_approved(
         self, office_staff: Staff, job: Job, general_work: Job, worker: Staff
@@ -693,7 +679,9 @@ class TestSweep:
             defaults.general_work_job = wrong
             defaults.save(update_fields=["general_work_job"])
 
-            with pytest.raises(approval.GeneralWorkNotSetUpError, match=wrong.name):
+            with pytest.raises(
+                workshop_timesheet_service.GeneralWorkNotSetUpError, match=wrong.name
+            ):
                 approval.sweep_person(worker, [DAY], office_staff)
 
     @pytest.mark.usefixtures("general_work")

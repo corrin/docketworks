@@ -77,8 +77,11 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
   await test.step('setting the day puts the standard breaks on it', async () => {
     await expect(autoId(page, 'DayCard')).toBeVisible()
     await page.goto(`/timesheets/my-time?date=${day}`)
-    // Nobody has clocked this day: the card offers the company's standard hours.
-    await expect(fill).toHaveText(/^Standard hours \d{2}:\d{2} to \d{2}:\d{2}$/)
+    // Nobody has clocked this day: it is the standard day, its breaks included
+    // (owner, 2026-11-03), so the card already says what is to fill.
+    await expect(fill).toHaveText(
+      /^\d+h( \d+m)? to fill, \d+m breaks, 0h entered, \d+h( \d+m)? to go$/,
+    )
     await autoId(page, 'DayCard-change-times').tap()
     await autoId(page, 'DayCard-start').fill('06:30')
     await autoId(page, 'DayCard-finish').fill('15:00')
@@ -151,7 +154,7 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await tap(autoId(page, 'FillDaySheet-row-2-rest'))
     await expect(sum).toHaveText('8h to fill, 30m breaks, 7h 30m entered. All filled')
     // The buttons fill the same field he can type in.
-    await expect(autoId(page, 'FillDaySheet-row-2-hours')).toHaveValue('2.5')
+    await expect(autoId(page, 'FillDaySheet-row-2-hours')).toHaveValue('2h 30m')
     await testInfo.attach('fill-sheet', {
       body: await page.screenshot({ animations: 'disabled' }),
       contentType: 'image/png',
@@ -214,7 +217,8 @@ test('a filled day past the usual day asks before it goes as overtime', async ({
 
   await autoId(page, 'DayCard-fill-and-send').tap()
   await autoId(page, `FillDaySheet-job-${job.job_number}`).tap()
-  await autoId(page, 'FillDaySheet-row-0-rest').tap()
+  // Typed as on every hours field: "9h" is the nine hours to go.
+  await autoId(page, 'FillDaySheet-row-0-hours').fill('9h')
   await autoId(page, 'FillDaySheet-send').tap()
 
   // 9h on the job: the hour past his usual 8 is time and a half, and he is told first.

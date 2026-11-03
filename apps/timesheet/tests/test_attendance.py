@@ -9,7 +9,7 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.core.errors import InvalidInputError
+from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
@@ -24,7 +24,6 @@ DAY = WEEK_START
 CLOCK_URL = "/api/timesheets/my-day/clock/"
 TIMES_URL = "/api/timesheets/my-day/times/"
 DAY_URL = "/api/job/workshop/timesheets/"
-STANDARD_URL = "/api/timesheets/my-day/standard-hours/"
 HISTORY_URL = "/api/job/timesheet/entries/history/"
 
 
@@ -51,8 +50,6 @@ class TestClockTaps:
             "clock_in": time(6, 31),
             "clock_out": None,
             "here_hours": None,
-            "sent_late": False,
-            "cautions": [],
             "general_work_fill": False,
         }
         assert finished["state"] == "clocked_out"
@@ -72,19 +69,56 @@ class TestClockTaps:
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
         assert (row.clock_in, row.clock_out) == (time(6, 30), time(15, 0))
 
-    def test_clock_out_on_a_later_date_asks_for_the_time(self, worker: Staff) -> None:
-        """Yesterday's open day is not stamped with today's time; it is named as pending."""
+    def test_clock_out_on_a_later_date_is_not_stamped_on_the_open_day(self, worker: Staff) -> None:
+        """Yesterday's open day is not stamped with today's time; it is named as pending.
+
+        A tap at 00:20 is today's, before today's standard start, so it is
+        not a clock-out at all.
+
+        Guards attendance.clock_out.
+        """
         attendance.clock_in(worker, _at(0, 16, 0))
 
         with pytest.raises(attendance.ClockingRefusedError, match="not clocked in today"):
             attendance.clock_out(worker, _at(1, 0, 20))
 
         assert AttendanceDay.objects.get(staff=worker, date=DAY).clock_out is None
+        assert not AttendanceDay.objects.filter(staff=worker, date=DAY + timedelta(days=1)).exists()
         assert attendance.pending_day(worker, DAY + timedelta(days=1)) == {
             "date": DAY,
             "state": "at_work",
         }
         assert attendance.pending_day(worker, DAY) is None
+
+    def test_clock_out_without_clocking_in_starts_the_day_at_the_standard_start(
+        self, worker: Staff
+    ) -> None:
+        """He forgot to clock in: the default start stands in, with the usual breaks.
+
+        Guards attendance.clock_out.
+        """
+        finished = attendance.clock_out(worker, _at(0, 15, 1))
+
+        assert (finished["clock_in"], finished["clock_out"]) == (time(7, 0), time(15, 1))
+        assert AttendanceDay.objects.get(staff=worker, date=DAY).breaks_generated
+
+    def test_clock_out_without_clocking_in_says_the_standard_hours_were_used(
+        self, worker: Staff
+    ) -> None:
+        """The made-up start is in the history, and a tap before it is not a clock-out.
+
+        Guards attendance.clock_out.
+        """
+        with pytest.raises(attendance.ClockingRefusedError, match="not clocked in today"):
+            attendance.clock_out(worker, _at(0, 7, 0))
+
+        attendance.clock_out(worker, _at(0, 15, 1))
+
+        events = TimesheetEvent.objects.filter(worker=worker, accounting_date=DAY)
+        assert sorted(events.filter(cost_line_id=None).values_list("event_type", flat=True)) == [
+            "clocked_out",
+            "standard_hours_used",
+        ]
 
     def test_a_finish_past_midnight_is_refused_in_words(self, worker: Staff) -> None:
         """Times of day cannot hold it, so the worker is told to ask the office."""
@@ -151,16 +185,6 @@ class TestDayState:
         AttendanceDay.objects.filter(staff=worker, date=DAY).update(submitted_at=_at(0, 15, 2))
         assert attendance.day_attendance(worker, DAY)["state"] == "sent"
 
-    def test_a_day_sent_on_a_later_local_date_is_sent_late(self, worker: Staff) -> None:
-        """Local dates, as for entries: 23:50 that night is on time, 00:10 is late."""
-        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 0), worker)
-        rows = AttendanceDay.objects.filter(staff=worker, date=DAY)
-
-        rows.update(submitted_at=_at(0, 23, 50))
-        assert attendance.day_attendance(worker, DAY)["sent_late"] is False
-        rows.update(submitted_at=_at(1, 0, 10))
-        assert attendance.day_attendance(worker, DAY)["sent_late"] is True
-
     def test_the_day_read_carries_the_clock_and_an_earlier_open_day(
         self, worker_client: Client, worker: Staff
     ) -> None:
@@ -186,39 +210,8 @@ class TestDayState:
         assert again.status_code == 409
 
 
-def _how(worker: Staff) -> tuple[str, str | None]:
-    row = AttendanceDay.objects.get(staff=worker, date=DAY)
-    return row.clock_in_how, row.clock_out_how
-
-
-class TestHowAClockTimeGotThere:
-    """A tap is the record that he was here; anything else is not, and the office is told."""
-
-    def test_a_tap_is_clocked_and_an_edit_is_not(self, worker: Staff) -> None:
-        attendance.clock_in(worker, _at(0, 6, 31))
-        attendance.clock_out(worker, _at(0, 15, 1))
-        assert _how(worker) == ("clocked", "clocked")
-        assert attendance.day_attendance(worker, DAY)["cautions"] == []
-
-        # He corrects his finish: the start he tapped is still a tap.
-        attendance.set_clock_times(worker, DAY, time(6, 31), time(15, 30), worker)
-        assert _how(worker) == ("clocked", "not_clocked")
-        assert attendance.day_attendance(worker, DAY)["cautions"] == ["Did not clock out"]
-
-        attendance.set_clock_times(worker, DAY, time(6, 0), time(15, 30), worker)
-        assert _how(worker) == ("not_clocked", "not_clocked")
-
-    def test_a_time_the_office_sets_raises_no_warning(
-        self, worker: Staff, office_staff: Staff
-    ) -> None:
-        """Nobody is chased over the office's own entry or its tidying of a tap."""
-        attendance.clock_in(worker, _at(0, 6, 31))
-        attendance.clock_out(worker, _at(0, 15, 1))
-
-        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 1), office_staff)
-
-        assert _how(worker) == ("set_by_office", "clocked")
-        assert attendance.day_attendance(worker, DAY)["cautions"] == []
+class TestTheDefaults:
+    """Staff are supposed to clock in and out; when they don't, the defaults are used."""
 
     def test_standard_hours_come_from_the_weekdays_company_defaults(self) -> None:
         company = CompanyDefaults.get_solo()
@@ -231,69 +224,91 @@ class TestHowAClockTimeGotThere:
         tuesday = attendance.standard_day(DAY + timedelta(days=1))
         assert tuesday is not None and tuesday.start == time(8, 0)
 
-    def test_a_weekend_has_no_standard_day(self, worker: Staff) -> None:
+    def test_a_weekend_nobody_clocked_has_nothing_to_fall_back_on(self, worker: Staff) -> None:
+        """Guards attendance.day_span and settle_day."""
         saturday = DAY + timedelta(days=5)
 
         assert attendance.standard_day(saturday) is None
-        with pytest.raises(InvalidInputError, match="no standard hours on a weekend"):
-            attendance.use_standard_hours(worker, saturday, worker)
+        assert attendance.day_span(saturday, None) is None
+        with pytest.raises(ConflictError, match="Set the day's clock times first"):
+            attendance.settle_day(worker, saturday, worker)
+        assert not AttendanceDay.objects.filter(staff=worker, date=saturday).exists()
 
-    def test_using_standard_hours_records_them_as_not_clocked_and_generates_breaks(
+    def test_settling_an_unclocked_day_writes_the_standard_day_and_its_breaks(
         self, worker_client: Client, worker: Staff
     ) -> None:
+        """Guards attendance.settle_day."""
         company = CompanyDefaults.get_solo()
         company.mon_start = time(6, 30)
         company.save(update_fields=["mon_start"])
 
-        response = worker_client.post(
-            STANDARD_URL, data={"date": DAY.isoformat()}, content_type="application/json"
-        )
-        again = worker_client.post(
-            STANDARD_URL, data={"date": DAY.isoformat()}, content_type="application/json"
-        )
+        settled = attendance.settle_day(worker, DAY, worker)
+        again = attendance.settle_day(worker, DAY, worker)
 
-        assert response.status_code == 200, response.content
-        assert response.json()["cautions"] == ["Did not clock in", "Did not clock out"]
-        assert _how(worker) == ("not_clocked", "not_clocked")
-        row = AttendanceDay.objects.get(staff=worker, date=DAY)
-        assert (row.clock_in, row.clock_out) == (time(6, 30), time(15, 0))
-        assert row.breaks_generated
+        assert (settled.clock_in, settled.clock_out) == (time(6, 30), time(15, 0))
+        assert settled.breaks_generated
+        assert again.pk == settled.pk
+        assert AttendanceDay.objects.filter(staff=worker, date=DAY).count() == 1
         day = worker_client.get(f"{DAY_URL}?date={DAY.isoformat()}").json()
         assert day["fill"]["to_fill_hours"] == 8.0
         assert [each["paid"] for each in day["breaks"]] == [True, False, True]
         assert day["standard"] == {"start": "06:30:00", "end": "15:00:00"}
-        assert again.status_code == 409
 
-    def test_a_missed_clock_out_is_offered_the_standard_finish(self, worker: Staff) -> None:
-        today = DAY + timedelta(days=1)
+    def test_the_defaults_written_are_in_the_history(
+        self, worker: Staff, office_staff: Staff
+    ) -> None:
+        """Guards attendance.settle_day: who used the standard hours is logged."""
+        attendance.settle_day(worker, DAY, office_staff)
+
+        event = TimesheetEvent.objects.get(worker=worker, event_type="standard_hours_used")
+        assert event.staff == office_staff
+        assert event.delta_before is None
+        assert [each["field_name"] for each in event.detail["changes"]] == [
+            "Clock in",
+            "Clock out",
+        ]
+
+    def test_a_day_not_yet_over_is_not_given_the_default_finish(self, worker: Staff) -> None:
+        """Next Monday, sent early, would be paid in full before it happened.
+
+        Guards attendance.settle_day.
+        """
+        later = timezone.localdate() + timedelta(days=7 - timezone.localdate().weekday())
+
+        with pytest.raises(ConflictError, match="Clock out first"):
+            attendance.settle_day(worker, later, worker)
+        assert not AttendanceDay.objects.filter(staff=worker, date=later).exists()
+
+    def test_an_earlier_day_left_clocked_in_ends_at_the_standard_finish(
+        self, worker: Staff
+    ) -> None:
+        """Guards attendance.day_span and settle_day."""
         attendance.clock_in(worker, _at(0, 6, 31))
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
 
-        assert attendance.missed_clock_out_finish(row, today) == time(15, 0)
-        # Still today: he may yet tap out.
-        assert attendance.missed_clock_out_finish(row, DAY) is None
+        assert attendance.day_span(DAY, row) == attendance.Window(time(6, 31), time(15, 0))
+        settled = attendance.settle_day(worker, DAY, worker)
+        assert (settled.clock_in, settled.clock_out) == (time(6, 31), time(15, 0))
+
         # He started after the standard finish: the finish is his to give.
         attendance.set_clock_times(worker, DAY, time(16, 0), None, worker)
         row.refresh_from_db()
-        assert attendance.missed_clock_out_finish(row, today) is None
+        assert attendance.day_span(DAY, row) is None
+        with pytest.raises(ConflictError, match="Set the day's clock times first"):
+            attendance.settle_day(worker, DAY, worker)
 
-    def test_the_office_is_told_who_did_not_clock_in_or_out(
-        self, worker: Staff, other_worker: Staff, office_staff: Staff
-    ) -> None:
-        attendance.use_standard_hours(worker, DAY, worker)
-        attendance.clock_in(other_worker, _at(0, 6, 31))
-        attendance.clock_out(other_worker, _at(0, 15, 1))
+    def test_today_while_still_clocked_in_has_no_span(self, worker: Staff) -> None:
+        """He may yet tap out, so no default finish stands in.
 
-        body = (
-            authenticated_client(office_staff)
-            .get(f"/api/timesheets/approvals/?date={DAY.isoformat()}")
-            .json()
-        )
+        Guards attendance.day_span and settle_day.
+        """
+        today = timezone.localdate()
+        attendance.set_clock_times(worker, today, time(6, 31), None, worker)
+        row = AttendanceDay.objects.get(staff=worker, date=today)
 
-        cautions = {row["staff_id"]: row["clock"]["cautions"] for row in body["staff"]}
-        assert cautions[str(worker.id)] == ["Did not clock in", "Did not clock out"]
-        assert cautions[str(other_worker.id)] == []
-        assert body["standard"] == {"start": "07:00:00", "end": "15:00:00"}
+        assert attendance.day_span(today, row) is None
+        with pytest.raises(ConflictError, match="Clock out first"):
+            attendance.settle_day(worker, today, worker)
 
 
 WORKSHOP: EntryLocation = {"latitude": -36.85, "longitude": 174.76}
@@ -328,7 +343,7 @@ class TestWhereAnActionWasMade:
         attendance.clock_in(worker, _at(0, 6, 30), here)
         attendance.clock_out(worker, _at(0, 15, 0), away)
         attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 30), worker, location=here)
-        day_submission.submit_day(worker, DAY, [], away, timezone.now())
+        day_submission.submit_day(worker, worker, DAY, [], away, timezone.now())
         lunch = next(each for each in _day_breaks(worker) if not each["paid"])
         assert lunch["id"] is not None
         attendance.change_break(UUID(lunch["id"]), time(12, 0), time(12, 30), worker, here)
@@ -346,20 +361,10 @@ class TestWhereAnActionWasMade:
         assert [trusted for kind, trusted in recorded if kind in {"entry_updated"}] == [True]
         assert [trusted for kind, trusted in recorded if kind == "entry_deleted"] == [False, True]
 
-    def test_a_tap_away_from_the_workshop_is_clocked_remotely(self, worker: Staff) -> None:
-        attendance.clock_in(worker, _at(0, 6, 30), ELSEWHERE)
-        attendance.clock_out(worker, _at(0, 15, 0), WORKSHOP)
-
-        assert _how(worker) == ("clocked_remotely", "clocked")
-        assert attendance.day_attendance(worker, DAY)["cautions"] == [
-            "Clocked in away from the workshop"
-        ]
-
     def test_no_location_is_untrusted(self, worker: Staff) -> None:
         """A phone that will not say where it is is marked as one that is elsewhere."""
         attendance.clock_in(worker, _at(0, 6, 30), None)
 
-        assert _how(worker)[0] == "clocked_remotely"
         assert _trusted(worker, day_only=True) == [("clocked_in", False)]
 
     def test_office_actions_are_trusted(self, worker: Staff, office_staff: Staff) -> None:
@@ -392,5 +397,4 @@ def test_with_no_company_address_nothing_is_marked(worker: Staff) -> None:
     """With nowhere to compare against there is no check: "trusted" then means not checked."""
     attendance.clock_in(worker, _at(0, 6, 30), None)
 
-    assert _how(worker)[0] == "clocked"
     assert _trusted(worker, day_only=True) == [("clocked_in", True)]

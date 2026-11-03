@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 130,406 (v1 172,577, -24%) |
-| tests | 96,880 (v1 50,869, +90%) |
-| generated | 54,666 (v1 20,359, +169%) |
+| code | 130,237 (v1 172,577, -25%) |
+| tests | 96,907 (v1 50,869, +91%) |
+| generated | 54,611 (v1 20,359, +168%) |
 
 ## Suppressions
 
@@ -31,16 +31,16 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 819 |
-| noqa: DJ001 | 197 |
-| noqa: PLC0415 | 162 |
+| TOTAL suppressions | 814 |
+| noqa: DJ001 | 196 |
+| noqa: PLC0415 | 158 |
 | noqa: E402 | 108 |
 | noqa: PLR0913 | 75 |
 | noqa: ARG002 | 49 |
 | noqa: BLE001 | 35 |
-| noqa: ARG001 | 23 |
+| noqa: ARG001 | 22 |
+| noqa: C901 | 19 |
 | noqa: S603 | 19 |
-| noqa: C901 | 18 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
 | noqa: F405 | 6 |
@@ -83,7 +83,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 224 |
-| in docstrings | 383 |
+| in docstrings | 380 |
 
 ## Exception handling
 
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 445 |
-| except handlers | 474 |
-| re-raises or converts | 306 |
+| try statements | 444 |
+| except handlers | 475 |
+| re-raises or converts | 307 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 261 |
-| non-test functions | 3165 |
+| non-test functions | 3159 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 713 |
+| object annotations | 707 |
 
 ## Wire contract (response side)
 
@@ -134,7 +134,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 333 |
-| response properties | 2135 |
+| response properties | 2130 |
 | optional (pinned at zero) | 0 |
 | nullable | 471 |
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 131 of 443 (30%) |
+| without data-automation-id | 131 of 441 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

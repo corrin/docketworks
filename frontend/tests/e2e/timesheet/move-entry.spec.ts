@@ -4,6 +4,7 @@ import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
 import {
   enterHours,
+  isEntryWrite,
   bookingDay,
   openEntryViaDaily,
   readJobNumber,
@@ -62,11 +63,9 @@ test.describe.serial('moving a timesheet entry to another job', () => {
     await openEntryViaDaily(page, date)
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, sourceNumber)
-    const createPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await enterHours(page, rowIndex, '2')
     expect((await createPost).ok()).toBe(true)
     await expect(autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`)).toContainText(
@@ -80,11 +79,9 @@ test.describe.serial('moving a timesheet entry to another job', () => {
     await openEntryViaDaily(page, date)
     const rowIndex = await rowIndexOfJob(page, sourceNumber)
 
-    const movePatch = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'PATCH',
-      { timeout: 15000 },
-    )
+    const movePatch = page.waitForResponse((response) => isEntryWrite(response, 'PATCH'), {
+      timeout: 15000,
+    })
     await selectJobByNumber(page, rowIndex, destinationNumber)
     expect((await movePatch).ok()).toBe(true)
 

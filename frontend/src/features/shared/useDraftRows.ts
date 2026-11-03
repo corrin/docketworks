@@ -27,13 +27,22 @@ export interface RowExitBlurEvent {
   relatedTarget: Element | null
 }
 
+export interface PersistCallbacks {
+  onCreated: () => void
+  onFailed: () => void
+  onCancelled: () => void
+}
+
 export interface UseDraftRowsOptions<TDraft> {
   emptyDraft: () => TDraft
   draftIsEmpty: (draft: TDraft) => boolean
   /** Whether the draft has enough content to POST (the caller's readiness rule). */
   isReady: (draft: TDraft) => boolean
-  /** POST the draft. Exactly one of the callbacks must eventually fire. */
-  persist: (draft: TDraft, callbacks: { onCreated: () => void; onFailed: () => void }) => void
+  /**
+   * POST the draft. Exactly one of the callbacks must eventually fire.
+   * onCancelled: the user stopped the save. The draft stays editable, unbadged.
+   */
+  persist: (draft: TDraft, callbacks: PersistCallbacks) => void
   /** Fires after a successful persist removed the draft (focus handoff hook). */
   onCreated?: (localId: string) => void
 }
@@ -154,6 +163,10 @@ export function useDraftRows<TDraft>(options: UseDraftRowsOptions<TDraft>): Draf
     options.persist(entry.draft, {
       onCreated: () => settlePersisted(localId),
       onFailed: () => settleFailed(localId),
+      onCancelled: () => {
+        persistingRef.current.delete(localId)
+        syncPersisting()
+      },
     })
   }
 

@@ -15,14 +15,14 @@ from django.utils.translation import gettext
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
+from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineWriteData, create_cost_line, update_latest_actual
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
 from apps.timesheet.services.attendance import break_job_id, duration_words
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
-from apps.timesheet.services.workshop_timesheet_service import pricing_meta
+from apps.timesheet.services.workshop_timesheet_service import create_entry, delete_entry
 
 
 class RequestedDay(TypedDict):
@@ -280,6 +280,12 @@ def _loaded_request(request_id: UUID) -> LeaveRequest:
 
 
 def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staff) -> None:
+    """Put each leave day on the person's time through the one entry writer.
+
+    The writer prices it (a leave job sets its own pay item and 1x, or 0x
+    unpaid: time_entry_rates), places it on the day, records who made it,
+    and rebuilds any General work around it.
+    """
     leave_type = request.leave_type
     job = leave_type.job
     if job is None:
@@ -287,68 +293,42 @@ def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staf
             gettext("%(leave_type)s is not fully configured.")
             % {"leave_type": leave_type.display_name}
         )
-    # Opus: A category Xero pays from its own calculation names NO pay item. The
-    # job still carries one as a dropdown default — the column is NOT NULL — and
-    # copying it here is what put public-holiday hours on the Timesheets API on
-    # top of the line Xero already pays (ADR 0007). CostLine.clean refuses one
-    # on these lines, so this is the write side of that invariant, not a second
-    # opinion about it.
-    if leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
-        pay_item_id = None
-    else:
-        if job.default_xero_pay_item is None:
-            raise ValidationError(
-                gettext("%(leave_type)s is not fully configured.")
-                % {"leave_type": leave_type.display_name}
-            )
-        pay_item_id = job.default_xero_pay_item.id
-    # Fable: The multiplier comes from the category's own paid/unpaid rule, the
-    # same LeaveType.is_paid the timesheet grid's leave_wage_rate_multiplier
-    # reads — a flat 1 here priced UNPAID leave at the full wage, so a week
-    # containing an unpaid day charged the job for hours Xero pays nothing
-    # for, and the payroll reconciliation reported a mismatch on every such
-    # week (ADR 0007: unpaid's 0x multiplier is what makes it unpaid). First
-    # proven live 2026-08-21 by the payroll integration suite.
-    wage_multiplier = Decimal("1") if leave_type.is_paid else Decimal("0")
-    cost_set = None
-    for requested in days:
-        meta = pricing_meta(
-            staff=request.staff,
-            accounting_date=requested["date"],
-            wage_rate_multiplier=wage_multiplier,
-            bill_rate_multiplier=Decimal("0"),
-            is_billable=False,
+    if (
+        leave_type.posting_surface is not PostingSurface.XERO_COMPUTED
+        and job.default_xero_pay_item is None
+    ):
+        raise ValidationError(
+            gettext("%(leave_type)s is not fully configured.")
+            % {"leave_type": leave_type.display_name}
         )
-        data: CostLineWriteData = {
-            "kind": "time",
-            "desc": request.note or leave_type.display_name,
-            "quantity": requested["hours"],
-            "accounting_date": requested["date"],
-            "meta": meta,
-            "xero_pay_item": pay_item_id,
-            "staff": request.staff_id,
-            "managed_by": "leave",
-        }
-        line = create_cost_line(job, "actual", data, actor)
-        cost_set = line.cost_set
+    for requested in days:
+        entry = create_entry(
+            actor,
+            request.staff,
+            {
+                "job_id": job.id,
+                "accounting_date": requested["date"],
+                "hours": requested["hours"],
+                "description": request.note or leave_type.display_name,
+                "is_billable": False,
+            },
+            managed_by=CostLineOwner.LEAVE,
+        )
         LeaveDay.objects.create(
             request=request,
             staff=request.staff,
             date=requested["date"],
             hours=requested["hours"],
-            cost_line=line,
+            cost_line_id=UUID(entry["id"]),
         )
-    if cost_set is not None:
-        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
 
 
-def _delete_days(request: LeaveRequest) -> None:
-    day_rows = list(request.days.select_related("cost_line"))
-    lines = [day.cost_line for day in day_rows]
+def _delete_days(request: LeaveRequest, actor: Staff) -> None:
+    """Take each leave day off the person's time through the one entry writer."""
+    line_ids = list(request.days.values_list("cost_line_id", flat=True))
     LeaveDay.objects.filter(request=request).delete()
-    # Preserve the CostLine model's summary reconciliation on managed deletes.
-    for line in lines:
-        line.delete()
+    for line_id in line_ids:
+        delete_entry(actor, line_id, managed_by=CostLineOwner.LEAVE)
 
 
 @transaction.atomic
@@ -381,7 +361,6 @@ def create_leave_request(  # noqa: PLR0913 -- one complete leave write contract
         note=clean_note,
         source=source,
         batch_id=batch_id,
-        created_by=actor,
     )
     _create_days(request=request, days=[day for day in valid if day["hours"] > 0], actor=actor)
     return {
@@ -416,7 +395,7 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
     # service is entered. apps/core/schemas.py calls that declaration the single
     # source of truth, and a second one here could only ever disagree with it.
     clean_note = note.strip() if note is not None else None
-    _delete_days(request)
+    _delete_days(request, actor)
     request.leave_type = leave_type
     request.start_date = start_date
     request.end_date = end_date
@@ -431,12 +410,12 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
 
 
 @transaction.atomic
-def delete_leave_request(request_id: UUID) -> None:
-    """Delete a request and every generated payroll line."""
+def delete_leave_request(request_id: UUID, actor: Staff) -> None:
+    """Delete a request and every generated payroll line, recorded as ``actor``'s."""
     # Joined, the person's row is locked with the request: a sweep filling
     # his day holds it, so the leave is not taken away from under it.
     request = LeaveRequest.objects.select_for_update().select_related("staff").get(id=request_id)
-    _delete_days(request)
+    _delete_days(request, actor)
     request.delete()
 
 

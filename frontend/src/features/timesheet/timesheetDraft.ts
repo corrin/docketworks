@@ -1,5 +1,7 @@
 import type { TimesheetJobOut } from '@/api'
 
+import { billsItsTime } from './myTime'
+
 /**
  * The entry grid's draft row. Multipliers live here exactly as they will go
  * into the create payload's meta — the urgent spec asserts them verbatim on
@@ -62,7 +64,7 @@ export function applyJobPick(draft: TimesheetDraft, job: TimesheetJobOut): Times
     draft.labour_subtype !== null &&
     job.labour_rates.some((rate) => rate.labour_subtype === draft.labour_subtype)
   const base = { ...draft, job, labour_subtype: subtypeKept ? draft.labour_subtype : null }
-  if (job.shop_job || job.status === 'special') {
+  if (!billsItsTime(job)) {
     return { ...base, is_billable: false, bill_rate_multiplier: 0.0 }
   }
   if (!draft.billExplicit) {

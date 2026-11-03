@@ -25,7 +25,9 @@ import {
 } from '@/components/ui/drawer'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
+import { orNull } from '@/features/shared/nullableText'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
@@ -38,7 +40,6 @@ import {
   entryUpdateBody,
   fillGapToNextEntry,
   lastUsedJobId,
-  overlapsBooked,
   rateOptionsFor,
   resolveSelectedJob,
   shownBillable,
@@ -47,8 +48,8 @@ import {
   type EntryFormValues,
   type TimeRange,
 } from './myTime'
-import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
+import { ORDINARY_RATE, useOvertimeAsk } from './useOvertimeAsk'
 
 export type EntryDrawerState =
   | { mode: 'closed' }
@@ -220,7 +221,9 @@ function WorkshopEntryForm({
   const sourceJob = entry === null ? null : (jobs.find((job) => job.id === entry.job_id) ?? null)
   const canBill = selected === null || billsItsTime(selected)
   const billable = shownBillable({ entry, sourceJob, selectedJob: selected, billableChoice })
-  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier)
+  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier, {
+    unpaid: false,
+  })
   const otherEntries = dayEntries.filter((other) => other.id !== entry?.id)
   const gap = start === '' ? null : fillGapToNextEntry(start, otherEntries, dayEnd)
 
@@ -256,8 +259,10 @@ function WorkshopEntryForm({
   // render, so a double-click could otherwise book the entry twice.
   const inFlightRef = useRef(false)
 
-  // Set while he is asked whether the hours past his usual day are overtime.
-  const [overtimeAsk, setOvertimeAsk] = useState<OvertimeAsk | null>(null)
+  const overtime = useOvertimeAsk({
+    confirmLabel: t('entryDrawer.overtime.save'),
+    automationPrefix: 'WorkshopTimesheetEntryDrawer',
+  })
 
   /** The three values as they will be saved, and how many of the hours a new
       entry puts past his usual day: the server's answer is waited for rather
@@ -306,9 +311,8 @@ function WorkshopEntryForm({
     if (resolved === null) return
     // The hours past his usual day are time and a half unless he chose a rate:
     // he is told before a new entry saves them (owner, 2026-10-24).
-    if (entry === null && resolved.overtimeHours > 0 && rateMultiplier === ORDINARY_RATE) {
-      setOvertimeAsk(resolved)
-      return
+    if (entry === null && rateMultiplier === ORDINARY_RATE) {
+      if (!(await overtime.ask(resolved.overtimeHours))) return
     }
     await save(resolved.times)
   }
@@ -323,7 +327,7 @@ function WorkshopEntryForm({
           job_id: jobId,
           accounting_date: date,
           ...entryTimeFields(times),
-          description: description.trim() === '' ? null : description.trim(),
+          description: orNull(description.trim()),
           is_billable: billable,
           wage_rate_multiplier: rateMultiplier,
         })
@@ -412,20 +416,16 @@ function WorkshopEntryForm({
           >
             {t('entryDrawer.hours')}
           </label>
-          <input
+          <HoursInput
             id="workshop-entry-hours"
-            type="number"
-            inputMode="decimal"
-            min={0.25}
-            step={0.25}
-            value={shownHours ?? ''}
+            hours={shownHours}
             placeholder={
               workingOut === 'finish' ? t('entryDrawer.workingOut') : t('entryDrawer.howLong')
             }
             className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
             data-automation-id="WorkshopTimesheetEntryDrawer-hours"
-            onChange={(event) => {
-              setHours(event.target.value === '' ? null : Number(event.target.value))
+            onHoursChange={(typed) => {
+              setHours(typed)
               setWorkingOut('hours')
             }}
           />
@@ -490,16 +490,6 @@ function WorkshopEntryForm({
             ? t('entryDrawer.pastMidnight', { hours: formatHoursDisplay(placement.hours), start })
             : placementWords(start, shownHours, shownEnd, workingOut)}
         </p>
-
-        {overlapsBooked(start, shownEnd, otherEntries) && (
-          <p
-            className="text-sm text-amber-700"
-            role="status"
-            data-automation-id="WorkshopTimesheetEntryDrawer-overlap"
-          >
-            {t('entryDrawer.overlapsBooked')}
-          </p>
-        )}
 
         <div
           className="flex flex-wrap gap-2"
@@ -628,24 +618,10 @@ function WorkshopEntryForm({
         </div>
       </DrawerFooter>
 
-      <OvertimeAskDialog
-        overtimeHours={overtimeAsk?.overtimeHours ?? null}
-        confirmLabel={t('entryDrawer.overtime.save')}
-        automationPrefix="WorkshopTimesheetEntryDrawer"
-        onCancel={() => setOvertimeAsk(null)}
-        onConfirm={() => {
-          if (overtimeAsk === null) return
-          const { times } = overtimeAsk
-          setOvertimeAsk(null)
-          void save(times)
-        }}
-      />
+      {overtime.dialog}
     </>
   )
 }
-
-/** The ordinary pay rate: hours past his usual day default away from it. */
-const ORDINARY_RATE = 1
 
 type EntryTimes = Pick<EntryFormValues, 'hours' | 'start' | 'end'>
 

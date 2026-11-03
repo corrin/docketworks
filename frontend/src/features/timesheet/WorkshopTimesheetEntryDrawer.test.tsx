@@ -22,8 +22,6 @@ const entry: WorkshopTimesheetEntryOut = {
   wage_rate_multiplier: 1,
   bill_rate_multiplier: 1,
   approved: false,
-  entered_late: false,
-  remote_entry: false,
   created_at: '2026-05-04T21:00:00Z',
   updated_at: '2026-05-04T21:00:00Z',
 }

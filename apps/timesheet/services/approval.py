@@ -12,7 +12,6 @@ this module returns carries a rate, a cost or a revenue figure.
 from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Literal, TypedDict
-from uuid import UUID
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -21,16 +20,17 @@ from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
-from apps.core.errors import ConflictError, InvalidInputError
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay, LeaveType
+from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
+    FillData,
     Window,
     attendance_data,
     break_job_id,
@@ -41,7 +41,6 @@ from apps.timesheet.services.attendance import (
     split_breaks,
     standard_day,
     unallocated_windows,
-    use_standard_hours,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
@@ -54,9 +53,9 @@ from apps.timesheet.services.workshop_timesheet_service import (
     WorkshopEntryData,
     day_time_lines,
     default_entry_start,
-    entered_late,
     entry_data,
     fill_with_general_work,
+    general_work_job_id,
     on_a_public_holiday,
     overtime_hours,
     split_off,
@@ -89,12 +88,15 @@ class StaffApprovalData(TypedDict):
     state: ApprovalState
     entered_hours: float
     waiting_hours: float
-    #: Any waiting entry was made after its day, or away from the workshop.
-    entered_late: bool
-    remote_entry: bool
+    #: What the office should check about the day, in words: "Over by 1h",
+    #: "Leave and work on the same day".
+    cautions: list[str]
     #: Whether the person was here, a separate question from whether their
     #: time is approved: every pairing of the two is an ordinary day.
     clock: AttendanceData
+    #: Hours to fill, entered and to go, as his own fill sheet reads them: the
+    #: office fills and sends his day when he forgot (owner, 2026-11-03).
+    fill: FillData | None
     #: Clocked time on no job and no paid break: what a sweep would put on
     #: General work (KAN-380). None until both clock times are known.
     unallocated_hours: float | None
@@ -202,7 +204,7 @@ def _staff_day(
     entries, break_lines = split_breaks(lines)
     clock = attendance_data(attendance)
     fill = fill_figures(
-        attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
+        day, attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
     )
     # Nobody clocked: a day gone by he was rostered for is the standard day.
     unallocated = (
@@ -211,20 +213,15 @@ def _staff_day(
         or (rostered and day < timezone.localdate() and not _has_leave(entries))
         else None
     )
+    cautions: list[str] = []
     if fill is not None and fill["to_go_hours"] < 0:
         # More entered than he was here for. The usual cause: he clocked, so
         # his paid breaks were entered, and a full day of jobs was typed too.
         over = duration_words(Decimal(str(-fill["to_go_hours"])))
-        clock = {
-            **clock,
-            "cautions": [*clock["cautions"], gettext("Over by %(over)s") % {"over": over}],
-        }
+        cautions.append(gettext("Over by %(over)s") % {"over": over})
     if _has_leave(entries) and any(line.managed_by != CostLineOwner.LEAVE for line in entries):
         # Paid for both: he came in on a day off, or the leave is wrong.
-        clock = {
-            **clock,
-            "cautions": [*clock["cautions"], gettext("Leave and work on the same day")],
-        }
+        cautions.append(gettext("Leave and work on the same day"))
     state: ApprovalState
     if not entries and (rostered or attendance is not None):
         # Expected and no job in: the person the office phones. His paid
@@ -243,9 +240,9 @@ def _staff_day(
         "state": state,
         "entered_hours": float(sum(line.quantity for line in hours)),
         "waiting_hours": float(sum(line.quantity for line in waiting)),
-        "entered_late": any(entered_late(line) for line in waiting),
-        "remote_entry": any(line.remote_entry for line in waiting),
+        "cautions": cautions,
         "clock": clock,
+        "fill": fill,
         "unallocated_hours": None if unallocated is None else float(_hours_in(unallocated)),
         "overtime_check": _overtime_is_off(person, day, entries),
         "breaks": day_breaks(attendance.date, attendance, break_lines)
@@ -363,37 +360,6 @@ class SweepData(TypedDict):
     overtime: list[SweepOvertimeData]
 
 
-class GeneralWorkNotSetUpError(ConflictError):
-    """The instance has no usable General work job, so there is nowhere to sweep to."""
-
-
-def _general_work_job_id() -> UUID:
-    """Return the job the sweep books to, refusing one that is not worked time.
-
-    Pointed at Break, swept time would read as breaks; pointed at a leave job,
-    it would post to Xero as leave and draw down balances. Company Defaults
-    cannot refuse either when it is saved: the core app knows nothing of
-    breaks or leave, so the sweep refuses before it writes anything.
-    """
-    general_work = CompanyDefaults.get_solo().general_work_job
-    if general_work is None:
-        raise GeneralWorkNotSetUpError(
-            gettext(
-                "General work isn't set up: there is no General work job yet. Ask an administrator "
-                "to choose it in Company Defaults > Working Hours."
-            )
-        )
-    if general_work.id == break_job_id() or LeaveType.objects.filter(job=general_work).exists():
-        raise GeneralWorkNotSetUpError(
-            gettext(
-                "General work is set to %(job)s, which is for breaks or leave, not worked time. "
-                "Ask an administrator to choose another job in Company Defaults > Working Hours."
-            )
-            % {"job": general_work.name}
-        )
-    return general_work.id
-
-
 #: The longest stretch one sweep takes: the weekly overview's week.
 SWEEP_MOST_DAYS = 7
 
@@ -494,7 +460,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     shortcut - sweep and approve"). The sweep enters the General work, which
     waits like any entry, and approving the day approves it with the rest.
     """
-    general_work_id = _general_work_job_id()
+    general_work_id = general_work_job_id()
     # Two offices sweeping the same person would both read the same stretches
     # before either writes, and pay them twice; the second waits here and
     # reads the first's entries. Ordered by pk so two sweeps never deadlock.
@@ -521,11 +487,12 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
         for person in people:
             row = AttendanceDay.objects.filter(staff=person, date=day).first()
             entries, break_lines = split_breaks(day_time_lines(person, day))
-            # Not clocking in is working the standard day (owner, 2026-10-21).
-            assumed = _assumed_standard(person, day, row, entries, weekend_enabled=weekend_enabled)
+            # Not clocking in is working the standard day (owner, 2026-10-21),
+            # on a day he was rostered for.
             windows = (
                 unallocated_windows(day, row, entries, break_lines)
-                if row is not None or assumed
+                if row is not None
+                or _assumed_standard(person, day, row, entries, weekend_enabled=weekend_enabled)
                 else None
             )
             if windows is None:
@@ -538,21 +505,12 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
                     }
                 )
                 continue
-            if assumed and windows:
-                # Recorded as the office's, so the day says it was not clocked;
-                # its standard breaks are the ones the stretches were placed around.
-                use_standard_hours(person, day, actor)
-                row = AttendanceDay.objects.get(staff=person, date=day)
             if _goes_past_the_usual_day(person, day, windows):
                 overtime.append(_overtime_warning(person, day))
-            if row is None:
-                # Unclocked and his leave fills the standard day: nothing to
-                # fill and no day to send, but his entries are approved.
-                approve_day(person, day, actor)
-                continue
+            # The one fill: it gives the day its default times where he clocked none.
             swept += fill_with_general_work(person, day, actor)
             approve_day(person, day, actor)
-            _send_for_him(person, row, actor)
+            _send_for_him(person, AttendanceDay.objects.get(staff=person, date=day), actor)
     return {
         "swept_hours": float(swept),
         "skipped": skipped,

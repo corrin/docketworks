@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 CENT = Decimal("0.01")
 DEFAULT_MULTIPLIER = Decimal("1.00")
 ZERO_MULTIPLIER = Decimal("0.00")
+#: Time and a half: the rate hours past the usual day default to (owner, 2026-10-24).
+OVERTIME_MULTIPLIER = Decimal("1.50")
 
 
 class PayItem(Protocol):

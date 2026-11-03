@@ -44,8 +44,9 @@ from ninja.responses import Status
 from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import DEFAULT_MULTIPLIER
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     HOURS_LIMIT,
@@ -69,7 +70,6 @@ from apps.timesheet.schemas import (
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
-    StandardHoursRequest,
     SubmitDayRequest,
     SweepIn,
     SweepOut,
@@ -89,6 +89,7 @@ from apps.timesheet.services import (
     day_submission,
     payroll_service,
     timesheet_entry_options,
+    timesheet_events,
     weekly_timesheet_service,
     workshop_timesheet_service,
 )
@@ -235,7 +236,7 @@ def job_timesheet_entries_retrieve(
 
 @router.get(
     "/job/timesheet/entries/history/",
-    auth=manage_auth,
+    auth=office_auth,
     operation_id="job_timesheet_entries_history_retrieve",
     response=list[TimesheetEventOut],
     summary="Every timesheet event on one staff member's date, newest first",
@@ -244,22 +245,29 @@ def job_timesheet_entries_retrieve(
 def job_timesheet_entries_history_retrieve(
     request: HttpRequest, staff_id: UUID, date: str
 ) -> list[TimesheetEvent]:
-    """Serve the entry grid's history dialog for one staff/day.
+    """Serve one staff/day's history: who did what, when, and from where.
 
-    Keyed on the worker and the day, not a line, so a deleted entry's events
-    are still reachable from the screen they were made on. Management auth
-    because the snapshots carry wage data, like the entries read.
+    The audit log is the record of it (owner, 2026-11-03), so any office
+    staff member reads it, from Approve time as from the entry grid. Keyed on
+    the worker and the day, not a line, so a deleted entry's events are still
+    reachable. The snapshots carry pay, which Approve time never shows: only
+    a superuser is served them, and the pay changes, whole.
     """
     entry_date = _parse_date(date)
     if not Staff.objects.filter(id=staff_id).exists():
         raise HttpError(
             404, gettext("Staff member %(staff_id)s not found") % {"staff_id": staff_id}
         )
-    return list(
+    events = list(
         TimesheetEvent.objects.filter(
             worker_id=staff_id, accounting_date=entry_date
         ).select_related("staff")
     )
+    if authenticated_staff(request).is_superuser:
+        return events
+    for event in events:
+        timesheet_events.hide_pay(event)
+    return events
 
 
 @router.get(
@@ -444,6 +452,8 @@ def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCrea
         data["end_time"] = payload.end_time
     if payload.bill_rate_multiplier is not None:
         data["bill_rate_multiplier"] = payload.bill_rate_multiplier
+    if payload.labour_subtype_id is not None:
+        data["labour_subtype_id"] = payload.labour_subtype_id
     return data
 
 
@@ -469,6 +479,8 @@ def job_workshop_timesheets_create(
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, gettext("Job not found.")) from exc
+    except LabourSubtype.DoesNotExist as exc:
+        raise HttpError(404, gettext("Labour type not found.")) from exc
     except DjangoValidationError as exc:
         # Unpriceable entry (no wage rate, no pay item, no labour rate): the
         # caller's data is wrong, so 400 with the specific cause (ADR 0038).
@@ -478,7 +490,9 @@ def job_workshop_timesheets_create(
     return Status(201, entry)
 
 
-def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEntryUpdateData:
+def _update_payload(  # noqa: C901 -- one copy per optional field, each the same two lines
+    payload: WorkshopTimesheetEntryUpdateRequest,
+) -> WorkshopEntryUpdateData:
     """Translate the validated PATCH request into the service's partial payload."""
     provided = payload.model_fields_set
     data: WorkshopEntryUpdateData = {"entry_id": payload.entry_id}
@@ -500,6 +514,8 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
         data["wage_rate_multiplier"] = payload.wage_rate_multiplier
     if "bill_rate_multiplier" in provided:
         data["bill_rate_multiplier"] = payload.bill_rate_multiplier
+    if "labour_subtype_id" in provided:
+        data["labour_subtype_id"] = payload.labour_subtype_id
     return data
 
 
@@ -526,6 +542,8 @@ def job_workshop_timesheets_partial_update(
         raise HttpError(404, gettext("Timesheet entry not found.")) from exc
     except Job.DoesNotExist as exc:
         raise HttpError(404, gettext("Job not found.")) from exc
+    except LabourSubtype.DoesNotExist as exc:
+        raise HttpError(404, gettext("Labour type not found.")) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
@@ -584,23 +602,6 @@ def timesheets_my_day_clock(
     if payload.action == "in":
         return attendance.clock_in(worker, now, location)
     return attendance.clock_out(worker, now, location)
-
-
-@router.post(
-    "/timesheets/my-day/standard-hours/",
-    auth=self_service_auth,
-    operation_id="timesheets_my_day_standard_hours",
-    response=AttendanceOut,
-    summary="Record the company's standard hours on a day nobody clocked",
-    tags=["timesheets"],
-)
-def timesheets_my_day_standard_hours(
-    request: HttpRequest, payload: StandardHoursRequest
-) -> attendance.AttendanceData:
-    """Use the standard hours for the caller's unclocked day, or for office staff anyone's."""
-    actor = authenticated_staff(request)
-    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
-    return attendance.use_standard_hours(owner, payload.date, actor, _location(payload.location))
 
 
 @router.post(
@@ -697,7 +698,7 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
                 owner,
                 day,
                 hours,
-                wage_rate_multiplier=workshop_timesheet_service.ORDINARY,
+                wage_rate_multiplier=DEFAULT_MULTIPLIER,
                 job_id=job_id,
             )
         ),
@@ -794,7 +795,9 @@ def timesheets_my_day_breaks_delete(
 def timesheets_my_day_submit(
     request: HttpRequest, payload: SubmitDayRequest
 ) -> workshop_timesheet_service.WorkshopDayData:
-    """Lay the caller's rows out as entries and mark their day sent, all or nothing."""
+    """Lay the rows out as entries and send the day: the caller's, or for the office anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
     rows: list[day_submission.FillRow] = [
         {
             "job_id": row.job_id,
@@ -806,7 +809,8 @@ def timesheets_my_day_submit(
     ]
     try:
         return day_submission.submit_day(
-            authenticated_staff(request),
+            actor,
+            owner,
             payload.date,
             rows,
             _location(payload.location),

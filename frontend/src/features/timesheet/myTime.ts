@@ -1,10 +1,6 @@
 /**
  * Pure logic for the workshop "my time" calendar: deriving hours from a
  * start/end pair and shaping entries into FullCalendar events.
- *
- * `hours` is always derived from the time pair, never typed: the server
- * refuses a trio that disagrees, so the drawer offers no independent hours
- * field for the user to contradict.
  */
 
 import type {
@@ -49,7 +45,7 @@ export interface MyTimeCalendarEvent {
  * the calendar block, the untimed list and the drawer cannot disagree.
  */
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
-  return [approvalWord(entry.approved), ...cautionMarks(entry).map((mark) => mark.label)]
+  return [approvalWord(entry.approved)]
 }
 
 /** Whether the office has approved it yet, in the worker's words. */
@@ -65,34 +61,17 @@ export interface CautionMark {
 }
 
 /**
- * The marks that ask for a second look, on an entry or on a person's day:
- * the same words in both places.
+ * The marks that ask the office for a second look at a person's day. Who
+ * did what, when and from where is in the day's history, not here (owner,
+ * 2026-11-03: the audit log is the record).
  */
 export function cautionMarks(flags: {
-  entered_late: boolean
-  remote_entry: boolean
-  /** A person's day only: how it was clocked and sent, as the server words it. */
-  clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
-  /** A person's day only: the hours at overtime differ from the hours past the usual day. */
-  overtime_check?: boolean
+  /** The server's words: "Over by 1h", "Leave and work on the same day". */
+  cautions: string[]
+  /** The hours at overtime differ from the hours past the usual day. */
+  overtime_check: boolean
 }): CautionMark[] {
-  const marks: CautionMark[] = []
-  if (flags.clock !== undefined) marks.push(...flags.clock.cautions.map((label) => ({ label })))
-  if (flags.entered_late)
-    marks.push({
-      label: i18n.t('timesheet:marks.enteredLate'),
-      title: i18n.t('timesheet:marks.enteredLateTitle'),
-    })
-  if (flags.remote_entry)
-    marks.push({
-      label: i18n.t('timesheet:marks.remoteEntry'),
-      title: i18n.t('timesheet:marks.remoteEntryTitle'),
-    })
-  if (flags.clock?.sent_late)
-    marks.push({
-      label: i18n.t('timesheet:marks.sentLate'),
-      title: i18n.t('timesheet:marks.sentLateTitle'),
-    })
+  const marks: CautionMark[] = flags.cautions.map((label) => ({ label }))
   if (flags.overtime_check)
     marks.push({
       label: i18n.t('timesheet:marks.overtimeCheck'),
@@ -168,33 +147,26 @@ export function jobChangeFields(
   return { job_id: jobId }
 }
 
-/** The pay rates a workshop entry can be booked at; 1 is ordinary time. */
+/** The pay rates an entry can be booked at; 1 is ordinary time. */
 const STANDARD_MULTIPLIERS = [1, 1.5, 2] as const
 
-type RateOption = { label: string; multiplier: number }
-
-/** The standard rates as the select labels them: "Ord", "1.5", "2.0". */
-function standardRateOptions(): RateOption[] {
-  return STANDARD_MULTIPLIERS.map((multiplier) => ({
-    label: multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : multiplier.toFixed(1),
-    multiplier,
-  }))
-}
+export type RateOption = { label: string; multiplier: number }
 
 /**
- * The rates the select offers for an entry: the three standard ones, plus the
- * entry's stored rate when it is none of them (set from the office grid), so
- * the stored rate stays selectable for as long as the drawer is open.
+ * The one list of rates a rate select offers: the three standard ones, then
+ * unpaid (0) where the office grid offers it, then the entry's stored rate
+ * when it is none of these. The stored rate stays selectable while the select
+ * is open.
  */
-export function rateOptionsFor(storedMultiplier: number | null): readonly RateOption[] {
-  const standard = standardRateOptions()
-  if (
-    storedMultiplier === null ||
-    standard.some((option) => option.multiplier === storedMultiplier)
-  ) {
-    return standard
+export function rateOptionsFor(
+  storedMultiplier: number | null,
+  { unpaid }: { unpaid: boolean },
+): readonly RateOption[] {
+  const multipliers: number[] = [...STANDARD_MULTIPLIERS, ...(unpaid ? [0] : [])]
+  if (storedMultiplier !== null && !multipliers.includes(storedMultiplier)) {
+    multipliers.push(storedMultiplier)
   }
-  return [...standard, { label: rateLabel(storedMultiplier), multiplier: storedMultiplier }]
+  return multipliers.map((multiplier) => ({ label: rateLabel(multiplier), multiplier }))
 }
 
 /**
@@ -276,9 +248,11 @@ export function distinctJobCount(entries: WorkshopTimesheetEntryOut[]): number {
   return new Set(entries.map((entry) => entry.job_id)).size
 }
 
-/** A rate multiplier as the workshop reads it: "Ord", "1.5x", "2x". */
+/** A rate multiplier as every screen reads it: "Ord", "1.5x", "2x", "Unpaid". */
 export function rateLabel(multiplier: number): string {
-  return multiplier === 1 ? i18n.t('timesheet:rates.ordinary') : `${multiplier}x`
+  if (multiplier === 1) return i18n.t('timesheet:rates.ordinary')
+  if (multiplier === 0) return i18n.t('timesheet:rates.unpaid')
+  return `${multiplier}x`
 }
 
 /** A start/end pair of "HH:mm" time-input values. */
@@ -374,25 +348,6 @@ export function fillGapToNextEntry(
   const until = Math.min(...stops, dayEnd === null ? LAST_MINUTE_OF_DAY : requireMinutes(dayEnd))
   if (until <= from) return null
   return bookableRange(from, until)
-}
-
-/**
- * Whether start–end lies over time another entry already holds. It is
- * allowed, since two things at once does happen, and the drawer says so (owner,
- * 2026-10-21). Entries that only touch end to start do not overlap; a range
- * without both times has no place yet.
- */
-export function overlapsBooked(
-  start: string,
-  end: string,
-  entries: WorkshopTimesheetEntryOut[],
-): boolean {
-  const from = minutesOfDay(start)
-  const until = minutesOfDay(end)
-  if (from === null || until === null) return false
-  return splitDayEntries(entries).timed.some(
-    (entry) => requireMinutes(entry.start_time) < until && requireMinutes(entry.end_time) > from,
-  )
 }
 
 /** What the drawer's form holds when the user submits. */

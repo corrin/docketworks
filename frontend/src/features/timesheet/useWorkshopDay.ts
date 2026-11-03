@@ -10,13 +10,11 @@ import {
   jobWorkshopTimesheetsPartialUpdateMutation,
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
-  timesheetsApprovalsRetrieveQueryKey,
   timesheetsMyDayBreaksCreateMutation,
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
   timesheetsMyDayClockMutation,
   timesheetsMyDayGeneralWorkMutation,
-  timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from '@/api'
@@ -28,6 +26,7 @@ import type {
   WorkshopTimesheetEntryUpdateRequest,
 } from '@/api'
 import { formatHoursDisplay } from '@/lib/format'
+import { invalidateEntryViews } from './useTimesheetEntries'
 
 // Short enough that a phone with no signal does not leave the Save button
 // looking dead.
@@ -168,14 +167,7 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
   const updateMutation = useMutation(jobWorkshopTimesheetsPartialUpdateMutation())
   const deleteMutation = useMutation(jobWorkshopTimesheetsDestroyMutation())
 
-  // Fable: Entries carry an accounting_date, so a write can move one off this
-  // day — every settle invalidates the whole surface (the optionless key
-  // partially matches every date's key) rather than only this day's. Approve
-  // time reads the same entries, so it is refreshed with them.
-  const invalidateDays = () => {
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
-  }
+  const invalidateDays = () => void invalidateEntryViews(queryClient)
 
   /** True on success; the caller closes the drawer only then. */
   const createEntry = async (body: WorkshopTimesheetEntryRequest): Promise<boolean> => {
@@ -237,12 +229,10 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
   const queryClient = useQueryClient()
   const clockMutation = useMutation(timesheetsMyDayClockMutation())
   const timesMutation = useMutation(timesheetsMyDayTimesMutation())
-  const standardMutation = useMutation(timesheetsMyDayStandardHoursMutation())
   const generalWorkMutation = useMutation(timesheetsMyDayGeneralWorkMutation())
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
   }
 
   const clock = async (action: 'in' | 'out'): Promise<boolean> => {
@@ -273,21 +263,6 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
     return true
   }
 
-  /** He forgot to clock: record the company's standard hours as the day's times. */
-  const recordStandardHours = async (date: string): Promise<boolean> => {
-    try {
-      const location = await writeLocation(sendLocation)
-      await standardMutation.mutateAsync({
-        body: { date, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
-      })
-    } catch (error) {
-      report(error, t('myDay.standardHoursFailed'))
-      return false
-    }
-    refresh()
-    return true
-  }
-
   /** "I can't be bothered to enter the rest": the rest of the day goes on General work. */
   const fillWithGeneralWork = async (date: string): Promise<boolean> => {
     let hours: number
@@ -308,13 +283,8 @@ export function useClocking(sendLocation: boolean, ownerId?: string) {
   return {
     clock,
     setTimes,
-    recordStandardHours,
     fillWithGeneralWork,
-    clocking:
-      clockMutation.isPending ||
-      timesMutation.isPending ||
-      standardMutation.isPending ||
-      generalWorkMutation.isPending,
+    clocking: clockMutation.isPending || timesMutation.isPending || generalWorkMutation.isPending,
   }
 }
 
@@ -341,8 +311,7 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
       return false
     }
     toast.success(done)
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
     return true
   }
 
@@ -385,11 +354,12 @@ export function useBreaks(sendLocation: boolean, ownerId?: string) {
 }
 
 /**
- * Send a day to the office with the fill sheet's rows. The phone's position
+ * Send a day to the office with the fill sheet's rows: his own, or for the
+ * office (``ownerId``) anyone's he forgot to send. The phone's position
  * goes with it for the same reason it goes with a single save: every entry
  * the rows become is judged by where it was sent from.
  */
-export function useSubmitDay(sendLocation: boolean) {
+export function useSubmitDay(sendLocation: boolean, ownerId?: string) {
   const { t } = useTranslation('timesheet')
   const queryClient = useQueryClient()
   const submitMutation = useMutation(timesheetsMyDaySubmitMutation())
@@ -397,13 +367,15 @@ export function useSubmitDay(sendLocation: boolean) {
   const submitDay = async (date: string, rows: FillRowIn[]): Promise<boolean> => {
     try {
       const location = await writeLocation(sendLocation)
-      await submitMutation.mutateAsync({ body: { date, rows, location } })
+      await submitMutation.mutateAsync({
+        body: { date, rows, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+      })
     } catch (error) {
       report(error, t('myDay.sendFailed'))
       return false
     }
     toast.success(t('myDay.sent'))
-    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    void invalidateEntryViews(queryClient)
     return true
   }
 

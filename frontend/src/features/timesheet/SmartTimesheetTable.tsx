@@ -10,18 +10,14 @@ import {
 import { Check, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type {
-  CostLineUpdateRequest,
-  TimesheetCostLineOut,
-  TimesheetJobOut,
-  XeroPayItemOut,
-} from '@/api'
-import { formatCurrency, formatHoursDisplay } from '@/lib/format'
+import type { TimesheetCostLineOut, TimesheetJobOut, XeroPayItemOut } from '@/api'
+import { formatCurrency } from '@/lib/format'
 import { i18n } from '@/lib/i18n'
 import { DataTable } from '@/features/shared/DataTable'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { orNull } from '@/features/shared/nullableText'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
@@ -32,9 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
-import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
+import { lineBillMultiplier, lineIsBillable, lineWageMultiplier } from './lineMeta'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
 import {
   applyJobPick,
@@ -43,7 +38,12 @@ import {
   emptyTimesheetDraft,
   type TimesheetDraft,
 } from './timesheetDraft'
-import type { TimesheetCreateBody } from './useTimesheetEntries'
+import { rateOptionsFor } from './myTime'
+import type {
+  CreateEntryCallbacks,
+  TimesheetCreateBody,
+  TimesheetEntryEdit,
+} from './useTimesheetEntries'
 
 // A typed search caps at 15 because this grid lists every active job; the
 // blank-search list stays uncapped so the whole workload is still browsable.
@@ -53,22 +53,16 @@ type TimesheetGridRow =
   | { type: 'server'; line: TimesheetCostLineOut }
   | { type: 'draft'; localId: string; draft: TimesheetDraft }
 
-interface CreateEntryCallbacks {
-  onCreated: (line: TimesheetCostLineOut) => void
-  onFailed: () => void
-}
-
 export interface SmartTimesheetTableProps {
   entries: readonly TimesheetCostLineOut[]
   jobs: readonly TimesheetJobOut[]
   payItems: readonly XeroPayItemOut[]
-  staffId: string
   date: string
   /** The staff member's loaded hourly rate (drafts price hours × this). */
   staffWageRate: number
   /** How the staff member is paid; salaried rows do not offer rate editing. */
   payBasis: string | null
-  patchLine: (lineId: string, body: CostLineUpdateRequest) => void
+  patchLine: (line: TimesheetCostLineOut, edit: TimesheetEntryEdit) => void
   moveLine: (lineId: string, job: TimesheetJobOut) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
@@ -119,27 +113,6 @@ function jobForRow(
 
 // ── Rate select options ──────────────────────────────────────────────────
 
-/** `label` is the option's catalogue key under grid.rates. */
-const RATE_OPTIONS = [
-  { value: '1', label: 'ordinary', multiplier: 1.0 },
-  { value: '1.5', label: 'timeAndAHalf', multiplier: 1.5 },
-  { value: '2', label: 'double', multiplier: 2.0 },
-  { value: '0', label: 'unpaid', multiplier: 0.0 },
-] as const
-
-function rateValue(multiplier: number): string {
-  const option = RATE_OPTIONS.find(
-    (candidate) => Math.abs(candidate.multiplier - multiplier) < 0.01,
-  )
-  return option?.value ?? '1'
-}
-
-function rateMultiplier(value: string): number {
-  const option = RATE_OPTIONS.find((candidate) => candidate.value === value)
-  if (!option) throw new Error(`Unknown rate option ${value}`)
-  return option.multiplier
-}
-
 function RateSelect({
   automationId,
   multiplier,
@@ -157,12 +130,11 @@ function RateSelect({
   gridCol: string
   onPick: (multiplier: number) => void
 }) {
-  const { t } = useTranslation('timesheet')
   return (
     <Select
-      value={rateValue(multiplier)}
+      value={String(multiplier)}
       disabled={disabled}
-      onValueChange={(value) => onPick(rateMultiplier(value))}
+      onValueChange={(value) => onPick(Number(value))}
     >
       <SelectTrigger
         size="sm"
@@ -175,9 +147,9 @@ function RateSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {RATE_OPTIONS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {t(`grid.rates.${option.label}`)}
+        {rateOptionsFor(multiplier, { unpaid: true }).map((option) => (
+          <SelectItem key={option.multiplier} value={String(option.multiplier)}>
+            {option.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -324,50 +296,29 @@ function HoursCell({ row, table }: CellProps) {
   const context = cellMeta(table)
   const gridRow = row.original
   const hours = gridRow.type === 'server' ? Number(gridRow.line.quantity) : gridRow.draft.hours
-  // Local buffer while typing; the committed display is the humanised form
-  // ('2h', '3h 30m' — asserted as the input's VALUE by the specs).
-  const [local, setLocal] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const display = dirty ? local : hours > 0 ? formatHoursDisplay(hours) : ''
   const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 
-  const commit = () => {
-    if (!dirty) return
-    setDirty(false)
-    const parsed = parseHoursInput(local, hours)
-    if (parsed === hours) return
+  const commit = (typed: number | null) => {
+    // Blank or not hours keeps what the row had.
+    if (typed === null || typed === hours) return
     if (gridRow.type === 'server') {
-      // Sending meta alongside quantity routes the write through the server
-      // rate pipeline (created_from_timesheet repricing).
-      context.patchLine(gridRow.line.id, {
-        quantity: String(parsed),
-        meta: gridRow.line.meta,
-      })
+      context.patchLine(gridRow.line, { hours: typed })
     } else {
-      context.updateDraft(gridRow.localId, { hours: parsed })
+      context.updateDraft(gridRow.localId, { hours: typed })
     }
   }
 
   return (
-    <input
-      value={display}
+    <HoursInput
+      hours={hours}
       disabled={disabled}
-      inputMode="decimal"
       aria-label={t('grid.hoursRow', { row: row.index })}
       className={`w-20 rounded border border-slate-200 px-2 py-1 text-right text-sm ${hours > 8 ? 'font-bold text-red-600' : ''}`}
       data-automation-id={`SmartTimesheetTable-hours-${row.index}`}
-      onChange={(event) => {
-        setDirty(true)
-        setLocal(event.target.value)
-      }}
-      onFocus={(event) => event.target.select()}
-      onBlur={commit}
+      onCommit={commit}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return
-        event.preventDefault()
-        event.currentTarget.blur()
         // Enter on a ready draft creates immediately (v1 createOnHoursCommit).
-        if (gridRow.type === 'draft') context.commitDraft(gridRow.localId)
+        if (event.key === 'Enter' && gridRow.type === 'draft') context.commitDraft(gridRow.localId)
       }}
     />
   )
@@ -383,7 +334,7 @@ function DescriptionCell({ row, table }: CellProps) {
     serverValue,
     (value) => {
       if (gridRow.type === 'server') {
-        context.patchLine(gridRow.line.id, { desc: orNull(value) })
+        context.patchLine(gridRow.line, { description: orNull(value) })
       } else {
         context.updateDraft(gridRow.localId, { description: value })
       }
@@ -450,7 +401,7 @@ function LabourTypeCell({ row, table }: CellProps) {
       onValueChange={(value) => {
         if (gridRow.type === 'server') {
           // labour_subtype alone: the backend pulls stored meta and reprices.
-          context.patchLine(gridRow.line.id, { labour_subtype: value })
+          context.patchLine(gridRow.line, { labour_subtype_id: value })
         } else {
           context.updateDraft(gridRow.localId, { labour_subtype: value })
         }
@@ -506,9 +457,7 @@ function RateCell({ row, table }: CellProps) {
         // the urgent 1.5x default or flip a shop job billable (a 422);
         // applyJobPick alone owns the bill defaults.
         if (gridRow.type === 'server') {
-          context.patchLine(gridRow.line.id, {
-            meta: { ...lineMeta(gridRow.line), wage_rate_multiplier: picked },
-          })
+          context.patchLine(gridRow.line, { wage_rate_multiplier: picked })
         } else {
           context.updateDraft(gridRow.localId, { wage_rate_multiplier: picked })
         }
@@ -562,12 +511,9 @@ function BillRateCell({ row, table }: CellProps) {
       gridCol="billRate"
       onPick={(picked) => {
         if (gridRow.type === 'server') {
-          context.patchLine(gridRow.line.id, {
-            meta: {
-              ...lineMeta(gridRow.line),
-              bill_rate_multiplier: picked,
-              is_billable: picked > 0,
-            },
+          context.patchLine(gridRow.line, {
+            bill_rate_multiplier: picked,
+            is_billable: picked > 0,
           })
         } else {
           context.updateDraft(gridRow.localId, {
@@ -723,7 +669,6 @@ export function SmartTimesheetTable({
   entries,
   jobs,
   payItems,
-  staffId,
   date,
   staffWageRate,
   payBasis,
@@ -746,20 +691,20 @@ export function SmartTimesheetTable({
       createLine(
         draft.job,
         {
-          desc: orNull(draft.description),
-          quantity: String(draft.hours),
+          description: orNull(draft.description),
+          hours: draft.hours,
           accounting_date: date,
-          meta: {
-            staff_id: staffId,
-            date,
-            is_billable: draft.is_billable,
-            wage_rate_multiplier: draft.wage_rate_multiplier,
-            bill_rate_multiplier: draft.bill_rate_multiplier,
-            created_from_timesheet: true,
-          },
-          labour_subtype: draft.labour_subtype ?? undefined,
+          is_billable: draft.is_billable,
+          wage_rate_multiplier: draft.wage_rate_multiplier,
+          // An urgent job's 1.5 is the server's to set; only a rate he chose is sent.
+          ...(draft.billExplicit ? { bill_rate_multiplier: draft.bill_rate_multiplier } : {}),
+          labour_subtype_id: draft.labour_subtype,
         },
-        { onCreated: () => callbacks.onCreated(), onFailed: callbacks.onFailed },
+        {
+          onCreated: () => callbacks.onCreated(),
+          onFailed: callbacks.onFailed,
+          onCancelled: callbacks.onCancelled,
+        },
       )
     },
     onCreated: () => setFocusPhantomToken((token) => token + 1),

@@ -281,8 +281,6 @@ class WorkshopTimesheetEntryOut(Schema):
     wage_rate_multiplier: float
     bill_rate_multiplier: float
     approved: bool
-    entered_late: bool
-    remote_entry: bool
     created_at: datetime
     updated_at: datetime
 
@@ -309,8 +307,6 @@ class AttendanceOut(Schema):
     clock_in: time | None
     clock_out: time | None
     here_hours: float | None
-    sent_late: bool
-    cautions: list[str]
     #: The rest of the day is General work, as the sweep or he set it.
     general_work_fill: bool
 
@@ -407,9 +403,10 @@ class FillRowIn(Schema):
 
 
 class SubmitDayRequest(Schema):
-    """Send a day to the office, with any rows still to be saved as entries."""
+    """Send a day to the office, with rows still to be saved. ``staff_id`` is for the office."""
 
     date: date
+    staff_id: UUID | None = None
     rows: list[FillRowIn]
     # None when the phone gave no location: refused, unavailable, or not asked.
     location: EntryLocationIn | None = None
@@ -433,15 +430,6 @@ class GeneralWorkFillOut(Schema):
     """How many hours the rest of the day put on General work."""
 
     swept_hours: float
-
-
-class StandardHoursRequest(Schema):
-    """Record the standard hours on a day nobody clocked. ``staff_id`` is for the office."""
-
-    date: date
-    staff_id: UUID | None = None
-    # None when the phone gave no location: refused, unavailable, or not asked.
-    location: EntryLocationIn | None = None
 
 
 class ClockRequest(Schema):
@@ -477,7 +465,6 @@ class WorkshopTimesheetListResponse(Schema):
     breaks: list[BreakOut]
     fill: FillOut | None
     standard: StandardDayOut | None
-    missed_clock_out_finish: time | None
     default_entry_start: time
     calendar: CalendarBoundsOut
     pending: PendingDayOut | None
@@ -491,9 +478,9 @@ class StaffApprovalOut(Schema):
     state: Literal["waiting", "nothing_entered", "nothing_waiting", "not_rostered"]
     entered_hours: float
     waiting_hours: float
-    entered_late: bool
-    remote_entry: bool
+    cautions: list[str]
     clock: AttendanceOut
+    fill: FillOut | None
     unallocated_hours: float | None
     #: His hours at overtime are not the hours past his usual day: check them.
     overtime_check: bool
@@ -661,6 +648,8 @@ class WorkshopTimesheetEntryRequest(Schema):
     is_billable: bool = True
     wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
     bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    # The office grid's pick of labour; None takes the person's default.
+    labour_subtype_id: UUID | None = None
     # Whose time it is, when office staff enter it for someone else; None is
     # the caller's own.
     staff_id: UUID | None = None
@@ -688,6 +677,7 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
     bill_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
         omittable(MULTIPLIER_MIN)
     )
+    labour_subtype_id: UUID = omittable(UUID(int=0))
     # Where the save came from, not a change to the entry: it never counts as
     # the "one field besides entry_id" an update needs.
     location: EntryLocationIn | None = None

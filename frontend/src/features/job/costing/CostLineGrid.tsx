@@ -28,6 +28,7 @@ import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './ty
 import { DataTable } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
+import { parseHoursText } from '@/features/shared/hours'
 import { ItemSelect } from '@/features/shared/ItemSelect'
 import { orNull } from '@/features/shared/nullableText'
 import { QueryState } from '@/features/shared/QueryState'
@@ -323,6 +324,7 @@ function NumberCell({
   const receiptLocked = gridRow.type === 'server' && isDeliveryReceiptLine(gridRow.line)
   const editable =
     !timesheetLocked && !receiptLocked && (fieldName === 'quantity' || kind !== 'time')
+  const typesHours = fieldName === 'quantity' && kind === 'time'
 
   // Trimmed for display: the wire carries Decimal strings ('3.000'), and the
   // E2E specs assert typed values round-trip as typed ('3').
@@ -349,16 +351,18 @@ function NumberCell({
         context.updateDraft(gridRow.localId, { [fieldName]: value })
       }
     },
-    parseDecimalInput,
+    typesHours ? parseHoursText : parseDecimalInput,
     gridRow.type === 'server',
   )
 
-  const step = fieldName !== 'quantity' ? 0.01 : kind === 'time' ? 0.25 : 1
+  const step = fieldName !== 'quantity' ? 0.01 : 1
   return (
     <input
-      type="number"
+      // Hours read as they do on every hours field ("4h", "1 1/4"), which a
+      // number input cannot hold.
+      type={typesHours ? 'text' : 'number'}
       inputMode="decimal"
-      step={step}
+      step={typesHours ? undefined : step}
       value={field.value}
       disabled={rowLocked(context, gridRow) || !editable}
       data-automation-id={`SmartCostLinesTable-${automation}-${rowIndex}`}

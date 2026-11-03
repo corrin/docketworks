@@ -126,7 +126,6 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           fill={dayData.fill}
           pending={dayData.pending}
           standard={dayData.standard}
-          missedClockOutFinish={dayData.missed_clock_out_finish}
           clocking={clocking.clocking}
           // Clocking out is the moment to say what the day was: the sheet opens on it.
           onClock={async (action) => {
@@ -135,11 +134,6 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             return done
           }}
           onFill={() => setFillOpen(true)}
-          onUseStandardHours={() =>
-            void clocking.recordStandardHours(date).then((recorded) => {
-              if (recorded) setFillOpen(true)
-            })
-          }
           onAddBreak={() => setBreakSheet({ mode: 'add' })}
           onGeneralWork={() => void clocking.fillWithGeneralWork(date)}
           onSetTimes={(clockIn, clockOut) =>

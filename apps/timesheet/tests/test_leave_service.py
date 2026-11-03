@@ -194,7 +194,7 @@ def test_update_replaces_days_and_delete_removes_every_projection(
 
     assert not CostLine.objects.filter(id=old_line_id).exists()
     assert updated["request"]["total_hours"] == Decimal("8")
-    leave_service.delete_leave_request(request_id)
+    leave_service.delete_leave_request(request_id, superuser)
     assert not LeaveRequest.objects.exists()
     assert not LeaveDay.objects.exists()
     assert not CostLine.objects.filter(managed_by="leave").exists()
@@ -216,7 +216,7 @@ def test_generic_cost_line_writes_refuse_managed_leave(
     line = CostLine.objects.get(managed_by="leave")
 
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
-        job_service.update_cost_line(line, {"quantity": Decimal("4")}, superuser)
+        job_service.update_cost_line(line, {"quantity": Decimal("4")})
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
         job_service.delete_cost_line(line, superuser)
 

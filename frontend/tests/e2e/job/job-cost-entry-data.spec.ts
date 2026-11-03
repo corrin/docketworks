@@ -18,9 +18,8 @@ import {
  * Reads the synced mirror only: a run of this spec spends no Xero quota.
  *
  * Port deviations from v1, each deliberate:
- * - Labour seeding POSTs the live actual cost-line create with
- *   `meta.created_from_timesheet` (the same pricing pipeline server-side).
- *   v1 seeded via `/api/job/timesheet/entries/`, an operation v1's own
+ * - Labour seeding POSTs the timesheet entry create, the one writer of a
+ *   person's time (the same pricing pipeline server-side). v1 seeded via `/api/job/timesheet/entries/`, an operation v1's own
  *   frontend never called — dead surface the ledger says not to port. The
  *   Xero pay item resolves server-side, so v1's ordinary-pay-item fetch
  *   drops out with it.

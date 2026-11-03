@@ -803,7 +803,8 @@ describe('CostLineGrid actual config', () => {
     const rows = await findRows()
     const row = rows[0]!
 
-    expect(within(row).getByRole('textbox')).toBeDisabled()
+    // The description, and the hours, which read as typed text.
+    for (const box of within(row).getAllByRole('textbox')) expect(box).toBeDisabled()
     expect(
       document.querySelector('[data-automation-id="SmartCostLinesTable-quantity-0"]'),
     ).toBeDisabled()

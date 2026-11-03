@@ -38,7 +38,6 @@ from apps.core.models import CompanyDefaults
 from apps.core.tests.concurrency import await_database_lock, start_database_task
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineWriteData, create_cost_line
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
 from apps.timesheet.services import (
     approval,
@@ -66,7 +65,6 @@ FRIDAY = WEEK_START + timedelta(days=4)
 PLACEMENT_URL = "/api/timesheets/my-day/placement/"
 APPROVE_LINE_URL = "/api/job/cost_lines/{line_id}/approve/"
 APPROVE_DAY_URL = "/api/timesheets/approvals/{staff_id}/{day}/approve/"
-BACKWARDS_REFUSAL = "The finish time must be after the start time."
 
 DATABASE = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
 COMMITTED = [pytest.mark.committed_db, pytest.mark.usefixtures("break_job")]
@@ -451,7 +449,7 @@ class TestChangesAfterApproval:
         Guards attendance.set_clock_times.
         """
         attendance.set_clock_times(worker, DAY, at(7), at(15), worker)
-        day_submission.submit_day(worker, DAY, [], None, timezone.now())
+        day_submission.submit_day(worker, worker, DAY, [], None, timezone.now())
         assert workshop_timesheet_service.list_entries(worker, DAY)["day"]["state"] == "sent"
 
         attendance.set_clock_times(worker, DAY, at(7), at(14), worker)
@@ -551,16 +549,27 @@ class TestHeFillsHisOwnDay:
         )
         assert workshop_timesheet_service.list_entries(worker, DAY)["day"]["general_work_fill"]
 
-    def test_a_day_with_no_clock_times_has_nothing_to_fill(self, worker_client: Client) -> None:
-        """Guards fill_with_general_work: the rest of a day needs the day's end."""
+    def test_an_unclocked_past_day_is_filled_on_the_standard_span(
+        self, worker: Staff, worker_client: Client, general_work: Job
+    ) -> None:
+        """No clock record means the defaults: the standard day, round its standard breaks.
+
+        Guards fill_with_general_work and attendance.settle_day.
+        """
         response = worker_client.post(
             GENERAL_WORK_URL, data={"date": DAY.isoformat()}, content_type="application/json"
         )
 
-        assert response.status_code == 409
-        assert response.json()["detail"] == (
-            "Set the day's clock times before putting the rest of it on General work."
-        )
+        assert response.status_code == 200, response.content
+        assert response.json()["swept_hours"] == 7.0
+        assert _swept(general_work, worker) == [
+            ("07:00:00", "08:30:00", Decimal("1.500")),
+            ("08:45:00", "11:30:00", Decimal("2.750")),
+            ("12:00:00", "13:30:00", Decimal("1.500")),
+            ("13:45:00", "15:00:00", Decimal("1.250")),
+        ]
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (at(7), at(15))
 
     def test_he_cannot_fill_another_persons_day(
         self, worker_client: Client, other_worker: Staff
@@ -669,10 +678,10 @@ class TestClocksDatesAndRounding:
     ) -> None:
         """A night job from 22:00 to 02:00.
 
-        It can't be stored across midnight. The office sets 23:59 and the
-        hours stand (4h), with no times past midnight.
+        It can't be stored across midnight: the hours stand (4h) and keep no
+        times. An edit to hours that would run past midnight keeps none either.
 
-        Guards workshop_timesheet_service._validate_time_consistency and _redraw_finish.
+        Guards workshop_timesheet_service._fit_times and _redraw_finish.
         """
         across_midnight: WorkshopEntryCreateData = {
             "job_id": job.id,
@@ -681,8 +690,8 @@ class TestClocksDatesAndRounding:
             "start_time": at(22),
             "end_time": at(2),
         }
-        with pytest.raises(ValueError, match=exactly(BACKWARDS_REFUSAL)):
-            workshop_timesheet_service.create_entry(office_staff, worker, across_midnight)
+        saved = workshop_timesheet_service.create_entry(office_staff, worker, across_midnight)
+        assert (saved["hours"], saved["start_time"], saved["end_time"]) == (4.0, None, None)
 
         entry = _book(office_staff, worker, job, at(22), at(23, 59))
         corrected = workshop_timesheet_service.update_entry(
@@ -734,7 +743,7 @@ class TestClocksDatesAndRounding:
     ) -> None:
         """An entry saved at 23:30 NZ time for "today": the date is the NZ date, not UTC's.
 
-        Guards workshop_timesheet_service.resolve_entry_date and entered_late.
+        Guards workshop_timesheet_service.resolve_entry_date.
         """
         # 23:30 NZST on Monday 4 May is 11:30 UTC the same day.
         monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 5, 4, 11, 30, tzinfo=UTC))
@@ -742,7 +751,7 @@ class TestClocksDatesAndRounding:
         entry = _untimed(worker, worker, job, "1", day=today)
 
         assert today == date(2026, 5, 4)
-        assert (entry["accounting_date"], entry["entered_late"]) == (date(2026, 5, 4), False)
+        assert entry["accounting_date"] == date(2026, 5, 4)
 
         # 00:30 NZST on Tuesday 5 May is still Monday 12:30 in UTC.
         monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 5, 4, 12, 30, tzinfo=UTC))
@@ -785,12 +794,15 @@ class TestClocksDatesAndRounding:
             ("08:45:00", "09:00:00", Decimal("0.250")),
         ]
 
-    def test_l8_a_stop_before_the_start_is_refused(self, worker: Staff, job: Job) -> None:
-        """An entry with its stop before its start (13:00-12:00).
+    def test_l8_a_stop_before_the_start_moves_to_where_the_hours_end(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """An entry with its stop before its start (13:00-12:00), for an hour.
 
-        Refused: "The finish time must be after the start time."
+        Saved: the times are only a reminder, so the stop moves to where the
+        hour ends, past the 13:30 break.
 
-        Guards workshop_timesheet_service._validate_time_consistency.
+        Guards workshop_timesheet_service._fit_times.
         """
         backwards: WorkshopEntryCreateData = {
             "job_id": job.id,
@@ -800,17 +812,20 @@ class TestClocksDatesAndRounding:
             "end_time": at(12),
         }
 
-        with pytest.raises(ValueError, match=exactly(BACKWARDS_REFUSAL)):
-            workshop_timesheet_service.create_entry(worker, worker, backwards)
+        entry = workshop_timesheet_service.create_entry(worker, worker, backwards)
 
-        assert _lines(job, worker) == []
+        assert (entry["hours"], entry["start_time"], entry["end_time"]) == (
+            1.0,
+            at(13),
+            at(14, 15),
+        )
 
-    def test_l9_an_entry_from_midnight_to_midnight_is_refused(
+    def test_l9_an_entry_from_midnight_to_midnight_is_given_its_hour(
         self, worker: Staff, job: Job
     ) -> None:
-        """An entry 00:00-00:00: refused.
+        """An entry 00:00-00:00 for an hour: saved 00:00-01:00.
 
-        Guards workshop_timesheet_service._validate_time_consistency.
+        Guards workshop_timesheet_service._fit_times.
         """
         no_span: WorkshopEntryCreateData = {
             "job_id": job.id,
@@ -820,10 +835,9 @@ class TestClocksDatesAndRounding:
             "end_time": at(0),
         }
 
-        with pytest.raises(ValueError, match=exactly(BACKWARDS_REFUSAL)):
-            workshop_timesheet_service.create_entry(worker, worker, no_span)
+        entry = workshop_timesheet_service.create_entry(worker, worker, no_span)
 
-        assert _lines(job, worker) == []
+        assert (entry["start_time"], entry["end_time"]) == (at(0), at(1))
 
 
 def _approve_on_screen(client: Client, worker: Staff) -> int:
@@ -1132,31 +1146,6 @@ class TestStaffChanges:
         assert approval.approve_day(worker, DAY, office_staff) == 1
         assert (_line(own).approved, _line(for_worker).approved) == (True, True)
 
-    def test_n5_a_grid_time_row_the_office_enters_waits_and_its_material_does_not(
-        self, office_staff: Staff, worker: Staff, job: Job
-    ) -> None:
-        """The office entry grid is entering too; material approval is a stock matter.
-
-        Guards job_service.create_cost_line (approved=).
-        """
-        data: CostLineWriteData = {
-            "kind": "time",
-            "desc": None,
-            "quantity": Decimal("2"),
-            "accounting_date": DAY,
-            "ext_refs": {},
-            "meta": {
-                "created_from_timesheet": True,
-                "staff_id": str(worker.id),
-                "date": DAY.isoformat(),
-                "is_billable": True,
-                "wage_rate_multiplier": 1.0,
-            },
-        }
-        line = create_cost_line(job, "actual", data, office_staff)
-
-        assert line.approved is False
-
     def test_n5_the_breaks_the_office_puts_on_with_clock_times_wait_too(
         self, office_staff: Staff, worker: Staff
     ) -> None:
@@ -1328,6 +1317,7 @@ class TestPayrollAndBilling:
 
         day_submission.submit_day(
             worker,
+            worker,
             DAY,
             [
                 {
@@ -1445,20 +1435,22 @@ class TestEnteringIt:
     pytestmark = DATABASE
 
     @pytest.mark.usefixtures("company_address")
-    def test_w1_an_entry_sent_the_next_morning_is_late_and_remote_never_refused(
+    def test_w1_an_entry_sent_the_next_morning_is_untrusted_never_refused(
         self, worker: Staff, job: Job
     ) -> None:
         """An offline phone sends an entry the next morning.
 
-        Flagged late, no location (so remote), never refused.
+        No location, so its event is untrusted; never refused.
 
-        Guards workshop_timesheet_service.entered_late and location.saved_remotely.
+        Guards workshop_timesheet_service._save_entry and location.saved_remotely.
         """
         yesterday = timezone.localdate() - timedelta(days=1)
 
         entry = _untimed(worker, worker, job, "2", day=yesterday)
 
-        assert (entry["hours"], entry["entered_late"], entry["remote_entry"]) == (2.0, True, True)
+        assert entry["hours"] == 2.0
+        [event] = TimesheetEvent.objects.filter(cost_line_id=entry["id"])
+        assert (event.event_type, event.trusted) == ("entry_created", False)
 
     def test_w2_the_same_times_on_two_jobs_are_two_lines_the_office_sees(
         self, superuser: Staff, worker: Staff, job: Job, company: Company
@@ -1482,39 +1474,36 @@ class TestEnteringIt:
             ("Timesheet Job", at(9), at(10), 1.0),
         ]
 
-    def test_w3_a_fill_sheet_row_off_the_quarter_hour_is_refused(
+    def test_w3_a_fill_sheet_row_takes_any_two_decimal_hours_and_no_more(
         self, worker: Staff, job: Job
     ) -> None:
-        """The fill-day sheet with a row that isn't a quarter hour (1.1h).
+        """The fill-day sheet with a 1.1h row, then a 1.005h row.
 
-        Refused: "Hours are entered in quarter hours, a quarter or more." The
-        day stays as it was, unsent.
+        1.1h is sent: any hours to two decimal places, up to a day (owner,
+        2026-11-02). 1.005h is refused, and that day stays as it was, unsent.
 
-        Guards day_submission.lay_out_rows.
+        Guards workshop_timesheet_service._refuse_bad_hours.
         """
         attendance.set_clock_times(worker, DAY, at(7), at(15), worker)
 
+        def row(hours: str) -> day_submission.FillRow:
+            return {
+                "job_id": job.id,
+                "hours": Decimal(hours),
+                "description": None,
+                "time_and_a_half": False,
+            }
+
         with pytest.raises(
             InvalidInputError,
-            match=exactly("Hours are entered in quarter hours, a quarter or more."),
+            match=exactly("Hours are more than 0 and at most 24, to two decimal places."),
         ):
-            day_submission.submit_day(
-                worker,
-                DAY,
-                [
-                    {
-                        "job_id": job.id,
-                        "hours": Decimal("1.1"),
-                        "description": None,
-                        "time_and_a_half": False,
-                    }
-                ],
-                None,
-                timezone.now(),
-            )
-
+            day_submission.submit_day(worker, worker, DAY, [row("1.005")], None, timezone.now())
         assert _lines(job, worker) == []
         assert AttendanceDay.objects.get(staff=worker, date=DAY).submitted_at is None
+
+        day_submission.submit_day(worker, worker, DAY, [row("1.1")], None, timezone.now())
+        assert [line.quantity for line in _lines(job, worker)] == [Decimal("1.1")]
 
     def test_w4_a_finish_typed_inside_a_break_takes_only_the_break_inside_the_span(
         self, worker: Staff, worker_client: Client

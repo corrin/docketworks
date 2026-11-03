@@ -18,7 +18,7 @@ import { formatHoursDisplay } from '../../../src/lib/format'
 import { expect, test } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 import { BOOKING_WEEKS, getLatestWeekdayDate, readJobNumber } from '../timesheet/support'
-import { asOffice, withCompanyAddress } from './support'
+import { asOffice } from './support'
 
 const TIMESHEETS_PATH = '/api/job/workshop/timesheets/'
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
@@ -430,13 +430,13 @@ test.describe.serial('workshop time entry on a phone', () => {
       await expect(end).toHaveValue('10:00')
       await chip('plus-30').tap()
       await expect(end).toHaveValue('10:30')
-      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1')
+      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1h')
       await chip('minus-5').tap()
       await expect(end).toHaveValue('10:25')
       await chip('plus-5').tap()
       await chip('plus-15').tap()
       await expect(end).toHaveValue('10:45')
-      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1.25')
+      await expect(autoId(page, `${DRAWER}-hours`)).toHaveValue('1h 15m')
 
       // Nothing of this user's starts after 09:30, so the gap runs to the end
       // of his day: nobody clocked this weekday, so the standard finish.
@@ -572,13 +572,12 @@ test.describe.serial('workshop time entry on a phone', () => {
         },
       }),
     )
-    // Booked today for an earlier day, so it is marked late.
     const block = page.locator(calendarEvent(booked.id))
     const weekWaiting = autoId(page, 'WorkshopTimesheetSummaryCard-week-waiting-hours')
     const weekApproved = autoId(page, 'WorkshopTimesheetSummaryCard-week-approved-hours')
 
     await openMyTime(page)
-    await expect(block).toContainText('Waiting · Entered late')
+    await expect(block).toContainText('Waiting')
     await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours + 1.5))
     await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours))
     await attachScreenshot(page, testInfo, 'my-time-waiting')
@@ -609,55 +608,5 @@ test.describe.serial('workshop time entry on a phone', () => {
       await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours + 1.5))
       await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours))
     })
-  })
-
-  // ---- Remote entry: a save is marked unless the phone is at the company address. ----
-
-  test('a save reads Suspicious remote entry unless the phone is at the company address', async ({
-    authenticatedPage: page,
-    context,
-    playwright,
-  }, testInfo) => {
-    const baseURL = z.string().parse(testInfo.project.use.baseURL)
-    const addFromThePhone = async (description: string) => {
-      await autoId(page, 'WorkshopTimesheetSummaryCard-add').tap()
-      await expect(page.getByRole('heading', { name: 'Add entry' })).toBeVisible()
-      await pickJob(page, setup.jobA)
-      await autoId(page, `${DRAWER}-hours`).fill('0.5')
-      await autoId(page, `${DRAWER}-description`).fill(description)
-      const create = timesheetWrite(page, 'POST')
-      await autoId(page, `${DRAWER}-submit`).tap()
-      const entry = await savedEntry(await create)
-      await expect(page.getByRole('heading', { name: 'Add entry' })).toBeHidden()
-      return page.locator(`[data-event-id="${entry.id}"]`)
-    }
-
-    await withCompanyAddress(
-      playwright.chromium,
-      baseURL,
-      page,
-      async ({ atTheWorkshop, elsewhere }) => {
-        await context.grantPermissions(['geolocation'])
-        await context.setGeolocation(atTheWorkshop)
-        // Loaded after the address is set: the page asks for location only when
-        // the company has one.
-        await openMyTime(page)
-        const onSite = await addFromThePhone('Entered at the workshop')
-        await expect(onSite).toContainText('Waiting')
-        await expect(onSite).not.toContainText('Suspicious remote entry')
-
-        await context.setGeolocation(elsewhere)
-        const offSite = await addFromThePhone('Entered somewhere else')
-        await expect(offSite).toContainText('Suspicious remote entry')
-
-        await context.clearPermissions()
-        const refused = await addFromThePhone('Entered with location refused')
-        await expect(refused).toContainText('Suspicious remote entry')
-
-        await expect(onSite).not.toContainText('Suspicious remote entry')
-        await expectNoHorizontalOverflow(page)
-        await attachScreenshot(page, testInfo, 'my-time-remote-entry')
-      },
-    )
   })
 })

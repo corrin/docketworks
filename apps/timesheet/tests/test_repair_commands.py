@@ -39,6 +39,8 @@ from apps.timesheet.tests.conftest import (
 
 pytestmark = pytest.mark.django_db
 
+ACTOR_EMAIL = "repair-admin@example.com"
+
 # A Monday after the xero_hours CUTOFF_DATE (2025-08-11).
 MONDAY = date(2026, 5, 4)
 TUESDAY = date(2026, 5, 5)
@@ -105,7 +107,7 @@ def _timesheet_line(name: str, units: str, rate: str = "40.0") -> dict[str, obje
 @pytest.fixture
 def creator() -> Staff:
     return make_staff(
-        "repair-admin@example.com",
+        ACTOR_EMAIL,
         is_office_staff=True,
         is_superuser=True,
         first_name="Repair",
@@ -203,7 +205,6 @@ class TestCreateOvertimeEntries:
             "accounting_date": FRIDAY.isoformat(),
             "job_name": shop_job.name,
             "job_id": str(shop_job.id),
-            "unit_cost": "40.00",
             "xero_ot": "4",
             "jm_ot": "0",
             "xero_total": "14",
@@ -217,7 +218,7 @@ class TestCreateOvertimeEntries:
             writer.writerow({**base, "entry_type": "overtime", "hours_to_create": "4.000"})
             writer.writerow({**base, "entry_type": "ordinary", "hours_to_create": "2.000"})
 
-        output = _run("create_overtime_entries", "--apply", str(csv_path))
+        output = _run("create_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
 
         assert "Created 1 OT + 1 ordinary + 0 leave = 2 total entries." in output
         lines = CostLine.objects.filter(cost_set=shop_job.latest_actual, staff=staff)
@@ -231,7 +232,46 @@ class TestCreateOvertimeEntries:
         assert ordinary_line.xero_pay_item is not None
         assert ordinary_line.xero_pay_item.name == "Ordinary Time"
         assert ordinary_line.meta["wage_rate_multiplier"] == 1.0
-        assert ot_line.unit_cost == Decimal("40.00")
+        # Priced by the writer: the loaded wage (40.00 plus the 20% labour
+        # loading, 48.00) times the rate.
+        assert ot_line.unit_cost == Decimal("72.00")
+        assert ordinary_line.unit_cost == Decimal("48.00")
+        # Xero paid these hours, and it pays approved time only.
+        assert ot_line.approved
+        assert ordinary_line.approved
+
+    def test_apply_refuses_ordinary_hours_past_the_usual_day(
+        self, tmp_path: Path, creator: Staff
+    ) -> None:
+        """Guards create_overtime_entries._do_apply's refusal of a rate the writer changed."""
+        staff = make_staff("ot-f@example.com", first_name="Fullday", last_name="Worker")
+        shop_job = _make_special_job("Shop Time", creator)
+        existing = _make_shop_time_line(shop_job, staff, accounting_date=FRIDAY)
+        csv_path = tmp_path / "reviewed.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=overtime_command_module.PREVIEW_COLUMNS)
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "week_start": MONDAY.isoformat(),
+                    "staff_name": staff.get_display_name(),
+                    "staff_id": str(staff.id),
+                    "entry_type": "ordinary",
+                    "hours_to_create": "2.000",
+                    "accounting_date": FRIDAY.isoformat(),
+                    "job_name": shop_job.name,
+                    "job_id": str(shop_job.id),
+                    "xero_ot": "0",
+                    "jm_ot": "0",
+                    "xero_total": "10",
+                    "jm_total": "8",
+                    "headroom": "2.000",
+                }
+            )
+
+        with pytest.raises(CommandError, match="usual day"):
+            _run("create_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
+        assert list(CostLine.objects.filter(cost_set=shop_job.latest_actual)) == [existing]
 
     def test_apply_refuses_unknown_entry_type(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("ot-b@example.com", first_name="Badrow", last_name="Worker")
@@ -250,7 +290,6 @@ class TestCreateOvertimeEntries:
                     "accounting_date": FRIDAY.isoformat(),
                     "job_name": shop_job.name,
                     "job_id": str(shop_job.id),
-                    "unit_cost": "40.00",
                     "xero_ot": "4",
                     "jm_ot": "0",
                     "xero_total": "12",
@@ -260,7 +299,7 @@ class TestCreateOvertimeEntries:
             )
 
         with pytest.raises(CommandError, match="entry_type must be"):
-            _run("create_overtime_entries", "--apply", str(csv_path))
+            _run("create_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
         assert not CostLine.objects.filter(cost_set=shop_job.latest_actual).exists()
 
     def test_refuses_both_steps_at_once(self) -> None:
@@ -346,7 +385,9 @@ class TestReclassifyOvertimeEntries:
                 }
             )
 
-        output = _run("reclassify_overtime_entries", "--apply", str(csv_path))
+        output = _run(
+            "reclassify_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL
+        )
 
         assert "Reclassified: 1, Split: 1, Total: 2" in output
         split_line.refresh_from_db()
@@ -364,18 +405,26 @@ class TestReclassifyOvertimeEntries:
         assert new_line.xero_pay_item is not None
         assert new_line.xero_pay_item.name == "Time and one half"
         assert new_line.accounting_date == TUESDAY
-        # Paid as the overtime Xero paid: half as much again; charged as billed.
-        assert new_line.unit_cost == split_line.unit_cost * Decimal("1.5")
+        # Paid as the overtime Xero paid: the 48.00 loaded wage times 1.5; charged as billed.
+        assert new_line.unit_cost == Decimal("72.00")
         assert new_line.unit_rev == split_line.unit_rev
-        assert whole_line.unit_cost == split_line.unit_cost * Decimal("1.5")
+        assert whole_line.unit_cost == Decimal("72.00")
+        # Approved before the repair, approved after it.
+        assert split_line.approved
+        assert whole_line.approved
+        assert new_line.approved
 
-    def test_apply_keeps_the_lines_own_wage_and_charge(self, tmp_path: Path, job: Job) -> None:
-        """A customer line entered at 50.00 cost and 130.00 charge, since repriced.
+    @pytest.mark.usefixtures("creator")
+    def test_apply_prices_overtime_at_the_wage_and_keeps_the_charge_rate(
+        self, tmp_path: Path, job: Job
+    ) -> None:
+        """A customer line entered at 50.00 cost and 130.00 charge, split to overtime.
 
-        The repair makes the overtime Xero paid: the cost becomes half as much
-        again of what the line itself cost, and the customer's charge is left
-        as it was billed. Today's wage and charge-out rate play no part.
-        Guards reclassify_overtime_entries._price_as_overtime.
+        The writer prices the overtime part at the worker's 40.00 wage times
+        1.5, and charges it at the rate the line was billed (1x of the job's
+        120.00), not at overtime: a payroll repair does not rebill the
+        customer. The part left ordinary keeps its figures.
+        Guards reclassify_overtime_entries._kept_charge.
         """
         staff = make_staff("rc-c@example.com", first_name="Custy", last_name="Worker")
         line = make_time_line(
@@ -404,13 +453,12 @@ class TestReclassifyOvertimeEntries:
                 }
             )
 
-        _run("reclassify_overtime_entries", "--apply", str(csv_path))
+        _run("reclassify_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
 
         line.refresh_from_db()
         overtime = CostLine.objects.get(cost_set=job.latest_actual, quantity=Decimal("3.000"))
         assert (line.unit_cost, line.unit_rev) == (Decimal("50.00"), Decimal("130.00"))
-        # 50.00 x 1.5 = 75.00 paid; charged 130.00, as the hours were billed.
-        assert (overtime.unit_cost, overtime.unit_rev) == (Decimal("75.00"), Decimal("130.00"))
+        assert (overtime.unit_cost, overtime.unit_rev) == (Decimal("72.00"), Decimal("120.00"))
 
     def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")
@@ -439,10 +487,10 @@ class TestReclassifyOvertimeEntries:
                 }
             )
 
-        _run("reclassify_overtime_entries", "--apply", str(csv_path))
+        _run("reclassify_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
 
         with pytest.raises(CommandError, match="already at an overtime rate"):
-            _run("reclassify_overtime_entries", "--apply", str(csv_path))
+            _run("reclassify_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
         line.refresh_from_db()
         assert line.desc == "Timesheet work [OT reclassified]"
         assert line.meta["wage_rate_multiplier"] == 1.5
@@ -475,7 +523,7 @@ class TestReclassifyOvertimeEntries:
             )
 
         with pytest.raises(CommandError, match="does not match"):
-            _run("reclassify_overtime_entries", "--apply", str(csv_path))
+            _run("reclassify_overtime_entries", "--apply", str(csv_path), "--actor", ACTOR_EMAIL)
         line.refresh_from_db()
         assert line.quantity == Decimal("8.000")
 
@@ -515,7 +563,7 @@ class TestCreateSpecialJob:
 
 
 class TestReassignTimeEntries:
-    """reassign_time_entries: move lines to another staff member at their rate."""
+    """reassign_time_entries: move entries to another staff member at their wage."""
 
     def test_reassigns_and_reprices_by_staff_and_date(self, creator: Staff) -> None:
         staff_a = make_staff("ra-a@example.com", first_name="Alpha", last_name="Worker")
@@ -526,8 +574,9 @@ class TestReassignTimeEntries:
             base_wage_rate=Decimal("50.00"),
         )
         shop_job = _make_special_job("Shop Time", creator)
-        line_one = _make_shop_time_line(shop_job, staff_a, accounting_date=TUESDAY)
-        line_two = _make_shop_time_line(shop_job, staff_a, accounting_date=TUESDAY, hours="2.000")
+        # Six and two: within his usual day, so the writer keeps both ordinary.
+        _make_shop_time_line(shop_job, staff_a, accounting_date=TUESDAY, hours="6.000")
+        _make_shop_time_line(shop_job, staff_a, accounting_date=TUESDAY, hours="2.000")
 
         output = _run(
             "reassign_time_entries",
@@ -537,14 +586,21 @@ class TestReassignTimeEntries:
             "Bravo",
             "--date",
             TUESDAY.isoformat(),
+            "--actor",
+            ACTOR_EMAIL,
         )
 
         assert "Done. Reassigned 2 entries" in output
-        for line in (line_one, line_two):
-            line.refresh_from_db()
-            assert line.staff_id == staff_b.id
-            assert line.unit_cost == Decimal("50.00")
+        assert not CostLine.objects.filter(staff=staff_a).exists()
+        moved = CostLine.objects.filter(staff=staff_b, accounting_date=TUESDAY)
+        assert sorted(line.quantity for line in moved) == [Decimal("2.000"), Decimal("6.000")]
+        for line in moved:
+            assert line.cost_set_id == shop_job.latest_actual.id
+            # Staff B's loaded wage: 50.00 plus the 20% labour loading.
+            assert line.unit_cost == Decimal("60.00")
             assert line.meta["staff_id"] == str(staff_b.id)
+            # Approved before the move, approved after it.
+            assert line.approved
 
     def test_dry_run_changes_nothing(self, creator: Staff) -> None:
         staff_a = make_staff("ra-c@example.com", first_name="Charly", last_name="Worker")
@@ -560,6 +616,8 @@ class TestReassignTimeEntries:
             "Deltas",
             "--date",
             TUESDAY.isoformat(),
+            "--actor",
+            ACTOR_EMAIL,
             "--dry-run",
         )
 

@@ -13,7 +13,10 @@ Two-step workflow:
 
   2. Apply: read the reviewed CSV and reclassify entries
      python manage.py reclassify_overtime_entries \
-         --apply scripts/overtime_reclassify_preview.csv
+         --apply scripts/overtime_reclassify_preview.csv --actor <office staff email>
+
+The entry writer reprices each changed line at the worker's wage times 1.5,
+keeping the line's charge rate; a line that was approved is approved again.
 """
 
 from datetime import date, timedelta
@@ -24,8 +27,19 @@ from typing import TypedDict
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
+from apps.accounts.models import Staff
 from apps.job.models.costing import CostLine
-from apps.job.services.time_entry_rates import PayItem
+from apps.job.services.time_entry_rates import (
+    OVERTIME_MULTIPLIER,
+    ZERO_MULTIPLIER,
+    get_bill_rate_multiplier,
+    rate_from_meta,
+)
+from apps.timesheet.services.workshop_timesheet_service import (
+    WorkshopEntryCreateData,
+    create_entry,
+    update_entry,
+)
 from apps.timesheet.services.xero_hours import (
     XeroWeekRow,
     build_staff_lookup,
@@ -35,12 +49,16 @@ from apps.timesheet.services.xero_hours import (
 )
 
 from ._repair_shared import (
+    add_actor_argument,
     add_preview_apply_arguments,
-    get_overtime_pay_item,
+    approve_written,
+    day_line_ids,
     parse_decimal,
     read_reviewed_csv,
+    resolve_actor,
     resolve_preview_or_apply,
     write_preview_csv,
+    written_entries,
 )
 
 DESC_SUFFIX = "[OT reclassified]"
@@ -72,8 +90,6 @@ QUANTITY_TOLERANCE = Decimal("0.01")
 
 THREE_DP = Decimal("0.001")
 
-OT_MULTIPLIER = 1.5
-
 
 class _UnfillableGap(TypedDict):
     """A staff-week whose OT gap exceeds its eligible standard-rate hours."""
@@ -88,6 +104,7 @@ class _ValidatedRow(TypedDict):
     """One CSV row, validated against the live CostLine, awaiting the write."""
 
     costline: CostLine
+    owner: Staff
     action: str
     ot_hours: Decimal
     remaining_hours: Decimal
@@ -103,6 +120,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         """Register the two workflow steps."""
         add_preview_apply_arguments(parser)
+        add_actor_argument(parser)
 
     def handle(self, *_args: object, **options: object) -> None:
         """Dispatch to the preview or apply step."""
@@ -114,7 +132,7 @@ class Command(BaseCommand):
         if apply_path is None:
             self._do_preview()
         else:
-            self._do_apply(apply_path)
+            self._do_apply(apply_path, resolve_actor(options))
 
     # ------------------------------------------------------------------ #
     #  STEP 1: Preview
@@ -257,16 +275,15 @@ class Command(BaseCommand):
         self.stdout.write(
             "Review/edit the CSV, then run:\n"
             "  python manage.py reclassify_overtime_entries "
-            f"--apply {PREVIEW_CSV_PATH}"
+            f"--apply {PREVIEW_CSV_PATH} --actor <office staff email>"
         )
 
     # ------------------------------------------------------------------ #
     #  STEP 2: Apply
     # ------------------------------------------------------------------ #
 
-    def _do_apply(self, csv_path: str) -> None:
+    def _do_apply(self, csv_path: str, actor: Staff) -> None:
         """Reclassify/split the entries a reviewed CSV describes, all-or-nothing."""
-        ot_pay_item = get_overtime_pay_item()
         path, rows = read_reviewed_csv(csv_path, PREVIEW_COLUMNS)
         self.stdout.write(f"Read {len(rows)} entries from {path}")
 
@@ -278,8 +295,10 @@ class Command(BaseCommand):
         with transaction.atomic():
             for entry in validated:
                 costline = entry["costline"]
+                owner, day = entry["owner"], costline.accounting_date
+                untouched = day_line_ids(owner, day) - {costline.id}
                 if entry["action"] == "reclassify":
-                    self._reclassify_costline(costline, ot_pay_item)
+                    self._reclassify_costline(actor, costline)
                     reclassified_count += 1
                     self.stdout.write(
                         self.style.SUCCESS(
@@ -289,17 +308,24 @@ class Command(BaseCommand):
                         )
                     )
                 else:
-                    new_line = self._split_costline(costline, entry["ot_hours"], ot_pay_item)
+                    self._split_costline(actor, owner, costline, entry["ot_hours"])
                     split_count += 1
+                    new_ids = [
+                        str(line.id)
+                        for line in written_entries(owner, day, untouched | {costline.id})
+                    ]
                     self.stdout.write(
                         self.style.SUCCESS(
                             f"Split: {entry['week_start']} | "
                             f"{entry['staff_name']} | "
-                            f"{entry['ot_hours']}h OT (new ID: {new_line.id}) | "
+                            f"{entry['ot_hours']}h OT (new ID: {', '.join(new_ids)}) | "
                             f"{entry['remaining_hours']}h kept ordinary | "
                             f"job: {costline.cost_set.job.name}"
                         )
                     )
+                # Xero paid the week: what was approved before the repair stays so.
+                if costline.approved:
+                    approve_written(actor, owner, day, untouched)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -331,7 +357,7 @@ class Command(BaseCommand):
         costline_id = row["costline_id"].strip()
         try:
             costline = CostLine.objects.select_related(
-                "cost_set", "cost_set__job", "xero_pay_item"
+                "cost_set", "cost_set__job", "xero_pay_item", "staff"
             ).get(id=costline_id)
         except CostLine.DoesNotExist as exc:
             raise CommandError(f"Row {row_number}: CostLine not found: {costline_id}") from exc
@@ -365,8 +391,11 @@ class Command(BaseCommand):
                 f"CostLine quantity ({costline.quantity}) for reclassify action"
             )
 
+        if costline.staff is None:
+            raise CommandError(f"Row {row_number}: CostLine {costline_id} has no staff member")
         return _ValidatedRow(
             costline=costline,
+            owner=costline.staff,
             action=action,
             ot_hours=ot_hours,
             remaining_hours=remaining_hours,
@@ -402,48 +431,54 @@ class Command(BaseCommand):
         )
 
     @staticmethod
-    def _reclassify_costline(costline: CostLine, ot_pay_item: PayItem) -> None:
+    def _reclassify_costline(actor: Staff, costline: CostLine) -> None:
         """Reclassify a whole CostLine as overtime."""
-        costline.desc = f"{costline.desc} {DESC_SUFFIX}"
-        _price_as_overtime(costline, ot_pay_item)
-        costline.save()
+        update_entry(
+            actor,
+            {
+                "entry_id": costline.id,
+                "description": _reclassified(costline),
+                "wage_rate_multiplier": OVERTIME_MULTIPLIER,
+                "bill_rate_multiplier": _kept_charge(costline),
+            },
+        )
 
     @staticmethod
-    def _split_costline(costline: CostLine, ot_hours: Decimal, ot_pay_item: PayItem) -> CostLine:
+    def _split_costline(actor: Staff, owner: Staff, costline: CostLine, ot_hours: Decimal) -> None:
         """Split a CostLine: reduce the original, create a new OT entry for the rest."""
-        # Reduce original — quantize to 3dp to match DecimalField(10,3).
-        costline.quantity = (costline.quantity - ot_hours).quantize(THREE_DP)
-        costline.save()
-
-        new_line = CostLine(
-            cost_set=costline.cost_set,
-            kind=costline.kind,
-            desc=f"{costline.desc} {DESC_SUFFIX}",
-            quantity=ot_hours.quantize(THREE_DP),
-            unit_cost=costline.unit_cost,
-            unit_rev=costline.unit_rev,
-            accounting_date=costline.accounting_date,
-            staff=costline.staff,
-            labour_subtype=costline.labour_subtype,
-            meta=dict(costline.meta),
+        bill_rate_multiplier = _kept_charge(costline)
+        update_entry(
+            actor,
+            {
+                "entry_id": costline.id,
+                "hours": (costline.quantity - ot_hours).quantize(THREE_DP),
+            },
         )
-        _price_as_overtime(new_line, ot_pay_item)
-        new_line.save()
-        return new_line
+        data: WorkshopEntryCreateData = {
+            "job_id": costline.cost_set.job_id,
+            "accounting_date": costline.accounting_date,
+            "hours": ot_hours.quantize(THREE_DP),
+            "description": _reclassified(costline),
+            "wage_rate_multiplier": OVERTIME_MULTIPLIER,
+            "bill_rate_multiplier": bill_rate_multiplier,
+            "is_billable": bill_rate_multiplier > ZERO_MULTIPLIER,
+        }
+        if costline.labour_subtype_id is not None:
+            data["labour_subtype_id"] = costline.labour_subtype_id
+        create_entry(actor, owner, data)
 
 
-def _price_as_overtime(line: CostLine, ot_pay_item: PayItem) -> None:
-    """Make a line the overtime Xero paid: its own cost at the overtime rate.
+def _reclassified(line: CostLine) -> str:
+    """Return the line's description, marked as reclassified to overtime."""
+    return f"{line.desc} {DESC_SUFFIX}" if line.desc else DESC_SUFFIX
 
-    The figures are the line's own, from the day the hours were worked: a
-    pay rise or a new charge-out rate since then plays no part. The charge is
-    left as the customer was billed; this mends what was paid.
+
+def _kept_charge(line: CostLine) -> Decimal:
+    """Return the charge rate the line was billed at: a payroll repair does not rebill.
+
+    Left to itself the writer would charge overtime hours at the overtime rate.
     """
-    ordinary = Decimal(str(line.meta["wage_rate_multiplier"]))
-    if ordinary <= 0:
+    wage = rate_from_meta(line.meta, "wage_rate_multiplier")
+    if wage is None or wage <= ZERO_MULTIPLIER:
         raise CommandError(f"Time line {line.id} is unpaid, so it cannot be paid as overtime.")
-    line.unit_cost = (line.unit_cost / ordinary * Decimal(str(OT_MULTIPLIER))).quantize(
-        Decimal("0.01")
-    )
-    line.meta = {**line.meta, "wage_rate_multiplier": OT_MULTIPLIER}
-    line.xero_pay_item_id = ot_pay_item.id
+    return get_bill_rate_multiplier(line.meta, wage)

@@ -1,14 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import {
-  apiErrorMessage,
-  timesheetsJobsRetrieveOptions,
-  timesheetsMyDayPlacementOptions,
-} from '@/api'
+import { apiErrorMessage, timesheetsJobsRetrieveOptions } from '@/api'
 import type { FillOut, FillRowIn, TimesheetJobOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,12 +17,14 @@ import {
 } from '@/components/ui/drawer'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
+import { orNull } from '@/features/shared/nullableText'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { fillAfterRows, fillWords, jobsInOrder, type FillSheetRow } from './myTime'
-import { OvertimeAskDialog } from './OvertimeAskDialog'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
+import { useOvertimeAsk } from './useOvertimeAsk'
 
 const QUARTER_HOUR = 0.25
 /** One-tap lengths; anything else is a tap or two on the stepper. */
@@ -41,6 +39,8 @@ interface FillDaySheetProps {
   sending: boolean
   onSend: (rows: FillRowIn[]) => Promise<boolean>
   onClose: () => void
+  /** Whose day it is, when the office fills it for someone. */
+  owner?: { id: string; name: string }
 }
 
 /**
@@ -48,7 +48,15 @@ interface FillDaySheetProps {
  * a start time, an end time or a total. The jobs he is likeliest to mean are
  * buttons; "the rest" takes whatever is left of the time he was here.
  */
-export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: FillDaySheetProps) {
+export function FillDaySheet({
+  open,
+  date,
+  fill,
+  sending,
+  onSend,
+  onClose,
+  owner,
+}: FillDaySheetProps) {
   const { t } = useTranslation('timesheet')
   // Asked for when the sheet opens, not when the page does: a closed sheet
   // needs no job list, and the list is a few hundred jobs.
@@ -69,28 +77,28 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   const change = (key: number, patch: Partial<FillSheetRow>) =>
     setRows(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))
 
-  const queryClient = useQueryClient()
-  // Set while he is asked whether the hours past his usual day are overtime.
-  const [overtimeHours, setOvertimeHours] = useState<number | null>(null)
+  const overtime = useOvertimeAsk({
+    confirmLabel: t('fillDay.sendWithOvertime'),
+    automationPrefix: 'FillDaySheet',
+    whose: owner?.name,
+  })
 
   /** Send, but first tell him how many of his ordinary hours run past his usual day. */
   const askThenSend = async () => {
     const ordinary = rows.reduce((sum, row) => sum + (row.timeAndAHalf ? 0 : (row.hours ?? 0)), 0)
     if (ordinary > 0) {
-      let past: number
+      let save: boolean
       try {
-        const placed = await queryClient.fetchQuery(
-          timesheetsMyDayPlacementOptions({ query: { date, hours: ordinary } }),
-        )
-        past = placed.overtime_hours
+        save = await overtime.askFor({
+          date,
+          hours: ordinary,
+          ...(owner === undefined ? {} : { staff_id: owner.id }),
+        })
       } catch (error) {
         toast.error(apiErrorMessage(error, t('entryDrawer.timesFailed')))
         return
       }
-      if (past > 0) {
-        setOvertimeHours(past)
-        return
-      }
+      if (!save) return
     }
     await send()
   }
@@ -104,7 +112,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
               {
                 job_id: row.job.id,
                 hours: row.hours,
-                description: row.description.trim() === '' ? null : row.description.trim(),
+                description: orNull(row.description.trim()),
                 time_and_a_half: row.timeAndAHalf,
               },
             ],
@@ -201,21 +209,13 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                       </Button>
                       {/* Typed or tapped, his choice: the chips and the stepper
                         set this same number. */}
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min={QUARTER_HOUR}
-                        step={QUARTER_HOUR}
-                        value={row.hours ?? ''}
+                      <HoursInput
+                        hours={row.hours}
                         placeholder={t('fillDay.hours')}
                         aria-label={t('fillDay.hours')}
                         className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
                         data-automation-id={`FillDaySheet-row-${row.key}-hours`}
-                        onChange={(event) =>
-                          change(row.key, {
-                            hours: event.target.value === '' ? null : Number(event.target.value),
-                          })
-                        }
+                        onHoursChange={(hours) => change(row.key, { hours })}
                       />
                       <Button
                         variant="outline"
@@ -314,16 +314,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
           </div>
         </DrawerContent>
       </Drawer>
-      <OvertimeAskDialog
-        overtimeHours={overtimeHours}
-        confirmLabel={t('fillDay.sendWithOvertime')}
-        automationPrefix="FillDaySheet"
-        onCancel={() => setOvertimeHours(null)}
-        onConfirm={() => {
-          setOvertimeHours(null)
-          void send()
-        }}
-      />
+      {overtime.dialog}
     </>
   )
 }

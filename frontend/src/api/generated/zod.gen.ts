@@ -181,12 +181,10 @@ export const zAssignJobResponse = z.object({
  * A person's day as they clocked it. ``here_hours`` is worked out by the server.
  */
 export const zAttendanceOut = z.object({
-    cautions: z.array(z.string()),
     clock_in: z.iso.time().nullable(),
     clock_out: z.iso.time().nullable(),
     general_work_fill: z.boolean(),
     here_hours: z.number().nullable(),
-    sent_late: z.boolean(),
     state: z.enum([
         'not_clocked_in',
         'at_work',
@@ -5335,17 +5333,6 @@ export const zStandardDayOut = z.object({
 });
 
 /**
- * StandardHoursRequest
- *
- * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
- */
-export const zStandardHoursRequest = z.object({
-    date: z.iso.date(),
-    location: zEntryLocationIn.nullish(),
-    staff_id: z.uuid().nullish()
-});
-
-/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -5645,12 +5632,13 @@ export const zStocktakeList = z.object({
 /**
  * SubmitDayRequest
  *
- * Send a day to the office, with any rows still to be saved as entries.
+ * Send a day to the office, with rows still to be saved. ``staff_id`` is for the office.
  */
 export const zSubmitDayRequest = z.object({
     date: z.iso.date(),
     location: zEntryLocationIn.nullish(),
-    rows: z.array(zFillRowIn)
+    rows: z.array(zFillRowIn),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -6371,14 +6359,12 @@ export const zWorkshopTimesheetEntryOut = z.object({
     created_at: z.iso.datetime(),
     description: z.string(),
     end_time: z.iso.time().nullable(),
-    entered_late: z.boolean(),
     hours: z.number(),
     id: z.uuid(),
     is_billable: z.boolean(),
     job_id: z.uuid(),
     job_name: z.string(),
     job_number: z.int(),
-    remote_entry: z.boolean(),
     start_time: z.iso.time().nullable(),
     updated_at: z.iso.datetime(),
     wage_rate_multiplier: z.number()
@@ -6391,13 +6377,13 @@ export const zWorkshopTimesheetEntryOut = z.object({
  */
 export const zStaffApprovalOut = z.object({
     breaks: z.array(zBreakOut),
+    cautions: z.array(z.string()),
     clock: zAttendanceOut,
     default_entry_start: z.iso.time(),
     entered_hours: z.number(),
-    entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
+    fill: zFillOut.nullable(),
     overtime_check: z.boolean(),
-    remote_entry: z.boolean(),
     staff_id: z.uuid(),
     staff_name: z.string(),
     state: z.enum([
@@ -6445,6 +6431,7 @@ export const zWorkshopTimesheetEntryRequest = z.object({
     ]),
     is_billable: z.boolean().optional().default(true),
     job_id: z.uuid(),
+    labour_subtype_id: z.uuid().nullish(),
     location: zEntryLocationIn.nullish(),
     staff_id: z.uuid().nullish(),
     start_time: z.iso.time().nullish(),
@@ -6476,6 +6463,7 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
     ]).optional(),
     is_billable: z.boolean().optional(),
     job_id: z.uuid().optional(),
+    labour_subtype_id: z.uuid().optional(),
     location: zEntryLocationIn.nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
@@ -6518,7 +6506,6 @@ export const zWorkshopTimesheetListResponse = z.object({
     default_entry_start: z.iso.time(),
     entries: z.array(zWorkshopTimesheetEntryOut),
     fill: zFillOut.nullable(),
-    missed_clock_out_finish: z.iso.time().nullable(),
     pending: zPendingDayOut.nullable(),
     standard: zStandardDayOut.nullable(),
     summary: zWorkshopTimesheetSummaryOut,
@@ -9265,13 +9252,6 @@ export const zTimesheetsMyDayPlacementQuery = z.object({
  * OK
  */
 export const zTimesheetsMyDayPlacementResponse = zPlacementOut;
-
-export const zTimesheetsMyDayStandardHoursBody = zStandardHoursRequest;
-
-/**
- * OK
- */
-export const zTimesheetsMyDayStandardHoursResponse = zAttendanceOut;
 
 export const zTimesheetsMyDaySubmitBody = zSubmitDayRequest;
 

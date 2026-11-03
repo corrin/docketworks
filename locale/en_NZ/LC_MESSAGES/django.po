@@ -1585,10 +1585,6 @@ msgid "Workflow that owns this line; owned lines are changed through that workfl
 msgstr ""
 
 #: apps/job/models/costing.py
-msgid "The worker saved this line without a location at the company address."
-msgstr ""
-
-#: apps/job/models/costing.py
 msgid "This cost line moved to another job. Reload before editing it."
 msgstr ""
 
@@ -2298,15 +2294,6 @@ msgid "%(description)s (qty: %(quantity)s)"
 msgstr ""
 
 #: apps/job/services/job_service.py
-msgid "Staff id must be provided when creating a new timesheet entry."
-msgstr ""
-
-#: apps/job/services/job_service.py
-#, python-format
-msgid "Staff not found: %(staff_id)s"
-msgstr ""
-
-#: apps/job/services/job_service.py
 msgid "Quantity must be non-negative"
 msgstr ""
 
@@ -2324,11 +2311,6 @@ msgstr ""
 
 #: apps/job/services/job_service.py
 msgid "labour_subtype is required for time lines."
-msgstr ""
-
-#: apps/job/services/job_service.py
-#, python-format
-msgid "Time is priced from the person's wage and the job's rates: %(fields)s."
 msgstr ""
 
 #: apps/job/services/job_service.py
@@ -3588,6 +3570,10 @@ msgid "Job not found."
 msgstr ""
 
 #: apps/timesheet/api.py
+msgid "Labour type not found."
+msgstr ""
+
+#: apps/timesheet/api.py
 msgid "At least one field besides entry_id must be provided."
 msgstr ""
 
@@ -3668,22 +3654,6 @@ msgid "End date must be on or after start date."
 msgstr ""
 
 #: apps/timesheet/models.py
-msgid "Clocked"
-msgstr ""
-
-#: apps/timesheet/models.py
-msgid "Clocked away from the workshop"
-msgstr ""
-
-#: apps/timesheet/models.py
-msgid "Not clocked"
-msgstr ""
-
-#: apps/timesheet/models.py
-msgid "Set by the office"
-msgstr ""
-
-#: apps/timesheet/models.py
 msgid "Entry updated"
 msgstr ""
 
@@ -3737,15 +3707,6 @@ msgid "Leave and work on the same day"
 msgstr ""
 
 #: apps/timesheet/services/approval.py
-msgid "General work isn't set up: there is no General work job yet. Ask an administrator to choose it in Company Defaults > Working Hours."
-msgstr ""
-
-#: apps/timesheet/services/approval.py
-#, python-format
-msgid "General work is set to %(job)s, which is for breaks or leave, not worked time. Ask an administrator to choose another job in Company Defaults > Working Hours."
-msgstr ""
-
-#: apps/timesheet/services/approval.py
 msgid "The end date is before the start date."
 msgstr ""
 
@@ -3791,22 +3752,6 @@ msgid "The finish has to be after the start."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
-msgid "Did not clock in"
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
-msgid "Clocked in away from the workshop"
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
-msgid "Did not clock out"
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
-msgid "Clocked out away from the workshop"
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
 msgid "You are already clocked in."
 msgstr ""
 
@@ -3836,15 +3781,11 @@ msgid "Only office staff change another person's clock times."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
-msgid "Only office staff set another person's hours."
+msgid "Clock out first."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
-msgid "There are no standard hours on a weekend. Set the times."
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
-msgid "This day already has clock times. Change them instead."
+msgid "Set the day's clock times first."
 msgstr ""
 
 #: apps/timesheet/services/attendance.py
@@ -3853,10 +3794,6 @@ msgstr ""
 
 #: apps/timesheet/services/attendance.py
 msgid "Only office staff change another person's breaks."
-msgstr ""
-
-#: apps/timesheet/services/attendance.py
-msgid "Set the day's clock times before adding a break."
 msgstr ""
 
 #: apps/timesheet/services/daily_timesheet_service.py
@@ -3877,11 +3814,7 @@ msgid "%(count)s entries missing job info"
 msgstr ""
 
 #: apps/timesheet/services/day_submission.py
-msgid "Hours are entered in quarter hours, a quarter or more."
-msgstr ""
-
-#: apps/timesheet/services/day_submission.py
-msgid "Clock out before you send the day."
+msgid "Only office staff send another person's day."
 msgstr ""
 
 #: apps/timesheet/services/hour_categories.py
@@ -4032,20 +3965,20 @@ msgid "date must be provided in YYYY-MM-DD format."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
-msgid "The finish time must be after the start time."
+msgid "Hours are more than 0 and at most 24, to two decimal places."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid "General work isn't set up: there is no General work job yet. Ask an administrator to choose it in Company Defaults > Working Hours."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 #, python-format
-msgid "hours (%(hours)s) cannot be more than the start_time-end_time span (%(span)s)."
+msgid "General work is set to %(job)s, which is for breaks or leave, not worked time. Ask an administrator to choose another job in Company Defaults > Working Hours."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "Only office staff fill another person's day."
-msgstr ""
-
-#: apps/timesheet/services/workshop_timesheet_service.py
-msgid "Set the day's clock times before putting the rest of it on General work."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
@@ -4056,11 +3989,6 @@ msgstr ""
 #: apps/timesheet/services/workshop_timesheet_service.py
 #, python-format
 msgid "%(name)s's last day was %(date)s, so time after it can't be entered."
-msgstr ""
-
-#: apps/timesheet/services/workshop_timesheet_service.py
-#, python-format
-msgid "That is all inside your %(name)s. If you worked through it, delete the %(name)s."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

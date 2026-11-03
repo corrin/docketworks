@@ -1,5 +1,5 @@
 /** Shared setup for the timesheet-entry cluster (one implementation per concept). */
-import type { Browser, Page } from '@playwright/test'
+import type { Browser, Page, Response } from '@playwright/test'
 import { shiftDate } from '../../../src/lib/dates'
 import {
   getJobLabourRates,
@@ -55,6 +55,8 @@ export const BOOKING_WEEKS = {
   fillDayOvertimeIphone: 18,
   createTimesheetEntry: 19,
   approveTimeWaitingWeek: 20,
+  officeGridOvertime: 21,
+  myTimeInsideBreak: 22,
 } as const
 
 const weeksTaken = Object.values(BOOKING_WEEKS)
@@ -107,6 +109,14 @@ export async function selectJobByNumber(
   const option = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-option-${jobNumber}`)
   await option.waitFor({ timeout: 10000 })
   await option.click()
+}
+
+/** Every screen writes a person's time through this one endpoint. */
+export const ENTRY_WRITES = '/api/job/workshop/timesheets/'
+
+/** Whether a response is an entry write of the given method. */
+export function isEntryWrite(response: Response, method: 'POST' | 'PATCH' | 'DELETE'): boolean {
+  return new URL(response.url()).pathname === ENTRY_WRITES && response.request().method() === method
 }
 
 /** Type hours into row N and press Enter (the immediate-create gesture). */
@@ -255,32 +265,6 @@ export async function asSuperuser<T>(
 
 /** Hours no other seed uses, so a waiting figure can only be this line. */
 export const WORKER_HOURS = 1.25
-
-/**
- * Send a day as the workshop login, as the worker does from My time. A day the
- * office set the times of is his to send; left unsent, My time names it ahead
- * of any later day a phone spec opens.
- */
-export async function sendDayAsWorkshopUser(
-  browser: Browser,
-  baseURL: string,
-  date: string,
-): Promise<void> {
-  const context = await browser.newContext({ baseURL })
-  try {
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('workshop')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    const response = await page.request.post('/api/timesheets/my-day/submit/', {
-      data: { date, rows: [] },
-    })
-    if (!response.ok()) {
-      throw new Error(`Sending ${date} failed: ${response.status()} ${await response.text()}`)
-    }
-  } finally {
-    await context.close()
-  }
-}
 
 /**
  * Book time as the workshop login would, in its own browser context: who

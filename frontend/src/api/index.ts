@@ -391,7 +391,6 @@ export {
   timesheetsMyDayPlacementOptions,
   timesheetsMyDayClockMutation,
   timesheetsMyDayGeneralWorkMutation,
-  timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from './generated/@tanstack/react-query.gen'
@@ -624,3 +623,6 @@ export { purchasingPurchaseOrdersPartialUpdate } from './generated/sdk.gen'
 // generated options carry the whole response, so the search factories call
 // the sdk functions themselves.
 export { purchasingAllJobsRetrieve, timesheetsJobsRetrieve } from './generated/sdk.gen'
+// The office grid reads a new entry's priced line past the cache, which its
+// optimistic queue owns while a write is in flight.
+export { jobTimesheetEntriesRetrieve } from './generated/sdk.gen'

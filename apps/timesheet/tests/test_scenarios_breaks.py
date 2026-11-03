@@ -10,9 +10,10 @@ The final break rules (owner, 2026-10-25):
 
 - a person, worker or office, may add, move, resize or delete a break at any
   time; that never changes an entry and is never refused;
-- the system's standard breaks go only where there is room: one is skipped
-  when it falls inside an entry whose hours exceed its span less that break;
-- an entry is refused only when its hours exceed its span.
+- the system's standard breaks always go on the day, wherever the entries are;
+- an entry's times are only a reminder (owner, 2026-11-03): a start inside a
+  break moves to the break's end, and a finish too soon for the hours moves to
+  where they end; nothing is refused for its times.
 
 Every expected figure is worked out by hand in the comment beside it.
 """
@@ -32,7 +33,6 @@ from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import update_cost_line
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.services import (
@@ -405,20 +405,21 @@ def test_H10_the_office_moving_a_break_in_the_grid_changes_no_entry(
     """The office moves a break from the entry grid: allowed, as from his phone, and the
     entry keeps its hours.
 
-    Guards job_service.update_cost_line (the grid's write changes no other line).
+    Guards workshop_timesheet_service.update_entry (the grid's write changes no other line).
     """
     _clock(worker, "07:00", "15:00")
     # 120 less the 08:30 break 15 = 1.75h.
     entry = _book(worker, job, "08:00", "10:00")
     morning = _break_at(worker, "08:30")
 
-    update_cost_line(
-        morning,
-        {
-            "quantity": Decimal("0.250"),
-            "meta": {**morning.meta, "start_time": "10:30:00", "end_time": "10:45:00"},
-        },
+    workshop_timesheet_service.update_entry(
         office_staff,
+        {
+            "entry_id": morning.id,
+            "hours": Decimal("0.250"),
+            "start_time": time(10, 30),
+            "end_time": time(10, 45),
+        },
     )
 
     assert _entry(entry) == ("08:00:00", "10:00:00", Decimal("1.750"), 1.0)
@@ -494,19 +495,18 @@ def test_K2_entries_meeting_a_break_at_its_edges_hold_none_of_it(
     assert _break_at(worker, "08:30").quantity == Decimal("0.250")
 
 
-def test_K3_an_entry_starting_inside_a_break_does_not_hold_the_break_minutes(
-    worker: Staff, job: Job
-) -> None:
-    """An entry that starts inside a break (08:40-10:00): 1.25h.
+def test_K3_an_entry_starting_inside_a_break_starts_when_it_ends(worker: Staff, job: Job) -> None:
+    """An entry typed to start inside a break (08:40-10:00): 1.25h, from 08:45.
 
-    Guards attendance.hours_for.
+    Guards attendance.hours_for and workshop_timesheet_service._fit_times.
     """
     _clock(worker, "07:00", "15:00")
 
     _book(worker, job, "08:40", "10:00")
 
-    # 80 minutes less the 5 of the break (08:40-08:45) = 75 = 1.25h.
-    assert _on(job, worker) == [("08:40:00", "10:00:00", Decimal("1.250"), 1.0)]
+    # 80 minutes less the 5 of the break (08:40-08:45) = 75 = 1.25h; the start
+    # moves out of the break, and 08:45-10:00 holds the 1.25h.
+    assert _on(job, worker) == [("08:45:00", "10:00:00", Decimal("1.250"), 1.0)]
 
 
 def test_K4_an_entry_ending_inside_a_break_does_not_hold_the_break_minutes(
@@ -524,26 +524,28 @@ def test_K4_an_entry_ending_inside_a_break_does_not_hold_the_break_minutes(
     assert _on(job, worker) == [("07:00:00", "08:40:00", Decimal("1.500"), 1.0)]
 
 
-def test_K5_an_entry_wholly_inside_lunch_is_refused_with_the_reason(
-    worker: Staff, job: Job
-) -> None:
-    """An entry wholly inside lunch (11:35-11:55) is refused, with the reason given:
-    "That is all inside your lunch. If you worked through it, delete the lunch."
+def test_K5_an_entry_typed_wholly_inside_lunch_is_saved_after_it(worker: Staff, job: Job) -> None:
+    """A quarter hour typed wholly inside lunch (11:35-11:55) is saved, not refused:
+    it starts when lunch ends and runs its quarter hour, 12:00-12:15.
 
-    Guards attendance.hours_for and workshop_timesheet_service.create_entry
-    (wherever the refusal lands, the drawer's path goes through both).
+    Guards workshop_timesheet_service._fit_times.
     """
     _clock(worker, "07:00", "15:00")
 
-    with pytest.raises(
-        InvalidInputError,
-        match=re.escape(
-            "That is all inside your lunch. If you worked through it, delete the lunch."
-        ),
-    ):
-        _book(worker, job, "11:35", "11:55")
+    workshop_timesheet_service.create_entry(
+        worker,
+        worker,
+        {
+            "job_id": job.id,
+            "accounting_date": DAY,
+            "hours": Decimal("0.25"),
+            "start_time": time(11, 35),
+            "end_time": time(11, 55),
+            "wage_rate_multiplier": Decimal("1.0"),
+        },
+    )
 
-    assert _on(job, worker) == []
+    assert _on(job, worker) == [("12:00:00", "12:15:00", Decimal("0.250"), 1.0)]
 
 
 def test_K6_lunch_left_in_then_deleted_and_the_entry_edited_takes_the_half_hour(
@@ -814,7 +816,7 @@ def test_K18_the_fill_sheet_lays_three_rows_round_the_breaks_to_the_finish(  # n
         for each, hours in ((job, "3"), (job_y, "3"), (job_z, "1"))
     ]
 
-    day_submission.submit_day(worker, DAY, rows, None, timezone.now())
+    day_submission.submit_day(worker, worker, DAY, rows, None, timezone.now())
     approval.sweep_person(worker, [DAY], office_staff)
 
     # X: 07:00-08:30 (1.5) + 08:45-10:15 (1.5) = 3h.
@@ -1143,19 +1145,49 @@ def test_Q7_a_worker_adding_a_break_on_his_approved_day_changes_no_entry(
 def test_Q8_a_break_of_no_length_or_ending_before_it_starts_is_refused(worker: Staff) -> None:
     """A break of zero length, or with its end before its start: refused.
 
-    Guards attendance._require_break_times.
+    Guards attendance.require_break_times, on the breaks endpoint and on the
+    entry PATCH (workshop_timesheet_service._redraw_finish).
     """
     _clock(worker, "07:00", "15:00")
     breaks_before = _breaks(worker)
+    morning = _break_at(worker, "08:30")
 
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
         attendance.add_break(worker, DAY, time(10, 0), time(10, 0), paid=True, actor=worker)
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
         attendance.add_break(worker, DAY, time(10, 0), time(9, 45), paid=True, actor=worker)
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
-        attendance.change_break(_break_at(worker, "08:30").id, time(8, 45), time(8, 30), worker)
+        attendance.change_break(morning.id, time(8, 45), time(8, 30), worker)
+    with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
+        workshop_timesheet_service.update_entry(
+            worker, {"entry_id": morning.id, "end_time": time(8, 15)}
+        )
 
     assert _breaks(worker) == breaks_before
+
+
+def test_Q8b_a_break_the_office_adds_to_an_unclocked_day_is_not_doubled(
+    office_staff: Staff, worker: Staff
+) -> None:
+    """The office adds his morning break on a day nobody clocked, then sends it.
+
+    The break stands for the standard one it overlaps: shown once, written once.
+    Guards attendance.day_breaks and generate_default_breaks.
+    """
+    attendance.add_break(worker, DAY, time(8, 30), time(8, 45), paid=True, actor=office_staff)
+
+    shown = workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
+    assert [(each["start"], each["planned"]) for each in shown if each["paid"]] == [
+        (time(8, 30), False),
+        (time(13, 30), True),
+    ]
+
+    attendance.settle_day(worker, DAY, office_staff)
+
+    assert [each for each in _breaks(worker) if each[3]] == [
+        ("08:30:00", "08:45:00", Decimal("0.250"), True),
+        ("13:30:00", "13:45:00", Decimal("0.250"), True),
+    ]
 
 
 def test_Q9_a_break_before_his_clock_in_is_accepted_and_the_sweep_is_unaffected(
@@ -1243,39 +1275,36 @@ def test_Q11_lunch_deleted_inside_an_old_short_entry_leaves_its_hours(
 # ── W. Entering it ──────────────────────────────────────────────────────
 
 
-def test_W5_a_whole_hour_over_the_planned_break_keeps_the_break_off_the_day(
+def test_W5_a_standard_break_goes_on_inside_an_hour_that_fills_its_span(
     worker: Staff, job: Job
 ) -> None:
-    """The entry 08:00-09:00 saved as a whole hour on a day nobody clocked is accepted
-    (hours never exceed the span). When the day gets its times, the 08:30 standard break
-    has no room in it and is not recorded; lunch and 13:30 are. The hour is paid once.
+    """An entry 08:00-09:00 of a whole hour, as the grid or an older drawer saved it, on a
+    day nobody clocked. When the day gets its times every standard break goes on, the
+    08:30 one included; the entry is not changed. The office sees the day.
 
-    Guards attendance.generate_default_breaks (a standard break goes only where there is room).
+    Guards attendance.generate_default_breaks (the standard breaks always go on).
     """
-    # A whole hour, as the grid or an older drawer saved it: 1.0h within a 1.0h span.
-    workshop_timesheet_service.create_entry(
+    # Legacy data: a whole hour within a one-hour span, saved before times were fitted.
+    x = make_time_line(
+        job,
         worker,
-        worker,
-        {
-            "job_id": job.id,
-            "accounting_date": DAY,
-            "hours": Decimal("1"),
-            "start_time": time(8, 0),
-            "end_time": time(9, 0),
-            "wage_rate_multiplier": Decimal("1.0"),
-        },
+        accounting_date=DAY,
+        hours="1.000",
+        approved=False,
+        start_time="08:00:00",
+        end_time="09:00:00",
     )
 
     _clock(worker, "07:00", "15:00")
 
-    # 1.0h exceeds its span less the 08:30 break (60 - 15 = 45 minutes): no room.
-    assert _on(job, worker) == [("08:00:00", "09:00:00", Decimal("1.000"), 1.0)]
+    assert _entry(x.id) == ("08:00:00", "09:00:00", Decimal("1.000"), 1.0)
     assert _breaks(worker) == [
+        ("08:30:00", "08:45:00", Decimal("0.250"), True),
         ("11:30:00", "12:00:00", Decimal("0.500"), False),
         ("13:30:00", "13:45:00", Decimal("0.250"), True),
     ]
-    # 1.0 on the job + 0.25 (13:30); lunch unpaid = 1.25.
-    assert _paid(worker) == Decimal("1.25")
+    # 1.0 on the job + 0.25 + 0.25 paid breaks; lunch unpaid = 1.5.
+    assert _paid(worker) == Decimal("1.5")
 
 
 def test_W6_an_entry_placed_around_the_planned_break_keeps_the_break(

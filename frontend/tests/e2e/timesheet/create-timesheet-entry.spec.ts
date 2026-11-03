@@ -11,6 +11,7 @@ import {
 } from '../helpers'
 import {
   enterHours,
+  isEntryWrite,
   bookingDay,
   openEntryViaDaily,
   readJobNumber,
@@ -55,11 +56,9 @@ test.describe.serial('timesheet entry operations', () => {
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
 
-    const createPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await enterHours(page, rowIndex, '2')
     const response = await createPost
     expect(response.ok()).toBe(true)
@@ -80,10 +79,7 @@ test.describe.serial('timesheet entry operations', () => {
     await page.keyboard.type(newDesc)
 
     const patch = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') &&
-        response.request().method() === 'PATCH' &&
-        response.status() === 200,
+      (response) => isEntryWrite(response, 'PATCH') && response.status() === 200,
       { timeout: 15000 },
     )
     await page.keyboard.press('Enter')
@@ -134,12 +130,10 @@ test.describe.serial('xero pay item validation', () => {
     await firstOption.waitFor({ timeout: 10000 })
     await firstOption.click()
 
-    const createPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
-    await enterHours(page, rowIndex, '4')
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
+    await enterHours(page, rowIndex, '4h')
     expect((await createPost).ok()).toBe(true)
 
     await expect(autoId(page, `SmartTimesheetTable-payItem-${rowIndex}`)).toHaveText(
@@ -153,11 +147,9 @@ test.describe.serial('xero pay item validation', () => {
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
 
-    const createPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await enterHours(page, rowIndex, '2')
     expect((await createPost).ok()).toBe(true)
 
@@ -167,7 +159,7 @@ test.describe.serial('xero pay item validation', () => {
     )
   })
 
-  test('changing the rate to 2.0x maps to the double-time pay item', async ({
+  test('changing the rate to 2x maps to the double-time pay item', async ({
     authenticatedPage: page,
   }) => {
     await openEntryViaDaily(page, date)
@@ -186,13 +178,10 @@ test.describe.serial('xero pay item validation', () => {
     const rowIndex = Number(match[1])
 
     await autoId(page, `SmartTimesheetTable-rate-${rowIndex}`).click()
-    const patch = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') &&
-        ['PATCH', 'PUT'].includes(response.request().method()),
-      { timeout: 15000 },
-    )
-    await page.getByRole('option', { name: '2.0x' }).click()
+    const patch = page.waitForResponse((response) => isEntryWrite(response, 'PATCH'), {
+      timeout: 15000,
+    })
+    await page.getByRole('option', { name: '2x' }).click()
     expect((await patch).ok()).toBe(true)
 
     const payItem = autoId(page, `SmartTimesheetTable-payItem-${rowIndex}`)
@@ -214,10 +203,7 @@ test('timesheet entries keep their creation order after editing and reloading', 
   for (let index = 0; index < 3; index++) {
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
-    const created = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-    )
+    const created = page.waitForResponse((response) => isEntryWrite(response, 'POST'))
     await enterHours(page, rowIndex, '0.5')
     const response = await created
     expect(response.ok()).toBe(true)
@@ -229,7 +215,7 @@ test('timesheet entries keep their creation order after editing and reloading', 
   const row = page.locator(`[data-row-id="${ids[0]}"]`)
   const patched = page.waitForResponse(
     (response) =>
-      response.url().includes(`/cost_lines/${ids[0]}/`) && response.request().method() === 'PATCH',
+      isEntryWrite(response, 'PATCH') && response.request().postDataJSON().entry_id === ids[0],
   )
   await row
     .locator('[data-automation-id^="SmartTimesheetTable-description-"]')

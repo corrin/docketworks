@@ -4,6 +4,7 @@ import { getCompanyDefaults, getWorkshopStaff } from '../fixtures/api'
 import {
   enterHours,
   getLatestWeekdayDate,
+  isEntryWrite,
   selectJobByNumber,
   waitForEntryGrid,
 } from '../timesheet/support'
@@ -63,19 +64,21 @@ test.describe.serial('staff wage loading', () => {
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
 
-    const createPost = page.waitForResponse(
-      (response) =>
-        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    const createPost = page.waitForResponse((response) => isEntryWrite(response, 'POST'), {
+      timeout: 15000,
+    })
     await enterHours(page, rowIndex, '1')
     const response = await createPost
     expect(response.ok(), await response.text()).toBe(true)
 
-    const wageText =
-      (await autoId(page, `SmartTimesheetTable-wage-${rowIndex}`).textContent()) ?? ''
-    const displayedWage = Number(/\$?([\d,]+\.?\d*)/.exec(wageText)?.[1]?.replace(/,/g, ''))
-    expect(displayedWage).toBeCloseTo(staff.loaded, 2)
-    expect(Math.abs(displayedWage - staff.base)).toBeGreaterThan(0.005)
+    // The saved row is read back from the day, priced, after the save answers.
+    const { loaded, base } = staff
+    await expect(async () => {
+      const wageText =
+        (await autoId(page, `SmartTimesheetTable-wage-${rowIndex}`).textContent()) ?? ''
+      const displayedWage = Number(/\$?([\d,]+\.?\d*)/.exec(wageText)?.[1]?.replace(/,/g, ''))
+      expect(displayedWage).toBeCloseTo(loaded, 2)
+      expect(Math.abs(displayedWage - base)).toBeGreaterThan(0.005)
+    }).toPass({ timeout: 10000 })
   })
 })
