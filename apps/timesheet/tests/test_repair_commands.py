@@ -232,9 +232,10 @@ class TestCreateOvertimeEntries:
         assert ordinary_line.xero_pay_item is not None
         assert ordinary_line.xero_pay_item.name == "Ordinary Time"
         assert ordinary_line.meta["wage_rate_multiplier"] == 1.0
-        # Priced by the writer: the 40.00 wage times the rate.
-        assert ot_line.unit_cost == Decimal("60.00")
-        assert ordinary_line.unit_cost == Decimal("40.00")
+        # Priced by the writer: the loaded wage (40.00 plus the 20% labour
+        # loading, 48.00) times the rate.
+        assert ot_line.unit_cost == Decimal("72.00")
+        assert ordinary_line.unit_cost == Decimal("48.00")
         # Xero paid these hours, and it pays approved time only.
         assert ot_line.approved
         assert ordinary_line.approved
@@ -404,10 +405,10 @@ class TestReclassifyOvertimeEntries:
         assert new_line.xero_pay_item is not None
         assert new_line.xero_pay_item.name == "Time and one half"
         assert new_line.accounting_date == TUESDAY
-        # Paid as the overtime Xero paid: the 40.00 wage times 1.5; charged as billed.
-        assert new_line.unit_cost == Decimal("60.00")
+        # Paid as the overtime Xero paid: the 48.00 loaded wage times 1.5; charged as billed.
+        assert new_line.unit_cost == Decimal("72.00")
         assert new_line.unit_rev == split_line.unit_rev
-        assert whole_line.unit_cost == Decimal("60.00")
+        assert whole_line.unit_cost == Decimal("72.00")
         # Approved before the repair, approved after it.
         assert split_line.approved
         assert whole_line.approved
@@ -457,7 +458,7 @@ class TestReclassifyOvertimeEntries:
         line.refresh_from_db()
         overtime = CostLine.objects.get(cost_set=job.latest_actual, quantity=Decimal("3.000"))
         assert (line.unit_cost, line.unit_rev) == (Decimal("50.00"), Decimal("130.00"))
-        assert (overtime.unit_cost, overtime.unit_rev) == (Decimal("60.00"), Decimal("120.00"))
+        assert (overtime.unit_cost, overtime.unit_rev) == (Decimal("72.00"), Decimal("120.00"))
 
     def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")
@@ -595,7 +596,8 @@ class TestReassignTimeEntries:
         assert sorted(line.quantity for line in moved) == [Decimal("2.000"), Decimal("6.000")]
         for line in moved:
             assert line.cost_set_id == shop_job.latest_actual.id
-            assert line.unit_cost == Decimal("50.00")
+            # Staff B's loaded wage: 50.00 plus the 20% labour loading.
+            assert line.unit_cost == Decimal("60.00")
             assert line.meta["staff_id"] == str(staff_b.id)
             # Approved before the move, approved after it.
             assert line.approved

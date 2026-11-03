@@ -146,10 +146,11 @@ class TestCreate:
         assert CostLine.objects.get(id=_entry_id(body)).unit_rev == Decimal("0.00")
 
     def test_start_and_end_times_round_trip(self, worker_client: Client, job: Job) -> None:
-        body = _create(worker_client, job, start_time="08:00:00", end_time="12:00:00")
+        # 09:00 to 11:00 holds no break, so two hours keep their times as typed.
+        body = _create(worker_client, job, hours="2.00", start_time="09:00:00", end_time="11:00:00")
 
-        assert body["start_time"] == "08:00:00"
-        assert body["end_time"] == "12:00:00"
+        assert body["start_time"] == "09:00:00"
+        assert body["end_time"] == "11:00:00"
 
     def test_leave_job_entry_is_leave_not_billable_work(
         self, worker_client: Client, company: Company, superuser: Staff

@@ -620,7 +620,9 @@ def create_entry(  # noqa: PLR0913 -- the entry, whose, who saves it, from where
         Staff.objects.select_for_update().filter(pk=owner.pk).first()
         is_break = job.id == attendance.break_job_id()
         if data.get("start_time") is None and data.get("end_time") is None:
-            data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
+            # Leave is a day off, not a stretch of the day: it keeps no times.
+            if managed_by != CostLineOwner.LEAVE:
+                data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
         elif not is_break:
             start, end = _fit_times(
                 data["accounting_date"],

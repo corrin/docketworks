@@ -18,6 +18,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
+from apps.job.enums import CostLineOwner
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services import job_service
@@ -119,24 +120,25 @@ class TestWorkshopPath:
         self, worker_client: Client, job: Job
     ) -> None:
         """The snapshot carries start and end: a time-only edit is not a blank "Entry updated"."""
+        # Both spans hold no break, so the times stand as typed.
         line_id = _workshop_create(
-            worker_client, job, start_time="08:00:00", end_time="12:00:00", hours="4.00"
+            worker_client, job, start_time="09:00:00", end_time="10:00:00", hours="1.00"
         )
 
         response = worker_client.patch(
             URL,
-            data={"entry_id": line_id, "start_time": "09:00:00", "end_time": "13:00:00"},
+            data={"entry_id": line_id, "start_time": "10:00:00", "end_time": "11:00:00"},
             content_type="application/json",
         )
 
         assert response.status_code == 200, response.content
         *_, updated = _events(line_id)
         assert updated.detail["changes"] == [
-            {"field_name": "Start", "old_value": "08:00:00", "new_value": "09:00:00"},
-            {"field_name": "End", "old_value": "12:00:00", "new_value": "13:00:00"},
+            {"field_name": "Start", "old_value": "09:00:00", "new_value": "10:00:00"},
+            {"field_name": "End", "old_value": "10:00:00", "new_value": "11:00:00"},
         ]
         assert updated.description == (
-            "Start changed from '08:00:00' to '09:00:00'. End changed from '12:00:00' to '13:00:00'"
+            "Start changed from '09:00:00' to '10:00:00'. End changed from '10:00:00' to '11:00:00'"
         )
 
     def test_moving_records_entry_moved_naming_both_jobs(
@@ -316,12 +318,14 @@ class TestOfficePath:
         self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
         """A line the Leave screen created is an ordinary entry once it exists (owner ruling)."""
-        data = _office_data(worker)
-        data["managed_by"] = "leave"
+        entry = workshop_timesheet_service.create_entry(
+            office_staff,
+            worker,
+            {"job_id": job.id, "accounting_date": ENTRY_DATE, "hours": Decimal("8.00")},
+            managed_by=CostLineOwner.LEAVE,
+        )
 
-        line = job_service.create_cost_line(job, "actual", data, office_staff)
-
-        (event,) = _events(line.id)
+        (event,) = _events(UUID(entry["id"]))
         assert event.event_type == "entry_created"
         assert event.worker == worker
 

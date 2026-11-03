@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
-from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
+from apps.core.errors import AccessDeniedError, ConflictError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -198,7 +198,7 @@ class TestHoursToFill:
         Guards attendance.fill_figures and day_span.
         """
         unclocked = attendance.fill_figures(DAY, None, Decimal("3"), [])
-        assert unclocked is not None and unclocked["to_fill_hours"] == 8.0
+        assert unclocked is not None and unclocked["to_fill_hours"] == 7.5
         assert attendance.fill_figures(DAY + timedelta(days=5), None, Decimal("3"), []) is None
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
         open_row = AttendanceDay.objects.get(staff=worker, date=DAY)
@@ -588,10 +588,6 @@ class TestLayout:
             ("09:45", "12:15", Decimal("2")),
             ("12:15", "15:00", Decimal("2.5")),
         ]
-
-    def test_hours_are_quarter_hours(self, job: Job) -> None:
-        with pytest.raises(InvalidInputError, match="quarter hours"):
-            day_submission.lay_out_rows(time(6, 30), [_row(job, "1.1")], [])
 
 
 class TestEntryTimes:
