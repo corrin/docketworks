@@ -18,6 +18,7 @@ from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError
 from apps.job.models import Job
 from apps.job.services.job_service import bills_its_time
+from apps.job.services.time_entry_rates import DEFAULT_MULTIPLIER, OVERTIME_MULTIPLIER
 from apps.timesheet.services import attendance
 from apps.timesheet.services.attendance import Window
 from apps.timesheet.services.location import EntryLocation, saved_remotely
@@ -30,9 +31,6 @@ from apps.timesheet.services.workshop_timesheet_service import (
     default_entry_start,
     list_entries,
 )
-
-TIME_AND_A_HALF = Decimal("1.5")
-ORDINARY_TIME = Decimal("1.0")
 
 
 class FillRow(TypedDict):
@@ -128,7 +126,9 @@ def submit_day(  # noqa: PLR0913, PLR0917 -- who sends, whose, which day, rows, 
             "hours": line["hours"],
             "start_time": line["start"],
             "end_time": line["end"],
-            "wage_rate_multiplier": TIME_AND_A_HALF if line["time_and_a_half"] else ORDINARY_TIME,
+            "wage_rate_multiplier": OVERTIME_MULTIPLIER
+            if line["time_and_a_half"]
+            else DEFAULT_MULTIPLIER,
             # The sheet has no billable tick: a row bills when its job can.
             # Shop and special jobs cannot, and are refused if sent as billable.
             "is_billable": bills_its_time(job),

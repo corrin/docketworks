@@ -3707,15 +3707,6 @@ msgid "Leave and work on the same day"
 msgstr ""
 
 #: apps/timesheet/services/approval.py
-msgid "General work isn't set up: there is no General work job yet. Ask an administrator to choose it in Company Defaults > Working Hours."
-msgstr ""
-
-#: apps/timesheet/services/approval.py
-#, python-format
-msgid "General work is set to %(job)s, which is for breaks or leave, not worked time. Ask an administrator to choose another job in Company Defaults > Working Hours."
-msgstr ""
-
-#: apps/timesheet/services/approval.py
 msgid "The end date is before the start date."
 msgstr ""
 
@@ -3975,6 +3966,15 @@ msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "Hours are more than 0 and at most 24, to two decimal places."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid "General work isn't set up: there is no General work job yet. Ask an administrator to choose it in Company Defaults > Working Hours."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+#, python-format
+msgid "General work is set to %(job)s, which is for breaks or leave, not worked time. Ask an administrator to choose another job in Company Defaults > Working Hours."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

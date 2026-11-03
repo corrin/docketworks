@@ -52,13 +52,13 @@ layout over **one set of entry parts and one write path**.
    grid row is read back from the day (one extra read per office create; not a hot path). *(Done
    2026-11-02. Correction: this does NOT close the 412-after-grid-edit gap in `job/invalidateJobViews.ts:18`;
    that stays the backlog's server-side `_set_job_etag` item.)*
-5. **One copy of each rule:**
+5. **One copy of each rule:** *(Done 2026-11-03. Rate constants live once in `time_entry_rates`: `DEFAULT_MULTIPLIER`, `OVERTIME_MULTIPLIER`, `ZERO_MULTIPLIER`.)*
    - Rate options: `rateOptionsFor`. The grid adds "unpaid" through a parameter.
    - Bills its time: one `billsItsTime`.
    - Urgent 1.5: server only. The grid sends `bill_rate_multiplier` only when the user changes it.
    - Blank-to-null: `orNull`.
    - The overtime question: one `askOvertimeThenSend(rows, jobId)` used by the grid, the drawer and the fill sheet. It always sends `job_id`; today the fill sheet omits it.
-6. **General work:** one hook over the two endpoints, or one endpoint if the sweep can call the my-day one.
+6. **General work:** one hook over the two endpoints, or one endpoint if the sweep can call the my-day one. *(Done 2026-11-03, on the backend: the sweep fills through `fill_with_general_work`, and `general_work_job_id` is the one validated lookup. The two frontend hooks stay two because they are two operations: a worker fills his own day, while the office's sweep fills, approves and sends.)*
 
 Perf posture: this makes no kanban or hot-path change. The grid's optimistic save is kept, and the drawer and fill sheet gain it.
 
@@ -68,7 +68,7 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
 3. [x] **Overtime question** (owner, 2026-11-02): it is the same whoever enters the time, so the office grid asks it too, through the same `askOvertimeThenSend`.
    - Hours add up whoever enters them: the worker's 4h plus the office's 3h is 7h.
    - Time of day is only a reminder for the worker. It means nothing for pay or overtime.
-4. [x] **Leave** (owner, 2026-11-02): fold `leave_service._create_days` / `_delete_days` into `create_entry` / `delete_entry`.
+4. [x] **Leave** (owner, 2026-11-02): fold `leave_service._create_days` / `_delete_days` into `create_entry` / `delete_entry`. *(Coded: ceec5628. Leave lines carry `managed_by=leave` and are approved when made; the cost-line route's time repricing is deleted.)*
    - This removes the general writer's last time-line caller, `_reprice_timesheet_line`.
    - Leave is never overtime: `overtime_part` already returns 0 for leave jobs.
 5. [x] **Repair commands** (owner, 2026-11-02): they stay, but `create_overtime_entries`, `reclassify_overtime_entries` and `reassign_time_entries` write through `create_entry` / `update_entry`.
@@ -80,6 +80,8 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
 7. [x] *(mine)* The branch `fix/timesheet-writes-one-writer` has its plan fully ticked. This work needs its own branch and PR: the owner created `fix/one-time-entry`, PR #230, stacked on #229.
 8. [ ] **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Opened 2026-11-03 as PR #231: the same commit, pushed as its own branch off `main`, so no branch switch was needed. It closes when #231 merges.
 9. [ ] **The full frontend unit run flakes locally**: 1 to 3 different `findBy` timeouts per run (`JobQuoteTab`, `JobActualTab`, `JobMovementReportPage`; each passes alone, 3 of 3). The reports page shares no code with this change. CI's unit runs were green on #229. Find the cause before this PR is ready, not by raising a timeout.
+
+10. [ ] **Repair commands price at today's rates** (owner's decision, found 2026-11-03). They now write through the entry writer, which prices every line at the worker's current wage and the job's current charge-out rate. A repair of an old week used to keep each line's own historical figures, so if a wage changed since that week, the repair prices it at the new wage. Separately, `create_overtime_entries` now refuses an ordinary row on a day already past the usual 8h, because the writer would put it at 1.5x and the week would disagree with Xero. Recommendation: accept both. Wage changes are rare at six staff, and the refusal says which row to move. The alternative is a "this rate was chosen" flag on `create_entry` plus historical prices, which is more code for a rare repair.
 
 ## Tests
 - **E2E (the done gate):**
@@ -107,7 +109,7 @@ The owner set out how timesheets work (2026-11-03):
 Three read-only searches and a read of the writer found code that does more than these rules ask. Everything below is to delete or to merge; none of it is a new feature.
 **Testing happens after the coding.** Each step is coded, then the PR runs unit tests, type-check and one full E2E at the end.
 
-### Before anything: commit what is coded
+### Before anything: commit what is coded *(done: d0a5e74e)*
 These are on the branch, uncommitted:
 - `orNull` in the drawer and fill sheet
 - `billsItsTime` used in `applyJobPick`
@@ -116,7 +118,7 @@ These are on the branch, uncommitted:
 - `lay_out_rows`'s quarter-hour refusal deleted
 - the test flipped (`test_w3_…`)
 
-### Rule 1: no clock record means the standard day, everywhere
+### Rule 1: no clock record means the standard day, everywhere *(coded: ceec5628. Correction: the `sent_only_when_clocked_out` constraint stays, because `settle_day` writes the default clock-out before a day is sent.)*
 A day nobody clocked has no `AttendanceDay` row, and several paths refuse to run without one. A separate "use standard hours" path then writes a row so they will.
 The fix is one rule: the day's span is its clock times where they exist, and the standard day otherwise (`attendance.standard_day`).
 - Read the span through one function, used by:
@@ -141,17 +143,17 @@ The fix is one rule: the day's span is its clock times where they exist, and the
   - "Not clocked in" as the day's status word
   - the pending banner's "not sent" half
 
-### Rule 2: one General work
+### Rule 2: one General work *(coded)*
 - One fill. `_sweep` calls `fill_with_general_work` and computes nothing of its own.
 - One job lookup. `refill_general_work` and `_with_general_work` use the sweep's validated `_general_work_job_id()`.
 - Frontend: one hook for the my-day fill and the sweep (step 6 of the PR #230 plan).
 
-### Rule 3: the office does any of it for them
+### Rule 3: the office does any of it for them *(coded. Correction: both approve endpoints stay. Each calls the one `approval.approve_line`; per-day is a person's day in one request and one transaction, so it is not a copy.)*
 - **Send the day.** `submit_day` gains an owner and actor, as `create_entry` has. The endpoint takes `staff_id`, and `useSubmitDay` takes `ownerId`. Today only the worker can send their own fill sheet.
 - **Approve.** Approve has two endpoints doing one thing: per day (`api.py:855`) and per line (`job/api.py:986`). Keep one, the per-line one, since the per-day one is a loop over it.
 - **Leave.** Leave writes through `create_entry` / `delete_entry`: step 4 of the PR #230 plan, unchanged. This also fixes the bug the search found: leave never rebuilt General work.
 
-### Rule 4: the audit log is the record of who did what
+### Rule 4: the audit log is the record of who did what *(coded: ceec5628; pay is hidden from office staff in the history)*
 In plain terms: the screens show badges such as "Entered late", "Sent late", "Suspicious remote entry", "Did not clock in" and "Clocked in away from the workshop". Each badge is a second copy of something the audit log already records, so one fact is kept in two places. The owner wants the audit log to be the record (2026-11-03: "Audit logs are good"). So the badges and their stored columns go, and office staff read the log instead.
 `TimesheetEvent` already records the actor, the worker, the time, before and after, and `trusted` (at the workshop or not). These copies of the same facts go:
 - `CostLine.remote_entry`: a column, so a migration.
@@ -162,13 +164,13 @@ In plain terms: the screens show badges such as "Entered late", "Sent late", "Su
 Who sees the log: today only superusers, on the entry page (`TimesheetHistoryDialog`). Office staff move to the same `office_auth` as Approve time, and the dialog opens from Approve time's person row.
 Also fix the side finding: system writes (General work refill, deletes) record `trusted` the same way `create_entry` does.
 
-### Rule 5: entry times are a reminder
+### Rule 5: entry times are a reminder *(coded: `_fit_times`)*
 - **`_validate_time_consistency`** (`workshop_timesheet_service.py:249`) refuses hours longer than the start-to-finish span. Instead, the writer keeps the hours and the start and moves the finish (`attendance.finish_in_the_day`). A backwards finish is dropped and re-placed the same way.
 - **`_refuse_all_inside_a_break`** (`:820`): delete it. An entry typed inside a break starts after the break (`attendance.start_after_breaks`, already used by `lay_out_rows`).
 - **The drawer's "already booked for that time" warning** (`overlapsBooked`, `WorkshopTimesheetEntryDrawer.tsx:495`, `myTime.ts`): delete it.
 - **Kept:** the drawer's finish → hours helper. It is how a worker says "9 till 10" without counting.
 
-### Rule 6: the app knows the breaks; staff can forget them
+### Rule 6: the app knows the breaks; staff can forget them *(coded; the fill figures also count the standard day's planned breaks)*
 The owner, 2026-11-03: "The breaks are understood already before time is entered." A worker says "6:30 to 11 on this" and forgets the break; the app takes the break out so the customer is not overcharged. Pay runs from clock-in to clock-out, less unpaid breaks.
 That already works: `hours_for` and `finish_in_the_day` step over the breaks, and a day with no clock record uses the standard day's planned breaks (`day_breaks`, `_planned_breaks`). So when the break lines are written is left alone. What goes:
 - **`_no_room_for`** (`attendance.py:887`). If an entry's typed hours fill its typed span (08:00–09:00 booked as 1h), the standard break is left off the day as "worked through". That is the opposite of the owner's case: the worker forgot the break, he did not work through it. Delete it. The break always goes on, and the entry's hours are what is paid and billed.

@@ -1,20 +1,23 @@
 """Reassign time entries from one staff member to another.
 
 Common use case: timesheet entries accidentally logged under the wrong person.
-Updates staff, unit_cost (to match the new staff member's wage rate), and the
-entry metadata.
+Each entry is deleted from the one and entered for the other through the entry
+writer, which prices it at the new person's wage; an approved entry is
+approved again. A dry run makes the moves and rolls them back, so the costs it
+shows are the ones a real run writes.
 
 Usage:
     # Dry run — show what would change
     python manage.py reassign_time_entries --from-staff Alex --to-staff Sam \
-        --date 2026-03-24 --dry-run
+        --date 2026-03-24 --actor office@example.com --dry-run
 
     # Apply
     python manage.py reassign_time_entries --from-staff Alex --to-staff Sam \
-        --date 2026-03-24
+        --date 2026-03-24 --actor office@example.com
 
     # Reassign specific entries by ID
-    python manage.py reassign_time_entries --to-staff Sam --ids 7cca4c30,15956dac --dry-run
+    python manage.py reassign_time_entries --to-staff Sam --ids 7cca4c30,15956dac \
+        --actor office@example.com --dry-run
 """
 
 from datetime import date
@@ -24,8 +27,23 @@ from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import rate_from_meta
+from apps.timesheet.services.workshop_timesheet_service import (
+    WorkshopEntryCreateData,
+    create_entry,
+    delete_entry,
+    is_general_work_fill,
+    timed_span,
+)
 
-from ._repair_shared import parse_date
+from ._repair_shared import (
+    add_actor_argument,
+    approve_written,
+    day_line_ids,
+    parse_date,
+    resolve_actor,
+    written_entries,
+)
 
 # A two-word input is matched as "first last"; one word matches first name only.
 FIRST_AND_LAST = 2
@@ -48,7 +66,7 @@ def _optional_str_option(options: dict[str, object], key: str, flag: str) -> str
 
 
 class Command(BaseCommand):
-    """Move time CostLines between staff members, repricing to the new wage rate."""
+    """Move time entries between staff members, priced at the new person's wage."""
 
     help = "Reassign time entries from one staff member to another"
 
@@ -80,6 +98,7 @@ class Command(BaseCommand):
             action="store_true",
             help="Show what would change without writing to DB",
         )
+        add_actor_argument(parser)
 
     def handle(self, *_args: object, **options: object) -> None:
         """Select the entries, report the repricing, then reassign atomically."""
@@ -106,47 +125,58 @@ class Command(BaseCommand):
         if not entries:
             raise CommandError("No matching time entries found")
 
-        self._report_repricing(entries, to_staff)
+        actor = resolve_actor(options)
+        self.stdout.write(
+            f"Found {len(entries)} entries to reassign to {to_staff.get_display_name()}:"
+        )
+        with transaction.atomic():
+            for entry in entries:
+                self._reassign(actor, entry, to_staff)
+            if dry_run:
+                transaction.set_rollback(True)
 
         if dry_run:
             self.stdout.write(self.style.WARNING("\nDRY RUN — no changes made."))
             return
-
-        with transaction.atomic():
-            for entry in entries:
-                meta = dict(entry.meta or {})
-                meta["staff_id"] = str(to_staff.id)
-                entry.meta = meta
-                entry.staff = to_staff
-                entry.unit_cost = to_staff.base_wage_rate
-                entry.save(update_fields=["meta", "staff", "unit_cost", "updated_at"])
-
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nDone. Reassigned {len(entries)} entries to {to_staff.get_display_name()}."
             )
         )
 
-    def _report_repricing(self, entries: list[CostLine], to_staff: Staff) -> None:
-        """Show each entry with its old and new cost before anything is written."""
+    def _reassign(self, actor: Staff, entry: CostLine, to_staff: Staff) -> None:
+        """Delete the entry from its owner and enter it for ``to_staff``, then report it."""
+        if entry.staff is None:
+            raise CommandError(f"Time line {entry.id} has no staff member")
+        if is_general_work_fill(entry):
+            raise CommandError(
+                f"{entry.id} is General work filling {entry.staff.get_display_name()}'s day, "
+                "not an entry: reassign the entries around it"
+            )
+        from_staff, day = entry.staff, entry.accounting_date
+        old_cost = entry.total_cost
+        data = _carried(entry)
+        untouched_from = day_line_ids(from_staff, day) - {entry.id}
+        untouched_to = day_line_ids(to_staff, day)
+
+        delete_entry(actor, entry.id)
+        create_entry(actor, to_staff, data)
+        written = written_entries(to_staff, day, untouched_to)
+        if entry.approved:
+            approve_written(actor, from_staff, day, untouched_from)
+            approve_written(actor, to_staff, day, untouched_to)
+
+        new_cost = sum(line.total_cost for line in written)
+        cost_change = new_cost - old_cost
         self.stdout.write(
-            f"Found {len(entries)} entries to reassign to {to_staff.get_display_name()}:"
+            f"  {entry.id} | {day} | {entry.quantity}h | {entry.cost_set.job.name} | "
+            f"desc={entry.desc}"
         )
-        self.stdout.write(f"  New unit_cost: ${to_staff.base_wage_rate}")
-        self.stdout.write("")
-        for entry in entries:
-            old_cost = entry.unit_cost
-            new_cost = to_staff.base_wage_rate
-            cost_change = (new_cost - old_cost) * entry.quantity
-            self.stdout.write(
-                f"  {entry.id} | {entry.accounting_date} | "
-                f"{entry.quantity}h | {entry.cost_set.job.name} | "
-                f"desc={entry.desc}"
-            )
-            self.stdout.write(
-                f"    unit_cost: ${old_cost} -> ${new_cost} "
-                f"(total change: {'+' if cost_change >= 0 else ''}${cost_change:.2f})"
-            )
+        self.stdout.write(
+            f"    cost: ${old_cost} -> ${new_cost} "
+            f"(total change: {'+' if cost_change >= 0 else ''}${cost_change:.2f}) | "
+            f"new ID: {', '.join(str(line.id) for line in written)}"
+        )
 
     @staticmethod
     def _resolve_staff(name: str) -> Staff:
@@ -203,3 +233,30 @@ class Command(BaseCommand):
             .select_related("cost_set__job")
             .order_by("entry_seq")
         )
+
+
+def _carried(entry: CostLine) -> WorkshopEntryCreateData:
+    """Return the entry as the writer takes it: everything but whose it is."""
+    wage = rate_from_meta(entry.meta, "wage_rate_multiplier")
+    if wage is None:
+        raise CommandError(f"Time line {entry.id} has no wage rate multiplier")
+    is_billable = entry.meta["is_billable"]
+    if not isinstance(is_billable, bool):
+        raise CommandError(f"Time line {entry.id} has no billable flag")
+    data: WorkshopEntryCreateData = {
+        "job_id": entry.cost_set.job_id,
+        "accounting_date": entry.accounting_date,
+        "hours": entry.quantity,
+        "description": entry.desc,
+        "is_billable": is_billable,
+        "wage_rate_multiplier": wage,
+    }
+    bill = rate_from_meta(entry.meta, "bill_rate_multiplier")
+    if bill is not None:
+        data["bill_rate_multiplier"] = bill
+    span = timed_span(entry)
+    if span is not None:
+        data["start_time"], data["end_time"] = span
+    if entry.labour_subtype_id is not None:
+        data["labour_subtype_id"] = entry.labour_subtype_id
+    return data

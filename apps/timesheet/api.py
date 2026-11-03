@@ -46,6 +46,7 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import DEFAULT_MULTIPLIER
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     HOURS_LIMIT,
@@ -697,7 +698,7 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
                 owner,
                 day,
                 hours,
-                wage_rate_multiplier=workshop_timesheet_service.ORDINARY,
+                wage_rate_multiplier=DEFAULT_MULTIPLIER,
                 job_id=job_id,
             )
         ),

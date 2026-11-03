@@ -12,7 +12,6 @@ this module returns carries a rate, a cost or a revenue figure.
 from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Literal, TypedDict
-from uuid import UUID
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -21,12 +20,12 @@ from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
-from apps.core.errors import ConflictError, InvalidInputError
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay, LeaveType
+from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
@@ -56,6 +55,7 @@ from apps.timesheet.services.workshop_timesheet_service import (
     default_entry_start,
     entry_data,
     fill_with_general_work,
+    general_work_job_id,
     on_a_public_holiday,
     overtime_hours,
     split_off,
@@ -360,37 +360,6 @@ class SweepData(TypedDict):
     overtime: list[SweepOvertimeData]
 
 
-class GeneralWorkNotSetUpError(ConflictError):
-    """The instance has no usable General work job, so there is nowhere to sweep to."""
-
-
-def _general_work_job_id() -> UUID:
-    """Return the job the sweep books to, refusing one that is not worked time.
-
-    Pointed at Break, swept time would read as breaks; pointed at a leave job,
-    it would post to Xero as leave and draw down balances. Company Defaults
-    cannot refuse either when it is saved: the core app knows nothing of
-    breaks or leave, so the sweep refuses before it writes anything.
-    """
-    general_work = CompanyDefaults.get_solo().general_work_job
-    if general_work is None:
-        raise GeneralWorkNotSetUpError(
-            gettext(
-                "General work isn't set up: there is no General work job yet. Ask an administrator "
-                "to choose it in Company Defaults > Working Hours."
-            )
-        )
-    if general_work.id == break_job_id() or LeaveType.objects.filter(job=general_work).exists():
-        raise GeneralWorkNotSetUpError(
-            gettext(
-                "General work is set to %(job)s, which is for breaks or leave, not worked time. "
-                "Ask an administrator to choose another job in Company Defaults > Working Hours."
-            )
-            % {"job": general_work.name}
-        )
-    return general_work.id
-
-
 #: The longest stretch one sweep takes: the weekly overview's week.
 SWEEP_MOST_DAYS = 7
 
@@ -491,7 +460,7 @@ def _sweep(people_by_day: dict[date, list[Staff]], actor: Staff) -> SweepData:
     shortcut - sweep and approve"). The sweep enters the General work, which
     waits like any entry, and approving the day approves it with the rest.
     """
-    general_work_id = _general_work_job_id()
+    general_work_id = general_work_job_id()
     # Two offices sweeping the same person would both read the same stretches
     # before either writes, and pay them twice; the second waits here and
     # reads the first's entries. Ordered by pk so two sweeps never deadlock.

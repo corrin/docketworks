@@ -17,7 +17,7 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import AttendanceDay, TimesheetEvent
-from apps.timesheet.services import approval, attendance
+from apps.timesheet.services import approval, attendance, workshop_timesheet_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -679,7 +679,9 @@ class TestSweep:
             defaults.general_work_job = wrong
             defaults.save(update_fields=["general_work_job"])
 
-            with pytest.raises(approval.GeneralWorkNotSetUpError, match=wrong.name):
+            with pytest.raises(
+                workshop_timesheet_service.GeneralWorkNotSetUpError, match=wrong.name
+            ):
                 approval.sweep_person(worker, [DAY], office_staff)
 
     @pytest.mark.usefixtures("general_work")

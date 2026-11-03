@@ -9,12 +9,14 @@ Two-step workflow:
   1. Preview: generate a CSV of proposed entries for review/editing
      python manage.py create_overtime_entries --preview
 
-  2. Apply: read the reviewed CSV and create entries
-     python manage.py create_overtime_entries --apply scripts/overtime_preview.csv
+  2. Apply: read the reviewed CSV and create entries, approved as Xero paid them
+     python manage.py create_overtime_entries --apply scripts/overtime_preview.csv \
+         --actor <office staff email>
 
-The preview CSV can be edited before applying (change job assignments, remove
-rows, etc). Entries use a unique description prefix for easy identification:
-"Retrospectively added overtime" / "Retrospectively added ordinary".
+The preview CSV can be edited before applying (change job assignments, dates,
+remove rows, etc). Entries use a unique description prefix for easy
+identification: "Retrospectively added OT" / "Retrospectively added ordinary".
+The entry writer prices each one at the worker's wage times its rate.
 """
 
 from dataclasses import dataclass
@@ -30,8 +32,16 @@ from django.db.models import Sum
 
 from apps.accounts.models import Staff
 from apps.job.models import Job
-from apps.job.models.costing import CostLine, CostSet
-from apps.timesheet.models import LeaveType
+from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import (
+    DEFAULT_MULTIPLIER,
+    OVERTIME_MULTIPLIER,
+    rate_from_meta,
+)
+from apps.timesheet.services.workshop_timesheet_service import (
+    WorkshopEntryCreateData,
+    create_entry,
+)
 from apps.timesheet.services.xero_hours import (
     CUTOFF_DATE,
     XeroWeekRow,
@@ -42,16 +52,17 @@ from apps.timesheet.services.xero_hours import (
 )
 
 from ._repair_shared import (
+    add_actor_argument,
     add_preview_apply_arguments,
-    build_repair_time_line,
-    get_leave_pay_items,
-    get_ordinary_pay_item,
-    get_overtime_pay_item,
+    approve_written,
+    day_line_ids,
     parse_date,
     parse_decimal,
     read_reviewed_csv,
+    resolve_actor,
     resolve_preview_or_apply,
     write_preview_csv,
+    written_entries,
 )
 
 DESC_PREFIX = "Retrospectively added"
@@ -67,7 +78,6 @@ PREVIEW_COLUMNS = [
     "accounting_date",
     "job_name",
     "job_id",
-    "unit_cost",
     "xero_ot",
     "jm_ot",
     "xero_total",
@@ -92,9 +102,10 @@ class _PrimaryJob:
 
 
 class _ValidatedEntry(TypedDict):
-    """One CSV row, validated and built, awaiting the atomic write."""
+    """One CSV row, validated, awaiting the atomic write."""
 
-    cost_line: CostLine
+    staff: Staff
+    data: WorkshopEntryCreateData
     staff_name: str
     job_name: str
     entry_type: str
@@ -110,6 +121,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         """Register the two workflow steps."""
         add_preview_apply_arguments(parser)
+        add_actor_argument(parser)
 
     def handle(self, *_args: object, **options: object) -> None:
         """Dispatch to the preview or apply step."""
@@ -121,7 +133,7 @@ class Command(BaseCommand):
         if apply_path is None:
             self._do_preview()
         else:
-            self._do_apply(apply_path)
+            self._do_apply(apply_path, resolve_actor(options))
 
     # ------------------------------------------------------------------ #
     #  STEP 1: Preview
@@ -191,7 +203,6 @@ class Command(BaseCommand):
             "staff_name": staff.get_display_name(),
             "staff_id": str(staff.id),
             "accounting_date": friday.isoformat(),
-            "unit_cost": str(staff.base_wage_rate),
             "xero_ot": str(row["ot_hrs"]),
             "jm_ot": str(jm_data["jm_ot"]),
             "xero_total": str(xero_total),
@@ -275,14 +286,15 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"\nPreview written to: {PREVIEW_CSV_PATH}"))
         self.stdout.write(
             "Review/edit the CSV, then run:\n"
-            f"  python manage.py create_overtime_entries --apply {PREVIEW_CSV_PATH}"
+            f"  python manage.py create_overtime_entries --apply {PREVIEW_CSV_PATH} "
+            "--actor <office staff email>"
         )
 
     # ------------------------------------------------------------------ #
     #  STEP 2: Apply
     # ------------------------------------------------------------------ #
 
-    def _do_apply(self, csv_path: str) -> None:
+    def _do_apply(self, csv_path: str, actor: Staff) -> None:
         """Create the entries a reviewed CSV describes, all-or-nothing."""
         path, rows = read_reviewed_csv(csv_path, PREVIEW_COLUMNS)
         self.stdout.write(f"Read {len(rows)} entries from {path}")
@@ -292,9 +304,23 @@ class Command(BaseCommand):
 
         counts = {"overtime": 0, "ordinary": 0, "leave": 0}
         with transaction.atomic():
-            for entry in validated:
-                cost_line = entry["cost_line"]
-                cost_line.save()
+            for i, entry in enumerate(validated, 1):
+                staff, day = entry["staff"], entry["data"]["accounting_date"]
+                untouched = day_line_ids(staff, day)
+                create_entry(actor, staff, entry["data"])
+                written = written_entries(staff, day, untouched)
+                if entry["entry_type"] == "ordinary" and any(
+                    rate_from_meta(line.meta, "wage_rate_multiplier") != DEFAULT_MULTIPLIER
+                    for line in written
+                ):
+                    # Xero paid these hours as ordinary time; on a day already
+                    # past the usual hours the writer puts them at overtime.
+                    raise CommandError(
+                        f"Row {i}: {day} is already past {entry['staff_name']}'s usual "
+                        "day, so these hours would go at overtime. Move the row to a "
+                        "day with room and apply again."
+                    )
+                approve_written(actor, staff, day, untouched)
                 count_key = (
                     "leave" if entry["entry_type"].startswith("leave:") else entry["entry_type"]
                 )
@@ -303,9 +329,10 @@ class Command(BaseCommand):
                     self.style.SUCCESS(
                         f"Created: {entry['week_start']} | "
                         f"{entry['staff_name']} | "
-                        f"{cost_line.quantity}h {entry['label']} | "
-                        f"${cost_line.total_cost} | "
-                        f"job: {entry['job_name']} | ID: {cost_line.id}"
+                        f"{entry['data']['hours']}h {entry['label']} | "
+                        f"${sum(line.total_cost for line in written)} | "
+                        f"job: {entry['job_name']} | "
+                        f"ID: {', '.join(str(line.id) for line in written)}"
                     )
                 )
 
@@ -319,13 +346,10 @@ class Command(BaseCommand):
         )
 
     def _validate_rows(self, rows: list[dict[str, str]]) -> list[_ValidatedEntry]:
-        """Validate every CSV row upfront and build the unsaved cost lines."""
-        ot_pay_item = get_overtime_pay_item()
-        ordinary_pay_item = get_ordinary_pay_item()
-        leave_pay_items = get_leave_pay_items()
-
+        """Validate every CSV row upfront, before anything is written."""
+        leave_jobs = self._get_leave_jobs()
         staff_cache: dict[str, Staff] = {}
-        cost_set_cache: dict[str, CostSet] = {}
+        job_cache: dict[str, Job] = {}
 
         validated: list[_ValidatedEntry] = []
         for i, row in enumerate(rows, 1):
@@ -338,52 +362,37 @@ class Command(BaseCommand):
                 )
 
             staff = self._cached_staff(staff_cache, row["staff_id"].strip(), row_number=i)
-            cost_set = self._cached_actual_cost_set(
-                cost_set_cache, row["job_id"].strip(), row.get("job_name", "?"), row_number=i
-            )
+            job = self._cached_job(job_cache, row["job_id"].strip(), row_number=i)
 
             hours = parse_decimal(row["hours_to_create"])
             if hours <= 0:
                 raise CommandError(f"Row {i}: hours_to_create must be positive, got {hours}")
-            accounting_date = parse_date(row["accounting_date"])
-            unit_cost = parse_decimal(row["unit_cost"])
 
+            data: WorkshopEntryCreateData = {
+                "job_id": job.id,
+                "accounting_date": parse_date(row["accounting_date"]),
+                "hours": hours,
+                # Payroll-backfill work is never billable.
+                "is_billable": False,
+            }
             if entry_type == "overtime":
-                pay_item, multiplier, label = ot_pay_item, 1.5, "OT"
+                data["wage_rate_multiplier"] = OVERTIME_MULTIPLIER
+                label = "OT"
             elif entry_type == "ordinary":
-                pay_item, multiplier, label = ordinary_pay_item, 1.0, "ordinary"
+                data["wage_rate_multiplier"] = DEFAULT_MULTIPLIER
+                label = "ordinary"
             else:
-                leave_type = entry_type.split(":", 1)[1]
-                if leave_type not in leave_pay_items:
-                    raise CommandError(f"Row {i}: no pay item found for leave type '{leave_type}'")
-                pay_item = leave_pay_items[leave_type]
-                # Opus: From the Docketworks category, not the pay item's multiplier.
-                # A leave type carries no multiplier — the sync used to infer one
-                # from the Xero name, so `or 0` silently costed every leave hour
-                # at ZERO the moment that guess went away. Whether leave is paid
-                # is `LeaveType.is_paid`, the one rule 171ef64 established.
-                category = LeaveType.for_pay_item(pay_item.id)
-                if category is None:
+                # The leave job prices its own hours (time_entry_rates).
+                label = entry_type.split(":", 1)[1]
+                if leave_jobs.get(label) != job:
                     raise CommandError(
-                        f"Row {i}: Xero leave type {pay_item.name!r} is not mapped to a "
-                        "Docketworks leave category, so whether it is paid is unknown."
+                        f"Row {i}: job {job.name} is not the job for leave '{label}'"
                     )
-                multiplier = 1.0 if category.is_paid else 0.0
-                label = leave_type
-
-            cost_line = build_repair_time_line(
-                staff,
-                cost_set,
-                desc=f"{DESC_PREFIX} {label} - {row['staff_name']}",
-                hours=hours,
-                unit_cost=unit_cost,
-                accounting_date=accounting_date,
-                pay_item_id=pay_item.id,
-                wage_rate_multiplier=multiplier,
-            )
+            data["description"] = f"{DESC_PREFIX} {label} - {row['staff_name']}"
             validated.append(
                 _ValidatedEntry(
-                    cost_line=cost_line,
+                    staff=staff,
+                    data=data,
                     staff_name=row["staff_name"],
                     job_name=row.get("job_name", "?"),
                     entry_type=entry_type,
@@ -404,20 +413,13 @@ class Command(BaseCommand):
         return cache[staff_id]
 
     @staticmethod
-    def _cached_actual_cost_set(
-        cache: dict[str, CostSet], job_id: str, job_name: str, *, row_number: int
-    ) -> CostSet:
-        """Resolve a CSV job id to its actual CostSet through the per-run cache."""
+    def _cached_job(cache: dict[str, Job], job_id: str, *, row_number: int) -> Job:
+        """Resolve a CSV job id through the per-run cache."""
         if job_id not in cache:
             try:
-                job = Job.objects.get(id=job_id)
+                cache[job_id] = Job.objects.get(id=job_id)
             except Job.DoesNotExist as exc:
                 raise CommandError(f"Row {row_number}: Job not found: {job_id}") from exc
-            if job.latest_actual is None:
-                raise CommandError(
-                    f"Row {row_number}: No 'actual' CostSet for job {job_id} ({job_name})"
-                )
-            cache[job_id] = job.latest_actual
         return cache[job_id]
 
     # ------------------------------------------------------------------ #

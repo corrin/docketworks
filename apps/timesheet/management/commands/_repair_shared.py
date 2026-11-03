@@ -1,16 +1,13 @@
 """Shared plumbing for the timesheet repair commands.
 
-The repair commands construct actual time CostLines outside the interactive
-pricing pipeline (``apps/job/services/time_entry_rates.price_time_entry``):
-that pipeline derives rates from job and staff configuration, while a repair
-writes the exact unit cost the operator reviewed, with revenue pinned to zero
-(payroll-backfill work is never billable). One builder serves every repair
-command; v1 carried two near-identical siblings (ADR 0039).
+The repair commands write time through the one entry writer
+(``apps/timesheet/services/workshop_timesheet_service``), which prices every
+line through ``price_time_entry``: the wage times the multiplier, and the pay
+item the multiplier names. A repair never prices a line itself.
 
 Layer contract: ``XeroPayItem`` lives in ``apps.xero``, above the domain apps,
 so it is resolved through Django's app registry behind the ``PayItem``
-protocol (the pattern ``apps/job/services/time_entry_rates.py`` uses). The
-CostLine FK is assigned by id, so the concrete model class is never needed.
+protocol (the pattern ``apps/job/services/time_entry_rates.py`` uses).
 """
 
 import csv
@@ -25,8 +22,13 @@ from django.core.management.base import CommandError, CommandParser
 
 from apps.accounts.models import Staff
 from apps.core.xero_registry import xero_model_manager
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.time_entry_rates import PayItem
+from apps.timesheet.services.approval import approve_line
+from apps.timesheet.services.workshop_timesheet_service import (
+    day_time_lines,
+    is_general_work_fill,
+)
 
 
 class _PayItemQuery(Protocol):
@@ -46,50 +48,6 @@ class _PayItemLookup(Protocol):
 def _pay_items() -> _PayItemLookup:
     """Narrow the shared xero-registry seam to this module's protocol."""
     return cast("_PayItemLookup", xero_model_manager("XeroPayItem"))
-
-
-def get_overtime_pay_item() -> PayItem:
-    """Return the time-and-a-half earnings rate, refusing when it is missing."""
-    pay_item = _pay_items().filter(name="Time and one half", multiplier=Decimal("1.50")).first()
-    if pay_item is None:
-        raise CommandError("XeroPayItem 'Time and one half' with multiplier=1.50 not found")
-    return pay_item
-
-
-def get_ordinary_pay_item() -> PayItem:
-    """Return the ordinary-time earnings rate, refusing when it is missing."""
-    pay_item = _pay_items().filter(name="Ordinary Time", multiplier=Decimal("1.00")).first()
-    if pay_item is None:
-        raise CommandError("XeroPayItem 'Ordinary Time' with multiplier=1.00 not found")
-    return pay_item
-
-
-def get_leave_pay_items() -> dict[str, PayItem]:
-    """Return leave category CODE -> leave-API pay item, for the categories that post one.
-
-    Opus: Keyed by the category code, the same key the Xero side of the comparison
-    resolves to and the same one the repair CSV's ``entry_type`` column now
-    carries. The old version keyed by job NAME and found the pay item whose Xero
-    name equalled it, silently omitting any that did not match — so a CSV row
-    naming that category failed later with "no pay item found" rather than here.
-
-    Categories Xero pays from its own calculation are absent by construction:
-    they post no pay item at all, so a row naming one is refused by the caller
-    rather than costed against a rate Xero never charged.
-    """
-    from apps.timesheet.models import LeaveType  # noqa: PLC0415
-
-    result: dict[str, PayItem] = {}
-    for leave_type in LeaveType.objects.exclude(job=None).select_related(
-        "job__default_xero_pay_item"
-    ):
-        job = leave_type.job
-        if job is None:
-            continue
-        pay_item = job.default_xero_pay_item
-        if pay_item is not None and pay_item.uses_leave_api:
-            result[leave_type.code] = pay_item
-    return result
 
 
 def get_earnings_pay_item_by_name(name: str) -> PayItem:
@@ -184,43 +142,64 @@ def parse_decimal(value: str) -> Decimal:
         raise CommandError(f"Invalid decimal value: {value}") from exc
 
 
-def build_repair_time_line(  # noqa: PLR0913 -- a builder: every field is an axis a repair sets
-    staff: Staff,
-    cost_set: CostSet,
-    *,
-    desc: str,
-    hours: Decimal,
-    unit_cost: Decimal,
-    accounting_date: date,
-    pay_item_id: UUID,
-    wage_rate_multiplier: float,
-) -> CostLine:
-    """Build — but not save — one repair time CostLine.
-
-    Full model validation runs inside ``CostLine.save()`` (which also assigns
-    ``entry_seq``, so it cannot run earlier); the guard here exists to give
-    the operator a named-staff error instead of a ValidationError dump.
-    """
-    if staff.default_labour_subtype is None:
-        raise CommandError(
-            f"Staff '{staff.get_display_full_name()}' has no default_labour_subtype set"
-        )
-    return CostLine(
-        cost_set=cost_set,
-        kind="time",
-        desc=desc,
-        quantity=hours,
-        unit_cost=unit_cost,
-        unit_rev=Decimal("0"),
-        accounting_date=accounting_date,
-        staff=staff,
-        xero_pay_item_id=pay_item_id,
-        labour_subtype=staff.default_labour_subtype,
-        meta={
-            "staff_id": str(staff.id),
-            "date": accounting_date.isoformat(),
-            "is_billable": False,
-            "created_from_timesheet": True,
-            "wage_rate_multiplier": wage_rate_multiplier,
-        },
+def add_actor_argument(parser: CommandParser) -> None:
+    """Register who makes the repair: the writer records them against every change."""
+    parser.add_argument(
+        "--actor",
+        type=str,
+        metavar="EMAIL",
+        help="Email of the office staff member making the repair (needed to write)",
     )
+
+
+def resolve_actor(options: Mapping[str, object]) -> Staff:
+    """Return the office staff member the repair is made by, refusing anyone else."""
+    email = options.get("actor")
+    if not isinstance(email, str):
+        raise CommandError("Name who is making the repair: --actor <office staff email>")
+    actor = Staff.objects.sole_login_match(email)
+    if actor is None:
+        raise CommandError(f"No single staff member has the email {email}")
+    if not actor.is_office_staff:
+        raise CommandError(f"{actor.get_display_full_name()} is not office staff")
+    return actor
+
+
+def day_line_ids(owner: Staff, day: date) -> set[UUID]:
+    """Return the ids of the person's time lines on the day, before a write."""
+    return {line.id for line in day_time_lines(owner, day)}
+
+
+def written_entries(owner: Staff, day: date, untouched: set[UUID]) -> list[CostLine]:
+    """Return the entries a write put on the day: the new lines, less rebuilt General work."""
+    return [
+        line
+        for line in day_time_lines(owner, day)
+        if line.id not in untouched and not is_general_work_fill(line)
+    ]
+
+
+def approve_written(actor: Staff, owner: Staff, day: date, untouched: set[UUID]) -> None:
+    """Approve the day's waiting lines the repair wrote: every one not in ``untouched``.
+
+    A repair lines a week up with what Xero paid, and Xero pays approved time
+    only, so what it writes is approved. The writer leaves its lines waiting,
+    may split an entry at the overtime point and rebuilds a filled day's
+    General work, so the lines are found on the day. Leave and other
+    workflow-managed lines are approved when made.
+    """
+    # His lock, then the jobs', the order every write to his day takes them.
+    Staff.objects.select_for_update().filter(pk=owner.pk).first()
+    waiting = CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        staff=owner,
+        accounting_date=day,
+        approved=False,
+        managed_by=None,
+    ).exclude(id__in=untouched)
+    lock_costing_jobs(set(waiting.values_list("cost_set__job_id", flat=True)))
+    for line in waiting.select_for_update(of=("self",)).select_related(
+        "cost_set__job", "labour_subtype", "xero_pay_item"
+    ):
+        approve_line(line, actor)

@@ -25,7 +25,7 @@ from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.enums import CostLineOwner
 from apps.job.models.costing import CostLine
-from apps.job.services.time_entry_rates import is_unpaid_time
+from apps.job.services.time_entry_rates import DEFAULT_MULTIPLIER, ZERO_MULTIPLIER, is_unpaid_time
 from apps.timesheet.models import (
     UNTOUCHED_STANDARD_BREAK,
     AttendanceDay,
@@ -895,16 +895,11 @@ def _create_break(  # noqa: PLR0913 -- whose break, its day and times, its kind 
             "end_time": window.end,
             "description": description,
             "is_billable": False,
-            "wage_rate_multiplier": ORDINARY if paid else UNPAID,
+            "wage_rate_multiplier": DEFAULT_MULTIPLIER if paid else ZERO_MULTIPLIER,
         },
         location,
         source=UNTOUCHED_STANDARD_BREAK if generated else None,
     )
-
-
-#: The two rates a break is at: a paid break is ordinary time, lunch is unpaid.
-ORDINARY = Decimal("1.0")
-UNPAID = Decimal("0.0")
 
 
 def _require_break_times(start: time, end: time) -> None:

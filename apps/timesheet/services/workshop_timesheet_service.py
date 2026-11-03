@@ -40,6 +40,8 @@ from apps.job.services.job_service import (
     update_latest_actual,
 )
 from apps.job.services.time_entry_rates import (
+    DEFAULT_MULTIPLIER,
+    OVERTIME_MULTIPLIER,
     UNPAID_TIME,
     ZERO_MULTIPLIER,
     normalize_multiplier,
@@ -634,7 +636,7 @@ def create_entry(  # noqa: PLR0913 -- the entry, whose, who saves it, from where
             owner,
             data["accounting_date"],
             data["hours"],
-            wage_rate_multiplier=data.get("wage_rate_multiplier", ORDINARY),
+            wage_rate_multiplier=data.get("wage_rate_multiplier", DEFAULT_MULTIPLIER),
             job_id=job.id,
         )
         if (
@@ -668,6 +670,40 @@ def create_entry(  # noqa: PLR0913 -- the entry, whose, who saves it, from where
         if source != SWEPT_GENERAL_WORK:
             refill_general_work(owner, data["accounting_date"], actor)
     return entry_data(line)
+
+
+class GeneralWorkNotSetUpError(ConflictError):
+    """The instance has no usable General work job, so there is nowhere to sweep to."""
+
+
+def general_work_job_id() -> UUID:
+    """Return the job General work books to, refusing one that is not worked time.
+
+    Pointed at Break, swept time would read as breaks; pointed at a leave job,
+    it would post to Xero as leave and draw down balances. Company Defaults
+    cannot refuse either when it is saved: the core app knows nothing of
+    breaks or leave, so the sweep refuses before it writes anything.
+    """
+    general_work = CompanyDefaults.get_solo().general_work_job
+    if general_work is None:
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work isn't set up: there is no General work job yet. Ask an administrator "
+                "to choose it in Company Defaults > Working Hours."
+            )
+        )
+    if (
+        general_work.id == attendance.break_job_id()
+        or LeaveType.objects.filter(job=general_work).exists()
+    ):
+        raise GeneralWorkNotSetUpError(
+            gettext(
+                "General work is set to %(job)s, which is for breaks or leave, not worked time. "
+                "Ask an administrator to choose another job in Company Defaults > Working Hours."
+            )
+            % {"job": general_work.name}
+        )
+    return general_work.id
 
 
 def _with_general_work(job_ids: set[UUID]) -> set[UUID]:
@@ -709,9 +745,7 @@ def refill_general_work(owner: Staff, day: date, actor: Staff) -> Decimal:
     row = AttendanceDay.objects.filter(staff=owner, date=day).first()
     if row is None or not row.general_work_fill:
         return Decimal(0)
-    general_work_id = CompanyDefaults.get_solo().general_work_job_id
-    if general_work_id is None:
-        raise ValueError(f"{owner} on {day} is filled with General work, but none is set up")
+    general_work_id = general_work_job_id()
     lines = day_time_lines(owner, day)
     filled = [line for line in lines if is_general_work_fill(line)]
     entries, break_lines = attendance.split_breaks(
@@ -799,10 +833,6 @@ def _refuse_outside_employment(owner: Staff, day: date) -> None:
     )
 
 
-#: The rate time is at unless he chose another, and the rate the hours past his
-#: usual day default to (owner, 2026-10-24).
-ORDINARY = Decimal("1.0")
-OVERTIME = Decimal("1.5")
 #: What an urgent job is charged at by default, as the office grid offers it.
 URGENT_CHARGE = Decimal("1.5")
 #: The smallest piece an entry is split into at the overtime point: below it,
@@ -829,7 +859,7 @@ def overtime_part(
     under a quarter hour is not split off: the entry goes whole to the rate
     of its larger part.
     """
-    if wage_rate_multiplier != ORDINARY or (
+    if wage_rate_multiplier != DEFAULT_MULTIPLIER or (
         job_id is not None and (job_id == attendance.break_job_id() or job_id in leave_job_ids())
     ):
         return Decimal(0)
@@ -886,12 +916,12 @@ def _charge_urgent_at_least(job: Job, meta: dict[str, object]) -> None:
 
 def _at_overtime(data: WorkshopEntryCreateData) -> WorkshopEntryCreateData:
     """Return the entry at time and a half, charged at least that when it is billed at all."""
-    late: WorkshopEntryCreateData = {**data, "wage_rate_multiplier": OVERTIME}
+    late: WorkshopEntryCreateData = {**data, "wage_rate_multiplier": OVERTIME_MULTIPLIER}
     given = data.get("bill_rate_multiplier")
     if given is not None and data.get("is_billable", True):
         # The higher of the two applies, never both (owner): an urgent job's
         # overtime is charged at time and a half, not two and a quarter.
-        late["bill_rate_multiplier"] = max(given, OVERTIME)
+        late["bill_rate_multiplier"] = max(given, OVERTIME_MULTIPLIER)
     return late
 
 
@@ -974,7 +1004,7 @@ def _save_entry(  # noqa: PLR0913 -- the entry, whose it is, who saves it, where
     managed_by: CostLineOwner | None,
 ) -> CostLine:
     """Price and save one time line, recording who made it."""
-    wage_rate_multiplier = data.get("wage_rate_multiplier", ORDINARY)
+    wage_rate_multiplier = data.get("wage_rate_multiplier", DEFAULT_MULTIPLIER)
     cost_set = get_or_create_cost_set(job, "actual")
     meta = pricing_meta(
         staff=owner,
