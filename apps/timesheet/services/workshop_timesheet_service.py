@@ -1148,11 +1148,17 @@ def _redraw_finish(line: CostLine, meta: dict[str, object], data: WorkshopEntryU
     Hours are the truth and the times their picture: new hours, a new start or
     a new day redraw the finish rather than being refused by it. Past midnight
     from the start, the hours stand and keep no picture. A break's times are
-    its own and are left as given.
+    its own and are left as given, the right way round. An edit that touches
+    no time leaves the times as they are.
     """
-    if line.cost_set.job_id == attendance.break_job_id():
+    if not data.keys() & (_MOVES_THE_FINISH | {"end_time"}):
         return
     start = _meta_time(meta, "start_time")
+    if line.cost_set.job_id == attendance.break_job_id():
+        end = _meta_time(meta, "end_time")
+        if start is not None and end is not None:
+            attendance.require_break_times(start, end)
+        return
     windows = day_break_windows(_owner_of(line), line.accounting_date)
     if start is None or "end_time" in data or not data.keys() & _MOVES_THE_FINISH:
         # Fitted on the merged entry, not the patch alone: a PATCH that moves

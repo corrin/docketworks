@@ -1145,19 +1145,49 @@ def test_Q7_a_worker_adding_a_break_on_his_approved_day_changes_no_entry(
 def test_Q8_a_break_of_no_length_or_ending_before_it_starts_is_refused(worker: Staff) -> None:
     """A break of zero length, or with its end before its start: refused.
 
-    Guards attendance._require_break_times.
+    Guards attendance.require_break_times, on the breaks endpoint and on the
+    entry PATCH (workshop_timesheet_service._redraw_finish).
     """
     _clock(worker, "07:00", "15:00")
     breaks_before = _breaks(worker)
+    morning = _break_at(worker, "08:30")
 
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
         attendance.add_break(worker, DAY, time(10, 0), time(10, 0), paid=True, actor=worker)
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
         attendance.add_break(worker, DAY, time(10, 0), time(9, 45), paid=True, actor=worker)
     with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
-        attendance.change_break(_break_at(worker, "08:30").id, time(8, 45), time(8, 30), worker)
+        attendance.change_break(morning.id, time(8, 45), time(8, 30), worker)
+    with pytest.raises(InvalidInputError, match=re.escape("A break finishes after it starts.")):
+        workshop_timesheet_service.update_entry(
+            worker, {"entry_id": morning.id, "end_time": time(8, 15)}
+        )
 
     assert _breaks(worker) == breaks_before
+
+
+def test_Q8b_a_break_the_office_adds_to_an_unclocked_day_is_not_doubled(
+    office_staff: Staff, worker: Staff
+) -> None:
+    """The office adds his morning break on a day nobody clocked, then sends it.
+
+    The break stands for the standard one it overlaps: shown once, written once.
+    Guards attendance.day_breaks and generate_default_breaks.
+    """
+    attendance.add_break(worker, DAY, time(8, 30), time(8, 45), paid=True, actor=office_staff)
+
+    shown = workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
+    assert [(each["start"], each["planned"]) for each in shown if each["paid"]] == [
+        (time(8, 30), False),
+        (time(13, 30), True),
+    ]
+
+    attendance.settle_day(worker, DAY, office_staff)
+
+    assert [each for each in _breaks(worker) if each[3]] == [
+        ("08:30:00", "08:45:00", Decimal("0.250"), True),
+        ("13:30:00", "13:45:00", Decimal("0.250"), True),
+    ]
 
 
 def test_Q9_a_break_before_his_clock_in_is_accepted_and_the_sweep_is_unaffected(

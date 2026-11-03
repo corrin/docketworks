@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   approveCostLineMutation,
+  jobTimesheetEntriesRetrieve,
   jobTimesheetEntriesRetrieveOptions,
   jobTimesheetEntriesRetrieveQueryKey,
   jobWorkshopTimesheetsCreateMutation,
@@ -119,11 +120,9 @@ export function useTimesheetEntries(staffId: string, date: string) {
           body: { ...body, job_id: job.id, staff_id: staffId },
         })
         // The runner appends the row to its own copy of the day, so this
-        // fresh read only finds the priced line.
-        const day = await queryClient.fetchQuery({
-          ...jobTimesheetEntriesRetrieveOptions({ query }),
-          staleTime: 0,
-        })
+        // read only finds the priced line; it bypasses the cache, which the
+        // runner owns while the queue is busy.
+        const { data: day } = await jobTimesheetEntriesRetrieve({ query, throwOnError: true })
         const line = day.cost_lines.find((each) => each.id === created.id)
         if (line === undefined) throw new Error(`Saved entry ${created.id} is not on its day`)
         return line

@@ -77,7 +77,7 @@ def hide_pay(event: TimesheetEvent) -> None:
     event.delta_before = None
     event.delta_after = None
     pay_labels = {SNAPSHOT_LABELS[key] for key in PAY_KEYS}
-    changes = event.detail.get("changes", [])
+    changes = event.detail["changes"]
     event.detail = {
         **event.detail,
         "changes": [each for each in changes if each["field_name"] not in pay_labels],

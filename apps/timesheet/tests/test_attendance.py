@@ -72,14 +72,14 @@ class TestClockTaps:
     def test_clock_out_on_a_later_date_is_not_stamped_on_the_open_day(self, worker: Staff) -> None:
         """Yesterday's open day is not stamped with today's time; it is named as pending.
 
-        A tap at 00:20 is today's, and today's day would start at the standard
-        start, so the finish is before it and refused.
+        A tap at 00:20 is today's, before today's standard start, so it is
+        not a clock-out at all.
 
         Guards attendance.clock_out.
         """
         attendance.clock_in(worker, _at(0, 16, 0))
 
-        with pytest.raises(InvalidInputError, match="later than the start time"):
+        with pytest.raises(attendance.ClockingRefusedError, match="not clocked in today"):
             attendance.clock_out(worker, _at(1, 0, 20))
 
         assert AttendanceDay.objects.get(staff=worker, date=DAY).clock_out is None
@@ -101,6 +101,24 @@ class TestClockTaps:
 
         assert (finished["clock_in"], finished["clock_out"]) == (time(7, 0), time(15, 1))
         assert AttendanceDay.objects.get(staff=worker, date=DAY).breaks_generated
+
+    def test_clock_out_without_clocking_in_says_the_standard_hours_were_used(
+        self, worker: Staff
+    ) -> None:
+        """The made-up start is in the history, and a tap before it is not a clock-out.
+
+        Guards attendance.clock_out.
+        """
+        with pytest.raises(attendance.ClockingRefusedError, match="not clocked in today"):
+            attendance.clock_out(worker, _at(0, 7, 0))
+
+        attendance.clock_out(worker, _at(0, 15, 1))
+
+        events = TimesheetEvent.objects.filter(worker=worker, accounting_date=DAY)
+        assert sorted(events.filter(cost_line_id=None).values_list("event_type", flat=True)) == [
+            "clocked_out",
+            "standard_hours_used",
+        ]
 
     def test_a_finish_past_midnight_is_refused_in_words(self, worker: Staff) -> None:
         """Times of day cannot hold it, so the worker is told to ask the office."""
@@ -235,6 +253,31 @@ class TestTheDefaults:
         assert day["fill"]["to_fill_hours"] == 8.0
         assert [each["paid"] for each in day["breaks"]] == [True, False, True]
         assert day["standard"] == {"start": "06:30:00", "end": "15:00:00"}
+
+    def test_the_defaults_written_are_in_the_history(
+        self, worker: Staff, office_staff: Staff
+    ) -> None:
+        """Guards attendance.settle_day: who used the standard hours is logged."""
+        attendance.settle_day(worker, DAY, office_staff)
+
+        event = TimesheetEvent.objects.get(worker=worker, event_type="standard_hours_used")
+        assert event.staff == office_staff
+        assert event.delta_before is None
+        assert [each["field_name"] for each in event.detail["changes"]] == [
+            "Clock in",
+            "Clock out",
+        ]
+
+    def test_a_day_not_yet_over_is_not_given_the_default_finish(self, worker: Staff) -> None:
+        """Next Monday, sent early, would be paid in full before it happened.
+
+        Guards attendance.settle_day.
+        """
+        later = timezone.localdate() + timedelta(days=7 - timezone.localdate().weekday())
+
+        with pytest.raises(ConflictError, match="Clock out first"):
+            attendance.settle_day(worker, later, worker)
+        assert not AttendanceDay.objects.filter(staff=worker, date=later).exists()
 
     def test_an_earlier_day_left_clocked_in_ends_at_the_standard_finish(
         self, worker: Staff

@@ -78,10 +78,22 @@ Perf posture: this makes no kanban or hot-path change. The grid's optimistic sav
    - The rate constants become one definition. Today they are defined at `workshop_timesheet_service.py:823`, `attendance.py:986` and `day_submission.py:36`.
 6. [x] **Estimate and quote grids** (owner, 2026-11-02): use `HoursInput` there too, so there is one hours field app-wide (`CostLineGrid.tsx:356`).
 7. [x] *(mine)* The branch `fix/timesheet-writes-one-writer` has its plan fully ticked. This work needs its own branch and PR: the owner created `fix/one-time-entry`, PR #230, stacked on #229.
-8. [ ] **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Opened 2026-11-03 as PR #231: the same commit, pushed as its own branch off `main`, so no branch switch was needed. It closes when #231 merges.
+8. [x] *(#231 merged 2026-11-04)* **`main`'s CI is red** (2026-11-02, run on 07:05Z): `npm audit --audit-level=high` fails on `follow-redirects` 1.16.1. This branch carries the lockfile-only fix (`aa91b128`); `main` needs it on its own, ahead of this stack. Opened 2026-11-03 as PR #231: the same commit, pushed as its own branch off `main`, so no branch switch was needed. It closes when #231 merges.
 9. [x] *(2026-11-03: the full vitest run passed 795/795 with no flake; nothing to fix unless it returns)* **The full frontend unit run flakes locally**: 1 to 3 different `findBy` timeouts per run (`JobQuoteTab`, `JobActualTab`, `JobMovementReportPage`; each passes alone, 3 of 3). The reports page shares no code with this change. CI's unit runs were green on #229. Find the cause before this PR is ready, not by raising a timeout.
 
-10. [ ] **Repair commands price at today's rates** (owner's decision, found 2026-11-03). They now write through the entry writer, which prices every line at the worker's current wage and the job's current charge-out rate. A repair of an old week used to keep each line's own historical figures, so if a wage changed since that week, the repair prices it at the new wage. Separately, `create_overtime_entries` now refuses an ordinary row on a day already past the usual 8h, because the writer would put it at 1.5x and the week would disagree with Xero. Recommendation: accept both. Wage changes are rare at six staff, and the refusal says which row to move. The alternative is a "this rate was chosen" flag on `create_entry` plus historical prices, which is more code for a rare repair.
+10. [x] *(owner, 2026-11-04: accepted, with "merge it" on the recommendation)* **Repair commands price at today's rates** (owner's decision, found 2026-11-03). They now write through the entry writer, which prices every line at the worker's current wage and the job's current charge-out rate. A repair of an old week used to keep each line's own historical figures, so if a wage changed since that week, the repair prices it at the new wage. Separately, `create_overtime_entries` now refuses an ordinary row on a day already past the usual 8h, because the writer would put it at 1.5x and the week would disagree with Xero. Recommendation: accept both. Wage changes are rare at six staff, and the refusal says which row to move. The alternative is a "this rate was chosen" flag on `create_entry` plus historical prices, which is more code for a rare repair.
+11. [x] *(mine)* **Code review of #230 (2026-11-04).** Ten findings. Fixed:
+    - A break the office adds to a day nobody clocked doubled with the standard one: shown twice, then written again when the day settled. A break already on the day now stands for the standard break it overlaps (`day_breaks`, `generate_default_breaks`).
+    - The defaults were written without a word in the history. `settle_day`, and `clock_out` with no clock-in, now record `standard_hours_used` (rule 4: the log says who did what).
+    - A day could be sent before it happened, paid at the standard day. A default finish now stands in only once it has passed.
+    - A break edited through the entry PATCH could end before it starts. `_redraw_finish` now runs the breaks' own check, and an edit that touches no time skips the day's break lookup.
+    - A clock-out before the standard start with no clock-in said "later than the start time". It now says "You are not clocked in today".
+    - The grid's create read the day into the cache the optimistic queue owns. It now reads past the cache.
+    - `hide_pay` read `detail` with a default every writer makes impossible.
+
+    Not changed:
+    - Standard breaks over an entry with times. Times are memory aids (rule 5), and pay runs clock in to clock out, less unpaid breaks (owner, 2026-11-03).
+    - Repair pricing (issue 10, accepted).
 
 ## Tests
 - **E2E (the done gate):**
