@@ -27,6 +27,7 @@ import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
+import { orNull } from '@/features/shared/nullableText'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
@@ -327,7 +328,7 @@ function WorkshopEntryForm({
           job_id: jobId,
           accounting_date: date,
           ...entryTimeFields(times),
-          description: description.trim() === '' ? null : description.trim(),
+          description: orNull(description.trim()),
           is_billable: billable,
           wage_rate_multiplier: rateMultiplier,
         })

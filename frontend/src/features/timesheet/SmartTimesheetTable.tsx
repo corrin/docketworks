@@ -696,7 +696,8 @@ export function SmartTimesheetTable({
           accounting_date: date,
           is_billable: draft.is_billable,
           wage_rate_multiplier: draft.wage_rate_multiplier,
-          bill_rate_multiplier: draft.bill_rate_multiplier,
+          // An urgent job's 1.5 is the server's to set; only a rate he chose is sent.
+          ...(draft.billExplicit ? { bill_rate_multiplier: draft.bill_rate_multiplier } : {}),
           labour_subtype_id: draft.labour_subtype,
         },
         {

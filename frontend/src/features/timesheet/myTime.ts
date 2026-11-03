@@ -1,10 +1,6 @@
 /**
  * Pure logic for the workshop "my time" calendar: deriving hours from a
  * start/end pair and shaping entries into FullCalendar events.
- *
- * `hours` is always derived from the time pair, never typed: the server
- * refuses a trio that disagrees, so the drawer offers no independent hours
- * field for the user to contradict.
  */
 
 import type {

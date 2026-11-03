@@ -246,12 +246,11 @@ describe('creating an entry', () => {
       accounting_date: DATE,
       is_billable: true,
       wage_rate_multiplier: 1,
-      bill_rate_multiplier: 1,
       labour_subtype_id: null,
     })
   })
 
-  it('an urgent job creates with bill 1.5 and wage 1.0, and shows the urgent affordances', async () => {
+  it('an urgent job shows bill 1.5 and leaves it to the server, wage 1.0', async () => {
     const user = userEvent.setup()
     const handles = await renderTable()
     await user.click(autoId('SmartTimesheetTable-jobPicker-0-trigger'))
@@ -268,7 +267,8 @@ describe('creating an entry', () => {
     await user.keyboard('2{Enter}')
     const [, body] = handles.createLine.mock.calls[0]!
     expect(body.wage_rate_multiplier).toBe(1.0)
-    expect(body.bill_rate_multiplier).toBe(1.5)
+    // The 1.5 shows on the row, but the server sets it: only a chosen rate is sent.
+    expect(body).not.toHaveProperty('bill_rate_multiplier')
     expect(body.is_billable).toBe(true)
   })
 

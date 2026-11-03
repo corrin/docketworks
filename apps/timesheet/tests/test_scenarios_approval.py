@@ -1456,39 +1456,36 @@ class TestEnteringIt:
             ("Timesheet Job", at(9), at(10), 1.0),
         ]
 
-    def test_w3_a_fill_sheet_row_off_the_quarter_hour_is_refused(
+    def test_w3_a_fill_sheet_row_takes_any_two_decimal_hours_and_no_more(
         self, worker: Staff, job: Job
     ) -> None:
-        """The fill-day sheet with a row that isn't a quarter hour (1.1h).
+        """The fill-day sheet with a 1.1h row, then a 1.005h row.
 
-        Refused: "Hours are entered in quarter hours, a quarter or more." The
-        day stays as it was, unsent.
+        1.1h is sent: any hours to two decimal places, up to a day (owner,
+        2026-11-02). 1.005h is refused, and that day stays as it was, unsent.
 
-        Guards day_submission.lay_out_rows.
+        Guards workshop_timesheet_service._refuse_bad_hours.
         """
         attendance.set_clock_times(worker, DAY, at(7), at(15), worker)
 
+        def row(hours: str) -> day_submission.FillRow:
+            return {
+                "job_id": job.id,
+                "hours": Decimal(hours),
+                "description": None,
+                "time_and_a_half": False,
+            }
+
         with pytest.raises(
             InvalidInputError,
-            match=exactly("Hours are entered in quarter hours, a quarter or more."),
+            match=exactly("Hours are more than 0 and at most 24, to two decimal places."),
         ):
-            day_submission.submit_day(
-                worker,
-                DAY,
-                [
-                    {
-                        "job_id": job.id,
-                        "hours": Decimal("1.1"),
-                        "description": None,
-                        "time_and_a_half": False,
-                    }
-                ],
-                None,
-                timezone.now(),
-            )
-
+            day_submission.submit_day(worker, DAY, [row("1.005")], None, timezone.now())
         assert _lines(job, worker) == []
         assert AttendanceDay.objects.get(staff=worker, date=DAY).submitted_at is None
+
+        day_submission.submit_day(worker, DAY, [row("1.1")], None, timezone.now())
+        assert [line.quantity for line in _lines(job, worker)] == [Decimal("1.1")]
 
     def test_w4_a_finish_typed_inside_a_break_takes_only_the_break_inside_the_span(
         self, worker: Staff, worker_client: Client

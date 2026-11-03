@@ -3876,10 +3876,6 @@ msgid "%(count)s entries missing job info"
 msgstr ""
 
 #: apps/timesheet/services/day_submission.py
-msgid "Hours are entered in quarter hours, a quarter or more."
-msgstr ""
-
-#: apps/timesheet/services/day_submission.py
 msgid "Clock out before you send the day."
 msgstr ""
 
@@ -4028,6 +4024,10 @@ msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py
 msgid "date must be provided in YYYY-MM-DD format."
+msgstr ""
+
+#: apps/timesheet/services/workshop_timesheet_service.py
+msgid "Hours are more than 0 and at most 24, to two decimal places."
 msgstr ""
 
 #: apps/timesheet/services/workshop_timesheet_service.py

@@ -19,6 +19,7 @@ import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { HoursInput } from '@/features/shared/HoursInput'
 import { JobPicker } from '@/features/shared/JobPicker'
+import { orNull } from '@/features/shared/nullableText'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { fillAfterRows, fillWords, jobsInOrder, type FillSheetRow } from './myTime'
@@ -96,7 +97,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
               {
                 job_id: row.job.id,
                 hours: row.hours,
-                description: row.description.trim() === '' ? null : row.description.trim(),
+                description: orNull(row.description.trim()),
                 time_and_a_half: row.timeAndAHalf,
               },
             ],

@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils.translation import gettext
 
 from apps.accounts.models import Staff
-from apps.core.errors import ConflictError, InvalidInputError
+from apps.core.errors import ConflictError
 from apps.job.models import Job
 from apps.job.services.job_service import bills_its_time
 from apps.timesheet.models import AttendanceDay
@@ -32,7 +32,6 @@ from apps.timesheet.services.workshop_timesheet_service import (
     list_entries,
 )
 
-QUARTER_HOUR = Decimal("0.25")
 TIME_AND_A_HALF = Decimal("1.5")
 ORDINARY_TIME = Decimal("1.0")
 
@@ -71,10 +70,6 @@ def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list
     cursor: time | None = start
     lines: list[LaidLine] = []
     for row in rows:
-        if row["hours"] <= 0 or row["hours"] % QUARTER_HOUR != 0:
-            raise InvalidInputError(
-                gettext("Hours are entered in quarter hours, a quarter or more.")
-            )
         # A row that would begin inside a break begins when the break ends.
         begins = None if cursor is None else attendance.start_after_breaks(cursor, breaks)
         ends = (

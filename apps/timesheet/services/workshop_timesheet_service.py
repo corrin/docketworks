@@ -223,6 +223,22 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
     return time.fromisoformat(value)
 
 
+#: The most one entry can hold: one day (owner, 2026-11-02).
+ENTRY_HOURS_LIMIT = Decimal(24)
+
+
+def _refuse_bad_hours(hours: Decimal) -> None:
+    """Refuse hours that are not to two decimal places, above zero and up to a day.
+
+    The one hours rule (owner, 2026-11-02). Every screen that enters time
+    reaches it, so no screen keeps a stricter one of its own.
+    """
+    if hours <= 0 or hours > ENTRY_HOURS_LIMIT or hours != hours.quantize(Decimal("0.01")):
+        raise InvalidInputError(
+            gettext("Hours are more than 0 and at most 24, to two decimal places.")
+        )
+
+
 # Fable: Not exact equality: clients derive hours from the minute-grained time
 # pair and round to two decimals, so a 20-minute booking is 0.33 hours against
 # a 0.3333… duration. Rounding alone bounds the error at 0.005; the full 0.01
@@ -617,6 +633,7 @@ def create_entry(
     closed, the sweep's General work): never marked late or remote, since
     there was no entry to judge.
     """
+    _refuse_bad_hours(data["hours"])
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
 
     with transaction.atomic():
@@ -1107,6 +1124,7 @@ def _apply_scalar_changes(
         line.desc = data["description"] or None
         changed = True
     if "hours" in data:
+        _refuse_bad_hours(data["hours"])
         line.quantity = data["hours"]
         changed = True
     if "accounting_date" in data:
