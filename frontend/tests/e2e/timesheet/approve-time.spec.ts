@@ -120,7 +120,10 @@ test("office staff correct a person's clock times, and the screen holds at three
 
   await test.step('the history says who set them: the audit log is the record', async () => {
     await autoId(page, `ApproveTimePage-history-${staffId}`).click()
-    await expect(autoId(page, 'TimesheetHistoryDialog-content')).toContainText('Clock times set')
+    const history = autoId(page, 'TimesheetHistoryDialog-content')
+    // Who did it, and what changed: the office login set the start the worker never clocked.
+    await expect(history).toContainText('E2E Office')
+    await expect(history).toContainText('Clock in: — → 06:30')
     await page.keyboard.press('Escape')
     await expect(autoId(page, 'TimesheetHistoryDialog-content')).toBeHidden()
   })

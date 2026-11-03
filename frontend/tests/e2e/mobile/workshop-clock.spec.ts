@@ -147,7 +147,10 @@ test.describe('workshop clocking on a phone', () => {
 
     await openDay(page, day)
     await expect(autoId(page, 'DayCard-state')).toHaveText('Not clocked in')
-    await expect(autoId(page, 'DayCard-fill')).toHaveText(`Standard hours ${hours}`)
+    // The standard day stands in, so the card already says what is to fill.
+    await expect(autoId(page, 'DayCard-fill')).toHaveText(
+      /^\d+h( \d+m)? to fill, \d+m breaks, 0h entered, \d+h( \d+m)? to go$/,
+    )
 
     // He did not clock, so the defaults stand in (owner, 2026-11-03): the sheet
     // opens on the standard day and its breaks, with nothing written yet.

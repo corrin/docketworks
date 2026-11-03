@@ -102,7 +102,8 @@ test.describe('urgent job timesheet defaults', () => {
     }
     expect(requestBody.job_id).toBe(jobId)
     expect(requestBody.wage_rate_multiplier).toBe(1.0)
-    expect(requestBody.bill_rate_multiplier).toBe(1.5)
+    // The grid shows the 1.5 but leaves it to the server: one copy of the rule.
+    expect(requestBody).not.toHaveProperty('bill_rate_multiplier')
     expect(requestBody.is_billable).toBe(true)
 
     const responseBody: unknown = await response.json()
