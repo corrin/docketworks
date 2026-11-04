@@ -503,8 +503,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Read-side fallback cleanup**
   ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)). ~40 reads of our own JSON
   shapes violate ADR 0015/0028, concentrated in JSONField payloads mypy cannot see
-  into. The `is_billable` divergence between timesheet aggregation and the shop-job
-  validator is the priority — billing math that can already disagree on real rows.
+  into.
 - **Scrubber policy: exactly PII, exactly once**
   ([KAN-341](https://docketworks.atlassian.net/browse/KAN-341)). The production-host scrub
   is the single confidentiality transition; downstream data is non-confidential by
@@ -640,10 +639,6 @@ never a second stream.
   `pyproject.toml`, where import-linter 2.13's `LayersContract` appears to ignore it — the
   gate currently refuses even TYPE_CHECKING-only imports across layers (stricter than
   configured, so no hole, but the config line claims a behaviour the gate does not deliver).
-- **Hours longer than an entry's time span are refused per write path, not per row.** The
-  workshop endpoints refuse them; the cost-line grid can still raise `quantity` past the span.
-  The fix is the same check in `CostLine.clean` for time lines, plus what the office grid
-  (no time fields) does to a timed line's finish when it edits hours.
 - `to_optional_decimal` has a sibling `_decimal_or_none`
   (`crm/services/phone_call_service.py:1078`) with no `is_finite()` check, writing
   `Decimal("NaN")` into the call `charge` money column.
@@ -660,20 +655,14 @@ never a second stream.
   today, which is exactly what
   [KAN-335](https://docketworks.atlassian.net/browse/KAN-335) fixes; do them together rather
   than reading each app's `services/*.py` against its `schemas.py` by hand.
-- **Three defects the handler-gate annotation surfaced**, deferred so a behaviour change
-  would not ride a test-gate PR: `time_entry_rates.py` (`to_decimal` maps an unparseable
-  stored multiplier to the default — absent keeps the default, present-but-unparseable
-  should raise; 0 malformed of 13,931 rows); `phone_call_service._positive_int`
+- **Two defects the handler-gate annotation surfaced**, deferred so a behaviour change
+  would not ride a test-gate PR: `phone_call_service._positive_int`
   (`float("inf")` passes the isinstance gate and `int()` raises OverflowError);
   `job.py has_quote` (catch `ObjectDoesNotExist`, not bare `AttributeError`).
 - **PR #26's final commit `72a7118` was never reviewed** (CodeRabbit rate limit). It closes
   four holes in the handler gate, and three earlier rounds each found real holes in that same
   file — re-review `config/tests/test_exception_handler_contract.py` when the fixes above
   touch it.
-- Timesheet-entry leftovers, both inherited and neither spec-asserted: a draft's stale
-  `labour_subtype` surviving a job repick can make `rateForSubtype` throw (v1 misbehaves too,
-  so unifying needs a decision); `SmartTimesheetTable`'s focus handoff queries `document`
-  rather than the grid's root.
 - **The nav menu needs two clicks to reopen** after an unsaved-changes guard refuses a
   navigation started from it. Radix toggles the trigger on pointerdown and the guard's
   synchronous `window.confirm` leaves that toggle out of step with the unmounted content.
@@ -690,16 +679,7 @@ never a second stream.
    the report date reduce historical net WIP; and the `total_rev == 0` inclusion gate drops
    cost-only jobs from the `method=cost` view (v1 identical). Both are faithful ports whose
    fix changes report numbers.
-2. **Two my-time rulings to ratify (ADR 0051).** (a) `timesheets_jobs_retrieve` is now
-   self-service so the workshop job picker works for its own audience — which shows every
-   staff member per-job charge-out `labour_rates`, `estimated_hours` and the whole-table `q`
-   search, not just the four fields the picker reads. The ledger records the change; the
-   wage rule is untouched. (b) The my-time page navigates to and books weekends regardless
-   of `weekend_timesheets_enabled` (v1 identical), while the office entry page cannot reach
-   a weekend date with the flag off. Say whether workshop self-service should honour the
-   flag.
-
-3. **The supplier email draft needs every operator to be a Workspace mailbox.** It is
+2. **The supplier email draft needs every operator to be a Workspace mailbox.** It is
    created by impersonating the signed-in operator's `office_email` through domain-wide
    delegation, so it fails for anyone whose login is not a real mailbox in the instance's
    Workspace domain. Exposure could not be measured here — the dev database is scrubbed to
