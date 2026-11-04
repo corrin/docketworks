@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useTable,
   type CellContext,
@@ -85,6 +85,8 @@ interface TimesheetCellContext {
   isPersisting: (localId: string) => boolean
   anyPersisting: boolean
   isFailed: (localId: string) => boolean
+  /** Focus a control in this grid by its automation id, after the render that reveals it. */
+  focus: (automationId: string) => void
 }
 
 declare module '@tanstack/react-table' {
@@ -161,17 +163,6 @@ function RateSelect({
 
 type CellProps = CellContext<typeof editableGridFeatures, TimesheetGridRow>
 
-function focusAutomationId(id: string) {
-  // Deferred so the target exists after the render that revealed it.
-  setTimeout(() => {
-    const el = document.querySelector(`[data-automation-id="${id}"]`)
-    if (el instanceof HTMLElement) {
-      el.focus()
-      if (el instanceof HTMLInputElement) el.select()
-    }
-  }, 0)
-}
-
 function JobPickerCell({ row, table }: CellProps) {
   const { t } = useTranslation('timesheet')
   const context = cellMeta(table)
@@ -238,7 +229,7 @@ function JobPickerCell({ row, table }: CellProps) {
         } else if (job.id !== gridRow.line.job_id) {
           context.moveLine(gridRow.line.id, job)
         }
-        focusAutomationId(`SmartTimesheetTable-hours-${row.index}`)
+        context.focus(`SmartTimesheetTable-hours-${row.index}`)
       }}
     />
   )
@@ -372,7 +363,7 @@ function DescriptionCell({ row, table }: CellProps) {
           if (gridRow.type === 'draft') {
             context.commitDraft(gridRow.localId)
           } else {
-            focusAutomationId(`SmartTimesheetTable-jobPicker-${row.index + 1}-trigger`)
+            context.focus(`SmartTimesheetTable-jobPicker-${row.index + 1}-trigger`)
           }
         }
       }}
@@ -680,6 +671,7 @@ export function SmartTimesheetTable({
 }: SmartTimesheetTableProps) {
   // Bumped when a create lands; the effect below hands focus to the fresh
   // phantom's picker (trigger focus → auto-open → search autofocus).
+  const rootRef = useRef<HTMLDivElement>(null)
   const [focusPhantomToken, setFocusPhantomToken] = useState(0)
 
   const draftRows = useDraftRows<TimesheetDraft>({
@@ -712,8 +704,10 @@ export function SmartTimesheetTable({
 
   useEffect(() => {
     if (focusPhantomToken === 0) return
+    const root = rootRef.current
+    if (root === null) return
     // The fresh phantom is the LAST picker trigger in the grid.
-    const triggers = document.querySelectorAll(
+    const triggers = root.querySelectorAll(
       '[data-automation-id^="SmartTimesheetTable-jobPicker-"][data-automation-id$="-trigger"]',
     )
     const last = triggers[triggers.length - 1]
@@ -744,6 +738,16 @@ export function SmartTimesheetTable({
     isPersisting: draftRows.isPersisting,
     anyPersisting: draftRows.anyPersisting,
     isFailed: draftRows.isFailed,
+    focus: (automationId) => {
+      // Deferred so the target exists after the render that revealed it.
+      setTimeout(() => {
+        const el = rootRef.current?.querySelector(`[data-automation-id="${automationId}"]`)
+        if (el instanceof HTMLElement) {
+          el.focus()
+          if (el instanceof HTMLInputElement) el.select()
+        }
+      }, 0)
+    },
   }
 
   const table = useTable({
@@ -755,12 +759,15 @@ export function SmartTimesheetTable({
   })
 
   return (
-    <DataTable
-      table={table}
-      editableColumns={EDITABLE_COLUMNS}
-      draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
-      rowExitHandlers={draftRows.rowExitHandlers}
-      wrapperClassName="smart-timesheet-table"
-    />
+    // Its own controls only: focus handoffs search this grid, not the page.
+    <div ref={rootRef} className="contents">
+      <DataTable
+        table={table}
+        editableColumns={EDITABLE_COLUMNS}
+        draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
+        rowExitHandlers={draftRows.rowExitHandlers}
+        wrapperClassName="smart-timesheet-table"
+      />
+    </div>
   )
 }

@@ -72,6 +72,16 @@ test.describe.serial('workshop my time view', () => {
       await autoId(page, 'WorkshopMyTimeHeader-next-day').click()
       await expect(dateBadge).toHaveText(initialDate)
     })
+
+    // Weekend timesheets are off, as in production: the days step over the
+    // weekend, as the office's entry page does (owner, 2026-11-05).
+    await test.step('a Monday steps back to the Friday and forward again', async () => {
+      await page.goto('/timesheets/my-time?date=2026-06-01')
+      await autoId(page, 'WorkshopMyTimeHeader-previous-day').click()
+      await expect(page).toHaveURL(/date=2026-05-29/)
+      await autoId(page, 'WorkshopMyTimeHeader-next-day').click()
+      await expect(page).toHaveURL(/date=2026-06-01/)
+    })
   })
 
   test('refreshes a day', async ({ authenticatedPage: page }) => {

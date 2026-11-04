@@ -16,11 +16,10 @@ from apps.job.models.costing import CostLine
 def is_billable_line(line: CostLine, shop_company_id: UUID | None) -> bool:
     """Whether this actual time line counts as billable work.
 
-    v1 compared a KeyTextTransform annotation to the string "true", which
-    matched both a JSON boolean true and a JSON string "true"; the direct
-    meta read accepts the same two encodings.
+    Every actual time line carries a boolean ``is_billable``: the entry writer
+    sets it and the meta schema allows nothing else (0 of 13,709 rows differ,
+    2026-11-04). A line without one is a data bug and raises.
     """
-    flag: object = line.meta.get("is_billable") if line.meta else None
-    if flag is not True and flag != "true":
+    if line.meta["is_billable"] is not True:
         return False
     return line.cost_set.job.company_id != shop_company_id
