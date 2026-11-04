@@ -5,6 +5,15 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-11-05 — Two My time rulings (owner)
+
+- **The job picker's data stands.** Every staff member may see every job, its estimated
+  hours and its charge-out rates. The one thing a worker never sees is what other staff are
+  paid. `timesheets_jobs_retrieve` carries no wage, so it stays self-service as it is.
+- **My time honours `weekend_timesheets_enabled`**, as the office's entry page does. With
+  weekends off, the day arrows step over Saturday and Sunday, and a weekend today opens on
+  Monday. v1 let the worker reach a weekend regardless.
+
 ## 2026-10-15 — Restore rejection and reopening from the job header
 
 The port retained `rejected_flag`, its PATCH support and the kanban icon, but

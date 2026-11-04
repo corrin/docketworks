@@ -11,7 +11,7 @@ import { QueryState } from '@/features/shared/QueryState'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { companyDefaultsQueryOptions } from '@/features/shell'
 import { formatDateLong, formatHoursDisplay, localIsoDate } from '@/lib/format'
-import { shiftDate } from '@/lib/dates'
+import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 
 import {
   calendarEvent,
@@ -53,10 +53,13 @@ interface WorkshopMyTimePageProps {
  */
 export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageProps) {
   const { t } = useTranslation('timesheet')
-  const date = search.date ?? localIsoDate()
   // Already in the cache: the shell loads the company defaults before any
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
+  // Weekends are reached as on the office's entry page: only when the
+  // company keeps weekend timesheets (owner, 2026-11-05).
+  const weekendEnabled = companyDefaults.weekend_timesheets_enabled
+  const date = search.date ?? weekdayAdjusted(localIsoDate(), weekendEnabled)
   const { data: user } = useSuspenseQuery(meQueryOptions())
   // A workshop worker's writes are judged by where his phone is, when the
   // company has an address to judge against.
@@ -93,7 +96,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             className={TOUCH_TARGET_CLASS}
             aria-label={t('myTime.previousDay')}
             data-automation-id="WorkshopMyTimeHeader-previous-day"
-            onClick={() => onDateChange(shiftDate(date, -1))}
+            onClick={() => onDateChange(nextWeekday(date, -1, weekendEnabled))}
           >
             <ChevronLeft />
           </Button>
@@ -109,7 +112,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             className={TOUCH_TARGET_CLASS}
             aria-label={t('myTime.nextDay')}
             data-automation-id="WorkshopMyTimeHeader-next-day"
-            onClick={() => onDateChange(shiftDate(date, 1))}
+            onClick={() => onDateChange(nextWeekday(date, 1, weekendEnabled))}
           >
             <ChevronRight />
           </Button>
